@@ -1,39 +1,50 @@
-﻿import type {
+import type {
   Acknowledgment,
   BillingPlan,
   ChatConversation,
   DiscountCode,
   Document,
-  Evaluation,
+  DocumentAccessRule,
+  DocumentCategory,
+  DocumentVersion,
+  EmailLog,
+  EmployeeProfile,
   FinanceSnapshot,
   Invoice,
+  KbArticleTag,
   KnowledgeBaseArticle,
+  Notification,
   OnboardingInstance,
   OnboardingTemplate,
   RoleDefinition,
   SurveyInstance,
   SurveyResponse,
   SurveyTemplate,
+  TaskInstance,
+  TaskTemplate,
   Tenant,
   UsageMetric,
   User,
+  AutomationRule,
+  ChecklistTemplate,
+  ChecklistInstance,
+  Department,
+  Tag,
 } from '../shared/types'
 
-export const departments = ['People Ops', 'Engineering', 'Sales', 'Marketing']
+const companyId = '1'
+
+export const departments: Department[] = [
+  { id: 'dept-hr', companyId, name: 'HR' },
+  { id: 'dept-eng', companyId, name: 'Engineering' },
+]
 
 export const tenants: Tenant[] = [
   {
-    id: 'tenant-1',
-    name: 'Northwind Logistics',
-    industry: 'Logistics',
-    size: '250-500',
-    plan: 'Business',
-  },
-  {
-    id: 'tenant-2',
-    name: 'BluePeak Retail',
-    industry: 'Retail',
-    size: '100-250',
+    id: companyId,
+    name: 'Acme Co',
+    industry: 'SaaS',
+    size: '50-100',
     plan: 'Pro',
   },
 ]
@@ -41,143 +52,224 @@ export const tenants: Tenant[] = [
 export const users: User[] = [
   {
     id: 'user-1',
-    name: 'Ariana Chen',
-    email: 'ariana@northwind.com',
-    role: 'HR Admin',
-    department: 'People Ops',
+    name: 'Alicia Nguyen',
+    email: 'admin@acme.com',
+    roles: ['COMPANY_ADMIN'],
+    companyId,
+    department: 'HR',
     status: 'Active',
-    createdAt: '2025-01-03',
+    createdAt: '2025-01-05',
   },
   {
     id: 'user-2',
-    name: 'Marco Silva',
-    email: 'marco@northwind.com',
-    role: 'Manager',
+    name: 'Huy Tran',
+    email: 'hr@acme.com',
+    roles: ['HR'],
+    companyId,
+    department: 'HR',
+    status: 'Active',
+    createdAt: '2025-01-06',
+  },
+  {
+    id: 'user-3',
+    name: 'Minh Pham',
+    email: 'manager@acme.com',
+    roles: ['MANAGER'],
+    companyId,
     department: 'Engineering',
     status: 'Active',
     createdAt: '2025-01-08',
   },
   {
-    id: 'user-3',
-    name: 'Leah Porter',
-    email: 'leah@northwind.com',
-    role: 'Employee',
-    department: 'Sales',
-    status: 'Active',
-    createdAt: '2025-01-18',
-  },
-  {
     id: 'user-4',
-    name: 'Sanjay Gupta',
-    email: 'sanjay@northwind.com',
-    role: 'Manager',
-    department: 'Marketing',
-    status: 'Active',
-    createdAt: '2024-12-22',
-  },
-  {
-    id: 'user-5',
-    name: 'Talia Morris',
-    email: 'talia@northwind.com',
-    role: 'Employee',
+    name: 'Linh Do',
+    email: 'employee@acme.com',
+    roles: ['EMPLOYEE'],
+    companyId,
     department: 'Engineering',
-    status: 'Invited',
-    createdAt: '2025-01-21',
-  },
-  {
-    id: 'user-6',
-    name: 'Evan Cole',
-    email: 'evan@northwind.com',
-    role: 'Employee',
-    department: 'Marketing',
     status: 'Active',
+    manager: 'Minh Pham',
     createdAt: '2025-01-12',
   },
   {
-    id: 'user-7',
-    name: 'Rhea Das',
-    email: 'rhea@bluepeak.com',
-    role: 'HR Admin',
-    department: 'People Ops',
-    status: 'Active',
-    createdAt: '2025-01-05',
-  },
-  {
-    id: 'user-8',
-    name: 'Samir Patel',
-    email: 'samir@bluepeak.com',
-    role: 'Manager',
-    department: 'Sales',
-    status: 'Active',
-    createdAt: '2025-01-10',
-  },
-  {
-    id: 'user-9',
-    name: 'Jin Park',
-    email: 'jin@bluepeak.com',
-    role: 'Employee',
-    department: 'Engineering',
-    status: 'Active',
-    createdAt: '2025-01-11',
-  },
-  {
-    id: 'user-10',
-    name: 'Mara Olsen',
-    email: 'mara@bluepeak.com',
-    role: 'Employee',
-    department: 'Sales',
-    status: 'Invited',
-    createdAt: '2025-01-20',
-  },
-  {
-    id: 'user-11',
-    name: 'Olive Tran',
-    email: 'olive@bluepeak.com',
-    role: 'Employee',
-    department: 'Marketing',
-    status: 'Active',
-    createdAt: '2025-01-22',
-  },
-  {
-    id: 'user-12',
-    name: 'Super Admin',
-    email: 'admin@sme-onboard.com',
-    role: 'Super Admin',
-    department: 'People Ops',
+    id: 'user-5',
+    name: 'Platform Admin',
+    email: 'platform_admin@demo.com',
+    roles: ['PLATFORM_ADMIN'],
+    companyId: null,
+    department: 'Platform Ops',
     status: 'Active',
     createdAt: '2024-12-01',
+  },
+  {
+    id: 'user-6',
+    name: 'Platform Manager',
+    email: 'platform_manager@demo.com',
+    roles: ['PLATFORM_MANAGER'],
+    companyId: null,
+    department: 'Platform Ops',
+    status: 'Active',
+    createdAt: '2024-12-05',
+  },
+  {
+    id: 'user-7',
+    name: 'Platform Staff',
+    email: 'platform_staff@demo.com',
+    roles: ['PLATFORM_STAFF'],
+    companyId: null,
+    department: 'Platform Ops',
+    status: 'Active',
+    createdAt: '2024-12-06',
+  },
+]
+
+export const employeeProfiles: EmployeeProfile[] = [
+  {
+    id: 'emp-1',
+    userId: 'user-4',
+    companyId,
+    departmentId: 'dept-eng',
+    managerUserId: 'user-3',
+    title: 'Frontend Engineer',
+    startDate: '2025-01-15',
   },
 ]
 
 export const roles: RoleDefinition[] = [
   {
-    id: 'role-1',
-    name: 'HR Admin',
-    permissions: ['manage_users', 'manage_templates', 'view_reports'],
+    id: 'role-company-admin',
+    name: 'COMPANY_ADMIN',
+    permissions: ['manage_departments', 'manage_users', 'manage_roles', 'view_company_billing'],
   },
   {
-    id: 'role-2',
-    name: 'Manager',
-    permissions: ['assign_tasks', 'review_evaluations'],
+    id: 'role-hr',
+    name: 'HR',
+    permissions: [
+      'manage_employee_profiles',
+      'manage_onboarding_templates',
+      'create_onboarding_instances',
+      'assign_tasks',
+      'track_onboarding_progress',
+      'manage_automation',
+      'manage_surveys',
+      'view_survey_analytics',
+      'manage_documents',
+      'manage_kb',
+    ],
   },
   {
-    id: 'role-3',
-    name: 'Employee',
-    permissions: ['complete_tasks', 'submit_surveys'],
+    id: 'role-manager',
+    name: 'MANAGER',
+    permissions: [
+      'view_team_onboarding',
+      'update_assigned_tasks',
+      'comment_tasks',
+      'upload_attachments',
+      'answer_surveys',
+      'view_documents',
+    ],
   },
   {
-    id: 'role-4',
-    name: 'Super Admin',
-    permissions: ['manage_tenants', 'view_finance'],
+    id: 'role-employee',
+    name: 'EMPLOYEE',
+    permissions: [
+      'view_my_onboarding',
+      'update_task_status',
+      'upload_attachments',
+      'comment_tasks',
+      'answer_surveys',
+      'view_documents',
+    ],
+  },
+  {
+    id: 'role-platform-admin',
+    name: 'PLATFORM_ADMIN',
+    permissions: [
+      'manage_tenants',
+      'manage_plans',
+      'manage_subscriptions',
+      'manage_invoices',
+      'manage_payments',
+      'manage_dunning',
+      'manage_discounts',
+      'view_usage',
+      'view_finance',
+      'view_email_logs',
+    ],
+  },
+  {
+    id: 'role-platform-manager',
+    name: 'PLATFORM_MANAGER',
+    permissions: ['view_usage', 'view_finance', 'view_tenant_health'],
+  },
+  {
+    id: 'role-platform-staff',
+    name: 'PLATFORM_STAFF',
+    permissions: ['support_lookup_invoices', 'support_lookup_payments', 'view_email_logs'],
+  },
+]
+
+export const taskTemplates: TaskTemplate[] = [
+  {
+    id: 'task-template-1',
+    companyId,
+    title: 'Collect signed offer letter',
+    ownerRole: 'HR',
+    dueOffset: 'Day 1',
+  },
+  {
+    id: 'task-template-2',
+    companyId,
+    title: 'Provision accounts and access',
+    ownerRole: 'HR',
+    dueOffset: 'Day 1',
+  },
+  {
+    id: 'task-template-3',
+    companyId,
+    title: 'Schedule manager intro',
+    ownerRole: 'MANAGER',
+    dueOffset: 'Day 2',
+  },
+  {
+    id: 'task-template-4',
+    companyId,
+    title: 'Complete role expectations brief',
+    ownerRole: 'MANAGER',
+    dueOffset: 'Day 3',
+  },
+  {
+    id: 'task-template-5',
+    companyId,
+    title: 'Finish security training',
+    ownerRole: 'EMPLOYEE',
+    dueOffset: 'Day 3',
+  },
+  {
+    id: 'task-template-6',
+    companyId,
+    title: 'Submit workstation request',
+    ownerRole: 'EMPLOYEE',
+    dueOffset: 'Day 4',
+  },
+]
+
+export const checklistTemplates: ChecklistTemplate[] = [
+  {
+    id: 'checklist-template-1',
+    companyId,
+    name: 'Week 1 Essentials',
+    description: 'Critical steps to complete in the first week.',
   },
 ]
 
 export const templates: OnboardingTemplate[] = [
   {
     id: 'template-1',
-    name: 'Operations Essentials',
-    description: 'Core onboarding for operations hires.',
-    updatedAt: '2025-01-22',
+    name: 'Acme New Hire Journey',
+    description: 'Standard onboarding for new hires at Acme Co.',
+    updatedAt: '2025-01-20',
+    companyId,
     stages: [
       {
         id: 'stage-1',
@@ -185,15 +277,15 @@ export const templates: OnboardingTemplate[] = [
         tasks: [
           {
             id: 'task-1',
-            title: 'Complete HR paperwork',
-            ownerRole: 'HR Admin',
+            title: 'Collect signed offer letter',
+            ownerRole: 'HR',
             dueOffset: 'Day 1',
             required: true,
           },
           {
             id: 'task-2',
-            title: 'Team introductions',
-            ownerRole: 'Manager',
+            title: 'Provision accounts and access',
+            ownerRole: 'HR',
             dueOffset: 'Day 1',
             required: true,
           },
@@ -201,75 +293,39 @@ export const templates: OnboardingTemplate[] = [
       },
       {
         id: 'stage-2',
-        name: 'Systems',
+        name: 'Team setup',
         tasks: [
           {
             id: 'task-3',
-            title: 'Access warehouse dashboard',
-            ownerRole: 'Employee',
-            dueOffset: 'Day 3',
-            required: true,
-          },
-          {
-            id: 'task-4',
-            title: 'Safety walkthrough',
-            ownerRole: 'Manager',
-            dueOffset: 'Day 5',
-            required: true,
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'template-2',
-    name: 'Sales Acceleration',
-    description: 'Ramp plan for revenue teams.',
-    updatedAt: '2025-01-18',
-    stages: [
-      {
-        id: 'stage-3',
-        name: 'Day One',
-        tasks: [
-          {
-            id: 'task-5',
-            title: 'CRM orientation',
-            ownerRole: 'Manager',
-            dueOffset: 'Day 1',
-            required: true,
-          },
-          {
-            id: 'task-6',
-            title: 'Shadow top rep',
-            ownerRole: 'Employee',
-            dueOffset: 'Day 3',
-            required: false,
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'template-3',
-    name: 'Engineering Launch',
-    description: 'Technical onboarding for engineers.',
-    updatedAt: '2025-01-12',
-    stages: [
-      {
-        id: 'stage-4',
-        name: 'Environment',
-        tasks: [
-          {
-            id: 'task-7',
-            title: 'Setup dev environment',
-            ownerRole: 'Employee',
+            title: 'Schedule manager intro',
+            ownerRole: 'MANAGER',
             dueOffset: 'Day 2',
             required: true,
           },
           {
-            id: 'task-8',
-            title: 'Security training',
-            ownerRole: 'HR Admin',
+            id: 'task-4',
+            title: 'Complete role expectations brief',
+            ownerRole: 'MANAGER',
+            dueOffset: 'Day 3',
+            required: true,
+          },
+        ],
+      },
+      {
+        id: 'stage-3',
+        name: 'First week',
+        tasks: [
+          {
+            id: 'task-5',
+            title: 'Finish security training',
+            ownerRole: 'EMPLOYEE',
+            dueOffset: 'Day 3',
+            required: true,
+          },
+          {
+            id: 'task-6',
+            title: 'Submit workstation request',
+            ownerRole: 'EMPLOYEE',
             dueOffset: 'Day 4',
             required: true,
           },
@@ -277,135 +333,252 @@ export const templates: OnboardingTemplate[] = [
       },
     ],
   },
+]
+
+export const instances: OnboardingInstance[] = [
   {
-    id: 'template-4',
-    name: 'Retail Floor Ready',
-    description: 'In-store onboarding for frontline teams.',
-    updatedAt: '2025-01-05',
-    stages: [
-      {
-        id: 'stage-5',
-        name: 'Store tour',
-        tasks: [
-          {
-            id: 'task-9',
-            title: 'Shadow shift',
-            ownerRole: 'Manager',
-            dueOffset: 'Day 1',
-            required: true,
-          },
-          {
-            id: 'task-10',
-            title: 'POS training',
-            ownerRole: 'Employee',
-            dueOffset: 'Day 2',
-            required: true,
-          },
-        ],
-      },
-    ],
+    id: 'instance-1',
+    employeeId: 'user-4',
+    templateId: 'template-1',
+    startDate: '2025-01-15',
+    progress: 35,
+    status: 'Active',
+    companyId,
   },
 ]
 
-export const instances: OnboardingInstance[] = Array.from({ length: 10 }).map(
-  (_, index) => ({
-    id: `instance-${index + 1}`,
-    employeeId: users[(index % 6) + 2].id,
-    templateId: templates[index % templates.length].id,
-    startDate: `2025-01-${10 + index}`,
-    progress: 40 + (index % 5) * 10,
-    status: 'Active',
-  })
-)
-
-export const evaluations: Evaluation[] = [
-  { id: 'eval-1', employeeId: 'user-3', milestone: '7', rating: 4 },
-  { id: 'eval-2', employeeId: 'user-3', milestone: '30', rating: 5 },
+export const checklistInstances: ChecklistInstance[] = [
+  {
+    id: 'checklist-instance-1',
+    companyId,
+    onboardingInstanceId: 'instance-1',
+    checklistTemplateId: 'checklist-template-1',
+    status: 'In Progress',
+  },
 ]
 
-export const documents: Document[] = Array.from({ length: 12 }).map(
-  (_, index) => ({
-    id: `doc-${index + 1}`,
-    title: `Policy Document ${index + 1}`,
-    tags: ['HR', index % 2 === 0 ? 'Required' : 'Guide'],
-    required: index % 3 === 0,
-    updatedAt: `2025-01-${index + 5}`,
-    folder: index % 2 === 0 ? 'Company' : 'Department',
-  })
-)
+export const taskInstances: TaskInstance[] = [
+  {
+    id: 'task-instance-1',
+    companyId,
+    onboardingInstanceId: 'instance-1',
+    taskTemplateId: 'task-template-1',
+    assignedUserId: 'user-2',
+    status: 'In Progress',
+  },
+  {
+    id: 'task-instance-2',
+    companyId,
+    onboardingInstanceId: 'instance-1',
+    taskTemplateId: 'task-template-2',
+    assignedUserId: 'user-2',
+    status: 'Pending',
+  },
+  {
+    id: 'task-instance-3',
+    companyId,
+    onboardingInstanceId: 'instance-1',
+    taskTemplateId: 'task-template-3',
+    assignedUserId: 'user-3',
+    status: 'Pending',
+  },
+  {
+    id: 'task-instance-4',
+    companyId,
+    onboardingInstanceId: 'instance-1',
+    taskTemplateId: 'task-template-4',
+    assignedUserId: 'user-3',
+    status: 'Pending',
+  },
+  {
+    id: 'task-instance-5',
+    companyId,
+    onboardingInstanceId: 'instance-1',
+    taskTemplateId: 'task-template-5',
+    assignedUserId: 'user-4',
+    status: 'In Progress',
+  },
+  {
+    id: 'task-instance-6',
+    companyId,
+    onboardingInstanceId: 'instance-1',
+    taskTemplateId: 'task-template-6',
+    assignedUserId: 'user-4',
+    status: 'Pending',
+  },
+]
 
-export const acknowledgments: Acknowledgment[] = Array.from({ length: 20 }).map(
-  (_, index) => ({
-    id: `ack-${index + 1}`,
-    documentId: documents[index % documents.length].id,
-    employeeId: users[(index % 6) + 2].id,
-    progress: 40 + (index % 5) * 10,
-    acknowledged: index % 4 === 0,
-    timestamp: `2025-01-${15 + index}`,
-  })
-)
+export const automationRules: AutomationRule[] = [
+  {
+    id: 'auto-1',
+    companyId,
+    name: 'Day 1 welcome email',
+    trigger: 'onboarding_started',
+    channel: 'email',
+    enabled: true,
+  },
+]
+
+export const documents: Document[] = [
+  {
+    id: 'doc-1',
+    title: 'Employee Handbook',
+    tags: ['Policy', 'Required'],
+    required: true,
+    updatedAt: '2025-01-10',
+    folder: 'Company',
+    companyId,
+  },
+  {
+    id: 'doc-2',
+    title: 'Engineering Playbook',
+    tags: ['Guide'],
+    required: false,
+    updatedAt: '2025-01-12',
+    folder: 'Department',
+    companyId,
+  },
+]
+
+export const documentCategories: DocumentCategory[] = [
+  { id: 'doc-cat-1', companyId, name: 'Company Policies' },
+]
+
+export const documentVersions: DocumentVersion[] = [
+  { id: 'doc-ver-1', documentId: 'doc-1', version: 'v1.0', createdAt: '2025-01-10' },
+]
+
+export const documentAccessRules: DocumentAccessRule[] = [
+  { id: 'doc-access-1', documentId: 'doc-1', role: 'EMPLOYEE' },
+  { id: 'doc-access-2', documentId: 'doc-2', role: 'MANAGER' },
+]
+
+export const acknowledgments: Acknowledgment[] = [
+  {
+    id: 'ack-1',
+    documentId: 'doc-1',
+    employeeId: 'user-4',
+    progress: 100,
+    acknowledged: true,
+    timestamp: '2025-01-16T09:15:00Z',
+    companyId,
+  },
+]
 
 export const surveyTemplates: SurveyTemplate[] = [
   {
-    id: 'survey-template-1',
-    name: 'Day 7 Pulse',
+    id: 'survey-template-7d',
+    name: '7-Day Check-in',
     target: '7',
-    updatedAt: '2025-01-22',
+    updatedAt: '2025-01-18',
+    companyId,
     questions: [
       { id: 'q1', type: 'rating', label: 'How supported do you feel?' },
-      {
-        id: 'q2',
-        type: 'text',
-        label: 'What would improve your onboarding?',
-      },
+      { id: 'q2', type: 'text', label: 'What would help you ramp faster?' },
     ],
   },
   {
-    id: 'survey-template-2',
-    name: 'Day 30 Check-in',
+    id: 'survey-template-30d',
+    name: '30-Day Review',
     target: '30',
-    updatedAt: '2025-01-18',
+    updatedAt: '2025-01-19',
+    companyId,
     questions: [
-      { id: 'q3', type: 'rating', label: 'Confidence in role?' },
+      { id: 'q3', type: 'rating', label: 'Confidence in your role?' },
       {
         id: 'q4',
         type: 'multiple',
         label: 'Most helpful resource',
-        options: ['Buddy', 'Manager', 'Docs'],
+        options: ['Manager', 'Docs', 'Buddy'],
       },
-    ],
-  },
-  {
-    id: 'survey-template-3',
-    name: 'Custom Journey Survey',
-    target: 'custom',
-    updatedAt: '2025-01-10',
-    questions: [
-      { id: 'q5', type: 'text', label: 'One word for your week' },
     ],
   },
 ]
 
-export const surveyInstances: SurveyInstance[] = Array.from({ length: 15 }).map(
-  (_, index) => ({
-    id: `survey-${index + 1}`,
-    employeeId: users[(index % 6) + 2].id,
-    templateId: surveyTemplates[index % surveyTemplates.length].id,
-    dueDate: `2025-02-${(index % 20) + 1}`,
-    status: index % 3 === 0 ? 'Completed' : 'Pending',
-  })
-)
+export const surveyInstances: SurveyInstance[] = [
+  {
+    id: 'survey-1',
+    employeeId: 'user-4',
+    templateId: 'survey-template-7d',
+    dueDate: '2025-01-22',
+    status: 'Pending',
+    companyId,
+    targetResponderType: 'EMPLOYEE',
+  },
+  {
+    id: 'survey-2',
+    employeeId: 'user-3',
+    templateId: 'survey-template-30d',
+    dueDate: '2025-01-30',
+    status: 'Pending',
+    companyId,
+    targetResponderType: 'MANAGER',
+  },
+]
 
-export const surveyResponses: SurveyResponse[] = Array.from({ length: 10 }).map(
-  (_, index) => ({
-    id: `response-${index + 1}`,
-    surveyId: surveyInstances[index].id,
-    answers: {
-      q1: 4,
-      q2: 'More buddy check-ins',
-    },
-  })
-)
+export const surveyResponses: SurveyResponse[] = [
+  {
+    id: 'response-1',
+    surveyId: 'survey-1',
+    answers: { q1: 4, q2: 'More pairing time.' },
+  },
+]
+
+export const knowledgeBase: KnowledgeBaseArticle[] = [
+  {
+    id: 'kb-1',
+    title: 'Onboarding Essentials',
+    content: 'Key steps to ensure a smooth first week.',
+    tags: ['Onboarding', 'Policy'],
+    companyId,
+  },
+  {
+    id: 'kb-2',
+    title: 'Manager Checklists',
+    content: 'Guidance for leading new hires.',
+    tags: ['Manager', 'How-to'],
+    companyId,
+  },
+]
+
+export const kbTags: Tag[] = [
+  { id: 'tag-1', name: 'Onboarding' },
+  { id: 'tag-2', name: 'Policy' },
+  { id: 'tag-3', name: 'Manager' },
+]
+
+export const kbArticleTags: KbArticleTag[] = [
+  { id: 'kb-tag-1', articleId: 'kb-1', tagId: 'tag-1' },
+  { id: 'kb-tag-2', articleId: 'kb-1', tagId: 'tag-2' },
+  { id: 'kb-tag-3', articleId: 'kb-2', tagId: 'tag-3' },
+]
+
+export const emailLogs: EmailLog[] = [
+  {
+    id: 'email-1',
+    companyId,
+    subject: 'Welcome to Acme Co',
+    status: 'Sent',
+    sentAt: '2025-01-15T08:30:00Z',
+  },
+  {
+    id: 'email-2',
+    companyId,
+    subject: 'Day 7 Check-in Survey',
+    status: 'Failed',
+    sentAt: '2025-01-22T09:00:00Z',
+  },
+]
+
+export const notifications: Notification[] = [
+  {
+    id: 'notif-1',
+    companyId,
+    title: 'Survey assigned',
+    body: 'Complete your Day 7 check-in survey.',
+    createdAt: '2025-01-22T10:00:00Z',
+  },
+]
 
 export const plans: BillingPlan[] = [
   {
@@ -430,62 +603,22 @@ export const plans: BillingPlan[] = [
     limits: 'Up to 500 employees',
     features: ['Multi-tenant insights', 'Custom templates', 'Priority SLA'],
   },
-  {
-    id: 'plan-enterprise',
-    name: 'Enterprise',
-    price: 'Custom',
-    limits: 'Unlimited employees',
-    features: ['Dedicated support', 'SSO', 'Finance exports'],
-  },
 ]
 
 export const usage: UsageMetric[] = [
-  { label: 'Active onboardings', used: 86, limit: 120 },
-  { label: 'Survey sends', used: 240, limit: 500 },
-  { label: 'Document storage (GB)', used: 58, limit: 100 },
+  { label: 'Active onboardings', used: 12, limit: 50 },
+  { label: 'Survey sends', used: 34, limit: 200 },
+  { label: 'Document storage (GB)', used: 12, limit: 50 },
 ]
 
-export const invoices: Invoice[] = Array.from({ length: 12 }).map((_, index) => ({
-  id: `INV-2025-${100 + index}`,
-  amount: `$${120 + index * 10}`,
-  status: index % 4 === 0 ? 'Overdue' : index % 3 === 0 ? 'Open' : 'Paid',
-  date: `2025-${(index % 12) + 1}-05`,
-}))
-
-export const knowledgeBase: KnowledgeBaseArticle[] = Array.from({ length: 6 }).map(
-  (_, index) => ({
-    id: `kb-${index + 1}`,
-    title: `Onboarding Playbook ${index + 1}`,
-    content: 'Curated guidance for consistent onboarding experiences.',
-    tags: ['Onboarding', index % 2 === 0 ? 'Policy' : 'How-to'],
-  })
-)
-
-export const conversations: ChatConversation[] = Array.from({ length: 5 }).map(
-  (_, index) => ({
-    id: `chat-${index + 1}`,
-    title: `New hire day ${index + 1}`,
-    messages: [
-      {
-        id: `msg-${index + 1}-1`,
-        sender: 'user',
-        content: 'Where do I find the badge policy?',
-        timestamp: '09:10',
-      },
-      {
-        id: `msg-${index + 1}-2`,
-        sender: 'assistant',
-        content: 'The badge policy is in the Security & Access folder.',
-        timestamp: '09:11',
-      },
-    ],
-  })
-)
+export const invoices: Invoice[] = [
+  { id: 'INV-2025-101', amount: '$129', status: 'Paid', date: '2025-01-05', companyId },
+  { id: 'INV-2025-102', amount: '$129', status: 'Open', date: '2025-02-05', companyId },
+]
 
 export const discountCodes: DiscountCode[] = [
   { id: 'disc-1', code: 'WELCOME15', amount: '15%', status: 'Active' },
   { id: 'disc-2', code: 'YEARLY25', amount: '25%', status: 'Active' },
-  { id: 'disc-3', code: 'BETA10', amount: '10%', status: 'Expired' },
 ]
 
 export const financeSnapshots: FinanceSnapshot[] = [
@@ -496,3 +629,23 @@ export const financeSnapshots: FinanceSnapshot[] = [
   { month: 'Jan', mrr: 260, churn: 2.1 },
 ]
 
+export const conversations: ChatConversation[] = [
+  {
+    id: 'chat-1',
+    title: 'Welcome questions',
+    messages: [
+      {
+        id: 'msg-1',
+        sender: 'user',
+        content: 'Where do I find the badge policy?',
+        timestamp: '09:10',
+      },
+      {
+        id: 'msg-2',
+        sender: 'assistant',
+        content: 'The badge policy is in the Employee Handbook.',
+        timestamp: '09:11',
+      },
+    ],
+  },
+]

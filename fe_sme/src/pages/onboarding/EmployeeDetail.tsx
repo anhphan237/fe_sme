@@ -11,6 +11,7 @@ import { Button } from '../../components/ui/Button'
 import { useInstancesQuery, useTemplatesQuery, useSaveEvaluation } from '../../hooks/queries'
 import { useUsersQuery } from '../../hooks/queries'
 import { Skeleton } from '../../components/ui/Skeleton'
+import { ROLE_LABELS, getPrimaryRole } from '../../shared/rbac'
 
 function EmployeeDetail() {
   const { employeeId } = useParams()
@@ -64,7 +65,9 @@ function EmployeeDetail() {
         <div className="flex flex-wrap items-center justify-between gap-6">
           <div>
             <h3 className="text-lg font-semibold">{employee?.name}</h3>
-            <p className="text-sm text-muted">{employee?.role}</p>
+            <p className="text-sm text-muted">
+              {employee ? ROLE_LABELS[getPrimaryRole(employee.roles)] : '-'}
+            </p>
             <p className="text-sm text-muted">
               Start date: {instance?.startDate}
             </p>

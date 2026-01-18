@@ -1,58 +1,49 @@
-﻿import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useTenantsQuery } from '../../hooks/queries'
 import { useAppStore } from '../../store/useAppStore'
-import type { Role } from '../../shared/types'
-
-const roles: Role[] = ['HR Admin', 'Manager', 'Employee', 'Super Admin']
+import { Badge } from '../ui/Badge'
+import { ROLE_LABELS, getPrimaryRole, hasRequiredRole } from '../../shared/rbac'
 
 export function RoleTenantSwitcher() {
-  const { data: tenants } = useTenantsQuery()
-  const { currentTenant, setTenant, role, setRole, currentUser, setUser } =
-    useAppStore()
+  const { currentTenant, setTenant, currentUser } = useAppStore()
+  const canLoadTenants =
+    Boolean(currentUser?.companyId) ||
+    hasRequiredRole(currentUser?.roles ?? [], ['PLATFORM_ADMIN', 'PLATFORM_MANAGER'])
+  const { data: tenants } = useTenantsQuery(canLoadTenants)
 
   useEffect(() => {
+    if (!currentUser?.companyId) {
+      if (currentTenant) {
+        setTenant(null)
+      }
+      return
+    }
     if (!currentTenant && tenants && tenants.length > 0) {
-      setTenant(tenants[0])
+      const matched = tenants.find((tenant) => tenant.id === currentUser.companyId)
+      if (matched) {
+        setTenant(matched)
+      }
     }
-  }, [currentTenant, setTenant, tenants])
+  }, [currentTenant, currentUser, setTenant, tenants])
 
-  const handleRoleChange = (value: Role) => {
-    setRole(value)
-    if (currentUser) {
-      setUser({ ...currentUser, role: value })
+  const roleLabel = useMemo(() => {
+    if (!currentUser?.roles?.length) {
+      return 'Unknown role'
     }
-  }
+    const primary = getPrimaryRole(currentUser.roles)
+    return ROLE_LABELS[primary]
+  }, [currentUser?.roles])
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <select
-        className="rounded-full border border-stroke bg-white px-3 py-2 text-sm"
-        value={role}
-        onChange={(event) => handleRoleChange(event.target.value as Role)}
-      >
-        {roles.map((item) => (
-          <option key={item} value={item}>
-            {item}
-          </option>
-        ))}
-      </select>
-      <select
-        className="rounded-full border border-stroke bg-white px-3 py-2 text-sm"
-        value={currentTenant?.id ?? ''}
-        onChange={(event) => {
-          const next = tenants?.find((tenant) => tenant.id === event.target.value)
-          if (next) {
-            setTenant(next)
-          }
-        }}
-      >
-        {tenants?.map((tenant) => (
-          <option key={tenant.id} value={tenant.id}>
-            {tenant.name}
-          </option>
-        ))}
-      </select>
+      <div className="rounded-full border border-stroke bg-white px-3 py-2 text-sm">
+        {currentUser?.name ?? 'Guest'}
+      </div>
+      <Badge>{roleLabel}</Badge>
+      {currentUser?.roles?.length && currentUser.roles.length > 1 && (
+        <Badge>+{currentUser.roles.length - 1} roles</Badge>
+      )}
+      {currentTenant && <Badge>{currentTenant.name}</Badge>}
     </div>
   )
 }
-

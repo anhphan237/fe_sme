@@ -63,7 +63,7 @@ function DocumentDetail() {
           <h3 className="text-lg font-semibold">Access settings</h3>
           <div className="mt-4 space-y-2 text-sm text-muted">
             <p>Visibility: All departments</p>
-            <p>Required roles: HR Admin, Manager</p>
+            <p>Required roles: HR, Manager</p>
           </div>
         </Card>
         <Card>

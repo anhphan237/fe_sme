@@ -5,6 +5,7 @@ import {
 } from '../shared/api/tenants'
 import { getUsers, inviteUser, updateUser } from '../shared/api/users'
 import { getRoles, updateRole } from '../shared/api/roles'
+import { getDepartments } from '../shared/api/departments'
 import {
   getTemplates,
   getTemplate,
@@ -43,7 +44,8 @@ import {
 } from '../shared/api/superAdmin'
 import { chatbotQuery } from '../shared/api/chatbot'
 
-export const useTenantsQuery = () => useQuery({ queryKey: ['tenants'], queryFn: getTenants })
+export const useTenantsQuery = (enabled = true) =>
+  useQuery({ queryKey: ['tenants'], queryFn: getTenants, enabled })
 export const useUpdateTenant = () => useMutation({ mutationFn: updateTenant })
 
 export const useUsersQuery = () => useQuery({ queryKey: ['users'], queryFn: getUsers })
@@ -52,6 +54,9 @@ export const useUpdateUser = () => useMutation({ mutationFn: updateUser })
 
 export const useRolesQuery = () => useQuery({ queryKey: ['roles'], queryFn: getRoles })
 export const useUpdateRole = () => useMutation({ mutationFn: updateRole })
+
+export const useDepartmentsQuery = () =>
+  useQuery({ queryKey: ['departments'], queryFn: getDepartments })
 
 export const useTemplatesQuery = () =>
   useQuery({ queryKey: ['templates'], queryFn: getTemplates })
@@ -63,13 +68,13 @@ export const useTemplateQuery = (id?: string) =>
   })
 export const useSaveTemplate = () => useMutation({ mutationFn: saveTemplate })
 
-export const useInstancesQuery = () =>
-  useQuery({ queryKey: ['instances'], queryFn: getInstances })
+export const useInstancesQuery = (enabled = true) =>
+  useQuery({ queryKey: ['instances'], queryFn: getInstances, enabled })
 export const useStartInstance = () => useMutation({ mutationFn: startInstance })
 export const useSaveEvaluation = () => useMutation({ mutationFn: saveEvaluation })
 
-export const useDocumentsQuery = () =>
-  useQuery({ queryKey: ['documents'], queryFn: getDocuments })
+export const useDocumentsQuery = (enabled = true) =>
+  useQuery({ queryKey: ['documents'], queryFn: getDocuments, enabled })
 export const useDocumentQuery = (id?: string) =>
   useQuery({
     queryKey: ['document', id],

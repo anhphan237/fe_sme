@@ -1,10 +1,12 @@
-﻿import { Card } from '../../components/ui/Card'
+import { Card } from '../../components/ui/Card'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Badge } from '../../components/ui/Badge'
 import { Progress } from '../../components/ui/Progress'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { useInstancesQuery, useDocumentsQuery } from '../../hooks/queries'
 import { useAppStore } from '../../store/useAppStore'
+import { getPrimaryRole, isPlatformRole } from '../../shared/rbac'
+import type { Role } from '../../shared/types'
 import {
   BarChart,
   Bar,
@@ -15,47 +17,66 @@ import {
   YAxis,
 } from 'recharts'
 
-const kpiMap = {
-  'HR Admin': [
-    { label: 'Active onboardings', value: '42' },
-    { label: 'Tasks due this week', value: '18' },
-    { label: 'Survey completion %', value: '86%' },
-    { label: 'Plan usage this month', value: '72%' },
+const kpiMap: Record<Role, { label: string; value: string }[]> = {
+  COMPANY_ADMIN: [
+    { label: 'Org setup tasks', value: '6' },
+    { label: 'Active users', value: '28' },
+    { label: 'Open invitations', value: '3' },
+    { label: 'Billing status', value: 'Healthy' },
   ],
-  Manager: [
-    { label: 'Team onboardings', value: '9' },
-    { label: 'Tasks assigned', value: '24' },
-    { label: 'Pending evaluations', value: '4' },
-    { label: 'Survey status', value: '78%' },
+  HR: [
+    { label: 'Active onboardings', value: '12' },
+    { label: 'Tasks due this week', value: '9' },
+    { label: 'Survey completion %', value: '82%' },
+    { label: 'Automation rules', value: '4' },
   ],
-  Employee: [
+  MANAGER: [
+    { label: 'Team onboardings', value: '4' },
+    { label: 'Tasks assigned', value: '6' },
+    { label: 'Pending surveys', value: '2' },
+    { label: 'Docs to review', value: '3' },
+  ],
+  EMPLOYEE: [
     { label: 'Checklist progress %', value: '64%' },
-    { label: 'Required docs pending', value: '3' },
-    { label: 'Surveys due', value: '2' },
-    { label: 'Messages from HR', value: '5' },
+    { label: 'Required docs pending', value: '1' },
+    { label: 'Surveys due', value: '1' },
+    { label: 'Messages from HR', value: '2' },
   ],
-  'Super Admin': [
+  PLATFORM_ADMIN: [
     { label: 'Active tenants', value: '34' },
-    { label: 'New onboardings', value: '310' },
-    { label: 'NPS score', value: '58' },
+    { label: 'Plans managed', value: '4' },
+    { label: 'Open invoices', value: '18' },
+    { label: 'Dunning cases', value: '3' },
+  ],
+  PLATFORM_MANAGER: [
+    { label: 'Active tenants', value: '34' },
     { label: 'MRR growth', value: '+12%' },
+    { label: 'Usage growth', value: '+8%' },
+    { label: 'Payment success', value: '96%' },
+  ],
+  PLATFORM_STAFF: [
+    { label: 'Invoices to review', value: '8' },
+    { label: 'Payments failed', value: '4' },
+    { label: 'Email failures', value: '2' },
+    { label: 'Tickets handled', value: '11' },
   ],
 }
 
 const progressData = [
-  { stage: 'Welcome', value: 24 },
-  { stage: 'Systems', value: 18 },
-  { stage: 'Role setup', value: 14 },
-  { stage: 'First month', value: 9 },
+  { stage: 'Welcome', value: 6 },
+  { stage: 'Systems', value: 4 },
+  { stage: 'Role setup', value: 3 },
+  { stage: 'First month', value: 2 },
 ]
 
 function Dashboard() {
-  const role = useAppStore((state) => state.role)
-  const { data: instances, isLoading: instancesLoading, isError } =
-    useInstancesQuery()
-  const { data: documents, isLoading: docsLoading } = useDocumentsQuery()
+  const currentUser = useAppStore((state) => state.currentUser)
+  const isPlatformUser = isPlatformRole(currentUser?.roles ?? [])
+  const { isLoading: instancesLoading, isError } = useInstancesQuery(!isPlatformUser)
+  const { data: documents, isLoading: docsLoading } = useDocumentsQuery(!isPlatformUser)
 
-  const kpis = kpiMap[role]
+  const primaryRole = getPrimaryRole(currentUser?.roles ?? ['EMPLOYEE'])
+  const kpis = kpiMap[primaryRole]
 
   return (
     <div className="space-y-6">
@@ -113,16 +134,16 @@ function Dashboard() {
           ) : (
             <ul className="mt-4 space-y-3 text-sm">
               <li className="rounded-2xl border border-stroke bg-slate-50 p-3">
-                Finalize welcome kit for Leah Porter
+                Finalize welcome kit for Linh Do
               </li>
               <li className="rounded-2xl border border-stroke bg-slate-50 p-3">
-                Manager check-in: Marco Silva
+                Manager check-in: Minh Pham
               </li>
               <li className="rounded-2xl border border-stroke bg-slate-50 p-3">
-                Survey send: Day 7 pulse
+                Survey send: Day 7 check-in
               </li>
               <li className="rounded-2xl border border-stroke bg-slate-50 p-3">
-                Docs audit reminder
+                Docs review reminder
               </li>
               <li className="rounded-2xl border border-stroke bg-slate-50 p-3">
                 Update onboarding template
@@ -170,11 +191,11 @@ function Dashboard() {
             <div className="mt-4 space-y-4 text-sm">
               <div className="rounded-2xl border border-stroke bg-slate-50 p-3">
                 <p className="font-semibold">Survey submitted</p>
-                <p className="text-muted">Leah Porter completed day 7 survey.</p>
+                <p className="text-muted">Linh Do completed day 7 survey.</p>
               </div>
               <div className="rounded-2xl border border-stroke bg-slate-50 p-3">
                 <p className="font-semibold">Document acknowledged</p>
-                <p className="text-muted">Policy Document 3 signed.</p>
+                <p className="text-muted">Employee Handbook signed.</p>
               </div>
               <div className="rounded-2xl border border-stroke bg-slate-50 p-3">
                 <p className="font-semibold">Checklist progress</p>
@@ -189,4 +210,3 @@ function Dashboard() {
 }
 
 export default Dashboard
-

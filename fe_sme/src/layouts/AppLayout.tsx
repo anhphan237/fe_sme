@@ -1,4 +1,4 @@
-﻿import { ReactNode, useMemo, useState } from 'react'
+import { ReactNode, useMemo, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
   Banknote,
@@ -18,17 +18,34 @@ import { useAppStore } from '../store/useAppStore'
 import { RoleTenantSwitcher } from '../components/common/RoleTenantSwitcher'
 import { Breadcrumbs } from '../components/ui/Breadcrumb'
 import { clsx } from 'clsx'
+import type { Role } from '../shared/types'
+import { hasRequiredRole } from '../shared/rbac'
 
 interface AppLayoutProps {
   children: ReactNode
 }
 
+type NavItem = {
+  title: string
+  to: string
+  requiredRoles?: Role[]
+}
+
+type NavSection = {
+  title: string
+  icon: typeof Gauge
+  to?: string
+  requiredRoles?: Role[]
+  children?: NavItem[]
+}
+
 function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const role = useAppStore((state) => state.role)
+  const currentUser = useAppStore((state) => state.currentUser)
   const location = useLocation()
+  const userRoles = currentUser?.roles ?? []
 
-  const navSections = useMemo(
+  const navSections = useMemo<NavSection[]>(
     () => [
       {
         title: 'Dashboard',
@@ -36,64 +53,203 @@ function AppLayout({ children }: AppLayoutProps) {
         to: '/dashboard',
       },
       {
+        title: 'Organization',
+        icon: Shield,
+        children: [
+          {
+            title: 'Departments',
+            to: '/admin/departments',
+            requiredRoles: ['COMPANY_ADMIN'],
+          },
+          {
+            title: 'Users',
+            to: '/admin/users',
+            requiredRoles: ['COMPANY_ADMIN'],
+          },
+          {
+            title: 'Roles',
+            to: '/admin/roles',
+            requiredRoles: ['COMPANY_ADMIN'],
+          },
+        ],
+      },
+      {
         title: 'Onboarding',
         icon: ClipboardCheck,
         children: [
-          { title: 'Templates', to: '/onboarding/templates' },
-          { title: 'Employees', to: '/onboarding/employees' },
+          {
+            title: 'Templates',
+            to: '/onboarding/templates',
+            requiredRoles: ['HR'],
+          },
+          {
+            title: 'Employees',
+            to: '/onboarding/employees',
+            requiredRoles: ['HR', 'MANAGER'],
+          },
+          {
+            title: 'Tasks',
+            to: '/onboarding/tasks',
+            requiredRoles: ['HR', 'MANAGER', 'EMPLOYEE'],
+          },
+          {
+            title: 'Automation',
+            to: '/onboarding/automation',
+            requiredRoles: ['HR'],
+          },
+          {
+            title: 'Knowledge Base',
+            to: '/admin/knowledge-base',
+            requiredRoles: ['HR'],
+          },
         ],
       },
       {
         title: 'Documents',
         icon: FileText,
         children: [
-          { title: 'Library', to: '/documents' },
-          { title: 'Acknowledgments', to: '/documents/acknowledgments' },
+          {
+            title: 'Library',
+            to: '/documents',
+            requiredRoles: ['HR', 'MANAGER', 'EMPLOYEE'],
+          },
+          {
+            title: 'Acknowledgments',
+            to: '/documents/acknowledgments',
+            requiredRoles: ['HR', 'MANAGER', 'EMPLOYEE'],
+          },
         ],
       },
       {
         title: 'Surveys',
         icon: LayoutGrid,
         children: [
-          { title: 'Templates', to: '/surveys/templates' },
-          { title: 'Send', to: '/surveys/send' },
-          { title: 'Inbox', to: '/surveys/inbox' },
-          { title: 'Reports', to: '/surveys/reports' },
+          {
+            title: 'Templates',
+            to: '/surveys/templates',
+            requiredRoles: ['HR'],
+          },
+          {
+            title: 'Send',
+            to: '/surveys/send',
+            requiredRoles: ['HR'],
+          },
+          {
+            title: 'Inbox',
+            to: '/surveys/inbox',
+            requiredRoles: ['HR', 'MANAGER', 'EMPLOYEE'],
+          },
+          {
+            title: 'Reports',
+            to: '/surveys/reports',
+            requiredRoles: ['HR'],
+          },
         ],
       },
       {
         title: 'Chatbot',
         icon: Bot,
         to: '/chatbot',
+        requiredRoles: ['HR', 'MANAGER', 'EMPLOYEE'],
       },
       {
-        title: 'Billing',
+        title: 'Billing (Company)',
         icon: Banknote,
         children: [
-          { title: 'Plan', to: '/billing/plan' },
-          { title: 'Usage', to: '/billing/usage' },
-          { title: 'Invoices', to: '/billing/invoices' },
-          { title: 'Payment', to: '/billing/payment' },
+          { title: 'Plan', to: '/billing/plan', requiredRoles: ['COMPANY_ADMIN'] },
+          { title: 'Usage', to: '/billing/usage', requiredRoles: ['COMPANY_ADMIN'] },
+          {
+            title: 'Invoices',
+            to: '/billing/invoices',
+            requiredRoles: ['COMPANY_ADMIN'],
+          },
+          {
+            title: 'Payment',
+            to: '/billing/payment',
+            requiredRoles: ['COMPANY_ADMIN'],
+          },
         ],
       },
       {
-        title: 'Admin',
-        icon: Shield,
-        children: [
-          { title: 'Users', to: '/admin/users' },
-          { title: 'Roles', to: '/admin/roles' },
-          { title: 'Knowledge Base', to: '/admin/knowledge-base' },
-        ],
-      },
-      {
-        title: 'Super Admin',
+        title: 'Platform',
         icon: Briefcase,
-        to: '/super-admin',
-        hidden: role !== 'Super Admin',
+        children: [
+          {
+            title: 'Tenants',
+            to: '/platform/tenants',
+            requiredRoles: ['PLATFORM_ADMIN', 'PLATFORM_MANAGER'],
+          },
+          {
+            title: 'Plans',
+            to: '/platform/plans',
+            requiredRoles: ['PLATFORM_ADMIN'],
+          },
+          {
+            title: 'Subscriptions',
+            to: '/platform/subscriptions',
+            requiredRoles: ['PLATFORM_ADMIN'],
+          },
+          {
+            title: 'Usage',
+            to: '/platform/usage',
+            requiredRoles: ['PLATFORM_ADMIN', 'PLATFORM_MANAGER'],
+          },
+          {
+            title: 'Finance',
+            to: '/platform/finance',
+            requiredRoles: ['PLATFORM_ADMIN', 'PLATFORM_MANAGER'],
+          },
+          {
+            title: 'Discounts',
+            to: '/platform/discounts',
+            requiredRoles: ['PLATFORM_ADMIN'],
+          },
+          {
+            title: 'Dunning',
+            to: '/platform/dunning',
+            requiredRoles: ['PLATFORM_ADMIN'],
+          },
+          {
+            title: 'Invoices',
+            to: '/platform/invoices',
+            requiredRoles: ['PLATFORM_STAFF'],
+          },
+          {
+            title: 'Payments',
+            to: '/platform/payments',
+            requiredRoles: ['PLATFORM_STAFF'],
+          },
+          {
+            title: 'Email Logs',
+            to: '/platform/email-logs',
+            requiredRoles: ['PLATFORM_STAFF'],
+          },
+        ],
       },
     ],
-    [role]
+    []
   )
+
+  const visibleSections = useMemo(() => {
+    return navSections
+      .map((section) => {
+        const sectionAllowed = hasRequiredRole(userRoles, section.requiredRoles)
+        const children = section.children?.filter((child) =>
+          hasRequiredRole(userRoles, child.requiredRoles)
+        )
+
+        if (section.to) {
+          return sectionAllowed ? { ...section } : null
+        }
+
+        if (children && children.length > 0) {
+          return { ...section, children }
+        }
+
+        return null
+      })
+      .filter(Boolean) as NavSection[]
+  }, [navSections, userRoles])
 
   return (
     <div className="min-h-screen bg-slate-50 text-ink">
@@ -121,49 +277,47 @@ function AppLayout({ children }: AppLayoutProps) {
           </div>
 
           <nav className="mt-8 space-y-6">
-            {navSections
-              .filter((section) => !section.hidden)
-              .map((section) => (
-                <div key={section.title}>
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted">
-                    <section.icon className="h-4 w-4" />
-                    {section.title}
-                  </div>
-                  <div className="mt-3 space-y-2">
-                    {section.to && (
-                      <NavLink
-                        to={section.to}
-                        className={({ isActive }) =>
-                          clsx(
-                            'flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition',
-                            isActive
-                              ? 'bg-slate-900 text-white'
-                              : 'text-muted hover:bg-slate-100'
-                          )
-                        }
-                      >
-                        {section.title}
-                      </NavLink>
-                    )}
-                    {section.children?.map((child) => (
-                      <NavLink
-                        key={child.title}
-                        to={child.to}
-                        className={({ isActive }) =>
-                          clsx(
-                            'flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition',
-                            isActive
-                              ? 'bg-slate-900 text-white'
-                              : 'text-muted hover:bg-slate-100'
-                          )
-                        }
-                      >
-                        {child.title}
-                      </NavLink>
-                    ))}
-                  </div>
+            {visibleSections.map((section) => (
+              <div key={section.title}>
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted">
+                  <section.icon className="h-4 w-4" />
+                  {section.title}
                 </div>
-              ))}
+                <div className="mt-3 space-y-2">
+                  {section.to && (
+                    <NavLink
+                      to={section.to}
+                      className={({ isActive }) =>
+                        clsx(
+                          'flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition',
+                          isActive
+                            ? 'bg-slate-900 text-white'
+                            : 'text-muted hover:bg-slate-100'
+                        )
+                      }
+                    >
+                      {section.title}
+                    </NavLink>
+                  )}
+                  {section.children?.map((child) => (
+                    <NavLink
+                      key={child.title}
+                      to={child.to}
+                      className={({ isActive }) =>
+                        clsx(
+                          'flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition',
+                          isActive
+                            ? 'bg-slate-900 text-white'
+                            : 'text-muted hover:bg-slate-100'
+                        )
+                      }
+                    >
+                      {child.title}
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
+            ))}
           </nav>
 
           <div className="mt-8 rounded-2xl border border-stroke bg-slate-50 p-4 text-sm">
@@ -217,4 +371,3 @@ function AppLayout({ children }: AppLayoutProps) {
 }
 
 export default AppLayout
-

@@ -30,10 +30,8 @@ function Acknowledgments() {
           </select>
           <select className="rounded-2xl border border-stroke px-4 py-2 text-sm">
             <option>Department</option>
-            <option>People Ops</option>
+            <option>HR</option>
             <option>Engineering</option>
-            <option>Sales</option>
-            <option>Marketing</option>
           </select>
           <select className="rounded-2xl border border-stroke px-4 py-2 text-sm">
             <option>Status</option>

@@ -10,6 +10,8 @@ import { Skeleton } from '../../components/ui/Skeleton'
 import { useInstancesQuery, useStartInstance, useTemplatesQuery } from '../../hooks/queries'
 import { useUsersQuery } from '../../hooks/queries'
 import { useToast } from '../../components/ui/Toast'
+import { ROLE_LABELS, getPrimaryRole } from '../../shared/rbac'
+import { useAppStore } from '../../store/useAppStore'
 
 function Employees() {
   const navigate = useNavigate()
@@ -18,12 +20,14 @@ function Employees() {
   const { data: users } = useUsersQuery()
   const { data: templates } = useTemplatesQuery()
   const startInstance = useStartInstance()
+  const currentUser = useAppStore((state) => state.currentUser)
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState({
     employeeId: '',
     templateId: '',
     startDate: '',
   })
+  const canStart = Boolean(currentUser?.roles.includes('HR'))
 
   const handleStart = async () => {
     const instance = await startInstance.mutateAsync({
@@ -42,8 +46,8 @@ function Employees() {
       <PageHeader
         title="Employees"
         subtitle="Track onboarding status across teams."
-        actionLabel="Start Onboarding"
-        onAction={() => setOpen(true)}
+        actionLabel={canStart ? 'Start Onboarding' : undefined}
+        onAction={canStart ? () => setOpen(true) : undefined}
       />
 
       <Card>
@@ -105,7 +109,9 @@ function Employees() {
                 return (
                   <tr key={instance.id} className="border-t border-stroke hover:bg-slate-50">
                     <td className="px-4 py-3 font-medium">{employee?.name}</td>
-                    <td className="px-4 py-3 text-muted">{employee?.role}</td>
+                    <td className="px-4 py-3 text-muted">
+                      {employee ? ROLE_LABELS[getPrimaryRole(employee.roles)] : '-'}
+                    </td>
                     <td className="px-4 py-3 text-muted">{instance.startDate}</td>
                     <td className="px-4 py-3 text-muted">{instance.progress}%</td>
                     <td className="px-4 py-3 text-muted">{instance.status}</td>

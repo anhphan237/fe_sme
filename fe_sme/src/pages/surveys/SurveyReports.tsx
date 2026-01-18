@@ -22,10 +22,8 @@ const trendData = [
 ]
 
 const deptData = [
-  { dept: 'People Ops', value: 88 },
+  { dept: 'HR', value: 88 },
   { dept: 'Engineering', value: 74 },
-  { dept: 'Sales', value: 69 },
-  { dept: 'Marketing', value: 81 },
 ]
 
 function SurveyReports() {

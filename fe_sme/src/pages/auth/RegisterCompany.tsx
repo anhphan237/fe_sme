@@ -8,6 +8,7 @@ import { Stepper } from '../../components/ui/Stepper'
 import { Button } from '../../components/ui/Button'
 import { useAppStore } from '../../store/useAppStore'
 import type { Tenant, User } from '../../shared/types'
+import { createMockToken } from '../../mocks/auth'
 
 const schema = z.object({
   companyName: z.string().min(2),
@@ -25,7 +26,7 @@ const steps = ['Company Info', 'HR Account', 'Confirm']
 function RegisterCompany() {
   const [step, setStep] = useState(0)
   const navigate = useNavigate()
-  const { setTenant, setUser, setRole } = useAppStore()
+  const { setTenant, setUser, setToken } = useAppStore()
   const {
     register,
     handleSubmit,
@@ -40,7 +41,7 @@ function RegisterCompany() {
 
   const onSubmit = (data: RegisterForm) => {
     const tenant: Tenant = {
-      id: 'tenant-new',
+      id: 'company-new',
       name: data.companyName,
       industry: data.industry,
       size: data.size,
@@ -50,14 +51,23 @@ function RegisterCompany() {
       id: 'user-new',
       name: data.hrName,
       email: data.hrEmail,
-      role: 'HR Admin',
-      department: 'People Ops',
+      roles: ['COMPANY_ADMIN'],
+      companyId: tenant.id,
+      department: 'HR',
       status: 'Active',
       createdAt: new Date().toISOString().slice(0, 10),
     }
     setTenant(tenant)
     setUser(user)
-    setRole('HR Admin')
+    const token = createMockToken({
+      user_id: user.id,
+      company_id: tenant.id,
+      roles: user.roles,
+    })
+    setToken(token)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('auth_token', token)
+    }
     navigate('/dashboard')
   }
 

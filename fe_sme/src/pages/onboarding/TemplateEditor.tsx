@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { useSaveTemplate, useTemplateQuery } from '../../hooks/queries'
 import { useToast } from '../../components/ui/Toast'
+import { ROLE_LABELS } from '../../shared/rbac'
 
 function TemplateEditor() {
   const { templateId } = useParams()
@@ -27,7 +28,7 @@ function TemplateEditor() {
             {
               id: 'task-new',
               title: 'New task',
-              ownerRole: 'Employee',
+              ownerRole: 'EMPLOYEE',
               dueOffset: 'Day 1',
               required: false,
             },
@@ -119,7 +120,9 @@ function TemplateEditor() {
                 {currentStage?.tasks.map((task) => (
                   <tr key={task.id} className="border-t border-stroke">
                     <td className="px-4 py-3 font-medium">{task.title}</td>
-                    <td className="px-4 py-3 text-muted">{task.ownerRole}</td>
+                    <td className="px-4 py-3 text-muted">
+                      {ROLE_LABELS[task.ownerRole]}
+                    </td>
                     <td className="px-4 py-3 text-muted">{task.dueOffset}</td>
                     <td className="px-4 py-3 text-muted">
                       {task.required ? 'Yes' : 'No'}

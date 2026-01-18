@@ -4,15 +4,44 @@ import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { useRolesQuery } from '../../hooks/queries'
 import { Skeleton } from '../../components/ui/Skeleton'
+import { ROLE_LABELS } from '../../shared/rbac'
 
 const permissions = [
+  'manage_departments',
   'manage_users',
-  'manage_templates',
-  'view_reports',
+  'manage_roles',
+  'view_company_billing',
+  'manage_employee_profiles',
+  'manage_onboarding_templates',
+  'create_onboarding_instances',
   'assign_tasks',
-  'review_evaluations',
-  'complete_tasks',
-  'submit_surveys',
+  'track_onboarding_progress',
+  'manage_automation',
+  'manage_surveys',
+  'view_survey_analytics',
+  'manage_documents',
+  'manage_kb',
+  'view_team_onboarding',
+  'update_assigned_tasks',
+  'comment_tasks',
+  'upload_attachments',
+  'answer_surveys',
+  'view_documents',
+  'view_my_onboarding',
+  'update_task_status',
+  'manage_tenants',
+  'manage_plans',
+  'manage_subscriptions',
+  'manage_invoices',
+  'manage_payments',
+  'manage_dunning',
+  'manage_discounts',
+  'view_usage',
+  'view_finance',
+  'view_email_logs',
+  'support_lookup_invoices',
+  'support_lookup_payments',
+  'view_tenant_health',
 ]
 
 function AdminRoles() {
@@ -54,7 +83,7 @@ function AdminRoles() {
                   }`}
                   onClick={() => setActiveId(role.id)}
                 >
-                  {role.name}
+                  {ROLE_LABELS[role.name]}
                 </button>
               ))}
             </div>

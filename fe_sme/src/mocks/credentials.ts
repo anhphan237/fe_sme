@@ -1,14 +1,14 @@
-import type { Role } from '../shared/types'
-
 export type DemoCredential = {
   email: string
   password: string
-  role: Role
 }
 
 export const demoCredentials: DemoCredential[] = [
-  { email: 'hr@demo.com', password: 'password123', role: 'HR Admin' },
-  { email: 'manager@demo.com', password: 'password123', role: 'Manager' },
-  { email: 'employee@demo.com', password: 'password123', role: 'Employee' },
-  { email: 'super@demo.com', password: 'password123', role: 'Super Admin' },
+  { email: 'admin@acme.com', password: '123123' },
+  { email: 'hr@acme.com', password: '123123' },
+  { email: 'manager@acme.com', password: '123123' },
+  { email: 'employee@acme.com', password: '123123' },
+  { email: 'platform_admin@demo.com', password: '123123' },
+  { email: 'platform_manager@demo.com', password: '123123' },
+  { email: 'platform_staff@demo.com', password: '123123' },
 ]

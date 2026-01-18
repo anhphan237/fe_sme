@@ -9,7 +9,146 @@ import { Skeleton } from '../../components/ui/Skeleton'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { useToast } from '../../components/ui/Toast'
 import { useInviteUser, useUsersQuery } from '../../hooks/queries'
-import type { User } from '../../shared/types'
+import { ROLE_LABELS } from '../../shared/rbac'
+
+type RoleCatalogItem = {
+  id: string
+  name: string
+  level: 'Platform-level' | 'Company-level'
+  description: string
+  workflows: string[]
+  capabilities: string[]
+}
+
+const roleCatalog: RoleCatalogItem[] = [
+  {
+    id: 'platform-admin',
+    name: 'Platform Admin',
+    level: 'Platform-level',
+    description: 'Owns SaaS governance, tenant management, and billing controls.',
+    workflows: ['Workflow 5'],
+    capabilities: [
+      'Manage tenants: view companies and tenant profile details.',
+      'Activate, suspend, or change tenant status.',
+      'Configure tenant settings when enabled.',
+      'Manage pricing plans: create, update, retire.',
+      'Configure plan features per plan.',
+      'Manage subscriptions by tenant.',
+      'Track monthly usage and usage trends.',
+      'Manage invoices and payment transactions.',
+      'Handle dunning cases: retry, suspend, resolve.',
+      'Create and update discount or promotion codes.',
+      'Apply or remove discounts for subscriptions.',
+      'Monitor business logs: email delivery and dunning status.',
+    ],
+  },
+  {
+    id: 'platform-manager',
+    name: 'Platform Manager',
+    level: 'Platform-level',
+    description: 'Monitors platform health, usage, and revenue performance.',
+    workflows: ['Workflow 5'],
+    capabilities: [
+      'Dashboard usage by company and month.',
+      'Analyze plan distribution and active subscriptions.',
+      'Track invoice health: paid, failed, due.',
+      'Track payment success and failure rates.',
+      'Review open dunning cases and suspend status.',
+      'Analyze product usage: onboarded employees per month.',
+      'Estimate email volume and chatbot token usage.',
+    ],
+  },
+  {
+    id: 'platform-staff',
+    name: 'Platform Staff',
+    level: 'Platform-level',
+    description: 'Supports billing and delivery troubleshooting.',
+    workflows: ['Workflow 5'],
+    capabilities: [
+      'Lookup invoices and payments by tenant.',
+      'Check subscription status and history.',
+      'Review dunning retry and suspend status.',
+      'Investigate email delivery logs and provider errors.',
+      'Review automation rules in read-only mode.',
+    ],
+  },
+  {
+    id: 'company-admin',
+    name: 'Company Admin',
+    level: 'Company-level',
+    description: 'Administers tenant settings, users, roles, and billing.',
+    workflows: ['Workflow 1', 'Workflow 5'],
+    capabilities: [
+      'Update company profile and settings.',
+      'Manage departments and org structure.',
+      'Create, update, or lock users.',
+      'Create or edit roles and permissions.',
+      'Assign roles to users.',
+      'View subscription plan and status.',
+      'Review usage, invoices, and payments.',
+      'Review discounts applied to subscriptions.',
+      'Run usage and billing reports.',
+      'Report on onboarding operations from runtime data.',
+    ],
+  },
+  {
+    id: 'hr',
+    name: 'HR',
+    level: 'Company-level',
+    description: 'Owns onboarding workflows and employee experience.',
+    workflows: ['Workflow 2', 'Workflow 3', 'Workflow 4'],
+    capabilities: [
+      'Create and update employee profiles, assign department and manager.',
+      'Create and edit onboarding, checklist, and task templates.',
+      'Start onboarding for employees and generate instances.',
+      'Track onboarding progress and record onboarding events.',
+      'Assign or reassign tasks; track comments and activity logs.',
+      'Configure automation, email templates, and campaigns.',
+      'Monitor email delivery logs and system notifications.',
+      'Manage document categories, versions, and access rules.',
+      'Track document acknowledgements.',
+      'Create survey templates and questions.',
+      'Launch surveys and review responses and answers.',
+      'Manage knowledge base articles and tags.',
+      'Monitor chatbot sessions and messages.',
+    ],
+  },
+  {
+    id: 'manager',
+    name: 'Manager',
+    level: 'Company-level',
+    description: 'Guides team onboarding and completes assigned tasks.',
+    workflows: ['Workflow 3', 'Workflow 4'],
+    capabilities: [
+      'View direct reports and their onboarding progress.',
+      'View onboarding instances and team tasks.',
+      'Update and complete assigned tasks.',
+      'Comment on tasks and collaborate.',
+      'Upload task attachments when needed.',
+      'Respond to manager surveys.',
+      'Access documents and acknowledge reading.',
+      'Use the chatbot for Q&A.',
+    ],
+  },
+  {
+    id: 'employee',
+    name: 'Employee (New Employee)',
+    level: 'Company-level',
+    description: 'Completes personal onboarding tasks and surveys.',
+    workflows: ['Workflow 3', 'Workflow 4'],
+    capabilities: [
+      'View own profile and onboarding status.',
+      'Review onboarding checklist and tasks.',
+      'Update and complete assigned tasks.',
+      'Upload task attachments.',
+      'Comment on tasks when allowed.',
+      'Receive and read notifications.',
+      'Access documents and acknowledge reading.',
+      'Respond to onboarding surveys.',
+      'Use the chatbot for Q&A.',
+    ],
+  },
+]
 
 function AdminUsers() {
   const { data, isLoading, isError, refetch } = useUsersQuery()
@@ -18,15 +157,14 @@ function AdminUsers() {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState({
     email: '',
-    role: 'Employee',
-    department: 'People Ops',
+    department: 'HR',
     manager: '',
   })
 
   const handleInvite = async () => {
     await inviteUser.mutateAsync({
       email: form.email,
-      role: form.role as User['role'],
+      roles: ['EMPLOYEE'],
       department: form.department,
       manager: form.manager,
     })
@@ -44,23 +182,49 @@ function AdminUsers() {
       />
 
       <Card>
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="space-y-4 p-6">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted">Role catalog</p>
+            <h2 className="text-lg font-semibold">Role capabilities by scope</h2>
+            <p className="text-sm text-muted">
+              Mock data for platform and company roles, with the capabilities each role can access.
+            </p>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {roleCatalog.map((role) => (
+              <div key={role.id} className="rounded-2xl border border-stroke p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base font-semibold">{role.name}</h3>
+                  <Badge>{role.level}</Badge>
+                  {role.workflows.map((workflow) => (
+                    <Badge key={workflow}>{workflow}</Badge>
+                  ))}
+                </div>
+                <p className="mt-1 text-sm text-muted">{role.description}</p>
+                <ul className="mt-3 grid gap-2 text-sm text-slate-700">
+                  {role.capabilities.map((item) => (
+                    <li key={item} className="flex gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="grid gap-3 md:grid-cols-3">
           <input
             placeholder="Search"
             className="rounded-2xl border border-stroke px-4 py-2 text-sm"
           />
           <select className="rounded-2xl border border-stroke px-4 py-2 text-sm">
-            <option>Role</option>
-            <option>HR Admin</option>
-            <option>Manager</option>
-            <option>Employee</option>
-          </select>
-          <select className="rounded-2xl border border-stroke px-4 py-2 text-sm">
             <option>Department</option>
-            <option>People Ops</option>
+            <option>HR</option>
             <option>Engineering</option>
-            <option>Sales</option>
-            <option>Marketing</option>
           </select>
           <select className="rounded-2xl border border-stroke px-4 py-2 text-sm">
             <option>Status</option>
@@ -112,7 +276,9 @@ function AdminUsers() {
                 <tr key={user.id} className="border-t border-stroke hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium">{user.name}</td>
                   <td className="px-4 py-3 text-muted">{user.email}</td>
-                  <td className="px-4 py-3">{user.role}</td>
+                  <td className="px-4 py-3">
+                    {user.roles.map((role) => ROLE_LABELS[role]).join(', ')}
+                  </td>
                   <td className="px-4 py-3">{user.department}</td>
                   <td className="px-4 py-3">
                     <Badge>{user.status}</Badge>
@@ -144,20 +310,6 @@ function AdminUsers() {
             />
           </label>
           <label className="grid gap-1 text-sm">
-            Role
-            <select
-              className="rounded-2xl border border-stroke px-4 py-2"
-              value={form.role}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, role: event.target.value }))
-              }
-            >
-              <option>HR Admin</option>
-              <option>Manager</option>
-              <option>Employee</option>
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm">
             Department
             <select
               className="rounded-2xl border border-stroke px-4 py-2"
@@ -166,10 +318,8 @@ function AdminUsers() {
                 setForm((prev) => ({ ...prev, department: event.target.value }))
               }
             >
-              <option>People Ops</option>
+              <option>HR</option>
               <option>Engineering</option>
-              <option>Sales</option>
-              <option>Marketing</option>
             </select>
           </label>
           <label className="grid gap-1 text-sm">

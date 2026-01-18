@@ -1,5 +1,6 @@
-﻿import { fetchJson } from './client'
-import type { Role, User } from '../types'
+import { fetchJson } from './client'
+import type { User } from '../types'
+import { createMockToken } from '../../mocks/auth'
 
 export interface LoginPayload {
   email: string
@@ -16,14 +17,17 @@ export async function login(payload: LoginPayload) {
     if (import.meta.env.DEV) {
       const { demoCredentials } = await import('../../mocks/credentials')
       const match = demoCredentials.find(
-        (item) =>
-          item.email === payload.email && item.password === payload.password
+        (item) => item.email === payload.email && item.password === payload.password
       )
       if (match) {
         const { users } = await import('../../mocks/seed')
-        const user =
-          users.find((item) => item.role === (match.role as Role)) ?? users[0]
-        return { user: { ...user, role: match.role }, token: 'mock-token' }
+        const user = users.find((item) => item.email === match.email) ?? users[0]
+        const token = createMockToken({
+          user_id: user.id,
+          company_id: user.companyId,
+          roles: user.roles,
+        })
+        return { user, token }
       }
     }
     throw error
@@ -37,4 +41,3 @@ export async function logout() {
 export async function me() {
   return fetchJson<{ user: User | null }>('/api/me')
 }
-
