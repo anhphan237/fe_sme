@@ -1,4 +1,4 @@
-﻿import { ReactNode } from 'react'
+import { ReactNode } from 'react'
 
 interface AuthLayoutProps {
   children: ReactNode
@@ -6,8 +6,8 @@ interface AuthLayoutProps {
 
 function AuthLayout({ children }: AuthLayoutProps) {
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="min-h-screen px-6 py-12">{children}</div>
+    <div className="min-h-screen bg-[#fbfbfd]">
+      {children}
     </div>
   )
 }

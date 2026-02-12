@@ -1,5 +1,5 @@
 import { fetchJson } from './client'
-import { gatewayRequest, useGateway } from './gateway'
+import { gatewayRequest, isGatewayEnabled, useGateway } from './gateway'
 import type { Role, User } from '../types'
 
 export interface LoginPayload {
@@ -102,8 +102,9 @@ export async function logout() {
   return fetchJson<{ ok: boolean }>('/api/logout', { method: 'POST' })
 }
 
+/** Get current user. Safe to call from useEffect (uses isGatewayEnabled, not useGateway). */
 export async function me() {
-  if (useGateway()) {
+  if (isGatewayEnabled()) {
     const res = await gatewayRequest<Record<string, never>, any>(
       'com.sme.identity.user.me',
       {},

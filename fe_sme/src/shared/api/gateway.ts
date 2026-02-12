@@ -92,7 +92,12 @@ export async function gatewayRequest<TReq = unknown, TRes = unknown>(
   return (data !== undefined ? data : json) as TRes
 }
 
+/** Check if real API (gateway) should be used. Safe to call outside React (e.g. in useEffect). */
+export function isGatewayEnabled(): boolean {
+  return Boolean(BASE_URL) || (typeof import.meta !== 'undefined' && (import.meta as any).env?.DEV === true)
+}
+
 /** Check if real API (gateway) should be used. In dev with proxy, BASE_URL can be empty. */
 export function useGateway(): boolean {
-  return Boolean(BASE_URL) || (typeof import.meta !== 'undefined' && import.meta.env?.DEV === true)
+  return isGatewayEnabled()
 }

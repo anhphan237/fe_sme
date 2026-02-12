@@ -1,4 +1,4 @@
-﻿import { create } from 'zustand'
+import { create } from 'zustand'
 import type { Tenant, User } from '../shared/types'
 
 interface AppState {
@@ -21,6 +21,7 @@ export const useAppStore = create<AppState>((set) => ({
   logout: () => {
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem('auth_token')
+      window.localStorage.removeItem('auth_user')
     }
     set({
       currentTenant: null,

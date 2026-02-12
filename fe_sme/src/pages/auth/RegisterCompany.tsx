@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -67,6 +67,7 @@ function RegisterCompany() {
     setToken(token)
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('auth_token', token)
+      window.localStorage.setItem('auth_user', JSON.stringify(user))
     }
     navigate('/dashboard')
   }
