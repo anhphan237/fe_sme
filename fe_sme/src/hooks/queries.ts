@@ -1,4 +1,4 @@
-﻿import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import {
   getTenants,
   updateTenant,
@@ -39,8 +39,7 @@ import {
 import {
   getSaTenants,
   getSaFinance,
-  getDiscountCodes,
-  createDiscountCode,
+  getPlatformSubscriptionMetrics,
 } from '../shared/api/superAdmin'
 import { chatbotQuery } from '../shared/api/chatbot'
 
@@ -117,8 +116,10 @@ export const useSaTenantsQuery = () =>
   useQuery({ queryKey: ['sa-tenants'], queryFn: getSaTenants })
 export const useSaFinanceQuery = () =>
   useQuery({ queryKey: ['sa-finance'], queryFn: getSaFinance })
-export const useDiscountCodesQuery = () =>
-  useQuery({ queryKey: ['sa-discounts'], queryFn: getDiscountCodes })
-export const useCreateDiscountCode = () =>
-  useMutation({ mutationFn: createDiscountCode })
+export const usePlatformSubscriptionMetrics = (startDate: string, endDate: string, enabled = true) =>
+  useQuery({
+    queryKey: ['platform-subscription-metrics', startDate, endDate],
+    queryFn: () => getPlatformSubscriptionMetrics({ startDate, endDate }),
+    enabled: Boolean(startDate && endDate && enabled),
+  })
 

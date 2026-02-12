@@ -1,6 +1,5 @@
 import type {
   Acknowledgment,
-  DiscountCode,
   Document,
   Evaluation,
   KnowledgeBaseArticle,
@@ -19,7 +18,6 @@ import type {
 import {
   acknowledgments,
   conversations,
-  discountCodes,
   documents,
   financeSnapshots,
   invoices,
@@ -524,41 +522,6 @@ const handleSaFinance = async () => {
   return financeSnapshots
 }
 
-const handleSaDiscountCodes = async () => {
-  authorize(['PLATFORM_ADMIN', 'PLATFORM_MANAGER'])
-  return discountCodes
-}
-
-const handleSaDiscountCodePost = async (body: Partial<DiscountCode>) => {
-  authorize(['PLATFORM_ADMIN'])
-  const next: DiscountCode = {
-    id: `disc-${discountCodes.length + 1}`,
-    code: body.code ?? 'NEWCODE',
-    amount: body.amount ?? '10%',
-    status: body.status ?? 'Active',
-  }
-  discountCodes.unshift(next)
-  return next
-}
-
-const handleSaDiscountCodePatch = async (id: string, body: Partial<DiscountCode>) => {
-  authorize(['PLATFORM_ADMIN'])
-  const index = discountCodes.findIndex((item) => item.id === id)
-  if (index >= 0) {
-    discountCodes[index] = { ...discountCodes[index], ...body }
-  }
-  return discountCodes[index]
-}
-
-const handleSaDiscountCodeDelete = async (id: string) => {
-  authorize(['PLATFORM_ADMIN'])
-  const index = discountCodes.findIndex((item) => item.id === id)
-  if (index >= 0) {
-    discountCodes.splice(index, 1)
-  }
-  return { ok: true }
-}
-
 const handleKnowledgeBase = async () => {
   const payload = authorize(['HR'])
   const companyId = requireCompany(payload.company_id)
@@ -626,7 +589,6 @@ const routes: Record<
     { test: /^\/api\/invoices$/, handle: () => handleInvoices() },
     { test: /^\/api\/sa\/tenants$/, handle: () => handleSaTenants() },
     { test: /^\/api\/sa\/finance$/, handle: () => handleSaFinance() },
-    { test: /^\/api\/sa\/discount-codes$/, handle: () => handleSaDiscountCodes() },
     { test: /^\/api\/knowledge-base$/, handle: () => handleKnowledgeBase() },
     { test: /^\/api\/chatbot\/conversations$/, handle: () => handleChatbotConversations() },
   ],
@@ -653,7 +615,6 @@ const routes: Record<
     { test: /^\/api\/survey-responses$/, handle: (_m, body) => handleSurveyResponsePost(body ?? {}) },
     { test: /^\/api\/chatbot\/query$/, handle: (_m, body) => handleChatbotQuery(body ?? {}) },
     { test: /^\/api\/payment\/connect$/, handle: () => handlePaymentConnect() },
-    { test: /^\/api\/sa\/discount-codes$/, handle: (_m, body) => handleSaDiscountCodePost(body ?? {}) },
     { test: /^\/api\/knowledge-base$/, handle: (_m, body) => handleKnowledgeBasePost(body ?? {}) },
   ],
   PATCH: [
@@ -663,12 +624,10 @@ const routes: Record<
     { test: /^\/api\/documents\/([^/]+)$/, handle: ([id], body) => handleDocumentPatch(id, body ?? {}) },
     { test: /^\/api\/survey-instances\/([^/]+)$/, handle: ([id], body) => handleSurveyInstancePatch(id, body ?? {}) },
     { test: /^\/api\/subscription$/, handle: () => handleSubscriptionPatch() },
-    { test: /^\/api\/sa\/discount-codes\/([^/]+)$/, handle: ([id], body) => handleSaDiscountCodePatch(id, body ?? {}) },
   ],
   DELETE: [
     { test: /^\/api\/documents\/([^/]+)$/, handle: ([id]) => handleDocumentDelete(id) },
     { test: /^\/api\/survey-instances\/([^/]+)$/, handle: ([id]) => handleSurveyInstanceDelete(id) },
-    { test: /^\/api\/sa\/discount-codes\/([^/]+)$/, handle: ([id]) => handleSaDiscountCodeDelete(id) },
   ],
 }
 

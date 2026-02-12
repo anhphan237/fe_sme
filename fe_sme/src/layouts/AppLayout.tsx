@@ -200,11 +200,6 @@ function AppLayout({ children }: AppLayoutProps) {
             requiredRoles: ['PLATFORM_ADMIN', 'PLATFORM_MANAGER'],
           },
           {
-            title: 'Discounts',
-            to: '/platform/discounts',
-            requiredRoles: ['PLATFORM_ADMIN'],
-          },
-          {
             title: 'Dunning',
             to: '/platform/dunning',
             requiredRoles: ['PLATFORM_ADMIN'],

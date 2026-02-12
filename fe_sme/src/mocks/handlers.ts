@@ -2,7 +2,6 @@ import { http, HttpResponse } from 'msw'
 import {
   acknowledgments,
   conversations,
-  discountCodes,
   documents,
   financeSnapshots,
   invoices,
@@ -23,7 +22,6 @@ import { demoCredentials } from './credentials'
 import { createMockToken, parseMockToken } from './auth'
 import type {
   Acknowledgment,
-  DiscountCode,
   Document,
   KnowledgeBaseArticle,
   OnboardingInstance,
@@ -656,51 +654,6 @@ export const handlers = [
       return auth
     }
     return HttpResponse.json(financeSnapshots)
-  }),
-  http.get('/api/sa/discount-codes', ({ request }) => {
-    const auth = authorize(request, ['PLATFORM_ADMIN', 'PLATFORM_MANAGER'])
-    if (auth instanceof HttpResponse) {
-      return auth
-    }
-    return HttpResponse.json(discountCodes)
-  }),
-  http.post('/api/sa/discount-codes', async ({ request }) => {
-    const auth = authorize(request, ['PLATFORM_ADMIN'])
-    if (auth instanceof HttpResponse) {
-      return auth
-    }
-    const body = (await request.json()) as Partial<DiscountCode>
-    const next: DiscountCode = {
-      id: `disc-${discountCodes.length + 1}`,
-      code: body.code ?? 'NEWCODE',
-      amount: body.amount ?? '10%',
-      status: body.status ?? 'Active',
-    }
-    discountCodes.unshift(next)
-    return HttpResponse.json(next)
-  }),
-  http.patch('/api/sa/discount-codes/:id', async ({ params, request }) => {
-    const auth = authorize(request, ['PLATFORM_ADMIN'])
-    if (auth instanceof HttpResponse) {
-      return auth
-    }
-    const body = (await request.json()) as Partial<DiscountCode>
-    const index = discountCodes.findIndex((item) => item.id === params.id)
-    if (index >= 0) {
-      discountCodes[index] = { ...discountCodes[index], ...body }
-    }
-    return HttpResponse.json(discountCodes[index])
-  }),
-  http.delete('/api/sa/discount-codes/:id', ({ params, request }) => {
-    const auth = authorize(request, ['PLATFORM_ADMIN'])
-    if (auth instanceof HttpResponse) {
-      return auth
-    }
-    const index = discountCodes.findIndex((item) => item.id === params.id)
-    if (index >= 0) {
-      discountCodes.splice(index, 1)
-    }
-    return HttpResponse.json({ ok: true })
   }),
 
   http.get('/api/knowledge-base', ({ request }) => {

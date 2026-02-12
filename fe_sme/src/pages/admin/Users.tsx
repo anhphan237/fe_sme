@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Card } from '../../components/ui/Card'
 import { Table } from '../../components/ui/Table'
@@ -37,8 +37,6 @@ const roleCatalog: RoleCatalogItem[] = [
       'Track monthly usage and usage trends.',
       'Manage invoices and payment transactions.',
       'Handle dunning cases: retry, suspend, resolve.',
-      'Create and update discount or promotion codes.',
-      'Apply or remove discounts for subscriptions.',
       'Monitor business logs: email delivery and dunning status.',
     ],
   },
@@ -86,7 +84,7 @@ const roleCatalog: RoleCatalogItem[] = [
       'Assign roles to users.',
       'View subscription plan and status.',
       'Review usage, invoices, and payments.',
-      'Review discounts applied to subscriptions.',
+      'Review subscription and billing status.',
       'Run usage and billing reports.',
       'Report on onboarding operations from runtime data.',
     ],

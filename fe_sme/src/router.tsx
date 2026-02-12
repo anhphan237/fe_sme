@@ -41,7 +41,6 @@ const PlatformPlans = lazy(() => import('./pages/platform/Plans'))
 const PlatformSubscriptions = lazy(() => import('./pages/platform/Subscriptions'))
 const PlatformUsage = lazy(() => import('./pages/platform/Usage'))
 const PlatformFinance = lazy(() => import('./pages/platform/Finance'))
-const PlatformDiscounts = lazy(() => import('./pages/platform/Discounts'))
 const PlatformDunning = lazy(() => import('./pages/platform/Dunning'))
 const PlatformInvoices = lazy(() => import('./pages/platform/Invoices'))
 const PlatformPayments = lazy(() => import('./pages/platform/Payments'))
@@ -208,10 +207,6 @@ export const router = createBrowserRouter([
       {
         path: '/platform/finance',
         element: suspense(withRoles(<PlatformFinance />, ['PLATFORM_ADMIN', 'PLATFORM_MANAGER'])),
-      },
-      {
-        path: '/platform/discounts',
-        element: suspense(withRoles(<PlatformDiscounts />, ['PLATFORM_ADMIN'])),
       },
       {
         path: '/platform/dunning',

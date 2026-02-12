@@ -1,11 +1,9 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Card } from '../../components/ui/Card'
 import { Tabs } from '../../components/ui/Tabs'
-import { Button } from '../../components/ui/Button'
-import { Modal } from '../../components/ui/Modal'
 import { Table } from '../../components/ui/Table'
-import { useCreateDiscountCode, useDiscountCodesQuery, useSaFinanceQuery, useSaTenantsQuery } from '../../hooks/queries'
+import { useSaFinanceQuery, useSaTenantsQuery } from '../../hooks/queries'
 import { Skeleton } from '../../components/ui/Skeleton'
 import {
   LineChart,
@@ -21,12 +19,8 @@ import {
 
 function SuperAdmin() {
   const [tab, setTab] = useState('tenants')
-  const [open, setOpen] = useState(false)
-  const [code, setCode] = useState({ code: '', amount: '10%' })
   const { data: tenants, isLoading } = useSaTenantsQuery()
   const { data: finance } = useSaFinanceQuery()
-  const { data: discounts } = useDiscountCodesQuery()
-  const createDiscount = useCreateDiscountCode()
 
   return (
     <div className="space-y-6">
@@ -40,7 +34,6 @@ function SuperAdmin() {
           { label: 'Tenants', value: 'tenants' },
           { label: 'Subscriptions', value: 'subscriptions' },
           { label: 'Finance', value: 'finance' },
-          { label: 'Discount Codes', value: 'discounts' },
         ]}
         value={tab}
         onChange={setTab}
@@ -130,55 +123,6 @@ function SuperAdmin() {
         </div>
       )}
 
-      {tab === 'discounts' && (
-        <Card>
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Discount codes</h3>
-            <Button onClick={() => setOpen(true)}>Create</Button>
-          </div>
-          <div className="mt-4 space-y-2 text-sm">
-            {discounts?.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between rounded-2xl border border-stroke bg-slate-50 px-4 py-3"
-              >
-                <span>{item.code}</span>
-                <span className="text-muted">{item.amount}</span>
-                <span className="text-muted">{item.status}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      <Modal open={open} title="Create discount code" onClose={() => setOpen(false)}>
-        <div className="grid gap-3 text-sm">
-          <label className="grid gap-2">
-            Code
-            <input
-              className="rounded-2xl border border-stroke px-4 py-2"
-              value={code.code}
-              onChange={(event) => setCode((prev) => ({ ...prev, code: event.target.value }))}
-            />
-          </label>
-          <label className="grid gap-2">
-            Amount
-            <input
-              className="rounded-2xl border border-stroke px-4 py-2"
-              value={code.amount}
-              onChange={(event) => setCode((prev) => ({ ...prev, amount: event.target.value }))}
-            />
-          </label>
-          <Button
-            onClick={async () => {
-              await createDiscount.mutateAsync({ code: code.code, amount: code.amount })
-              setOpen(false)
-            }}
-          >
-            Save
-          </Button>
-        </div>
-      </Modal>
     </div>
   )
 }

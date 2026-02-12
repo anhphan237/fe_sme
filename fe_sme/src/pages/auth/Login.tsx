@@ -8,12 +8,11 @@ import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { useAppStore } from '../../store/useAppStore'
 import { login } from '../../shared/api/auth'
-import { mswReady } from '../../mocks/ready'
 import loginHero from '../../assets/login-hero.svg'
 
 const schema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string().min(1, 'Password is required'),
 })
 
 type LoginForm = z.infer<typeof schema>
@@ -36,10 +35,6 @@ function Login() {
   const onSubmit = async (data: LoginForm) => {
     try {
       setSubmitError(null)
-      const isMswReady = await mswReady
-      if (!isMswReady) {
-        console.warn('MSW not ready, falling back to local mock.')
-      }
       const response = await login(data)
       setUser(response.user)
       setToken(response.token)
@@ -49,7 +44,8 @@ function Login() {
       toast('Welcome back!')
       navigate('/dashboard', { replace: true })
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Login failed'
+      const raw = error instanceof Error ? error.message : 'Login failed'
+      const message = raw.length > 200 ? `${raw.slice(0, 200)}…` : raw
       setSubmitError(message)
       toast('Login failed. Please try again.')
       console.error('Login failed', error)
@@ -135,13 +131,13 @@ function Login() {
           <div className="mt-4 rounded-2xl border border-stroke bg-white/70 px-4 py-3 text-xs text-muted">
             <p className="font-semibold text-ink">Demo accounts</p>
             <div className="mt-2 grid gap-1">
-              <p>admin@acme.com / 123123</p>
-              <p>hr@acme.com / 123123</p>
-              <p>manager@acme.com / 123123</p>
-              <p>employee@acme.com / 123123</p>
-              <p>platform_admin@demo.com / 123123</p>
-              <p>platform_manager@demo.com / 123123</p>
-              <p>platform_staff@demo.com / 123123</p>
+              <p>admin@acme.com / 123</p>
+              <p>hr@acme.com / 123</p>
+              <p>manager@acme.com / 123</p>
+              <p>employee@acme.com / 123</p>
+              <p>platform_admin@demo.com / 123</p>
+              <p>platform_manager@demo.com / 123</p>
+              <p>platform_staff@demo.com / 123</p>
             </div>
           </div>
           <div className="mt-6 space-y-2 text-sm text-muted">

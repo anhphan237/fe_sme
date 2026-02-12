@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -35,7 +35,6 @@ const permissions = [
   'manage_invoices',
   'manage_payments',
   'manage_dunning',
-  'manage_discounts',
   'view_usage',
   'view_finance',
   'view_email_logs',

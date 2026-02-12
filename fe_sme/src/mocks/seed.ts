@@ -2,7 +2,6 @@ import type {
   Acknowledgment,
   BillingPlan,
   ChatConversation,
-  DiscountCode,
   Document,
   DocumentAccessRule,
   DocumentCategory,
@@ -191,7 +190,6 @@ export const roles: RoleDefinition[] = [
       'manage_invoices',
       'manage_payments',
       'manage_dunning',
-      'manage_discounts',
       'view_usage',
       'view_finance',
       'view_email_logs',
@@ -614,11 +612,6 @@ export const usage: UsageMetric[] = [
 export const invoices: Invoice[] = [
   { id: 'INV-2025-101', amount: '$129', status: 'Paid', date: '2025-01-05', companyId },
   { id: 'INV-2025-102', amount: '$129', status: 'Open', date: '2025-02-05', companyId },
-]
-
-export const discountCodes: DiscountCode[] = [
-  { id: 'disc-1', code: 'WELCOME15', amount: '15%', status: 'Active' },
-  { id: 'disc-2', code: 'YEARLY25', amount: '25%', status: 'Active' },
 ]
 
 export const financeSnapshots: FinanceSnapshot[] = [
