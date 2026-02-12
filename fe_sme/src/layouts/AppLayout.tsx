@@ -4,6 +4,8 @@ import {
   Banknote,
   Bot,
   Briefcase,
+  ChevronDown,
+  ChevronRight,
   ClipboardCheck,
   FileText,
   Gauge,
@@ -44,11 +46,22 @@ type NavSection = {
 
 function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const location = useLocation()
   const navigate = useNavigate()
   const currentUser = useAppStore((state) => state.currentUser)
   const logoutStore = useAppStore((state) => state.logout)
-  const location = useLocation()
   const userRoles = currentUser?.roles ?? []
+  const pathname = location.pathname
+
+  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>(() => ({}))
+  const toggleSection = (title: string) => {
+    setSectionOpen((prev) => ({ ...prev, [title]: !prev[title] }))
+  }
+  const isSectionOpen = (section: NavSection): boolean => {
+    if (sectionOpen[section.title] !== undefined) return sectionOpen[section.title]
+    const paths = section.to ? [section.to] : section.children?.map((c) => c.to) ?? []
+    return paths.some((p) => pathname === p || pathname.startsWith(p + '/'))
+  }
 
   const navSections = useMemo<NavSection[]>(
     () => [
@@ -256,79 +269,95 @@ function AppLayout({ children }: AppLayoutProps) {
       <div className="flex">
         <aside
           className={clsx(
-            'fixed inset-y-0 left-0 z-30 w-72 -translate-x-full border-r border-stroke bg-white/95 p-6 shadow-soft transition-transform lg:static lg:translate-x-0',
+            'fixed inset-y-0 left-0 z-30 flex w-64 flex-col -translate-x-full border-r border-[#e5e7eb] bg-[#fafafa] transition-transform duration-200 lg:static lg:translate-x-0',
             sidebarOpen && 'translate-x-0'
           )}
         >
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted">
-                SME-Onboard
-              </p>
-              <p className="text-lg font-semibold">Platform</p>
-            </div>
+          <div className="flex h-16 shrink-0 items-center justify-between border-b border-[#e5e7eb] bg-white px-5">
+            <span className="text-[15px] font-semibold tracking-tight text-[#111827]">
+              SME Workspace
+            </span>
             <button
-              className="rounded-full border border-stroke p-2 text-muted lg:hidden"
+              type="button"
+              className="rounded-lg p-2 text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827] lg:hidden"
               onClick={() => setSidebarOpen(false)}
               aria-label="Close sidebar"
             >
-              <Menu className="h-4 w-4" />
+              <Menu className="h-5 w-5" />
             </button>
           </div>
 
-          <nav className="mt-8 space-y-6">
-            {visibleSections.map((section) => (
-              <div key={section.title}>
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted">
-                  <section.icon className="h-4 w-4" />
-                  {section.title}
-                </div>
-                <div className="mt-3 space-y-2">
-                  {section.to && (
+          <nav className="flex-1 overflow-y-auto px-3 py-4">
+            {visibleSections.map((section) => {
+              const hasChildren = section.children && section.children.length > 0
+              const open = isSectionOpen(section)
+              return (
+                <div key={section.title} className="mb-4">
+                  {section.to && !hasChildren ? (
                     <NavLink
                       to={section.to}
                       className={({ isActive }) =>
                         clsx(
-                          'flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition',
+                          'mb-1.5 flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors',
                           isActive
-                            ? 'bg-slate-900 text-white'
-                            : 'text-muted hover:bg-slate-100'
+                            ? 'border-l-2 border-[#0071e3] bg-[#eff6ff] text-[#0071e3]'
+                            : 'border-l-2 border-transparent text-[#4b5563] hover:bg-[#f3f4f6] hover:text-[#111827]'
                         )
                       }
                     >
+                      <section.icon className="h-4 w-4 shrink-0 text-[#9ca3af]" />
                       {section.title}
                     </NavLink>
-                  )}
-                  {section.children?.map((child) => (
-                    <NavLink
-                      key={child.title}
-                      to={child.to}
-                      className={({ isActive }) =>
-                        clsx(
-                          'flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition',
-                          isActive
-                            ? 'bg-slate-900 text-white'
-                            : 'text-muted hover:bg-slate-100'
-                        )
-                      }
-                    >
-                      {child.title}
-                    </NavLink>
-                  ))}
+                  ) : hasChildren ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => toggleSection(section.title)}
+                        className="mb-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-[#6b7280] transition-colors hover:bg-[#f3f4f6] hover:text-[#111827]"
+                      >
+                        <section.icon className="h-4 w-4 shrink-0 text-[#9ca3af]" />
+                        <span className="flex-1">{section.title}</span>
+                        {open ? (
+                          <ChevronDown className="h-4 w-4 shrink-0" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 shrink-0" />
+                        )}
+                      </button>
+                      {open && (
+                        <div className="space-y-0.5 pl-1">
+                          {section.children!.map((child) => (
+                            <NavLink
+                              key={child.title}
+                              to={child.to}
+                              className={({ isActive }) =>
+                                clsx(
+                                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors',
+                                  isActive
+                                    ? 'border-l-2 border-[#0071e3] bg-[#eff6ff] text-[#0071e3]'
+                                    : 'border-l-2 border-transparent text-[#4b5563] hover:bg-[#f3f4f6] hover:text-[#111827]'
+                                )
+                              }
+                            >
+                              {child.title}
+                            </NavLink>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : null}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </nav>
 
-          <div className="mt-8 rounded-2xl border border-stroke bg-slate-50 p-4 text-sm">
-            <p className="font-semibold">Need help?</p>
-            <p className="mt-1 text-muted">
-              Visit the support hub or chat with our onboarding concierge.
-            </p>
-            <button className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-brand">
+          <div className="shrink-0 border-t border-[#e5e7eb] bg-white px-3 py-3">
+            <a
+              href="/support"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] text-[#6b7280] transition-colors hover:bg-[#f3f4f6] hover:text-[#111827]"
+            >
               <LifeBuoy className="h-4 w-4" />
-              Support Center
-            </button>
+              Support
+            </a>
           </div>
         </aside>
 

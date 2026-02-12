@@ -7,6 +7,22 @@ export interface LoginPayload {
   password: string
 }
 
+/** Check if email is already registered. Returns true if exists, false otherwise. */
+export async function checkEmailExists(email: string): Promise<boolean> {
+  if (!isGatewayEnabled()) return false
+  try {
+    const res = await gatewayRequest<{ email: string }, boolean | { exists?: boolean }>(
+      'com.sme.identity.auth.checkEmailExists',
+      { email },
+      { tenantId: null, requestIdPrefix: 'check-email' }
+    )
+    if (typeof res === 'boolean') return res
+    return Boolean((res as any)?.exists ?? (res as any)?.data)
+  } catch {
+    return false
+  }
+}
+
 const KNOWN_ROLES = [
   'PLATFORM_ADMIN', 'PLATFORM_MANAGER', 'PLATFORM_STAFF',
   'COMPANY_ADMIN', 'HR', 'MANAGER', 'EMPLOYEE',
@@ -80,6 +96,37 @@ export interface RegisterCompanyPayload {
   admin: { username: string; password: string; fullName: string; phone?: string }
 }
 
+/** Build User + token from register response. BE returns data: { companyId, adminUserId, accessToken } */
+function parseRegisterResponse(
+  res: any,
+  payload: RegisterCompanyPayload
+): { user: User | null; token: string } {
+  const raw = res?.data ?? res?.result ?? res ?? {}
+  const token = raw?.accessToken ?? raw?.token ?? res?.accessToken ?? res?.token ?? ''
+
+  const rawUser = raw?.user ?? raw?.admin ?? res?.user ?? res?.admin
+  if (rawUser) {
+    const user = normalizeUser({ ...rawUser, email: rawUser.email ?? rawUser.username })
+    return { user, token }
+  }
+
+  if (token && (raw?.adminUserId ?? raw?.companyId)) {
+    const user: User = {
+      id: raw.adminUserId ?? raw.userId ?? '',
+      name: payload.admin.fullName ?? '',
+      email: payload.admin.username,
+      roles: ['COMPANY_ADMIN'],
+      companyId: raw.companyId ?? null,
+      department: '',
+      status: 'Active',
+      createdAt: new Date().toISOString().slice(0, 10),
+    }
+    return { user, token }
+  }
+
+  return { user: null, token }
+}
+
 export async function registerCompany(payload: RegisterCompanyPayload) {
   if (useGateway()) {
     const res = await gatewayRequest<RegisterCompanyPayload, any>(
@@ -87,8 +134,20 @@ export async function registerCompany(payload: RegisterCompanyPayload) {
       payload,
       { tenantId: null, requestIdPrefix: 'company-register' }
     )
-    const user = res?.admin ? normalizeUser({ ...res.admin, email: res.admin.username }) : null
-    const token = res?.token ?? res?.accessToken ?? ''
+    const { user, token } = parseRegisterResponse(res, payload)
+    if ((!user || !token) && payload.admin?.username && payload.admin?.password) {
+      try {
+        const loginRes = await login({
+          email: payload.admin.username,
+          password: payload.admin.password,
+        })
+        if (loginRes?.user && loginRes?.token) {
+          return { user: loginRes.user, token: loginRes.token }
+        }
+      } catch {
+        // fall through to return parsed user/token
+      }
+    }
     return { user, token }
   }
   return fetchJson<{ user: User; token: string }>('/api/register-company', {
