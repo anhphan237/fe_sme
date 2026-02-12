@@ -27,6 +27,26 @@ export interface User {
   createdAt: string
 }
 
+/** Response shape của com.sme.identity.user.get (hiển thị user detail) */
+export interface UserDetail {
+  userId: string
+  email: string
+  fullName: string
+  phone: string | null
+  status: 'ACTIVE' | 'INVITED' | 'DISABLED'
+  employeeId: string | null
+  departmentId: string | null
+  employeeCode: string | null
+  employeeName: string | null
+  employeeEmail: string | null
+  employeePhone: string | null
+  jobTitle: string | null
+  managerUserId: string | null
+  startDate: string | null
+  workLocation: string | null
+  employeeStatus: string | null
+}
+
 export interface RoleDefinition {
   id: string
   name: Role

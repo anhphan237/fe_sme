@@ -1,6 +1,6 @@
 import { fetchJson } from './client'
 import { gatewayRequest, useGateway } from './gateway'
-import type { User } from '../types'
+import type { User, UserDetail } from '../types'
 
 function normalizeUser(u: any): User {
   return {
@@ -9,9 +9,31 @@ function normalizeUser(u: any): User {
     email: u.email ?? '',
     roles: Array.isArray(u.roles) ? u.roles : [u.roleCode ?? 'EMPLOYEE'],
     companyId: u.companyId ?? u.tenantId ?? null,
-    department: u.departmentName ?? u.department ?? '',
+    department: u.departmentName ?? u.department ?? u.departmentId ?? '',
     status: u.status === 'DISABLED' ? 'Inactive' : u.status === 'INVITED' ? 'Invited' : 'Active',
     createdAt: u.createdAt ?? new Date().toISOString().slice(0, 10),
+  }
+}
+
+/** Map response com.sme.identity.user.get sang UserDetail */
+function mapUserDetailResponse(d: any): UserDetail {
+  return {
+    userId: d.userId ?? d.id ?? '',
+    email: d.email ?? d.employeeEmail ?? '',
+    fullName: d.fullName ?? d.employeeName ?? d.name ?? '',
+    phone: d.phone ?? d.employeePhone ?? null,
+    status: d.status === 'DISABLED' ? 'DISABLED' : d.status === 'INVITED' ? 'INVITED' : 'ACTIVE',
+    employeeId: d.employeeId ?? null,
+    departmentId: d.departmentId ?? null,
+    employeeCode: d.employeeCode ?? null,
+    employeeName: d.employeeName ?? d.fullName ?? null,
+    employeeEmail: d.employeeEmail ?? d.email ?? null,
+    employeePhone: d.employeePhone ?? d.phone ?? null,
+    jobTitle: d.jobTitle ?? null,
+    managerUserId: d.managerUserId ?? null,
+    startDate: d.startDate ?? null,
+    workLocation: d.workLocation ?? null,
+    employeeStatus: d.employeeStatus ?? d.status ?? null,
   }
 }
 
@@ -107,14 +129,14 @@ export async function assignRole(userId: string, roleCode: string) {
   })
 }
 
-export async function getUserDetail(userId: string) {
+export async function getUserDetail(userId: string): Promise<UserDetail | User> {
   if (useGateway()) {
     const res = await gatewayRequest<{ userId: string }, any>(
       'com.sme.identity.user.get',
       { userId },
       { requestIdPrefix: 'user-get' }
     )
-    return normalizeUser(res ?? { id: userId })
+    return mapUserDetailResponse(res ?? { userId })
   }
   return fetchJson<User>(`/api/users/${userId}`)
 }

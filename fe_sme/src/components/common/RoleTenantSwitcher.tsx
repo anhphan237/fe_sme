@@ -28,10 +28,13 @@ export function RoleTenantSwitcher() {
 
   const roleLabel = useMemo(() => {
     if (!currentUser?.roles?.length) {
-      return 'Unknown role'
+      return '—'
     }
     const primary = getPrimaryRole(currentUser.roles)
-    return ROLE_LABELS[primary]
+    const label = ROLE_LABELS[primary]
+    if (label) return label
+    // Backend role chưa có trong ROLE_LABELS → hiển thị dạng "Employee" từ "EMPLOYEE"
+    return primary.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
   }, [currentUser?.roles])
 
   return (

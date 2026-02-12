@@ -3,7 +3,7 @@ import {
   getTenants,
   updateTenant,
 } from '../shared/api/tenants'
-import { getUsers, inviteUser, updateUser } from '../shared/api/users'
+import { getUsers, getUserDetail, inviteUser, updateUser } from '../shared/api/users'
 import { getRoles, updateRole } from '../shared/api/roles'
 import { getDepartments } from '../shared/api/departments'
 import {
@@ -48,8 +48,18 @@ export const useTenantsQuery = (enabled = true) =>
 export const useUpdateTenant = () => useMutation({ mutationFn: updateTenant })
 
 export const useUsersQuery = () => useQuery({ queryKey: ['users'], queryFn: getUsers })
+export const useUserDetailQuery = (userId: string | undefined) =>
+  useQuery({
+    queryKey: ['user-detail', userId],
+    queryFn: () => getUserDetail(userId!),
+    enabled: Boolean(userId),
+  })
 export const useInviteUser = () => useMutation({ mutationFn: inviteUser })
-export const useUpdateUser = () => useMutation({ mutationFn: updateUser })
+export const useUpdateUser = () =>
+  useMutation({
+    mutationFn: (v: { id: string; name?: string; phone?: string }) =>
+      updateUser(v.id, { name: v.name, phone: v.phone } as Partial<import('../shared/types').User>),
+  })
 
 export const useRolesQuery = () => useQuery({ queryKey: ['roles'], queryFn: getRoles })
 export const useUpdateRole = () => useMutation({ mutationFn: updateRole })

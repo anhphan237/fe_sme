@@ -8,8 +8,9 @@ import { Badge } from '../../components/ui/Badge'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { useToast } from '../../components/ui/Toast'
-import { useInviteUser, useUsersQuery } from '../../hooks/queries'
+import { useInviteUser, useUserDetailQuery, useUsersQuery } from '../../hooks/queries'
 import { ROLE_LABELS } from '../../shared/rbac'
+import type { UserDetail } from '../../shared/types'
 
 type RoleCatalogItem = {
   id: string
@@ -148,16 +149,47 @@ const roleCatalog: RoleCatalogItem[] = [
   },
 ]
 
+function UserDetailContent({ detail }: { detail: UserDetail }) {
+  const rows: { label: string; value: string | null }[] = [
+    { label: 'Full name', value: detail.fullName },
+    { label: 'Email', value: detail.email },
+    { label: 'Phone', value: detail.phone },
+    { label: 'Status', value: detail.status },
+    { label: 'Employee ID', value: detail.employeeId },
+    { label: 'Department ID', value: detail.departmentId },
+    { label: 'Employee code', value: detail.employeeCode },
+    { label: 'Job title', value: detail.jobTitle },
+    { label: 'Manager user ID', value: detail.managerUserId },
+    { label: 'Start date', value: detail.startDate },
+    { label: 'Work location', value: detail.workLocation },
+  ]
+  return (
+    <div className="grid gap-3 text-sm">
+      {rows.map(
+        (row) =>
+          row.value != null && (
+            <div key={row.label} className="flex justify-between gap-4 border-b border-stroke pb-2">
+              <span className="text-muted">{row.label}</span>
+              <span className="font-medium text-ink">{row.value}</span>
+            </div>
+          )
+      )}
+    </div>
+  )
+}
+
 function AdminUsers() {
   const { data, isLoading, isError, refetch } = useUsersQuery()
   const inviteUser = useInviteUser()
   const toast = useToast()
   const [open, setOpen] = useState(false)
+  const [detailUserId, setDetailUserId] = useState<string | null>(null)
   const [form, setForm] = useState({
     email: '',
     department: 'HR',
     manager: '',
   })
+  const { data: userDetail, isLoading: detailLoading } = useUserDetailQuery(detailUserId ?? undefined)
 
   const handleInvite = async () => {
     await inviteUser.mutateAsync({
@@ -284,6 +316,9 @@ function AdminUsers() {
                   <td className="px-4 py-3 text-muted">{user.createdAt}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
+                      <Button variant="ghost" onClick={() => setDetailUserId(user.id)}>
+                        View
+                      </Button>
                       <Button variant="ghost">Edit</Button>
                       <Button variant="ghost">Deactivate</Button>
                     </div>
@@ -294,6 +329,24 @@ function AdminUsers() {
           </Table>
         )}
       </Card>
+
+      <Modal
+        open={Boolean(detailUserId)}
+        title="User detail"
+        onClose={() => setDetailUserId(null)}
+      >
+        {detailLoading ? (
+          <div className="space-y-2 py-4">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+          </div>
+        ) : userDetail && 'userId' in userDetail ? (
+          <UserDetailContent detail={userDetail as UserDetail} />
+        ) : (
+          <p className="text-sm text-muted">Could not load user detail.</p>
+        )}
+      </Modal>
 
       <Modal open={open} title="Invite user" onClose={() => setOpen(false)}>
         <div className="grid gap-3">

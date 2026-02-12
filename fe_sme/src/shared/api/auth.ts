@@ -1,19 +1,46 @@
 import { fetchJson } from './client'
 import { gatewayRequest, useGateway } from './gateway'
-import type { User } from '../types'
+import type { Role, User } from '../types'
 
 export interface LoginPayload {
   email: string
   password: string
 }
 
+const KNOWN_ROLES = [
+  'PLATFORM_ADMIN', 'PLATFORM_MANAGER', 'PLATFORM_STAFF',
+  'COMPANY_ADMIN', 'HR', 'MANAGER', 'EMPLOYEE',
+] as const
+
+/** Map backend role codes to app Role (BE có thể dùng ADMIN, app dùng COMPANY_ADMIN) */
+const BACKEND_ROLE_MAP: Record<string, Role> = {
+  ADMIN: 'COMPANY_ADMIN',
+  PLATFORM_ADMIN: 'PLATFORM_ADMIN',
+  PLATFORM_MANAGER: 'PLATFORM_MANAGER',
+  PLATFORM_STAFF: 'PLATFORM_STAFF',
+  COMPANY_ADMIN: 'COMPANY_ADMIN',
+  HR: 'HR',
+  MANAGER: 'MANAGER',
+  EMPLOYEE: 'EMPLOYEE',
+}
+
+function normalizeRoles(roles: unknown): Role[] {
+  const raw = Array.isArray(roles) ? roles : []
+  const mapped = raw
+    .map((r) => (typeof r === 'string' ? r.toUpperCase() : String(r)))
+    .map((r) => BACKEND_ROLE_MAP[r] ?? ((KNOWN_ROLES as readonly string[]).includes(r) ? (r as Role) : null))
+    .filter((r): r is Role => r != null)
+  return mapped.length ? mapped : ['EMPLOYEE']
+}
+
 /** Normalize backend user to app User type */
 function normalizeUser(u: any): User {
+  const roles = normalizeRoles(u.roles ?? (u.roleCode ? [u.roleCode] : ['EMPLOYEE']))
   return {
     id: u.id ?? u.userId ?? '',
     name: u.fullName ?? u.name ?? '',
     email: u.email ?? '',
-    roles: Array.isArray(u.roles) ? u.roles : [u.roleCode ?? 'EMPLOYEE'],
+    roles: roles.length ? roles : ['EMPLOYEE'],
     companyId: u.companyId ?? u.tenantId ?? null,
     department: u.departmentName ?? u.department ?? '',
     status: u.status === 'DISABLED' ? 'Inactive' : u.status === 'INVITED' ? 'Invited' : 'Active',
