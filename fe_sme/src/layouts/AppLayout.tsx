@@ -9,12 +9,15 @@ import {
   Gauge,
   LayoutGrid,
   LifeBuoy,
+  LogOut,
   Menu,
   Settings,
   Shield,
   Users,
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../store/useAppStore'
+import { logout } from '../shared/api/auth'
 import { RoleTenantSwitcher } from '../components/common/RoleTenantSwitcher'
 import { Breadcrumbs } from '../components/ui/Breadcrumb'
 import { clsx } from 'clsx'
@@ -41,7 +44,9 @@ type NavSection = {
 
 function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const navigate = useNavigate()
   const currentUser = useAppStore((state) => state.currentUser)
+  const logoutStore = useAppStore((state) => state.logout)
   const location = useLocation()
   const userRoles = currentUser?.roles ?? []
 
@@ -355,6 +360,21 @@ function AppLayout({ children }: AppLayoutProps) {
                 <Settings className="h-4 w-4 text-muted" />
                 Settings
               </NavLink>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await logout()
+                  } finally {
+                    logoutStore()
+                    navigate('/login', { replace: true })
+                  }
+                }}
+                className="flex items-center gap-2 rounded-full border border-stroke px-3 py-2 text-sm text-muted transition hover:bg-slate-100 hover:text-ink"
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
+              </button>
             </div>
           </header>
 
