@@ -41,11 +41,17 @@ function getTenantId(): string | number | null {
 /**
  * Send a request to the SME gateway. Use when real backend is enabled (VITE_API_BASE_URL set).
  * For login/register, tenantId is not sent (null).
+ * Use flatPayload: true when backend expects request params at top level (e.g. status as String, not nested in payload).
  */
 export async function gatewayRequest<TReq = unknown, TRes = unknown>(
   operationType: string,
   payload: TReq,
-  options?: { requestIdPrefix?: string; tenantId?: string | number | null }
+  options?: {
+    requestIdPrefix?: string
+    tenantId?: string | number | null
+    /** When true, send payload fields at top level: { operationType, requestId, tenantId, ...payload } */
+    flatPayload?: boolean
+  }
 ): Promise<TRes> {
   const url = `${BASE_URL.replace(/\/$/, '')}${GATEWAY_PATH}`
   const tenantId = options?.tenantId !== undefined ? options.tenantId : getTenantId()
@@ -53,12 +59,20 @@ export async function gatewayRequest<TReq = unknown, TRes = unknown>(
     ? nextRequestId(options.requestIdPrefix)
     : undefined
 
-  const body: GatewayBody<TReq> = {
-    operationType,
-    ...(requestId && { requestId }),
-    ...(tenantId !== undefined && tenantId !== null ? { tenantId } : { tenantId: null }),
-    payload,
-  }
+  const body =
+    options?.flatPayload && payload && typeof payload === 'object' && !Array.isArray(payload)
+      ? {
+          operationType,
+          ...(requestId && { requestId }),
+          ...(tenantId !== undefined && tenantId !== null ? { tenantId } : { tenantId: null }),
+          ...(payload as Record<string, unknown>),
+        }
+      : {
+          operationType,
+          ...(requestId && { requestId }),
+          ...(tenantId !== undefined && tenantId !== null ? { tenantId } : { tenantId: null }),
+          payload,
+        }
 
   const token = getToken()
   const res = await fetch(url, {

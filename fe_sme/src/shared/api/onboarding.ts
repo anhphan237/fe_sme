@@ -9,21 +9,24 @@ import type {
 } from '../types'
 
 function mapTemplate(t: any): OnboardingTemplate {
-  const stages = (t.checklists ?? t.stages ?? []).map((c: any) => ({
-    id: c.id ?? '',
-    name: c.name ?? '',
-    tasks: (c.tasks ?? []).map((task: any) => ({
-      id: task.id ?? '',
-      title: task.title ?? '',
-      ownerRole: (task.ownerRefId ?? 'HR') as any,
-      dueOffset: String(task.dueDaysOffset ?? 0),
-      required: task.requireAck ?? false,
-      status: task.status,
-      dueDate: task.dueDate,
-    })),
-  }))
+  const rawStages = t?.checklists ?? t?.stages
+  const stages = Array.isArray(rawStages)
+    ? rawStages.map((c: any) => ({
+        id: c.checklistTemplateId ?? c.id ?? '',
+        name: c.name ?? '',
+        tasks: (c.tasks ?? []).map((task: any) => ({
+          id: task.taskTemplateId ?? task.id ?? '',
+          title: task.name ?? task.title ?? '',
+          ownerRole: (task.ownerRefId ?? 'HR') as any,
+          dueOffset: String(task.dueDaysOffset ?? task.dueOffset ?? 0),
+          required: task.requireAck ?? task.required ?? false,
+          status: task.status,
+          dueDate: task.dueDate,
+        })),
+      }))
+    : []
   return {
-    id: t.templateId ?? t.id ?? '',
+    id: t?.templateId ?? t?.id ?? '',
     name: t.name ?? '',
     description: t.description ?? '',
     stages,
@@ -46,12 +49,33 @@ function mapInstance(i: any): OnboardingInstance {
 
 export async function getTemplates(status?: string) {
   if (useGateway()) {
-    const res = await gatewayRequest<{ status?: string }, { items?: any[]; list?: any[] }>(
+    const res = await gatewayRequest<{ status?: string }, any>(
       'com.sme.onboarding.template.list',
-      { status: status ?? 'ACTIVE' }
+      { status: status ?? 'ACTIVE' },
+      { requestIdPrefix: 'onboarding-template-list', flatPayload: true }
     )
-    const list = res?.items ?? res?.list ?? []
-    return (Array.isArray(list) ? list : []).map(mapTemplate)
+    // Backend returns data: { templates: [...] } — gateway returns data, so res = { templates: [...] }
+    const list = Array.isArray(res)
+      ? res
+      : res?.templates ??
+        res?.items ??
+        res?.list ??
+        res?.result ??
+        (Array.isArray(res?.data) ? res.data : null) ??
+        res?.data?.items ??
+        res?.data?.list ??
+        res?.data?.templates ??
+        []
+    const arr = Array.isArray(list) ? list : []
+    const out: OnboardingTemplate[] = []
+    for (let i = 0; i < arr.length; i++) {
+      try {
+        out.push(mapTemplate(arr[i] ?? {}))
+      } catch {
+        // skip invalid item
+      }
+    }
+    return out
   }
   return fetchJson<OnboardingTemplate[]>('/api/onboarding/templates')
 }
@@ -63,7 +87,10 @@ export async function getTemplate(id: string) {
       { templateId: id },
       { requestIdPrefix: 'onboarding-template-get' }
     )
-    return mapTemplate(res ?? {})
+    // Backend may return template, data, result, payload, or payload at top level
+    const raw = res?.template ?? res?.data ?? res?.result ?? res?.payload ?? res
+    const template = raw && typeof raw === 'object' ? raw : {}
+    return mapTemplate(template)
   }
   return fetchJson<OnboardingTemplate>(`/api/onboarding/templates/${id}`)
 }
@@ -91,15 +118,108 @@ export interface CreateOnboardingTemplatePayload {
   }>
 }
 
+/** Build payload for com.sme.onboarding.template.create (checklists + tasks with ownerType, ownerRefId, dueDaysOffset) */
+export function buildCreateTemplatePayload(
+  payload: CreateOnboardingTemplatePayload & { createdBy: string }
+): CreateOnboardingTemplatePayload & { createdBy: string } {
+  return {
+    name: payload.name,
+    description: payload.description ?? '',
+    status: payload.status ?? 'ACTIVE',
+    createdBy: payload.createdBy,
+    checklists: (payload.checklists ?? []).map((c, i) => ({
+      name: c.name,
+      stage: c.stage,
+      sortOrder: c.sortOrder ?? i + 1,
+      status: c.status ?? 'ACTIVE',
+      tasks: (c.tasks ?? []).map((t, j) => ({
+        title: t.title,
+        description: t.description ?? '',
+        ownerType: t.ownerType,
+        ownerRefId: t.ownerRefId,
+        dueDaysOffset: t.dueDaysOffset,
+        requireAck: t.requireAck ?? false,
+        sortOrder: t.sortOrder ?? j + 1,
+        status: t.status ?? 'ACTIVE',
+      })),
+    })),
+  }
+}
+
+const STAGE_VALUES = ['PRE_BOARDING', 'DAY_1', 'DAY_7', 'DAY_30', 'DAY_60'] as const
+function parseDueOffset(s: string): number {
+  if (s == null || s === '') return 0
+  const n = parseInt(String(s).replace(/\D/g, ''), 10)
+  return Number.isFinite(n) ? n : 0
+}
+
+/** Convert OnboardingTemplate (from API) to CreateOnboardingTemplatePayload for edit/duplicate */
+export function templateToCreateForm(t: OnboardingTemplate): CreateOnboardingTemplatePayload {
+  const stages = t.stages ?? []
+  const defaultChecklist = (): NonNullable<CreateOnboardingTemplatePayload['checklists']>[0] => ({
+    name: '',
+    stage: 'DAY_1',
+    sortOrder: 1,
+    status: 'ACTIVE',
+    tasks: [
+      {
+        title: '',
+        description: '',
+        ownerType: 'ROLE',
+        ownerRefId: 'HR',
+        dueDaysOffset: 0,
+        requireAck: false,
+        sortOrder: 1,
+        status: 'ACTIVE',
+      },
+    ],
+  })
+  return {
+    name: t.name ?? '',
+    description: t.description ?? '',
+    status: 'ACTIVE',
+    checklists: stages.length
+      ? stages.map((stage, i) => ({
+      name: stage.name ?? '',
+      stage: STAGE_VALUES[i] ?? 'DAY_1',
+      sortOrder: i + 1,
+      status: 'ACTIVE',
+      tasks: (stage.tasks ?? []).map((task, j) => ({
+        title: task.title ?? '',
+        description: '',
+        ownerType: 'ROLE',
+        ownerRefId: (task.ownerRole ?? 'HR') as string,
+        dueDaysOffset: parseDueOffset(task.dueOffset ?? '0'),
+        requireAck: task.required ?? false,
+        sortOrder: j + 1,
+        status: 'ACTIVE',
+      })),
+    }))
+      : [defaultChecklist()],
+  }
+}
+
 export async function saveTemplate(payload: Partial<OnboardingTemplate> | CreateOnboardingTemplatePayload) {
   if (useGateway()) {
-    const p = payload as CreateOnboardingTemplatePayload & { id?: string; templateId?: string }
+    const p = payload as CreateOnboardingTemplatePayload & { id?: string; templateId?: string; createdBy?: string }
     const templateId = p.templateId ?? p.id
+    const isCreate = !templateId || templateId === 'new'
+    const createPayload = isCreate && p.createdBy && p.checklists?.length
+      ? buildCreateTemplatePayload({ ...p, createdBy: p.createdBy })
+      : null
+    const updatePayload =
+      !isCreate && templateId
+        ? {
+            templateId,
+            name: p.name,
+            description: p.description ?? '',
+            status: p.status ?? 'ACTIVE',
+            ...(p.checklists?.length ? { checklists: p.checklists } : {}),
+          }
+        : null
     const res = await gatewayRequest<any, any>(
-      templateId ? 'com.sme.onboarding.template.update' : 'com.sme.onboarding.template.create',
-      templateId
-        ? { templateId, name: p.name, description: p.description, status: p.status ?? 'ACTIVE' }
-        : (p as CreateOnboardingTemplatePayload),
+      templateId && templateId !== 'new' ? 'com.sme.onboarding.template.update' : 'com.sme.onboarding.template.create',
+      isCreate ? (createPayload ?? (p as CreateOnboardingTemplatePayload)) : updatePayload!,
       { requestIdPrefix: 'onboarding-template' }
     )
     return mapTemplate(res ?? p)
@@ -110,14 +230,50 @@ export async function saveTemplate(payload: Partial<OnboardingTemplate> | Create
   })
 }
 
+export async function deleteTemplate(id: string) {
+  if (useGateway()) {
+    await gatewayRequest<{ templateId: string }, unknown>(
+      'com.sme.onboarding.template.delete',
+      { templateId: id },
+      { requestIdPrefix: 'onboarding-template-delete' }
+    )
+    return
+  }
+  return fetchJson(`/api/onboarding/templates/${id}`, { method: 'DELETE' })
+}
+
 export async function getInstances(employeeId?: string, status?: string) {
   if (useGateway()) {
     const res = await gatewayRequest<
       { employeeId?: string; status?: string },
-      { items?: any[]; list?: any[] }
-    >('com.sme.onboarding.instance.list', { employeeId, status: status ?? 'ACTIVE' })
-    const list = res?.items ?? res?.list ?? []
-    return (Array.isArray(list) ? list : []).map(mapInstance)
+      any
+    >(
+      'com.sme.onboarding.instance.list',
+      { employeeId, status: status ?? 'ACTIVE' },
+      { requestIdPrefix: 'onboarding-instance-list', flatPayload: true }
+    )
+    const list =
+      Array.isArray(res)
+        ? res
+        : res?.instances ??
+          res?.items ??
+          res?.list ??
+          res?.result ??
+          (Array.isArray(res?.data) ? res.data : null) ??
+          res?.data?.instances ??
+          res?.data?.items ??
+          res?.data?.list ??
+          []
+    const arr = Array.isArray(list) ? list : []
+    const out: OnboardingInstance[] = []
+    for (let i = 0; i < arr.length; i++) {
+      try {
+        out.push(mapInstance(arr[i] ?? {}))
+      } catch {
+        // skip invalid item
+      }
+    }
+    return out
   }
   return fetchJson<OnboardingInstance[]>('/api/onboarding/instances')
 }
@@ -129,7 +285,9 @@ export async function getInstance(id: string) {
       { instanceId: id },
       { requestIdPrefix: 'onboarding-instance-get' }
     )
-    return mapInstance(res ?? {})
+    const raw = res?.instance ?? res?.data ?? res?.result ?? res?.payload ?? res
+    const obj = raw && typeof raw === 'object' ? raw : {}
+    return mapInstance(obj)
   }
   return fetchJson<OnboardingInstance>(`/api/onboarding/instances/${id}`)
 }

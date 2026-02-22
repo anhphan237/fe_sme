@@ -119,6 +119,8 @@ export interface Department {
   id: string
   companyId: string
   name: string
+  type?: string
+  managerUserId?: string | null
 }
 
 export interface ChecklistTemplate {

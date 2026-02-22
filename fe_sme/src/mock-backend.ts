@@ -204,10 +204,36 @@ const handleOnboardingTemplateById = async (id: string) => {
 }
 
 const handleOnboardingTemplatePost = async (
-  body: Partial<OnboardingTemplate>
+  body: Partial<OnboardingTemplate> & { templateId?: string; id?: string; checklists?: any[] }
 ) => {
   const payload = authorize(['HR'])
   const companyId = requireCompany(payload.company_id)
+  const templateId = body.templateId ?? body.id
+  if (templateId && templateId !== 'new') {
+    const index = templates.findIndex((t) => t.id === templateId && t.companyId === companyId)
+    if (index >= 0) {
+      const stages = body.stages ?? (body.checklists ?? []).map((c: any, i: number) => ({
+        id: c.id ?? `stage-${i}`,
+        name: c.name ?? '',
+        tasks: (c.tasks ?? []).map((t: any, j: number) => ({
+          id: t.id ?? `task-${j}`,
+          title: t.title ?? '',
+          ownerRole: (t.ownerRefId ?? 'HR') as any,
+          dueOffset: String(t.dueDaysOffset ?? 0),
+          required: t.requireAck ?? false,
+        })),
+      }))
+      const updated: OnboardingTemplate = {
+        ...templates[index],
+        name: body.name ?? templates[index].name,
+        description: body.description ?? templates[index].description,
+        stages: stages.length ? stages : templates[index].stages,
+        updatedAt: nowIso().slice(0, 10),
+      }
+      templates[index] = updated
+      return updated
+    }
+  }
   const next: OnboardingTemplate = {
     id: `template-${templates.length + 1}`,
     name: body.name ?? 'New Template',
@@ -218,6 +244,15 @@ const handleOnboardingTemplatePost = async (
   }
   templates.unshift(next)
   return next
+}
+
+const handleOnboardingTemplateDelete = async (id: string) => {
+  const payload = authorize(['HR'])
+  const companyId = requireCompany(payload.company_id)
+  const index = templates.findIndex((t) => t.id === id && t.companyId === companyId)
+  if (index < 0) throw { status: 404, message: 'Not found' }
+  templates.splice(index, 1)
+  return undefined
 }
 
 const handleOnboardingInstances = async () => {
@@ -628,6 +663,7 @@ const routes: Record<
   DELETE: [
     { test: /^\/api\/documents\/([^/]+)$/, handle: ([id]) => handleDocumentDelete(id) },
     { test: /^\/api\/survey-instances\/([^/]+)$/, handle: ([id]) => handleSurveyInstanceDelete(id) },
+    { test: /^\/api\/onboarding\/templates\/([^/]+)$/, handle: ([id]) => handleOnboardingTemplateDelete(id) },
   ],
 }
 

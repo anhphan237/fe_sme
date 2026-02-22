@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Card } from '../../components/ui/Card'
@@ -16,7 +16,7 @@ import { useAppStore } from '../../store/useAppStore'
 function Employees() {
   const navigate = useNavigate()
   const toast = useToast()
-  const { data: instances, isLoading, isError, refetch } = useInstancesQuery()
+  const { data: instances, isLoading, isError, error, refetch } = useInstancesQuery()
   const { data: users } = useUsersQuery()
   const { data: templates } = useTemplatesQuery()
   const startInstance = useStartInstance()
@@ -44,10 +44,17 @@ function Employees() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Employees"
+        title="Onboarding Employee"
         subtitle="Track onboarding status across teams."
         actionLabel={canStart ? 'Start Onboarding' : undefined}
         onAction={canStart ? () => setOpen(true) : undefined}
+        extra={
+          canStart ? (
+            <Button variant="secondary" onClick={() => navigate('/onboarding/employees/new')}>
+              Employees
+            </Button>
+          ) : undefined
+        }
       />
 
       <Card>
@@ -76,7 +83,9 @@ function Employees() {
           </div>
         ) : isError ? (
           <div className="p-6 text-sm">
-            Something went wrong.{' '}
+            {error != null && typeof (error as Error).message === 'string'
+              ? (error as Error).message
+              : 'Something went wrong.'}{' '}
             <button className="font-semibold" onClick={() => refetch()}>
               Retry
             </button>

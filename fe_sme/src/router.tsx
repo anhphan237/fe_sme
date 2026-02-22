@@ -19,6 +19,8 @@ const Notifications = lazy(() => import('./pages/settings/Notifications'))
 const Templates = lazy(() => import('./pages/onboarding/Templates'))
 const TemplateEditor = lazy(() => import('./pages/onboarding/TemplateEditor'))
 const Employees = lazy(() => import('./pages/onboarding/Employees'))
+const CreateEmployee = lazy(() => import('./pages/onboarding/CreateEmployee'))
+const EmployeeManagement = lazy(() => import('./pages/onboarding/EmployeeManagement'))
 const EmployeeDetail = lazy(() => import('./pages/onboarding/EmployeeDetail'))
 const OnboardingTasks = lazy(() => import('./pages/onboarding/Tasks'))
 const OnboardingAutomation = lazy(() => import('./pages/onboarding/Automation'))
@@ -115,6 +117,14 @@ export const router = createBrowserRouter([
       {
         path: '/onboarding/employees',
         element: suspense(withRoles(<Employees />, ['HR', 'MANAGER'])),
+      },
+      {
+        path: '/onboarding/employees/new',
+        element: suspense(withRoles(<EmployeeManagement />, ['HR'])),
+      },
+      {
+        path: '/onboarding/employees/create',
+        element: suspense(withRoles(<CreateEmployee />, ['HR'])),
       },
       {
         path: '/onboarding/employees/:employeeId',

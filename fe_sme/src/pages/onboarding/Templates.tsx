@@ -1,15 +1,48 @@
-﻿import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Card } from '../../components/ui/Card'
 import { Table } from '../../components/ui/Table'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { Button } from '../../components/ui/Button'
-import { useTemplatesQuery } from '../../hooks/queries'
+import { Modal } from '../../components/ui/Modal'
+import { useToast } from '../../components/ui/Toast'
+import { useTemplatesQuery, useDeleteTemplate } from '../../hooks/queries'
+import type { OnboardingTemplate } from '../../shared/types'
 
 function Templates() {
   const navigate = useNavigate()
-  const { data, isLoading, isError, refetch } = useTemplatesQuery()
+  const queryClient = useQueryClient()
+  const toast = useToast()
+  const { data, isLoading, isError, error, refetch } = useTemplatesQuery()
+  const deleteTemplate = useDeleteTemplate()
+  const [deleteTarget, setDeleteTarget] = useState<OnboardingTemplate | null>(null)
+
+  const handleEdit = (template: OnboardingTemplate) => {
+    navigate(`/onboarding/templates/${template.id}`)
+  }
+
+  const handleDuplicate = (template: OnboardingTemplate) => {
+    navigate('/onboarding/templates/new', { state: { duplicateFrom: template } })
+  }
+
+  const handleDeleteClick = (template: OnboardingTemplate) => {
+    setDeleteTarget(template)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return
+    try {
+      await deleteTemplate.mutateAsync(deleteTarget.id)
+      queryClient.invalidateQueries({ queryKey: ['templates'] })
+      toast('Template deleted.')
+      setDeleteTarget(null)
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Failed to delete template.')
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -28,7 +61,9 @@ function Templates() {
           </div>
         ) : isError ? (
           <div className="p-6 text-sm">
-            Something went wrong.{' '}
+            {error != null && typeof (error as Error).message === 'string'
+              ? (error as Error).message
+              : 'Something went wrong.'}{' '}
             <button className="font-semibold" onClick={() => refetch()}>
               Retry
             </button>
@@ -67,9 +102,19 @@ function Templates() {
                       <Button variant="ghost" onClick={() => navigate(`/onboarding/templates/${template.id}`)}>
                         View
                       </Button>
-                      <Button variant="ghost">Edit</Button>
-                      <Button variant="ghost">Duplicate</Button>
-                      <Button variant="ghost">Delete</Button>
+                      <Button variant="ghost" onClick={() => handleEdit(template)}>
+                        Edit
+                      </Button>
+                      <Button variant="ghost" onClick={() => handleDuplicate(template)}>
+                        Duplicate
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="text-red-600 hover:bg-red-50"
+                        onClick={() => handleDeleteClick(template)}
+                      >
+                        Delete
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -78,6 +123,33 @@ function Templates() {
           </Table>
         )}
       </Card>
+
+      <Modal
+        open={!!deleteTarget}
+        title="Delete template?"
+        onClose={() => setDeleteTarget(null)}
+      >
+        {deleteTarget && (
+          <>
+            <p className="text-sm text-muted">
+              Delete “{deleteTarget.name}”? This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                className="bg-red-600 hover:bg-red-700"
+                onClick={handleDeleteConfirm}
+                disabled={deleteTemplate.isPending}
+              >
+                {deleteTemplate.isPending ? 'Deleting…' : 'Delete'}
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   )
 }

@@ -3,7 +3,7 @@ import {
   getTenants,
   updateTenant,
 } from '../shared/api/tenants'
-import { getUsers, getUserDetail, inviteUser, updateUser } from '../shared/api/users'
+import { getUsers, getUserDetail, inviteUser, createUser, updateUser } from '../shared/api/users'
 import { getRoles, updateRole } from '../shared/api/roles'
 import { getDepartments } from '../shared/api/departments'
 import {
@@ -12,6 +12,7 @@ import {
   getInstances,
   startInstance,
   saveTemplate,
+  deleteTemplate,
   saveEvaluation,
 } from '../shared/api/onboarding'
 import {
@@ -55,6 +56,7 @@ export const useUserDetailQuery = (userId: string | undefined) =>
     enabled: Boolean(userId),
   })
 export const useInviteUser = () => useMutation({ mutationFn: inviteUser })
+export const useCreateUser = () => useMutation({ mutationFn: createUser })
 export const useUpdateUser = () =>
   useMutation({
     mutationFn: (v: { id: string; name?: string; phone?: string }) =>
@@ -73,9 +75,10 @@ export const useTemplateQuery = (id?: string) =>
   useQuery({
     queryKey: ['template', id],
     queryFn: () => getTemplate(id ?? ''),
-    enabled: Boolean(id),
+    enabled: Boolean(id) && id !== 'new',
   })
 export const useSaveTemplate = () => useMutation({ mutationFn: saveTemplate })
+export const useDeleteTemplate = () => useMutation({ mutationFn: deleteTemplate })
 
 export const useInstancesQuery = (enabled = true) =>
   useQuery({ queryKey: ['instances'], queryFn: getInstances, enabled })

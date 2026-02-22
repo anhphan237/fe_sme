@@ -224,9 +224,13 @@ export const handlers = [
     if (companyId instanceof HttpResponse) {
       return companyId
     }
+    const id = params.id as string
     const template = templates.find(
-      (item) => item.id === params.id && item.companyId === companyId
+      (item) => item.id === id && item.companyId === companyId
     )
+    if (!template) {
+      return HttpResponse.json({ message: 'Not found' }, { status: 404 })
+    }
     return HttpResponse.json(template)
   }),
   http.post('/api/onboarding/templates', async ({ request }) => {
@@ -238,7 +242,38 @@ export const handlers = [
     if (companyId instanceof HttpResponse) {
       return companyId
     }
-    const body = (await request.json()) as Partial<OnboardingTemplate>
+    const body = (await request.json()) as Partial<OnboardingTemplate> & {
+      templateId?: string
+      checklists?: Array<{ name: string; stage?: string; tasks?: Array<{ title: string; ownerRefId?: string; dueDaysOffset?: number; requireAck?: boolean }> }>
+    }
+    const templateId = body.templateId ?? body.id
+    const bodyStages = body.stages ?? (body.checklists ?? []).map((c: any, i: number) => ({
+      id: c.id ?? `stage-${i}`,
+      name: c.name ?? '',
+      tasks: (c.tasks ?? []).map((t: any, j: number) => ({
+        id: t.id ?? `task-${j}`,
+        title: t.title ?? '',
+        ownerRole: (t.ownerRefId ?? 'HR') as Role,
+        dueOffset: String(t.dueDaysOffset ?? 0),
+        required: t.requireAck ?? false,
+      })),
+    }))
+    if (templateId && templateId !== 'new') {
+      const index = templates.findIndex(
+        (t) => t.id === templateId && t.companyId === companyId
+      )
+      if (index >= 0) {
+        const updated: OnboardingTemplate = {
+          ...templates[index],
+          name: body.name ?? templates[index].name,
+          description: body.description ?? templates[index].description,
+          stages: bodyStages.length ? bodyStages : templates[index].stages,
+          updatedAt: new Date().toISOString().slice(0, 10),
+        }
+        templates[index] = updated
+        return HttpResponse.json(updated)
+      }
+    }
     const next: OnboardingTemplate = {
       id: `template-${templates.length + 1}`,
       name: body.name ?? 'New Template',
@@ -249,6 +284,25 @@ export const handlers = [
     }
     templates.unshift(next)
     return HttpResponse.json(next)
+  }),
+  http.delete('/api/onboarding/templates/:id', ({ params, request }) => {
+    const auth = authorize(request, ['HR'])
+    if (auth instanceof HttpResponse) {
+      return auth
+    }
+    const companyId = requireCompany(auth)
+    if (companyId instanceof HttpResponse) {
+      return companyId
+    }
+    const id = params.id as string
+    const index = templates.findIndex(
+      (t) => t.id === id && t.companyId === companyId
+    )
+    if (index < 0) {
+      return HttpResponse.json({ message: 'Not found' }, { status: 404 })
+    }
+    templates.splice(index, 1)
+    return new HttpResponse(null, { status: 204 })
   }),
   http.get('/api/onboarding/instances', ({ request }) => {
     const auth = authorize(request, ['HR', 'MANAGER', 'EMPLOYEE'])

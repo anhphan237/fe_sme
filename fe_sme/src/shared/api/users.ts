@@ -39,11 +39,23 @@ function mapUserDetailResponse(d: any): UserDetail {
 
 export async function getUsers() {
   if (useGateway()) {
-    const res = await gatewayRequest<Record<string, never>, { items?: any[]; list?: any[] }>(
+    const res = await gatewayRequest<Record<string, never>, any>(
       'com.sme.identity.user.list',
-      {}
+      {},
+      { requestIdPrefix: 'user-list' }
     )
-    const list = res?.items ?? res?.list ?? []
+    // Backend returns data: { users: [...] }
+    const list =
+      Array.isArray(res)
+        ? res
+        : res?.users ??
+          res?.items ??
+          res?.list ??
+          res?.result ??
+          (Array.isArray(res?.data) ? res.data : null) ??
+          res?.data?.users ??
+          res?.data?.items ??
+          []
     return (Array.isArray(list) ? list : []).map(normalizeUser)
   }
   return fetchJson<User[]>('/api/users')
@@ -136,7 +148,10 @@ export async function getUserDetail(userId: string): Promise<UserDetail | User> 
       { userId },
       { requestIdPrefix: 'user-get' }
     )
-    return mapUserDetailResponse(res ?? { userId })
+    // Backend returns data: { userId, email, fullName, phone, ... } — gateway returns data; unwrap if nested
+    const raw = res?.user ?? res?.data ?? res
+    const d = raw && typeof raw === 'object' ? raw : { userId }
+    return mapUserDetailResponse(d)
   }
   return fetchJson<User>(`/api/users/${userId}`)
 }
