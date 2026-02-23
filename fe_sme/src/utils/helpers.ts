@@ -1,6 +1,5 @@
 import { apiGetFileFromPath } from '@/api/file.api';
 import { APP_CONFIG, DefaultRoles, ERROR_CODE, OrderStatus } from '@/constants';
-import { WarehouseDocumentStatus, WarehouseStatus } from '@/enums/Warehouse';
 import { IDebtInfoLocalStorage, IDebtInfoLocalStorageValue, IWarehouseTransactionInfo, IWarehouseTransactionInfoValue } from '@/types';
 import { SelectProps } from 'antd';
 import { DefaultOptionType } from 'antd/es/select';
@@ -10,7 +9,6 @@ import { ValidationError, object } from 'yup';
 
 import { notify } from '@/components/toast-message';
 
-import { IAddEditWarehouseConfig } from '@/interface/logistics';
 import { JWTDecode } from '@/interface/user';
 
 type LabelInValueType = Parameters<NonNullable<SelectProps['labelRender']>>[0];
@@ -433,107 +431,6 @@ export const convertedDateProps: any = {
         if (!value) return;
         return { value: moment.utc(value).local() };
     },
-};
-
-export const saveWarehouseTransactionInfo = (data: IWarehouseTransactionInfoValue, orderId: string) => {
-    const stringifyData = localStorage.getItem(APP_CONFIG.WAREHOUSE_INFO) || '{}';
-    const dataParse: IWarehouseTransactionInfo = JSON.parse(stringifyData);
-    dataParse[orderId] = data;
-    localStorage.setItem(APP_CONFIG.WAREHOUSE_INFO, JSON.stringify(dataParse));
-};
-
-export const getWarehouseTransactionInfo = (orderId: string) => {
-    const stringifyData = localStorage.getItem(APP_CONFIG.WAREHOUSE_INFO) || '{}';
-    const dataParse: IWarehouseTransactionInfo = JSON.parse(stringifyData);
-    return dataParse[orderId];
-};
-
-export function getWarehouseStatusLabel(status: WarehouseStatus, intl: (t: string) => string): string {
-    switch (status) {
-        case WarehouseStatus.NOT_PROCESSED:
-            return intl('logistics.enter_warehouse.unreceived');
-
-        case WarehouseStatus.PARTIALLY_PROCESSED:
-            return intl('logistics.enter_warehouse.partially_processed');
-
-        case WarehouseStatus.COMPLETED:
-            return intl('global.status.done');
-
-        case WarehouseStatus.CANCELED:
-            return intl('global.status.cancelled');
-
-        default:
-            return intl('unknown');
-    }
-}
-
-export function getWarehouseExportStatusLabel(status: WarehouseStatus, intl: (t: string) => string): string {
-    switch (status) {
-        case WarehouseStatus.NOT_PROCESSED:
-            return intl('logistics.exit_warehouse.unexported');
-
-        case WarehouseStatus.PARTIALLY_PROCESSED:
-            return intl('logistics.exit_warehouse.partially_processed');
-
-        case WarehouseStatus.COMPLETED:
-            return intl('global.status.done');
-
-        case WarehouseStatus.CANCELED:
-            return intl('global.status.cancelled');
-
-        default:
-            return intl('unknown');
-    }
-}
-
-export function getWarehouseDocumentStatusLabel(status: WarehouseDocumentStatus, intl: (t: string) => string): string {
-    switch (status) {
-        case WarehouseDocumentStatus.INCOMPLETE:
-            return intl('global.status.incomplete');
-
-        case WarehouseDocumentStatus.COMPLETED:
-            return intl('global.status.done');
-
-        default:
-            return intl('unknown');
-    }
-}
-
-export const getWarehouseStatus = (quantityReceive: number, quantityPending: number): WarehouseStatus => {
-    // Chưa nhập
-    if (quantityReceive === 0) {
-        return WarehouseStatus.NOT_PROCESSED;
-    }
-
-    // Nhập một phần
-    if (quantityPending > 0) {
-        return WarehouseStatus.PARTIALLY_PROCESSED;
-    }
-
-    // Hoàn thành
-    if (quantityPending === 0) {
-        return WarehouseStatus.COMPLETED;
-    }
-
-    return WarehouseStatus.NOT_PROCESSED;
-};
-
-export const getWarningNearestColorInventoryConfig = (val: number | null, warehouseSettingData: IAddEditWarehouseConfig[]) => {
-    const sortedSetting = warehouseSettingData[0];
-
-    const absValue = Math.abs(val || 0);
-    const item = absValue <= (sortedSetting?.miniumQuantity || 0);
-
-    if (item) {
-        return {
-            name: sortedSetting?.name ?? '',
-            color: sortedSetting?.colorCode ?? '#000',
-        };
-    }
-    return {
-        name: '',
-        color: '#000',
-    };
 };
 
 export const isAdmin = (user?: { roles?: { code: string }[] }) => {

@@ -7,7 +7,7 @@ import workerSlice from './workers.store';
 const rootReducer = combineReducers({
     user: userReducer,
     global: globalReducer,
-    worker: workerSlice
+    worker: workerSlice,
 });
 
 export default rootReducer;

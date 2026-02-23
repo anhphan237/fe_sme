@@ -1,4 +1,4 @@
-import { apiLogin } from '@/api/user.api';
+import { gatewayLogin } from '@/api/gateway/auth.gateway';
 import { APP_CONFIG } from '@/constants';
 import { useLocale } from '@/i18n';
 import { useEffect, useState } from 'react';
@@ -37,20 +37,20 @@ const useLogin = () => {
     const handleLogin = async (form: LoginParams) => {
         setLoading(true);
         try {
-            const res = await apiLogin(
-                {
-                    ipAddress,
-                    account: form.account,
-                    password: form.password,
-                    rememberMe: form.rememberMe,
-                    tenantId: form.tenantId,
-                },
-                { loading: false },
-            );
+            const res = await gatewayLogin(form.account, form.password, { loading: false });
 
-            if (res.succeeded) {
-                const data = res?.data;
-                localStorage.setItem(APP_CONFIG.ACCESS_TOKEN, data.jwToken);
+            // Gateway response has been mapped to old format by the interceptor
+            if (res.status) {
+                const data = res?.result || res?.data;
+
+                // Store the access token
+                localStorage.setItem(APP_CONFIG.ACCESS_TOKEN, data.accessToken);
+
+                // Store tenant ID for future Gateway requests
+                if (form.tenantId) {
+                    localStorage.setItem('TENANT_ID', form.tenantId);
+                }
+
                 dispatch(
                     setUser({
                         logged: true,
