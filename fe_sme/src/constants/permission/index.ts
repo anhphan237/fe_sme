@@ -33,125 +33,66 @@ export enum DefaultTenantCode {
 }
 
 export const DefaultMappingPermission = {
+    // SYSTEM
     [AppRouters.SYSTEM]: 'all',
     [AppRouters.USERS]: 'all',
     [AppRouters.TENANT]: 'all',
     [AppRouters.ROLE_GROUP]: 'all',
+    [AppRouters.EDIT_ROLE_GROUP]: 'all',
 
     // DASHBOARD
     [AppRouters.DASHBOARDS]: 'all',
 
-    // EMPLOYEE
+    // PROFILE
+    [AppRouters.PROFILE]: 'all',
+
+    // EMPLOYEES
     [AppRouters.EMPLOYEES]: 'all',
     [AppRouters.EMPLOYEE_ADD]: 'all',
     [AppRouters.EMPLOYEE_DETAIL]: 'all',
 
-    // CONTRACT
+    // EMPLOYMENT CONTRACTS
     [AppRouters.CONTRACT]: 'all',
-
-    // PROFILE
-    [AppRouters.PROFILE]: 'all',
-
-    // ATTENDANCE
-    [AppRouters.ATTENDANCE]: 'all',
-    [AppRouters.ATTENDANCE_ADMIN]: 'all',
-    [AppRouters.ATTENDANCE_EMPLOYEE]: 'all',
-
-    // SHIFT
-    [AppRouters.SHIFT]: 'all',
-
-    // PAYROLL
-    [AppRouters.PAYROLL]: 'all',
-    [AppRouters.PAYROLL_DETAIL]: 'all',
-
-    //Finance
-    [AppRouters.DEBT_RECEIVABELES_OTHER]: 'all',
-    [AppRouters.DEBT_RECEIVABELES_OTHER_ADD]: 'all',
-    [AppRouters.DEBT_RECEIVABELES_OTHER_EDIT]: 'all',
-    [AppRouters.DEBT_TRACKING_PAYABLE]: 'all',
-    [AppRouters.DEBT_TRACKING_PAYABLE_DETAIL]: 'all',
-    [AppRouters.DEBT_TRACKING_PAYABLE_TRANSACTION]: 'all',
-
-    [AppRouters.FINANCE_ACCOUNTING]: 'all',
-    [AppRouters.DEBT_TRACKING]: 'all',
-    [AppRouters.DEBT_DETAIL]: 'all',
-    [AppRouters.RECEIVABLES]: 'all',
-    [AppRouters.DEBT_DETAIL_TRANSACTION]: 'all',
-    [AppRouters.RECEIVABLES_TRANSACTION]: 'all',
-    [AppRouters.PAYMENT_SLIP]: 'all',
-    [AppRouters.PAYMENT_SLIP_ADD]: 'all',
-    [AppRouters.PAYMENT_SLIP_EDIT]: 'all',
-    FinanceReport: 'all',
-
-    // PRODUCTION MANAGEMENT
-    [AppRouters.PRODUCT_MANAGEMENT]: 'all',
-    [AppRouters.PRODUCT_MANAGEMENT_ADD]: 'all',
-    [AppRouters.PRODUCT_MANAGEMENT_EDIT]: 'all',
-
-    // SALES MANAGEMENT
-    [AppRouters.SALE_MANAGEMENT]: 'all',
-    [AppRouters.SALES_ORDER]: 'all',
-    [AppRouters.INVOICE]: 'all',
-    [AppRouters.ADD_INVOICE]: 'all',
-    [AppRouters.EDIT_INVOICE]: 'all',
-    [AppRouters.REFUND]: 'all',
-    [AppRouters.ADD_REFUND]: 'all',
-    [AppRouters.EDIT_REFUND]: 'all',
-    [AppRouters.INVOICE_TRANSACTION]: 'all',
-    [AppRouters.REFUND_TRANSACTION]: 'all',
-    ExportInvoice: 'all',
-
-    // PURCHASE MANAGEMENT
-    [AppRouters.PURCHASE_MANAGEMENT]: 'all',
-    [AppRouters.PURCHASE_ORDERS]: 'all',
-    [AppRouters.PURCHASE_ORDERS_ADD]: 'all',
-    [AppRouters.PURCHASE_ORDERS_EDIT]: 'all',
-    [AppRouters.PURCHASE_INVOICE]: 'all',
-    [AppRouters.PURCHASE_INVOICE_ADD]: 'all',
-    [AppRouters.PURCHASE_INVOICE_EDIT]: 'all',
-    [AppRouters.PURCHASE_REFUND]: 'all',
-    [AppRouters.PURCHASE_REFUND_ADD]: 'all',
-    [AppRouters.PURCHASE_REFUND_EDIT]: 'all',
-    [AppRouters.PURCHASE_INVOICE_TRANSACTION]: 'all',
-
-    // LOGISTICS MANAGEMENT
-    [AppRouters.LOGISTICS]: 'all',
-    [AppRouters.ENTER_WAREHOUSE]: 'all',
-    [AppRouters.ADD_ENTER_WAREHOUSE]: 'all',
-    [AppRouters.HISTORY_ENTER_WAREHOUSE]: 'all',
-    [AppRouters.HISTORY_EXPORT_WAREHOUSE]: 'all',
-    [AppRouters.EDIT_ENTER_WAREHOUSE]: 'all',
-    [AppRouters.EXPORT_WAREHOUSE]: 'all',
-    [AppRouters.ADD_EXPORT_WAREHOUSE]: 'all',
-    [AppRouters.EDIT_EXPORT_WAREHOUSE]: 'all',
-    [AppRouters.INVENTORY]: 'all',
-    [AppRouters.WAREHOUSE_CONFIG]: 'all',
-
-    // CUSTOMER
-    [AppRouters.CUSTOMER]: 'all',
-    [AppRouters.CUSTOMER_INFO]: 'all',
-    [AppRouters.CUSTOMER_HISTORY]: 'all',
-    [AppRouters.VIEW_HISTORY_DETAIL]: 'all',
-
-    // SUPPLIER
-    [AppRouters.SUPPLIER]: 'all',
-    [AppRouters.SUPPLIER_INFO]: 'all',
-    [AppRouters.SUPPLIER_VIEW_HISTORY]: 'all',
-    [AppRouters.SUPPLIER_VIEW_HISTORY_DETAIL]: 'all',
+    [AppRouters.ADD_CONTRACT]: 'all',
+    [AppRouters.EDIT_CONTRACT]: 'all',
+    [AppRouters.DETAIL_CONTRACT]: 'all',
 
     // CATEGORIES
     [AppRouters.CATEGORIES]: 'all',
-    [AppRouters.PRODUCT_TYPE]: 'all',
-    [AppRouters.PRODUCT_GROUP]: 'all',
-    [AppRouters.SALES_METHOD]: 'all',
-    [AppRouters.CUSTOMER_TYPE]: 'all',
-    [AppRouters.PARTNER_TYPE]: 'all',
-    [AppRouters.PAYMENT_METHOD]: 'all',
-    [AppRouters.SHIPPING_METHOD]: 'all',
-    [AppRouters.WAREHOUSE_AREA]: 'all',
-    [AppRouters.WAREHOUSE]: 'all',
     [AppRouters.DEPARTMENT]: 'all',
+    [AppRouters.DEPARTMENT_ADD]: 'all',
+    [AppRouters.DEPARTMENT_EDIT]: 'all',
     [AppRouters.POSITION]: 'all',
-    [AppRouters.EXPENSES_TYPE]: 'all',
-    [AppRouters.PAYMENT_FUND]: 'all',
+    [AppRouters.POSITION_ADD]: 'all',
+    [AppRouters.POSITION_EDIT]: 'all',
+
+    // ONBOARDING (to be implemented)
+    [AppRouters.ONBOARDING]: 'all',
+    [AppRouters.ONBOARDING_TEMPLATES]: 'all',
+    [AppRouters.ONBOARDING_TEMPLATE_ADD]: 'all',
+    [AppRouters.ONBOARDING_TEMPLATE_EDIT]: 'all',
+    [AppRouters.ONBOARDING_TEMPLATE_DETAIL]: 'all',
+    [AppRouters.ONBOARDING_INSTANCES]: 'all',
+    [AppRouters.ONBOARDING_INSTANCE_ADD]: 'all',
+    [AppRouters.ONBOARDING_INSTANCE_DETAIL]: 'all',
+    [AppRouters.ONBOARDING_TASKS]: 'all',
+    [AppRouters.ONBOARDING_MY_TASKS]: 'all',
+
+    // SURVEYS (to be implemented)
+    [AppRouters.SURVEYS]: 'all',
+    [AppRouters.SURVEY_TEMPLATES]: 'all',
+    [AppRouters.SURVEY_TEMPLATE_ADD]: 'all',
+    [AppRouters.SURVEY_TEMPLATE_EDIT]: 'all',
+    [AppRouters.SURVEY_TEMPLATE_DETAIL]: 'all',
+    [AppRouters.SURVEY_RESPONSES]: 'all',
+    [AppRouters.SURVEY_TAKE]: 'all',
+
+    // DOCUMENTS (to be implemented)
+    [AppRouters.DOCUMENTS]: 'all',
+    [AppRouters.DOCUMENT_UPLOAD]: 'all',
+    [AppRouters.DOCUMENT_DETAIL]: 'all',
+
+    // ANALYTICS (to be implemented)
+    [AppRouters.ANALYTICS]: 'all',
+    [AppRouters.ANALYTICS_ONBOARDING]: 'all',
 };

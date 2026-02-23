@@ -1,4 +1,3 @@
-import { apiGetTenants } from '@/api/tenant.api';
 import { forgotPassword } from '@/api/user.api';
 import { RegexValidate } from '@/constants';
 import BaseCheckbox from '@/core/components/Checkbox';
@@ -39,17 +38,6 @@ const LoginFormSection: React.FC = () => {
     const requiredFieldMsg = t('global.message.required_field');
     type Option = { value: string; label: string };
 
-    const { data: companyOptions = [], isLoading } = useQuery<Option[]>({
-        queryKey: ['tenants'],
-        queryFn: async () => {
-            const res = await apiGetTenants({ loading: false });
-            const list: ITenant[] = Array.isArray(res?.data) ? res.data : [];
-            return list.map(item => ({ value: item.id, label: item.name }));
-        },
-        enabled: isLogin,
-        retry: 1,
-    });
-
     const handleLoginSubmit = async (values: LoginParams) => {
         localStorage.clear();
         await handleLogin(values);
@@ -77,22 +65,6 @@ const LoginFormSection: React.FC = () => {
 
     const loginSection = (
         <>
-            <BaseSelect
-                name="tenantId"
-                label={<span className="text-black/90 font-medium">{t('login.company')}</span>}
-                formItemProps={{
-                    className: '!mb-2',
-                    rules: isLogin ? [{ required: true, message: requiredFieldMsg }] : [],
-                }}
-                size="large"
-                placeholder={isLoading ? t('global.tips.loading') : t('login.select_company')}
-                className={inputClass}
-                allowClear
-                options={companyOptions}
-                loading={isLoading}
-                disabled={isLoading}
-                notFoundContent={isLoading ? t('global.tips.loading') : t('global.no_data')}
-            />
             <BaseInput
                 name="account"
                 label={<span className="text-black/90 font-medium"> {t('global.tips.account')}</span>}

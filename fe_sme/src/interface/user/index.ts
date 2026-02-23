@@ -1,3 +1,4 @@
+import type { OnboardingStep } from '@/interface/auth';
 import type { Device, MenuChild } from '@/interface/layout';
 
 export type Locale = 'vi_VN';
@@ -8,6 +9,9 @@ export interface ClientState {
 
     /** login status */
     logged: boolean;
+
+    /** bước hiện tại trong luồng onboarding — null nếu đã hoàn tất hoặc chưa đăng ký */
+    onboardingStep: OnboardingStep | null;
 
     /** user's device */
     device: Device;

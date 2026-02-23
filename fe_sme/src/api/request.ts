@@ -99,7 +99,29 @@ axiosInstance.interceptors.response.use(
 
         checkAuthorize(resp);
 
-        return resp?.data;
+        const responseData = resp?.data;
+
+        // Check if this is a Gateway response
+        if (responseData && typeof responseData === 'object' && 'code' in responseData && 'requestId' in responseData) {
+            const gatewayResp = responseData as GatewayResponse<any>;
+
+            if (gatewayResp.code !== 'SUCCESS') {
+                notify.error(gatewayResp.message);
+                return Promise.reject(gatewayResp);
+            }
+
+            // Map Gateway format to old format for backward compatibility
+            return {
+                status: true,
+                message: gatewayResp.message,
+                result: gatewayResp.data,
+                data: gatewayResp.data,
+                requestId: gatewayResp.requestId,
+            };
+        }
+
+        // Return old format for non-Gateway responses
+        return responseData;
     },
     error => {
         store.dispatch(
@@ -128,12 +150,21 @@ export type Response<T = any> = {
 
 export type MyResponse<T = any> = Promise<Response<T>>;
 
-/**
- *
- * @param method - request methods
- * @param url - request url
- * @param data - request data or params
- */
+// Gateway types
+export interface GatewayRequest<T = any> {
+    operationType: string;
+    requestId?: string;
+    tenantId?: string;
+    payload?: T;
+}
+
+export interface GatewayResponse<T = any> {
+    code: string;
+    message: string;
+    requestId: string;
+    data: T;
+}
+
 export const request = <T = any>(method: Lowercase<Method>, url: string, data?: any, config?: RequestConfig): MyResponse<T> => {
     // const prefix = '/api'
     const prefix = '';
@@ -152,4 +183,27 @@ export const request = <T = any>(method: Lowercase<Method>, url: string, data?: 
             ...config,
         });
     }
+};
+
+export const gatewayRequest = async <TPayload = any, TResponse = any>(
+    operationType: string,
+    payload?: TPayload,
+    config?: RequestConfig,
+): Promise<Response<TResponse>> => {
+    if (import.meta.env.VITE_USE_IN_MEMORY_BACKEND === 'true') {
+        const { handleMockRequest } = await import('../mock-backend');
+        return handleMockRequest(operationType, payload);
+    }
+
+    const requestId = crypto.randomUUID();
+    const tenantId = localStorage.getItem('TENANT_ID') || undefined;
+
+    const requestBody: GatewayRequest<TPayload> = {
+        operationType,
+        requestId,
+        tenantId,
+        payload,
+    };
+
+    return axiosInstance.post('/gateway', requestBody, config);
 };
