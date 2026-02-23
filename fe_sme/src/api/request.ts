@@ -165,12 +165,6 @@ export interface GatewayResponse<T = any> {
     data: T;
 }
 
-/**
- *
- * @param method - request methods
- * @param url - request url
- * @param data - request data or params
- */
 export const request = <T = any>(method: Lowercase<Method>, url: string, data?: any, config?: RequestConfig): MyResponse<T> => {
     // const prefix = '/api'
     const prefix = '';
@@ -191,17 +185,16 @@ export const request = <T = any>(method: Lowercase<Method>, url: string, data?: 
     }
 };
 
-/**
- * Gateway request - sends requests to the Gateway endpoint
- * @param operationType - The operation type (e.g., 'com.sme.identity.auth.login')
- * @param payload - The request payload
- * @param config - Optional axios config
- */
-export const gatewayRequest = <TPayload = any, TResponse = any>(
+export const gatewayRequest = async <TPayload = any, TResponse = any>(
     operationType: string,
     payload?: TPayload,
     config?: RequestConfig,
 ): Promise<Response<TResponse>> => {
+    if (import.meta.env.VITE_USE_IN_MEMORY_BACKEND === 'true') {
+        const { handleMockRequest } = await import('../mock-backend');
+        return handleMockRequest(operationType, payload);
+    }
+
     const requestId = crypto.randomUUID();
     const tenantId = localStorage.getItem('TENANT_ID') || undefined;
 

@@ -1,4 +1,6 @@
-﻿import type { BillingPlan } from '@/interface/gateway';
+import { useLocale } from '@/i18n';
+
+import type { BillingPlan } from '@/interface/gateway';
 
 interface PlanCardProps {
     plan: BillingPlan;
@@ -6,20 +8,19 @@ interface PlanCardProps {
     onSelect: (id: BillingPlan['id']) => void;
 }
 
-/** Äá»‹nh dáº¡ng giÃ¡ tiá»n sang VNÄ */
-function formatPrice(plan: BillingPlan): string {
-    if (plan.priceMonthly === 0) return 'Miá»…n phÃ­';
-    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(plan.priceMonthly) + '/thÃ¡ng';
-}
-
 export default function PlanCard({ plan, isSelected, onSelect }: PlanCardProps) {
+    const { t } = useLocale();
     const isFree = plan.priceMonthly === 0;
+
+    const formattedPrice = isFree
+        ? t('plan.card.free')
+        : new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(plan.priceMonthly) + t('plan.card.per_month');
 
     return (
         <div
             onClick={() => onSelect(plan.id)}
             className={`
-                relative rounded-2xl border-2 p-6 cursor-pointer transition-all
+                relative rounded-2xl border-2 p-6 cursor-pointer transition-all duration-200
                 ${
                     isSelected
                         ? 'border-blue-600 bg-blue-50 shadow-lg shadow-blue-100'
@@ -27,14 +28,12 @@ export default function PlanCard({ plan, isSelected, onSelect }: PlanCardProps) 
                 }
             `}
         >
-            {/* Badge "Miá»…n phÃ­" */}
             {isFree && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-600 text-white text-xs font-semibold px-3 py-1 rounded-full">
-                    Miá»…n phÃ­ mÃ£i
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-600 text-white text-xs font-semibold px-3 py-1 rounded-full whitespace-nowrap">
+                    {t('plan.card.free_badge')}
                 </span>
             )}
 
-            {/* TÃªn gÃ³i */}
             <div className="flex items-start justify-between mb-1">
                 <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
                 {isSelected && (
@@ -46,16 +45,12 @@ export default function PlanCard({ plan, isSelected, onSelect }: PlanCardProps) 
                 )}
             </div>
 
-            {/* Sá»‘ lÆ°á»£ng ngÆ°á»i dÃ¹ng */}
-            <p className="text-xs text-gray-500 mb-3">Tá»‘i Ä‘a {plan.maxUsers} ngÆ°á»i dÃ¹ng</p>
+            <p className="text-xs text-gray-500 mb-3">{t('plan.card.max_users').replace('{count}', String(plan.maxUsers))}</p>
 
-            {/* MÃ´ táº£ */}
             {plan.description && <p className="text-xs text-gray-500 mb-3">{plan.description}</p>}
 
-            {/* GiÃ¡ */}
-            <p className={`text-2xl font-extrabold mb-4 ${isSelected ? 'text-blue-600' : 'text-gray-900'}`}>{formatPrice(plan)}</p>
+            <p className={`text-2xl font-extrabold mb-4 ${isSelected ? 'text-blue-600' : 'text-gray-900'}`}>{formattedPrice}</p>
 
-            {/* TÃ­nh nÄƒng */}
             <ul className="space-y-1.5">
                 {plan.features.map((feat, idx) => (
                     <li key={idx} className="flex items-center gap-2 text-sm text-gray-600">

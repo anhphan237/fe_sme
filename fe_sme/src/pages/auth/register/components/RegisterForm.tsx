@@ -113,9 +113,15 @@ const RegisterForm: React.FC = () => {
                 />
             </Form.Item>
 
-            <BaseButton type="primary" htmlType="submit" loading={loading} block size="large" className="!h-11 !rounded-lg !font-semibold">
-                {t('global.register.submit')}
-            </BaseButton>
+            <BaseButton
+                type="primary"
+                htmlType="submit"
+                loading={loading}
+                block
+                size="large"
+                className="!h-11 !rounded-lg !font-semibold"
+                label="global.register.submit"
+            />
         </Form>
     );
 };
