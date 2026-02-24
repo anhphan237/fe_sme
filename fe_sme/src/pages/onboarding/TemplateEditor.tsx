@@ -29,7 +29,7 @@ const OWNER_TYPE_OPTIONS = [
   { value: 'DEPARTMENT', label: 'Department' },
 ]
 
-const ROLE_REF_OPTIONS = ['HR', 'MANAGER', 'COMPANY_ADMIN', 'EMPLOYEE'] as const
+const ROLE_REF_OPTIONS = ['HR', 'IT', 'MANAGER', 'EMPLOYEE'] as const
 
 type ChecklistForm = CreateOnboardingTemplatePayload['checklists'] extends (infer C)[] | undefined
   ? NonNullable<C>

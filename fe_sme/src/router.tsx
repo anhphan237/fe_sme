@@ -38,6 +38,8 @@ const BillingPlan = lazy(() => import('./pages/billing/Plan'))
 const BillingUsage = lazy(() => import('./pages/billing/Usage'))
 const BillingInvoices = lazy(() => import('./pages/billing/Invoices'))
 const BillingPayment = lazy(() => import('./pages/billing/Payment'))
+const BillingCheckout = lazy(() => import('./pages/billing/Checkout'))
+const PaymentConfirmation = lazy(() => import('./pages/billing/PaymentConfirmation'))
 const PlatformTenants = lazy(() => import('./pages/platform/Tenants'))
 const PlatformPlans = lazy(() => import('./pages/platform/Plans'))
 const PlatformSubscriptions = lazy(() => import('./pages/platform/Subscriptions'))
@@ -86,15 +88,15 @@ export const router = createBrowserRouter([
       { path: '/dashboard', element: suspense(<Dashboard />) },
       {
         path: '/admin/departments',
-        element: suspense(withRoles(<AdminDepartments />, ['COMPANY_ADMIN'])),
+        element: suspense(withRoles(<AdminDepartments />, ['HR'])),
       },
       {
         path: '/admin/users',
-        element: suspense(withRoles(<AdminUsers />, ['COMPANY_ADMIN'])),
+        element: suspense(withRoles(<AdminUsers />, ['HR'])),
       },
       {
         path: '/admin/roles',
-        element: suspense(withRoles(<AdminRoles />, ['COMPANY_ADMIN'])),
+        element: suspense(withRoles(<AdminRoles />, ['HR'])),
       },
       {
         path: '/admin/knowledge-base',
@@ -184,55 +186,63 @@ export const router = createBrowserRouter([
       },
       {
         path: '/billing/plan',
-        element: suspense(withRoles(<BillingPlan />, ['COMPANY_ADMIN'])),
+        element: suspense(withRoles(<BillingPlan />, ['HR'])),
       },
       {
         path: '/billing/usage',
-        element: suspense(withRoles(<BillingUsage />, ['COMPANY_ADMIN'])),
+        element: suspense(withRoles(<BillingUsage />, ['HR'])),
       },
       {
         path: '/billing/invoices',
-        element: suspense(withRoles(<BillingInvoices />, ['COMPANY_ADMIN'])),
+        element: suspense(withRoles(<BillingInvoices />, ['HR'])),
       },
       {
         path: '/billing/payment',
-        element: suspense(withRoles(<BillingPayment />, ['COMPANY_ADMIN'])),
+        element: suspense(withRoles(<BillingPayment />, ['HR'])),
+      },
+      {
+        path: '/billing/checkout/:invoiceId',
+        element: suspense(withRoles(<BillingCheckout />, ['HR'])),
+      },
+      {
+        path: '/billing/payment/confirmation',
+        element: suspense(withRoles(<PaymentConfirmation />, ['HR'])),
       },
       {
         path: '/platform/tenants',
-        element: suspense(withRoles(<PlatformTenants />, ['PLATFORM_ADMIN', 'PLATFORM_MANAGER'])),
+        element: suspense(withRoles(<PlatformTenants />, ['ADMIN'])),
       },
       {
         path: '/platform/plans',
-        element: suspense(withRoles(<PlatformPlans />, ['PLATFORM_ADMIN'])),
+        element: suspense(withRoles(<PlatformPlans />, ['ADMIN'])),
       },
       {
         path: '/platform/subscriptions',
-        element: suspense(withRoles(<PlatformSubscriptions />, ['PLATFORM_ADMIN'])),
+        element: suspense(withRoles(<PlatformSubscriptions />, ['ADMIN'])),
       },
       {
         path: '/platform/usage',
-        element: suspense(withRoles(<PlatformUsage />, ['PLATFORM_ADMIN', 'PLATFORM_MANAGER'])),
+        element: suspense(withRoles(<PlatformUsage />, ['ADMIN'])),
       },
       {
         path: '/platform/finance',
-        element: suspense(withRoles(<PlatformFinance />, ['PLATFORM_ADMIN', 'PLATFORM_MANAGER'])),
+        element: suspense(withRoles(<PlatformFinance />, ['ADMIN'])),
       },
       {
         path: '/platform/dunning',
-        element: suspense(withRoles(<PlatformDunning />, ['PLATFORM_ADMIN'])),
+        element: suspense(withRoles(<PlatformDunning />, ['ADMIN'])),
       },
       {
         path: '/platform/invoices',
-        element: suspense(withRoles(<PlatformInvoices />, ['PLATFORM_STAFF'])),
+        element: suspense(withRoles(<PlatformInvoices />, ['STAFF'])),
       },
       {
         path: '/platform/payments',
-        element: suspense(withRoles(<PlatformPayments />, ['PLATFORM_STAFF'])),
+        element: suspense(withRoles(<PlatformPayments />, ['STAFF'])),
       },
       {
         path: '/platform/email-logs',
-        element: suspense(withRoles(<PlatformEmailLogs />, ['PLATFORM_STAFF'])),
+        element: suspense(withRoles(<PlatformEmailLogs />, ['STAFF'])),
       },
       { path: '/403', element: suspense(<Forbidden />) },
     ],

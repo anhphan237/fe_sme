@@ -18,17 +18,17 @@ import {
 } from 'recharts'
 
 const kpiMap: Record<Role, { label: string; value: string }[]> = {
-  COMPANY_ADMIN: [
-    { label: 'Org setup tasks', value: '6' },
-    { label: 'Active users', value: '28' },
-    { label: 'Open invitations', value: '3' },
-    { label: 'Billing status', value: 'Healthy' },
-  ],
   HR: [
     { label: 'Active onboardings', value: '12' },
     { label: 'Tasks due this week', value: '9' },
     { label: 'Survey completion %', value: '82%' },
-    { label: 'Automation rules', value: '4' },
+    { label: 'Billing status', value: 'Healthy' },
+  ],
+  IT: [
+    { label: 'Org setup tasks', value: '6' },
+    { label: 'Active users', value: '28' },
+    { label: 'Open invitations', value: '3' },
+    { label: 'Systems configured', value: '12' },
   ],
   MANAGER: [
     { label: 'Team onboardings', value: '4' },
@@ -42,19 +42,13 @@ const kpiMap: Record<Role, { label: string; value: string }[]> = {
     { label: 'Surveys due', value: '1' },
     { label: 'Messages from HR', value: '2' },
   ],
-  PLATFORM_ADMIN: [
+  ADMIN: [
     { label: 'Active tenants', value: '34' },
     { label: 'Plans managed', value: '4' },
     { label: 'Open invoices', value: '18' },
     { label: 'Dunning cases', value: '3' },
   ],
-  PLATFORM_MANAGER: [
-    { label: 'Active tenants', value: '34' },
-    { label: 'MRR growth', value: '+12%' },
-    { label: 'Usage growth', value: '+8%' },
-    { label: 'Payment success', value: '96%' },
-  ],
-  PLATFORM_STAFF: [
+  STAFF: [
     { label: 'Invoices to review', value: '8' },
     { label: 'Payments failed', value: '4' },
     { label: 'Email failures', value: '2' },

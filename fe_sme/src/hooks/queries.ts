@@ -36,9 +36,19 @@ import {
   getPlans,
   getUsage,
   getInvoices,
+  getInvoice,
   getSubscription,
+  createSubscription,
   updateSubscription,
   connectPayment,
+  createPaymentIntent,
+  getPaymentProviders,
+  getPaymentStatus,
+  getPaymentTransactions,
+  trackUsage,
+  getUsageSummary,
+  generateInvoice,
+  dunningRetry,
 } from '../shared/api/billing'
 import {
   getSaTenants,
@@ -141,14 +151,47 @@ export const useSaveSurveyResponse = () =>
 
 export const useChatbotQuery = () => useMutation({ mutationFn: chatbotQuery })
 
-export const usePlansQuery = () => useQuery({ queryKey: ['plans'], queryFn: getPlans })
-export const useUsageQuery = () => useQuery({ queryKey: ['usage'], queryFn: getUsage })
-export const useInvoicesQuery = () => useQuery({ queryKey: ['invoices'], queryFn: getInvoices })
+export const usePlansQuery = () => useQuery({ queryKey: ['plans'], queryFn: () => getPlans() })
+export const useUsageQuery = (month?: string) =>
+  useQuery({ queryKey: ['usage', month], queryFn: () => getUsage(month) })
+export const useInvoicesQuery = () => useQuery({ queryKey: ['invoices'], queryFn: () => getInvoices() })
+export const useInvoiceQuery = (invoiceId?: string) =>
+  useQuery({
+    queryKey: ['invoice', invoiceId],
+    queryFn: () => getInvoice(invoiceId!),
+    enabled: Boolean(invoiceId),
+  })
 export const useSubscriptionQuery = () =>
-  useQuery({ queryKey: ['subscription'], queryFn: getSubscription })
+  useQuery({ queryKey: ['subscription'], queryFn: () => getSubscription() })
+export const useCreateSubscription = () =>
+  useMutation({ mutationFn: (v: { companyId: string; planCode: string }) => createSubscription(v.companyId, v.planCode) })
 export const useUpdateSubscription = () =>
   useMutation({ mutationFn: updateSubscription })
 export const useConnectPayment = () => useMutation({ mutationFn: connectPayment })
+export const useCreatePaymentIntent = () =>
+  useMutation({ mutationFn: createPaymentIntent })
+export const usePaymentProvidersQuery = () =>
+  useQuery({ queryKey: ['payment-providers'], queryFn: getPaymentProviders })
+export const usePaymentStatusQuery = (paymentIntentId: string | undefined, enabled = false) =>
+  useQuery({
+    queryKey: ['payment-status', paymentIntentId],
+    queryFn: () => getPaymentStatus(paymentIntentId!),
+    enabled: Boolean(paymentIntentId) && enabled,
+    refetchInterval: enabled ? 3000 : false,
+  })
+export const usePaymentTransactionsQuery = () =>
+  useQuery({ queryKey: ['payment-transactions'], queryFn: getPaymentTransactions })
+export const useTrackUsage = () =>
+  useMutation({ mutationFn: (v: { subscriptionId: string; usageType: string; quantity: number }) => trackUsage(v.subscriptionId, v.usageType, v.quantity) })
+export const useUsageSummaryQuery = (subscriptionId?: string, month?: string) =>
+  useQuery({
+    queryKey: ['usage-summary', subscriptionId, month],
+    queryFn: () => getUsageSummary(subscriptionId, month),
+  })
+export const useGenerateInvoice = () =>
+  useMutation({ mutationFn: (v: { subscriptionId: string; periodStart: string; periodEnd: string }) => generateInvoice(v.subscriptionId, v.periodStart, v.periodEnd) })
+export const useDunningRetry = () =>
+  useMutation({ mutationFn: (v: { dunningCaseId?: string; subscriptionId?: string }) => dunningRetry(v.dunningCaseId, v.subscriptionId) })
 
 export const useSaTenantsQuery = () =>
   useQuery({ queryKey: ['sa-tenants'], queryFn: getSaTenants })

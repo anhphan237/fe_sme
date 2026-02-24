@@ -8,7 +8,7 @@ export function RoleTenantSwitcher() {
   const { currentTenant, setTenant, currentUser } = useAppStore()
   const canLoadTenants =
     Boolean(currentUser?.companyId) ||
-    hasRequiredRole(currentUser?.roles ?? [], ['PLATFORM_ADMIN', 'PLATFORM_MANAGER'])
+    hasRequiredRole(currentUser?.roles ?? [], ['ADMIN'])
   const { data: tenants } = useTenantsQuery(canLoadTenants)
 
   useEffect(() => {

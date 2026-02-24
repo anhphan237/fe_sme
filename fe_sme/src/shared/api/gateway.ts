@@ -10,6 +10,10 @@ const BASE_URL =
   (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_BASE_URL) || ''
 const GATEWAY_PATH = '/api/v1/gateway'
 
+/** In dev, use relative path so Vite proxy handles CORS. In prod, use full URL. */
+const getGatewayBase = () =>
+  import.meta.env?.DEV && BASE_URL ? '' : BASE_URL.replace(/\/$/, '')
+
 let requestIdCounter = 0
 function nextRequestId(prefix: string): string {
   requestIdCounter += 1
@@ -53,7 +57,7 @@ export async function gatewayRequest<TReq = unknown, TRes = unknown>(
     flatPayload?: boolean
   }
 ): Promise<TRes> {
-  const url = `${BASE_URL.replace(/\/$/, '')}${GATEWAY_PATH}`
+  const url = `${getGatewayBase()}${GATEWAY_PATH}`
   const tenantId = options?.tenantId !== undefined ? options.tenantId : getTenantId()
   const requestId = options?.requestIdPrefix
     ? nextRequestId(options.requestIdPrefix)
@@ -106,9 +110,9 @@ export async function gatewayRequest<TReq = unknown, TRes = unknown>(
   return (data !== undefined ? data : json) as TRes
 }
 
-/** Check if real API (gateway) should be used. Safe to call outside React (e.g. in useEffect). */
+/** Check if real API (gateway) should be used. Only enabled when VITE_API_BASE_URL is set. */
 export function isGatewayEnabled(): boolean {
-  return Boolean(BASE_URL) || (typeof import.meta !== 'undefined' && (import.meta as any).env?.DEV === true)
+  return Boolean(BASE_URL)
 }
 
 /** Check if real API (gateway) should be used. In dev with proxy, BASE_URL can be empty. */

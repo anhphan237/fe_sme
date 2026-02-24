@@ -24,18 +24,15 @@ export async function checkEmailExists(email: string): Promise<boolean> {
 }
 
 const KNOWN_ROLES = [
-  'PLATFORM_ADMIN', 'PLATFORM_MANAGER', 'PLATFORM_STAFF',
-  'COMPANY_ADMIN', 'HR', 'MANAGER', 'EMPLOYEE',
+  'ADMIN', 'STAFF',
+  'HR', 'IT', 'MANAGER', 'EMPLOYEE',
 ] as const
 
-/** Map backend role codes to app Role (BE có thể dùng ADMIN, app dùng COMPANY_ADMIN) */
 const BACKEND_ROLE_MAP: Record<string, Role> = {
-  ADMIN: 'COMPANY_ADMIN',
-  PLATFORM_ADMIN: 'PLATFORM_ADMIN',
-  PLATFORM_MANAGER: 'PLATFORM_MANAGER',
-  PLATFORM_STAFF: 'PLATFORM_STAFF',
-  COMPANY_ADMIN: 'COMPANY_ADMIN',
+  ADMIN: 'ADMIN',
+  STAFF: 'STAFF',
   HR: 'HR',
+  IT: 'IT',
   MANAGER: 'MANAGER',
   EMPLOYEE: 'EMPLOYEE',
 }
@@ -115,7 +112,7 @@ function parseRegisterResponse(
       id: raw.adminUserId ?? raw.userId ?? '',
       name: payload.admin.fullName ?? '',
       email: payload.admin.username,
-      roles: ['COMPANY_ADMIN'],
+      roles: ['HR'],
       companyId: raw.companyId ?? null,
       department: '',
       status: 'Active',

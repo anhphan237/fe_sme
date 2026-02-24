@@ -1,21 +1,19 @@
 import type { Role } from './types'
 
 export const ROLE_LABELS: Record<Role, string> = {
-  PLATFORM_ADMIN: 'Platform Admin',
-  PLATFORM_MANAGER: 'Platform Manager',
-  PLATFORM_STAFF: 'Platform Staff',
-  COMPANY_ADMIN: 'Company Admin',
+  ADMIN: 'Admin',
+  STAFF: 'Staff',
   HR: 'HR',
+  IT: 'IT',
   MANAGER: 'Manager',
   EMPLOYEE: 'Employee',
 }
 
 const ROLE_PRIORITY: Role[] = [
-  'PLATFORM_ADMIN',
-  'PLATFORM_MANAGER',
-  'PLATFORM_STAFF',
-  'COMPANY_ADMIN',
+  'ADMIN',
+  'STAFF',
   'HR',
+  'IT',
   'MANAGER',
   'EMPLOYEE',
 ]
@@ -34,4 +32,4 @@ export const hasRequiredRole = (
 }
 
 export const isPlatformRole = (roles: Role[]) =>
-  roles.some((role) => role.startsWith('PLATFORM_'))
+  roles.some((role) => role === 'ADMIN' || role === 'STAFF')
