@@ -116,7 +116,7 @@ export const router = createBrowserRouter([
       },
       {
         path: '/onboarding/employees',
-        element: suspense(withRoles(<Employees />, ['HR', 'MANAGER'])),
+        element: suspense(withRoles(<Employees />, ['HR', 'MANAGER', 'EMPLOYEE'])),
       },
       {
         path: '/onboarding/employees/new',
@@ -128,7 +128,7 @@ export const router = createBrowserRouter([
       },
       {
         path: '/onboarding/employees/:employeeId',
-        element: suspense(withRoles(<EmployeeDetail />, ['HR', 'MANAGER'])),
+        element: suspense(withRoles(<EmployeeDetail />, ['HR', 'MANAGER', 'EMPLOYEE'])),
       },
       {
         path: '/onboarding/tasks',

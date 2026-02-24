@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Card } from '../../components/ui/Card'
 import { Table } from '../../components/ui/Table'
@@ -8,6 +9,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { Modal } from '../../components/ui/Modal'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { useInstancesQuery, useStartInstance, useTemplatesQuery } from '../../hooks/queries'
+import { activateInstance } from '../../shared/api/onboarding'
 import { useUsersQuery } from '../../hooks/queries'
 import { useToast } from '../../components/ui/Toast'
 import { ROLE_LABELS, getPrimaryRole } from '../../shared/rbac'
@@ -15,18 +17,21 @@ import { useAppStore } from '../../store/useAppStore'
 
 function Employees() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const toast = useToast()
-  const { data: instances, isLoading, isError, error, refetch } = useInstancesQuery()
-  const { data: users } = useUsersQuery()
-  const { data: templates } = useTemplatesQuery()
-  const startInstance = useStartInstance()
   const currentUser = useAppStore((state) => state.currentUser)
   const [open, setOpen] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<string>('ACTIVE')
   const [form, setForm] = useState({
     employeeId: '',
     templateId: '',
     startDate: '',
   })
+  const instanceFilters = { status: statusFilter }
+  const { data: instances, isLoading, isError, error, refetch } = useInstancesQuery(instanceFilters)
+  const { data: users } = useUsersQuery()
+  const { data: templates } = useTemplatesQuery()
+  const startInstance = useStartInstance()
   const canStart = Boolean(currentUser?.roles.includes('HR'))
 
   const handleStart = async () => {
@@ -36,6 +41,12 @@ function Employees() {
       startDate: form.startDate,
       progress: 0,
     })
+    try {
+      await activateInstance(instance.id, (instance as any).requestNo)
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Onboarding created but activate failed.')
+    }
+    queryClient.invalidateQueries({ queryKey: ['instances'] })
     toast('Onboarding started.')
     setOpen(false)
     navigate(`/onboarding/employees/${instance.id}`)
@@ -63,10 +74,14 @@ function Employees() {
             placeholder="Search employee"
             className="rounded-2xl border border-stroke px-4 py-2 text-sm"
           />
-          <select className="rounded-2xl border border-stroke px-4 py-2 text-sm">
-            <option>Status</option>
-            <option>Active</option>
-            <option>Completed</option>
+          <select
+            className="rounded-2xl border border-stroke px-4 py-2 text-sm"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="ACTIVE">Active</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="CANCELLED">Paused</option>
           </select>
           <input
             type="date"
@@ -114,17 +129,28 @@ function Employees() {
             </thead>
             <tbody>
               {instances?.map((instance) => {
-                const employee = users?.find((user) => user.id === instance.employeeId)
+                const employee = users?.find(
+                  (user) =>
+                    user.id === instance.employeeUserId ||
+                    user.id === instance.employeeId ||
+                    user.employeeId === instance.employeeId
+                )
+                const isCurrentEmployeeRow = Boolean(
+                  currentUser &&
+                  (instance.employeeUserId === currentUser.id || instance.employeeId === currentUser.id)
+                )
+                const employeeName = employee?.name ?? (isCurrentEmployeeRow ? currentUser?.name : null) ?? '-'
+                const employeeRole = employee?.roles ?? (isCurrentEmployeeRow ? currentUser?.roles : undefined)
                 return (
                   <tr key={instance.id} className="border-t border-stroke hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium">{employee?.name}</td>
+                    <td className="px-4 py-3 font-medium">{employeeName}</td>
                     <td className="px-4 py-3 text-muted">
-                      {employee ? ROLE_LABELS[getPrimaryRole(employee.roles)] : '-'}
+                      {employeeRole ? ROLE_LABELS[getPrimaryRole(employeeRole)] : '-'}
                     </td>
                     <td className="px-4 py-3 text-muted">{instance.startDate}</td>
                     <td className="px-4 py-3 text-muted">{instance.progress}%</td>
                     <td className="px-4 py-3 text-muted">{instance.status}</td>
-                    <td className="px-4 py-3 text-muted">{employee?.manager ?? '—'}</td>
+                    <td className="px-4 py-3 text-muted">{employee?.manager || instance.managerName || '—'}</td>
                     <td className="px-4 py-3">
                       <Button
                         variant="ghost"

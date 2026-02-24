@@ -23,6 +23,8 @@ export interface User {
   companyId: string | null
   department: string
   status: 'Active' | 'Invited' | 'Inactive'
+  employeeId?: string | null
+  managerUserId?: string | null
   manager?: string
   createdAt: string
 }
@@ -89,6 +91,9 @@ export interface OnboardingTemplate {
 export interface OnboardingInstance {
   id: string
   employeeId: string
+  employeeUserId?: string | null
+  managerUserId?: string | null
+  managerName?: string | null
   templateId: string
   startDate: string
   progress: number

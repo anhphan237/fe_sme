@@ -103,7 +103,7 @@ function AppLayout({ children }: AppLayoutProps) {
           {
             title: 'Onboarding Employee',
             to: '/onboarding/employees',
-            requiredRoles: ['HR', 'MANAGER'],
+            requiredRoles: ['HR', 'MANAGER', 'EMPLOYEE'],
           },
           {
             title: 'Employees',

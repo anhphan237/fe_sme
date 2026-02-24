@@ -10,10 +10,13 @@ import {
   getTemplates,
   getTemplate,
   getInstances,
+  getInstance,
   startInstance,
   saveTemplate,
   deleteTemplate,
   saveEvaluation,
+  getOnboardingTasksByInstance,
+  updateOnboardingTaskStatus,
 } from '../shared/api/onboarding'
 import {
   getDocuments,
@@ -80,10 +83,32 @@ export const useTemplateQuery = (id?: string) =>
 export const useSaveTemplate = () => useMutation({ mutationFn: saveTemplate })
 export const useDeleteTemplate = () => useMutation({ mutationFn: deleteTemplate })
 
-export const useInstancesQuery = (enabled = true) =>
-  useQuery({ queryKey: ['instances'], queryFn: getInstances, enabled })
+export const useInstancesQuery = (filters?: { employeeId?: string; status?: string }, enabled = true) =>
+  useQuery({
+    queryKey: ['instances', filters?.employeeId ?? '', filters?.status ?? 'ACTIVE'],
+    queryFn: () => getInstances(filters?.employeeId, filters?.status ?? 'ACTIVE'),
+    enabled,
+  })
+export const useInstanceQuery = (instanceId: string | undefined) =>
+  useQuery({
+    queryKey: ['instance', instanceId],
+    queryFn: () => getInstance(instanceId!),
+    enabled: Boolean(instanceId),
+  })
 export const useStartInstance = () => useMutation({ mutationFn: startInstance })
 export const useSaveEvaluation = () => useMutation({ mutationFn: saveEvaluation })
+export const useOnboardingTasksByInstanceQuery = (
+  onboardingId: string | undefined,
+  options?: import('../shared/api/onboarding').ListTasksByOnboardingOptions,
+  enabled = true
+) =>
+  useQuery({
+    queryKey: ['onboarding-tasks-by-instance', onboardingId ?? '', options],
+    queryFn: () => getOnboardingTasksByInstance(onboardingId!, options),
+    enabled: Boolean(enabled && onboardingId),
+  })
+export const useUpdateOnboardingTaskStatus = () =>
+  useMutation({ mutationFn: ({ taskId, status }: { taskId: string; status: string }) => updateOnboardingTaskStatus(taskId, status) })
 
 export const useDocumentsQuery = (enabled = true) =>
   useQuery({ queryKey: ['documents'], queryFn: getDocuments, enabled })

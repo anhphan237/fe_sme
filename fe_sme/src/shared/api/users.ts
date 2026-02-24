@@ -4,13 +4,16 @@ import type { User, UserDetail } from '../types'
 
 function normalizeUser(u: any): User {
   return {
-    id: u.id ?? u.userId ?? '',
+    id: u.id ?? u.userId ?? u.identityUserId ?? '',
     name: u.fullName ?? u.name ?? '',
     email: u.email ?? '',
     roles: Array.isArray(u.roles) ? u.roles : [u.roleCode ?? 'EMPLOYEE'],
     companyId: u.companyId ?? u.tenantId ?? null,
     department: u.departmentName ?? u.department ?? u.departmentId ?? '',
     status: u.status === 'DISABLED' ? 'Inactive' : u.status === 'INVITED' ? 'Invited' : 'Active',
+    employeeId: u.employeeId ?? u.employeeProfileId ?? u.profileId ?? null,
+    managerUserId: u.managerUserId ?? u.managerId ?? null,
+    manager: u.managerName ?? u.manager ?? undefined,
     createdAt: u.createdAt ?? new Date().toISOString().slice(0, 10),
   }
 }

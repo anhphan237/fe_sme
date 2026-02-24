@@ -39,6 +39,15 @@ function mapInstance(i: any): OnboardingInstance {
   return {
     id: i.instanceId ?? i.id ?? '',
     employeeId: i.employeeId ?? '',
+    employeeUserId:
+      i.employeeUserId ??
+      i.employeeUserID ??
+      i.employee_user_id ??
+      i.userId ??
+      i.employee?.userId ??
+      null,
+    managerUserId: i.managerUserId ?? i.manager_user_id ?? null,
+    managerName: i.managerName ?? i.manager_name ?? null,
     templateId: i.templateId ?? '',
     startDate: i.startDate ?? i.createdAt ?? '',
     progress: i.progress ?? 0,
@@ -392,7 +401,71 @@ export async function saveEvaluation(payload: Partial<Evaluation>) {
   })
 }
 
-export async function getTasks() {
+export interface ListTasksByOnboardingOptions {
+  status?: string
+  page?: number
+  size?: number
+  sortBy?: string
+  sortOrder?: 'ASC' | 'DESC'
+}
+
+/** List tasks by onboarding instance. Gateway: com.sme.onboarding.task.listByOnboarding (bắt buộc onboardingId). */
+export async function getOnboardingTasksByInstance(
+  onboardingId: string,
+  options?: ListTasksByOnboardingOptions
+): Promise<OnboardingTask[]> {
+  if (useGateway()) {
+    const payload = {
+      onboardingId,
+      ...(options?.status && { status: options.status }),
+      ...(options?.page != null && { page: options.page }),
+      ...(options?.size != null && { size: options.size }),
+      ...(options?.sortBy && { sortBy: options.sortBy }),
+      ...(options?.sortOrder && { sortOrder: options.sortOrder }),
+    }
+    const res = await gatewayRequest<
+      { onboardingId: string; status?: string; page?: number; size?: number; sortBy?: string; sortOrder?: string },
+      any
+    >('com.sme.onboarding.task.listByOnboarding', payload, {
+      requestIdPrefix: 'onboarding-task-list-by-onboarding',
+    })
+    const list =
+      Array.isArray(res)
+        ? res
+        : res?.content ??
+          res?.tasks ??
+          res?.items ??
+          res?.list ??
+          res?.result ??
+          (Array.isArray(res?.data) ? res.data : null) ??
+          res?.data?.content ??
+          res?.data?.tasks ??
+          res?.data?.items ??
+          []
+    const arr = Array.isArray(list) ? list : []
+    return arr.map((t: any) => ({
+      id: t.taskId ?? t.id ?? '',
+      title: t.name ?? t.title ?? '',
+      ownerRole: (t.ownerRefId ?? t.ownerRole ?? 'EMPLOYEE') as any,
+      dueOffset: String(t.dueDaysOffset ?? t.dueOffset ?? 0),
+      required: t.requireAck ?? t.required ?? false,
+      status: mapTaskStatus(t.status),
+      dueDate: t.dueDate,
+    })) as OnboardingTask[]
+  }
+  return fetchJson<OnboardingTask[]>(`/api/onboarding/instances/${onboardingId}/tasks`)
+}
+
+function mapTaskStatus(s: string | undefined): 'Pending' | 'In Progress' | 'Done' | undefined {
+  if (!s) return undefined
+  const u = s.toUpperCase()
+  if (u === 'DONE' || u === 'COMPLETED') return 'Done'
+  if (u === 'IN_PROGRESS' || u === 'IN PROGRESS') return 'In Progress'
+  return 'Pending'
+}
+
+export async function getTasks(onboardingId?: string) {
+  if (onboardingId) return getOnboardingTasksByInstance(onboardingId)
   return fetchJson<OnboardingTask[]>('/api/onboarding/tasks')
 }
 
