@@ -34,20 +34,25 @@ function mapPlan(p: any): BillingPlan {
   }
 }
 
+/** API returns DRAFT, ISSUED, PAID, VOID (case insensitive) */
 const INVOICE_STATUS_MAP: Record<string, Invoice['status']> = {
-  PAID: 'Paid',
+  DRAFT: 'Draft',
   ISSUED: 'Open',
+  PAID: 'Paid',
+  VOID: 'Void',
   OVERDUE: 'Overdue',
 }
 
 function mapInvoice(inv: any): Invoice {
+  const rawStatus = String(inv?.status ?? '').toUpperCase()
+  const status = INVOICE_STATUS_MAP[rawStatus] ?? 'Open'
   return {
     id: inv.invoiceId ?? inv.id ?? '',
-    invoiceNo: inv.invoiceNo ?? '',
+    invoiceNo: inv.invoiceNo ?? inv.invoiceId ?? inv.id ?? '',
     amount: formatVnd(inv.amountTotal ?? inv.amount),
-    amountRaw: inv.amountTotal ?? 0,
+    amountRaw: typeof inv?.amountTotal === 'number' ? inv.amountTotal : Number(inv?.amount) || 0,
     currency: inv.currency ?? 'VND',
-    status: INVOICE_STATUS_MAP[inv.status] ?? inv.status ?? 'Open',
+    status,
     date: inv.issuedAt
       ? new Date(inv.issuedAt).toLocaleDateString('vi-VN')
       : inv.date ?? '',

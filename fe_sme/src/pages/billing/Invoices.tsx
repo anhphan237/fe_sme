@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Card } from '../../components/ui/Card'
@@ -5,11 +6,14 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { Table } from '../../components/ui/Table'
 import { Button } from '../../components/ui/Button'
 import { Skeleton } from '../../components/ui/Skeleton'
-import { useInvoicesQuery } from '../../hooks/queries'
+import { Modal } from '../../components/ui/Modal'
+import { useInvoicesQuery, useInvoiceQuery } from '../../hooks/queries'
 
 function BillingInvoices() {
   const navigate = useNavigate()
+  const [detailId, setDetailId] = useState<string | null>(null)
   const { data, isLoading, isError, refetch } = useInvoicesQuery()
+  const { data: detail, isLoading: detailLoading } = useInvoiceQuery(detailId ?? undefined)
 
   const handleDownload = (id: string) => {
     const blob = new Blob([`Invoice ${id}`], { type: 'application/pdf' })
@@ -64,16 +68,26 @@ function BillingInvoices() {
             <tbody>
               {data?.map((invoice) => (
                 <tr key={invoice.id} className="border-t border-stroke hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium">{invoice.id}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      className="font-medium text-ink hover:underline"
+                      onClick={() => setDetailId(invoice.id)}
+                    >
+                      {invoice.id}
+                    </button>
+                  </td>
                   <td className="px-4 py-3 text-muted">{invoice.amount}</td>
                   <td className="px-4 py-3">
                     <span
                       className={
                         invoice.status === 'Paid'
                           ? 'inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700'
-                          : invoice.status === 'Overdue'
+                          : invoice.status === 'Overdue' || invoice.status === 'Void'
                             ? 'inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700'
-                            : 'inline-block rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700'
+                            : invoice.status === 'Draft'
+                              ? 'inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600'
+                              : 'inline-block rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700'
                       }
                     >
                       {invoice.status}
@@ -82,6 +96,12 @@ function BillingInvoices() {
                   <td className="px-4 py-3 text-muted">{invoice.date}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        onClick={() => setDetailId(invoice.id)}
+                      >
+                        View
+                      </Button>
                       {(invoice.status === 'Open' || invoice.status === 'Overdue') && (
                         <Button
                           onClick={() =>
@@ -104,6 +124,94 @@ function BillingInvoices() {
           </Table>
         )}
       </Card>
+
+      <Modal
+        open={!!detailId}
+        title="Invoice detail"
+        onClose={() => setDetailId(null)}
+      >
+        {detailLoading ? (
+          <div className="space-y-3 py-4">
+            <Skeleton className="h-5 w-1/2" />
+            <Skeleton className="h-20" />
+          </div>
+        ) : detail ? (
+          <div className="space-y-4">
+            <dl className="grid gap-3 text-sm">
+              <div>
+                <dt className="text-muted">Invoice #</dt>
+                <dd className="font-medium">{detail.invoiceNo || detail.id}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Amount</dt>
+                <dd className="font-medium">{detail.amount} {detail.currency}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Status</dt>
+                <dd>
+                  <span
+                    className={
+                      detail.status === 'Paid'
+                        ? 'inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700'
+                        : detail.status === 'Overdue' || detail.status === 'Void'
+                          ? 'inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700'
+                          : detail.status === 'Draft'
+                            ? 'inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600'
+                            : 'inline-block rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700'
+                    }
+                  >
+                    {detail.status}
+                  </span>
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted">Issued date</dt>
+                <dd>{detail.date}</dd>
+              </div>
+              {detail.dueDate && (
+                <div>
+                  <dt className="text-muted">Due date</dt>
+                  <dd>{detail.dueDate}</dd>
+                </div>
+              )}
+              {detail.eInvoiceUrl && (
+                <div>
+                  <dt className="text-muted">E-Invoice</dt>
+                  <dd>
+                    <a
+                      href={detail.eInvoiceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-ink underline hover:no-underline"
+                    >
+                      View e-invoice
+                    </a>
+                  </dd>
+                </div>
+              )}
+            </dl>
+            <div className="flex flex-wrap gap-3 pt-2">
+              {(detail.status === 'Open' || detail.status === 'Overdue') && (
+                <Button
+                  onClick={() => {
+                    setDetailId(null)
+                    navigate(
+                      `/billing/checkout/${detail.id}?amount=${encodeURIComponent(detail.amount)}`
+                    )
+                  }}
+                >
+                  Pay Now
+                </Button>
+              )}
+              <Button variant="secondary" onClick={() => setDetailId(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <p className="py-4 text-sm text-muted">Could not load invoice details.</p>
+        )}
+      </Modal>
     </div>
   )
 }

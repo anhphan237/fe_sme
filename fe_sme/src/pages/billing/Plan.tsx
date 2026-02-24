@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
+import { clsx } from 'clsx'
 import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
 import {
@@ -127,50 +126,107 @@ function BillingPlan() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Plan"
-        subtitle="Choose the plan that fits your onboarding volume."
-      />
+      <h1 className="text-center text-2xl font-semibold text-ink">
+        Upgrade your plan
+      </h1>
+      <p className="text-center text-sm text-muted">
+        Choose the plan that fits your onboarding volume.
+      </p>
 
       {isLoading ? (
-        <Skeleton className="h-40" />
+        <Skeleton className="h-64" />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-4">
-          {plans.map((plan) => {
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {plans.map((plan, index) => {
             const isCurrent = plan.code === currentPlanCode
+            const isRecommended = index === 1 && plans.length >= 2
             return (
-              <Card
+              <div
                 key={plan.id}
-                className={isCurrent ? 'border-2 border-brand' : ''}
+                className={clsx(
+                  'relative flex flex-col rounded-2xl border border-stroke bg-white p-6',
+                  isCurrent && 'border-ink'
+                )}
               >
-                <h3 className="text-lg font-semibold">{plan.name}</h3>
-                <p className="text-2xl font-semibold">{plan.price}</p>
+                {isRecommended && (
+                  <span className="absolute right-4 top-4 rounded border border-stroke bg-white px-2 py-0.5 text-xs font-medium text-ink">
+                    RECOMMENDED
+                  </span>
+                )}
+                <h3 className="text-xl font-semibold text-ink">{plan.name}</h3>
+                <p className="mt-2 text-2xl font-semibold text-ink">
+                  {plan.price}
+                </p>
                 <p className="text-sm text-muted">{plan.limits}</p>
-                <ul className="mt-4 space-y-2 text-sm text-muted">
-                  {plan.features.map((feature) => (
-                    <li key={feature}>{feature}</li>
+                <ul className="mt-6 flex-1 space-y-3 text-sm text-muted">
+                  {plan.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-ink" />
+                      {f}
+                    </li>
                   ))}
                 </ul>
-                <Button
-                  className="mt-6"
-                  disabled={isCurrent}
-                  onClick={() => setSelected(plan.code)}
-                >
-                  {isCurrent ? 'Current Plan' : 'Upgrade/Downgrade'}
-                </Button>
-              </Card>
+                {isCurrent ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="mt-6 w-full cursor-not-allowed rounded-xl border border-stroke bg-slate-100 py-3 text-sm font-medium text-muted"
+                  >
+                    Your current plan
+                  </button>
+                ) : (
+                    <Button
+                      className="mt-6 w-full"
+                      onClick={() => setSelected(plan.code)}
+                    >
+                      {plan.name.toLowerCase() === 'free' ? plan.name : `Upgrade to ${plan.name}`}
+                    </Button>
+                  )}
+              </div>
             )
           })}
         </div>
       )}
 
+      <p className="text-center text-sm text-muted">
+        Need help with billing?{' '}
+        <button
+          type="button"
+          className="text-ink underline hover:no-underline"
+          onClick={() => {}}
+        >
+          Contact support
+        </button>
+      </p>
+
       <Modal open={!!selected} title="Plan change" onClose={() => setSelected(null)}>
-        <div className="space-y-3 text-sm">
-          <p>Switch to plan <strong>{selected}</strong>?</p>
-          <p>Prorate will be calculated automatically.</p>
-          <Button type="button" disabled={isPending} onClick={handleConfirm}>
-            {isPending ? 'Processing...' : 'Confirm change'}
-          </Button>
+        <div className="space-y-6">
+          <div>
+            <p className="text-ink">
+              Switch to plan <span className="font-semibold">{selected}</span>?
+            </p>
+            <p className="mt-2 text-sm text-muted">
+              Prorate will be calculated automatically.
+            </p>
+          </div>
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-center">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setSelected(null)}
+              disabled={isPending}
+            >
+              Close
+            </Button>
+            <Button
+              type="button"
+              disabled={isPending}
+              onClick={handleConfirm}
+              className="sm:min-w-[140px]"
+            >
+              {isPending ? 'Processing...' : 'Confirm change'}
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>

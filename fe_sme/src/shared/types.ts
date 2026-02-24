@@ -314,7 +314,7 @@ export interface Invoice {
   amount: string
   amountRaw: number
   currency: string
-  status: 'Paid' | 'Open' | 'Overdue'
+  status: 'Paid' | 'Open' | 'Overdue' | 'Draft' | 'Void'
   date: string
   dueDate?: string
   companyId?: string | null

@@ -19,6 +19,10 @@ function BillingCheckout() {
 
   const amount = searchParams.get('amount') ?? '$0.00'
 
+  /** Stripe expects pi_xxx_secret_yyy. Reject mock/invalid values to avoid Elements crash. */
+  const isValidStripeSecret = (s: string) =>
+    s.startsWith('pi_') && s.includes('_secret_') && !s.toLowerCase().includes('mock')
+
   useEffect(() => {
     if (!invoiceId) return
     createIntent.mutate(invoiceId, {
@@ -57,7 +61,7 @@ function BillingCheckout() {
               Back to Invoices
             </Button>
           </div>
-        ) : clientSecret ? (
+        ) : clientSecret && isValidStripeSecret(clientSecret) ? (
           <StripeProvider clientSecret={clientSecret}>
             <CheckoutForm
               amount={amount}
@@ -66,6 +70,15 @@ function BillingCheckout() {
               onError={(msg) => addToast(msg)}
             />
           </StripeProvider>
+        ) : clientSecret ? (
+          <div className="space-y-4 text-center">
+            <p className="text-sm text-amber-600">
+              Payment is not configured for this invoice. Contact support or try again later.
+            </p>
+            <Button variant="secondary" onClick={() => navigate('/billing/invoices')}>
+              Back to Invoices
+            </Button>
+          </div>
         ) : null}
       </Card>
 
