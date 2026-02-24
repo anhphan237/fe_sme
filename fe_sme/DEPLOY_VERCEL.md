@@ -46,3 +46,13 @@ Trong **Project Settings** → **Environment Variables**, thêm:
 ## Bước 6: CORS
 
 Backend (`sme-7aido.ondigitalocean.app`) cần allow origin domain Vercel (vd: `https://fe-sme-xxx.vercel.app`) để API hoạt động.
+
+---
+
+## Xử lý 404 khi truy cập trực tiếp đường dẫn
+
+Nếu bị 404 khi mở link trực tiếp (vd: `/billing/invoices`) hoặc refresh trang:
+
+1. Đảm bảo `vercel.json` có rewrite: `"destination": "/"`
+2. Thử đổi **Framework Preset** sang **Other** trong Project Settings (thay vì Vite auto-detect)
+3. Redeploy sau khi sửa
