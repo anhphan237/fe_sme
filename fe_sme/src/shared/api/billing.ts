@@ -120,6 +120,7 @@ function mapSubscription(s: any): Subscription {
     autoRenew: s.autoRenew,
     prorateCreditVnd: s.prorateCreditVnd,
     prorateChargeVnd: s.prorateChargeVnd,
+    invoiceId: s.invoiceId,
   }
 }
 

@@ -305,6 +305,7 @@ export interface Subscription {
   autoRenew?: boolean
   prorateCreditVnd?: number
   prorateChargeVnd?: number
+  invoiceId?: string
 }
 
 export interface Invoice {

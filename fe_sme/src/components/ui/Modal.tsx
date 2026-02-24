@@ -1,4 +1,4 @@
-﻿import type { ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 interface ModalProps {
   open: boolean
@@ -11,8 +11,12 @@ export function Modal({ open, title, onClose, children }: ModalProps) {
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-40 grid place-items-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-soft">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 px-4">
+      <div
+        className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-soft"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">{title}</h3>
           <button
