@@ -15,19 +15,13 @@ git push origin main
 2. **Add New** → **Project** → Import git repo
 3. Chọn repository `fe_sme` (hoặc tên repo của bạn)
 
-## Bước 3: Cấu hình Root Directory (nếu cần)
+## Bước 3: Cấu hình Root Directory (QUAN TRỌNG – sửa 404)
 
-Nếu repo có cấu trúc:
-```
-fe_sme/          <- git root
-  fe_sme/        <- app
-    package.json
-    vercel.json
-```
+Repo có cấu trúc `fe_sme/` (app) nằm trong thư mục gốc.
 
-→ Trong **Project Settings** → **General** → **Root Directory**: chọn `fe_sme`
+→ **Project Settings** → **General** → **Root Directory**: để **trống** (xóa `fe_sme` nếu đang set)
 
-Nếu `package.json` nằm ngay tại root repo thì bỏ qua bước này.
+Root `package.json` sẽ chạy build trong thư mục `fe_sme` và output nằm ở `fe_sme/dist`.
 
 ## Bước 4: Environment Variables
 
