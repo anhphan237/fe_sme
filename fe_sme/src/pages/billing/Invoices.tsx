@@ -1,29 +1,50 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { EmptyState } from '../../components/ui/EmptyState'
-import { Table } from '../../components/ui/Table'
-import { Button } from '../../components/ui/Button'
-import { Skeleton } from '../../components/ui/Skeleton'
-import { Modal } from '../../components/ui/Modal'
-import { useInvoicesQuery, useInvoiceQuery } from '../../hooks/queries'
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { PageHeader } from "../../components/common/PageHeader";
+import { Card } from "../../components/ui/Card";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { Table } from "../../components/ui/Table";
+import { Button } from "../../components/ui/Button";
+import { Skeleton } from "../../components/ui/Skeleton";
+import { Modal } from "../../components/ui/Modal";
+import { useQuery } from "@tanstack/react-query";
+import { apiGetInvoices, apiGetInvoiceById } from "@/api/billing/billing.api";
+import { extractList } from "@/api/core/types";
+import { mapInvoice } from "@/utils/mappers/billing";
+import type { Invoice } from "@/shared/types";
+
+const useInvoicesQuery = () =>
+  useQuery({
+    queryKey: ["invoices"],
+    queryFn: () => apiGetInvoices(),
+    select: (res: any) =>
+      extractList(res, "invoices", "items").map(mapInvoice) as Invoice[],
+  });
+const useInvoiceQuery = (invoiceId?: string) =>
+  useQuery({
+    queryKey: ["invoice", invoiceId],
+    queryFn: () => apiGetInvoiceById(invoiceId!),
+    enabled: Boolean(invoiceId),
+    select: (res: any) => mapInvoice(res),
+  });
 
 function BillingInvoices() {
-  const navigate = useNavigate()
-  const [detailId, setDetailId] = useState<string | null>(null)
-  const { data, isLoading, isError, refetch } = useInvoicesQuery()
-  const { data: detail, isLoading: detailLoading } = useInvoiceQuery(detailId ?? undefined)
+  const navigate = useNavigate();
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const { data, isLoading, isError, refetch } = useInvoicesQuery();
+  const { data: detail, isLoading: detailLoading } = useInvoiceQuery(
+    detailId ?? undefined,
+  );
 
   const handleDownload = (id: string) => {
-    const blob = new Blob([`Invoice ${id}`], { type: 'application/pdf' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `${id}.pdf`
-    link.click()
-    URL.revokeObjectURL(url)
-  }
+    const blob = new Blob([`Invoice ${id}`], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${id}.pdf`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6">
@@ -40,7 +61,7 @@ function BillingInvoices() {
           </div>
         ) : isError ? (
           <div className="p-6 text-sm">
-            Something went wrong.{' '}
+            Something went wrong.{" "}
             <button className="font-semibold" onClick={() => refetch()}>
               Retry
             </button>
@@ -51,7 +72,7 @@ function BillingInvoices() {
               title="No invoices available"
               description="Invoices will appear once billing cycles start."
               actionLabel="View plan"
-              onAction={() => navigate('/billing/plan')}
+              onAction={() => navigate("/billing/plan")}
             />
           </div>
         ) : (
@@ -67,13 +88,14 @@ function BillingInvoices() {
             </thead>
             <tbody>
               {data?.map((invoice) => (
-                <tr key={invoice.id} className="border-t border-stroke hover:bg-slate-50">
+                <tr
+                  key={invoice.id}
+                  className="border-t border-stroke hover:bg-slate-50">
                   <td className="px-4 py-3">
                     <button
                       type="button"
                       className="font-medium text-ink hover:underline"
-                      onClick={() => setDetailId(invoice.id)}
-                    >
+                      onClick={() => setDetailId(invoice.id)}>
                       {invoice.id}
                     </button>
                   </td>
@@ -81,15 +103,15 @@ function BillingInvoices() {
                   <td className="px-4 py-3">
                     <span
                       className={
-                        invoice.status === 'Paid'
-                          ? 'inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700'
-                          : invoice.status === 'Overdue' || invoice.status === 'Void'
-                            ? 'inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700'
-                            : invoice.status === 'Draft'
-                              ? 'inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600'
-                              : 'inline-block rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700'
-                      }
-                    >
+                        invoice.status === "Paid"
+                          ? "inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700"
+                          : invoice.status === "Overdue" ||
+                              invoice.status === "Void"
+                            ? "inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700"
+                            : invoice.status === "Draft"
+                              ? "inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600"
+                              : "inline-block rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700"
+                      }>
                       {invoice.status}
                     </span>
                   </td>
@@ -98,22 +120,23 @@ function BillingInvoices() {
                     <div className="flex gap-2">
                       <Button
                         variant="ghost"
-                        onClick={() => setDetailId(invoice.id)}
-                      >
+                        onClick={() => setDetailId(invoice.id)}>
                         View
                       </Button>
-                      {(invoice.status === 'Open' || invoice.status === 'Overdue') && (
+                      {(invoice.status === "Open" ||
+                        invoice.status === "Overdue") && (
                         <Button
                           onClick={() =>
                             navigate(
-                              `/billing/checkout/${invoice.id}?amount=${encodeURIComponent(invoice.amount)}`
+                              `/billing/checkout/${invoice.id}?amount=${encodeURIComponent(invoice.amount)}`,
                             )
-                          }
-                        >
+                          }>
                           Pay Now
                         </Button>
                       )}
-                      <Button variant="ghost" onClick={() => handleDownload(invoice.id)}>
+                      <Button
+                        variant="ghost"
+                        onClick={() => handleDownload(invoice.id)}>
                         Download
                       </Button>
                     </div>
@@ -128,8 +151,7 @@ function BillingInvoices() {
       <Modal
         open={!!detailId}
         title="Invoice detail"
-        onClose={() => setDetailId(null)}
-      >
+        onClose={() => setDetailId(null)}>
         {detailLoading ? (
           <div className="space-y-3 py-4">
             <Skeleton className="h-5 w-1/2" />
@@ -144,22 +166,24 @@ function BillingInvoices() {
               </div>
               <div>
                 <dt className="text-muted">Amount</dt>
-                <dd className="font-medium">{detail.amount} {detail.currency}</dd>
+                <dd className="font-medium">
+                  {detail.amount} {detail.currency}
+                </dd>
               </div>
               <div>
                 <dt className="text-muted">Status</dt>
                 <dd>
                   <span
                     className={
-                      detail.status === 'Paid'
-                        ? 'inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700'
-                        : detail.status === 'Overdue' || detail.status === 'Void'
-                          ? 'inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700'
-                          : detail.status === 'Draft'
-                            ? 'inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600'
-                            : 'inline-block rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700'
-                    }
-                  >
+                      detail.status === "Paid"
+                        ? "inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700"
+                        : detail.status === "Overdue" ||
+                            detail.status === "Void"
+                          ? "inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700"
+                          : detail.status === "Draft"
+                            ? "inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600"
+                            : "inline-block rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700"
+                    }>
                     {detail.status}
                   </span>
                 </dd>
@@ -182,8 +206,7 @@ function BillingInvoices() {
                       href={detail.eInvoiceUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-ink underline hover:no-underline"
-                    >
+                      className="text-ink underline hover:no-underline">
                       View e-invoice
                     </a>
                   </dd>
@@ -191,15 +214,14 @@ function BillingInvoices() {
               )}
             </dl>
             <div className="flex flex-wrap gap-3 pt-2">
-              {(detail.status === 'Open' || detail.status === 'Overdue') && (
+              {(detail.status === "Open" || detail.status === "Overdue") && (
                 <Button
                   onClick={() => {
-                    setDetailId(null)
+                    setDetailId(null);
                     navigate(
-                      `/billing/checkout/${detail.id}?amount=${encodeURIComponent(detail.amount)}`
-                    )
-                  }}
-                >
+                      `/billing/checkout/${detail.id}?amount=${encodeURIComponent(detail.amount)}`,
+                    );
+                  }}>
                   Pay Now
                 </Button>
               )}
@@ -209,11 +231,13 @@ function BillingInvoices() {
             </div>
           </div>
         ) : (
-          <p className="py-4 text-sm text-muted">Could not load invoice details.</p>
+          <p className="py-4 text-sm text-muted">
+            Could not load invoice details.
+          </p>
         )}
       </Modal>
     </div>
-  )
+  );
 }
 
-export default BillingInvoices
+export default BillingInvoices;

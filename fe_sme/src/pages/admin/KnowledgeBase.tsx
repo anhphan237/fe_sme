@@ -1,31 +1,35 @@
-﻿import { useState } from 'react'
-import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Tabs } from '../../components/ui/Tabs'
-import { Button } from '../../components/ui/Button'
-import { Modal } from '../../components/ui/Modal'
-import { useDocumentsQuery } from '../../hooks/queries'
-import { Skeleton } from '../../components/ui/Skeleton'
+﻿import { useState } from "react";
+import { PageHeader } from "../../components/common/PageHeader";
+import { Card } from "../../components/ui/Card";
+import { Tabs } from "../../components/ui/Tabs";
+import { Button } from "../../components/ui/Button";
+import { Modal } from "../../components/ui/Modal";
+import { useQuery } from "@tanstack/react-query";
+import { apiGetDocuments } from "@/api/document/document.api";
+
+const useDocumentsQuery = () =>
+  useQuery({ queryKey: ["documents"], queryFn: apiGetDocuments });
+import { Skeleton } from "../../components/ui/Skeleton";
 
 const articles = [
   {
-    title: 'New hire checklist',
-    content: 'Structured onboarding checklist with milestones.',
+    title: "New hire checklist",
+    content: "Structured onboarding checklist with milestones.",
   },
   {
-    title: 'Security & access policy',
-    content: 'Badge, device, and data access guidelines.',
+    title: "Security & access policy",
+    content: "Badge, device, and data access guidelines.",
   },
   {
-    title: 'Manager readiness',
-    content: 'Ensure managers are prepped for day one.',
+    title: "Manager readiness",
+    content: "Ensure managers are prepped for day one.",
   },
-]
+];
 
 function KnowledgeBase() {
-  const [tab, setTab] = useState('articles')
-  const [open, setOpen] = useState(false)
-  const { data, isLoading } = useDocumentsQuery()
+  const [tab, setTab] = useState("articles");
+  const [open, setOpen] = useState(false);
+  const { data, isLoading } = useDocumentsQuery();
 
   return (
     <div className="space-y-6">
@@ -38,14 +42,14 @@ function KnowledgeBase() {
 
       <Tabs
         items={[
-          { label: 'Articles', value: 'articles' },
-          { label: 'Sources', value: 'sources' },
+          { label: "Articles", value: "articles" },
+          { label: "Sources", value: "sources" },
         ]}
         value={tab}
         onChange={setTab}
       />
 
-      {tab === 'articles' ? (
+      {tab === "articles" ? (
         <div className="grid gap-4 lg:grid-cols-3">
           {articles.map((article) => (
             <Card key={article.title}>
@@ -75,8 +79,7 @@ function KnowledgeBase() {
               {data?.slice(0, 6).map((doc) => (
                 <label
                   key={doc.id}
-                  className="flex items-center justify-between rounded-2xl border border-stroke bg-slate-50 px-4 py-3 text-sm"
-                >
+                  className="flex items-center justify-between rounded-2xl border border-stroke bg-slate-50 px-4 py-3 text-sm">
                   {doc.title}
                   <input type="checkbox" defaultChecked />
                 </label>
@@ -94,7 +97,10 @@ function KnowledgeBase() {
           </label>
           <label className="grid gap-2">
             Content
-            <textarea className="rounded-2xl border border-stroke px-4 py-2" rows={4} />
+            <textarea
+              className="rounded-2xl border border-stroke px-4 py-2"
+              rows={4}
+            />
           </label>
           <label className="grid gap-2">
             Tags
@@ -104,7 +110,7 @@ function KnowledgeBase() {
         </div>
       </Modal>
     </div>
-  )
+  );
 }
 
-export default KnowledgeBase
+export default KnowledgeBase;

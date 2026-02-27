@@ -1,52 +1,69 @@
-﻿import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { useSurveyInstanceQuery, useSurveyTemplatesQuery, useSaveSurveyResponse } from '../../hooks/queries'
-import { Card } from '../../components/ui/Card'
-import { Button } from '../../components/ui/Button'
-import { Skeleton } from '../../components/ui/Skeleton'
+﻿import { useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useQuery, useMutation } from "@tanstack/react-query";
+
+/** @deprecated stub — no gateway operation yet */
+const useSurveyInstanceQuery = (id?: string) =>
+  useQuery({
+    queryKey: ["survey-instance", id],
+    queryFn: () => Promise.resolve(null),
+    enabled: Boolean(id),
+  });
+const useSurveyTemplatesQuery = () =>
+  useQuery({
+    queryKey: ["survey-templates"],
+    queryFn: () => Promise.resolve([]),
+  });
+const useSaveSurveyResponse = () =>
+  useMutation({ mutationFn: (_: any) => Promise.resolve(undefined as any) });
+import { Card } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { Skeleton } from "../../components/ui/Skeleton";
 
 function SurveyDetail() {
-  const { surveyId } = useParams()
-  const navigate = useNavigate()
-  const [submitted, setSubmitted] = useState(false)
-  const saveResponse = useSaveSurveyResponse()
+  const { surveyId } = useParams();
+  const navigate = useNavigate();
+  const [submitted, setSubmitted] = useState(false);
+  const saveResponse = useSaveSurveyResponse();
   const {
     data: instance,
     isLoading,
     isError,
     refetch,
-  } = useSurveyInstanceQuery(surveyId ?? '')
-  const { data: templates } = useSurveyTemplatesQuery()
+  } = useSurveyInstanceQuery(surveyId ?? "");
+  const { data: templates } = useSurveyTemplatesQuery();
 
-  const template = templates?.find((item) => item.id === instance?.templateId)
+  const template = templates?.find((item) => item.id === instance?.templateId);
 
   if (isLoading) {
-    return <Skeleton className="h-64" />
+    return <Skeleton className="h-64" />;
   }
 
   if (isError) {
     return (
       <Card>
         <p className="text-sm">
-          Something went wrong.{' '}
+          Something went wrong.{" "}
           <button className="font-semibold" onClick={() => refetch()}>
             Retry
           </button>
         </p>
       </Card>
-    )
+    );
   }
 
   if (submitted) {
     return (
       <Card>
         <h1 className="text-2xl font-semibold">Thanks for your feedback</h1>
-        <p className="mt-2 text-sm text-muted">Your survey has been submitted.</p>
-        <Button className="mt-6" onClick={() => navigate('/surveys/inbox')}>
+        <p className="mt-2 text-sm text-muted">
+          Your survey has been submitted.
+        </p>
+        <Button className="mt-6" onClick={() => navigate("/surveys/inbox")}>
           Back to inbox
         </Button>
       </Card>
-    )
+    );
   }
 
   return (
@@ -57,7 +74,7 @@ function SurveyDetail() {
         {template?.questions.map((question) => (
           <div key={question.id} className="space-y-2">
             <p className="text-sm font-semibold">{question.label}</p>
-            {question.type === 'rating' && (
+            {question.type === "rating" && (
               <select className="rounded-2xl border border-stroke px-4 py-2">
                 <option>1</option>
                 <option>2</option>
@@ -66,15 +83,18 @@ function SurveyDetail() {
                 <option>5</option>
               </select>
             )}
-            {question.type === 'multiple' && (
+            {question.type === "multiple" && (
               <select className="rounded-2xl border border-stroke px-4 py-2">
                 {question.options?.map((option) => (
                   <option key={option}>{option}</option>
                 ))}
               </select>
             )}
-            {question.type === 'text' && (
-              <textarea className="rounded-2xl border border-stroke px-4 py-2" rows={3} />
+            {question.type === "text" && (
+              <textarea
+                className="rounded-2xl border border-stroke px-4 py-2"
+                rows={3}
+              />
             )}
           </div>
         ))}
@@ -83,17 +103,15 @@ function SurveyDetail() {
         className="mt-6"
         onClick={async () => {
           await saveResponse.mutateAsync({
-            surveyId: surveyId ?? '',
+            surveyId: surveyId ?? "",
             answers: { q1: 4 },
-          })
-          setSubmitted(true)
-        }}
-      >
+          });
+          setSubmitted(true);
+        }}>
         Submit
       </Button>
     </Card>
-  )
+  );
 }
 
-export default SurveyDetail
-
+export default SurveyDetail;

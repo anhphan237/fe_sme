@@ -1,50 +1,73 @@
-import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Button } from '../../components/ui/Button'
-import { Skeleton } from '../../components/ui/Skeleton'
-import { useToast } from '../../components/ui/Toast'
+import { PageHeader } from "../../components/common/PageHeader";
+import { Card } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { Skeleton } from "../../components/ui/Skeleton";
+import { useToast } from "../../components/ui/Toast";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  usePaymentProvidersQuery,
-  useConnectPayment,
-  useCreatePaymentIntent,
-} from '../../hooks/queries'
-import { useQueryClient } from '@tanstack/react-query'
+  apiGetPaymentProviders,
+  apiConnectPayment,
+  apiCreatePaymentIntent,
+} from "@/api/billing/billing.api";
+import { extractList } from "@/api/core/types";
+import { mapProvider } from "@/utils/mappers/billing";
+import type { PaymentProvider } from "@/shared/types";
+
+const usePaymentProvidersQuery = () =>
+  useQuery({
+    queryKey: ["payment-providers"],
+    queryFn: apiGetPaymentProviders,
+    select: (res: any) =>
+      extractList(res, "providers", "items").map(
+        mapProvider,
+      ) as PaymentProvider[],
+  });
+const useConnectPayment = () => useMutation({ mutationFn: apiConnectPayment });
+const useCreatePaymentIntent = () =>
+  useMutation({ mutationFn: apiCreatePaymentIntent });
 
 const PROVIDER_ICONS: Record<string, string> = {
-  Stripe: 'S',
-  MoMo: 'M',
-  ZaloPay: 'Z',
-  VNPay: 'V',
-}
+  Stripe: "S",
+  MoMo: "M",
+  ZaloPay: "Z",
+  VNPay: "V",
+};
 
 function BillingPayment() {
-  const { data: providers, isLoading, isError, refetch } = usePaymentProvidersQuery()
-  const connectPayment = useConnectPayment()
-  const testCharge = useCreatePaymentIntent()
-  const addToast = useToast()
-  const queryClient = useQueryClient()
+  const {
+    data: providers,
+    isLoading,
+    isError,
+    refetch,
+  } = usePaymentProvidersQuery();
+  const connectPayment = useConnectPayment();
+  const testCharge = useCreatePaymentIntent();
+  const addToast = useToast();
+  const queryClient = useQueryClient();
 
   const handleToggle = (providerName: string) => {
     connectPayment.mutate(
       { provider: providerName },
       {
         onSuccess: () => {
-          addToast(`${providerName} connection updated.`)
-          queryClient.invalidateQueries({ queryKey: ['payment-providers'] })
+          addToast(`${providerName} connection updated.`);
+          queryClient.invalidateQueries({ queryKey: ["payment-providers"] });
         },
         onError: (err) => {
-          addToast(`Failed to update ${providerName}: ${err.message}`)
+          addToast(`Failed to update ${providerName}: ${err.message}`);
         },
-      }
-    )
-  }
+      },
+    );
+  };
 
   const handleTestCharge = (providerName: string) => {
-    testCharge.mutate('test-charge', {
-      onSuccess: () => addToast(`${providerName} test charge created successfully.`),
-      onError: (err) => addToast(`${providerName} test charge failed: ${err.message}`),
-    })
-  }
+    testCharge.mutate("test-charge", {
+      onSuccess: () =>
+        addToast(`${providerName} test charge created successfully.`),
+      onError: (err) =>
+        addToast(`${providerName} test charge failed: ${err.message}`),
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -67,7 +90,7 @@ function BillingPayment() {
       ) : isError ? (
         <Card>
           <p className="text-sm">
-            Failed to load payment providers.{' '}
+            Failed to load payment providers.{" "}
             <button className="font-semibold" onClick={() => refetch()}>
               Retry
             </button>
@@ -86,14 +109,16 @@ function BillingPayment() {
                   <div className="mt-1 flex items-center gap-2">
                     <span
                       className={
-                        provider.status === 'Connected'
-                          ? 'inline-block h-2 w-2 rounded-full bg-green-500'
-                          : 'inline-block h-2 w-2 rounded-full bg-slate-300'
+                        provider.status === "Connected"
+                          ? "inline-block h-2 w-2 rounded-full bg-green-500"
+                          : "inline-block h-2 w-2 rounded-full bg-slate-300"
                       }
                     />
-                    <span className="text-sm text-muted">{provider.status}</span>
+                    <span className="text-sm text-muted">
+                      {provider.status}
+                    </span>
                   </div>
-                  {provider.lastSync && provider.lastSync !== '—' && (
+                  {provider.lastSync && provider.lastSync !== "—" && (
                     <p className="mt-0.5 text-xs text-muted">
                       Last sync: {provider.lastSync}
                     </p>
@@ -107,19 +132,19 @@ function BillingPayment() {
               </div>
               <div className="mt-4 flex gap-2">
                 <Button
-                  variant={provider.status === 'Connected' ? 'destructive' : 'primary'}
+                  variant={
+                    provider.status === "Connected" ? "destructive" : "primary"
+                  }
                   disabled={connectPayment.isPending}
-                  onClick={() => handleToggle(provider.name)}
-                >
-                  {provider.status === 'Connected' ? 'Disconnect' : 'Connect'}
+                  onClick={() => handleToggle(provider.name)}>
+                  {provider.status === "Connected" ? "Disconnect" : "Connect"}
                 </Button>
-                {provider.status === 'Connected' && (
+                {provider.status === "Connected" && (
                   <Button
                     variant="ghost"
                     disabled={testCharge.isPending}
-                    onClick={() => handleTestCharge(provider.name)}
-                  >
-                    {testCharge.isPending ? 'Testing...' : 'Test charge'}
+                    onClick={() => handleTestCharge(provider.name)}>
+                    {testCharge.isPending ? "Testing..." : "Test charge"}
                   </Button>
                 )}
               </div>
@@ -128,7 +153,7 @@ function BillingPayment() {
         </div>
       )}
     </div>
-  )
+  );
 }
 
-export default BillingPayment
+export default BillingPayment;

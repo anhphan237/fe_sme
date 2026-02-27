@@ -1,35 +1,61 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { clsx } from 'clsx'
-import { Button } from '../../components/ui/Button'
-import { Modal } from '../../components/ui/Modal'
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { clsx } from "clsx";
+import { Button } from "../../components/ui/Button";
+import { Modal } from "../../components/ui/Modal";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  usePlansQuery,
-  useSubscriptionQuery,
-  useCreateSubscription,
-  useUpdateSubscription,
-} from '../../hooks/queries'
-import { generateInvoice } from '../../shared/api/billing'
-import { useAppStore } from '../../store/useAppStore'
-import { Skeleton } from '../../components/ui/Skeleton'
-import { useToast } from '../../components/ui/Toast'
-import { useQueryClient } from '@tanstack/react-query'
-import type { Subscription } from '../../shared/types'
+  apiGetPlans,
+  apiGetSubscription,
+  apiCreateSubscription,
+  apiUpdateSubscription,
+  apiGenerateInvoice,
+} from "@/api/billing/billing.api";
+import { extractList } from "@/api/core/types";
+import { mapPlan, mapSubscription } from "@/utils/mappers/billing";
+import { useAppStore } from "../../store/useAppStore";
+import { Skeleton } from "../../components/ui/Skeleton";
+import { useToast } from "../../components/ui/Toast";
+import type { Subscription, BillingPlan } from "../../shared/types";
+
+const usePlansQuery = () =>
+  useQuery({
+    queryKey: ["plans"],
+    queryFn: () => apiGetPlans(),
+    select: (res: any) =>
+      extractList(res, "plans", "items").map(mapPlan) as BillingPlan[],
+  });
+const useSubscriptionQuery = () =>
+  useQuery({
+    queryKey: ["subscription"],
+    queryFn: () => apiGetSubscription(),
+    select: (res: any) => mapSubscription(res),
+  });
+const useCreateSubscription = () =>
+  useMutation({
+    mutationFn: (v: { companyId: string; planCode: string }) =>
+      apiCreateSubscription(v.companyId, v.planCode),
+  });
+const useUpdateSubscription = () =>
+  useMutation({ mutationFn: apiUpdateSubscription });
 
 function formatVnd(amount: number) {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount)
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+  }).format(amount);
 }
 
 function getCurrentPeriod() {
-  const now = new Date()
-  const y = now.getFullYear()
-  const m = now.getMonth()
-  const start = new Date(y, m, 1)
-  const end = new Date(y, m + 1, 1)
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const start = new Date(y, m, 1);
+  const end = new Date(y, m + 1, 1);
   return {
     periodStart: start.toISOString().slice(0, 10),
     periodEnd: end.toISOString().slice(0, 10),
-  }
+  };
 }
 
 async function handleSuccess(
@@ -37,92 +63,110 @@ async function handleSuccess(
   navigate: (path: string) => void,
   addToast: (msg: string) => void,
   queryClient: any,
-  setSelected: (v: string | null) => void
+  setSelected: (v: string | null) => void,
 ) {
-  queryClient.invalidateQueries({ queryKey: ['subscription'] })
-  queryClient.invalidateQueries({ queryKey: ['plans'] })
-  setSelected(null)
+  queryClient.invalidateQueries({ queryKey: ["subscription"] });
+  queryClient.invalidateQueries({ queryKey: ["plans"] });
+  setSelected(null);
 
-  let invoiceId = res?.invoiceId
-  const subscriptionId = res?.subscriptionId
-  const prorateChargeVnd = res?.prorateChargeVnd ?? 0
+  let invoiceId = res?.invoiceId;
+  const subscriptionId = res?.subscriptionId;
+  const prorateChargeVnd = res?.prorateChargeVnd ?? 0;
 
   if (!invoiceId && subscriptionId) {
     try {
-      const { periodStart, periodEnd } = getCurrentPeriod()
-      const gen = await generateInvoice(subscriptionId, periodStart, periodEnd)
-      invoiceId = (gen as { invoiceId?: string })?.invoiceId
+      const { periodStart, periodEnd } = getCurrentPeriod();
+      const gen = await apiGenerateInvoice(
+        subscriptionId,
+        periodStart,
+        periodEnd,
+      );
+      invoiceId = (gen as { invoiceId?: string })?.invoiceId;
     } catch {
       /* backend may not support or invoice exists */
     }
   }
 
   if (invoiceId) {
-    const amount = prorateChargeVnd > 0 ? formatVnd(prorateChargeVnd) : '0 ₫'
-    navigate(`/billing/checkout/${invoiceId}?amount=${encodeURIComponent(amount)}`)
-    addToast('Please complete payment.')
+    const amount = prorateChargeVnd > 0 ? formatVnd(prorateChargeVnd) : "0 ₫";
+    navigate(
+      `/billing/checkout/${invoiceId}?amount=${encodeURIComponent(amount)}`,
+    );
+    addToast("Please complete payment.");
   } else if (prorateChargeVnd > 0) {
-    queryClient.invalidateQueries({ queryKey: ['invoices'] })
-    navigate('/billing/invoices')
-    addToast('Invoice created. Please pay the prorate amount.')
+    queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    navigate("/billing/invoices");
+    addToast("Invoice created. Please pay the prorate amount.");
   } else if (subscriptionId) {
-    queryClient.invalidateQueries({ queryKey: ['invoices'] })
-    navigate('/billing/invoices')
-    addToast('Subscription created. Check Invoices and pay when ready.')
+    queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    navigate("/billing/invoices");
+    addToast("Subscription created. Check Invoices and pay when ready.");
   } else {
-    addToast('Plan updated successfully.')
+    addToast("Plan updated successfully.");
   }
 }
 
 function BillingPlan() {
-  const navigate = useNavigate()
-  const currentUser = useAppStore((s) => s.currentUser)
-  const currentTenant = useAppStore((s) => s.currentTenant)
-  const { data, isLoading } = usePlansQuery()
-  const { data: subscription } = useSubscriptionQuery()
-  const createSub = useCreateSubscription()
-  const updateSub = useUpdateSubscription()
-  const addToast = useToast()
-  const queryClient = useQueryClient()
-  const [selected, setSelected] = useState<string | null>(null)
+  const navigate = useNavigate();
+  const currentUser = useAppStore((s) => s.currentUser);
+  const currentTenant = useAppStore((s) => s.currentTenant);
+  const { data, isLoading } = usePlansQuery();
+  const { data: subscription } = useSubscriptionQuery();
+  const createSub = useCreateSubscription();
+  const updateSub = useUpdateSubscription();
+  const addToast = useToast();
+  const queryClient = useQueryClient();
+  const [selected, setSelected] = useState<string | null>(null);
 
-  const HIDDEN_PLANS = ['Basic Plan', 'Premium Plan']
-  const plans = data?.filter((p) => !HIDDEN_PLANS.includes(p.name)) ?? []
-  const currentPlanCode = (subscription as any)?.planCode ?? ''
-  const companyId = currentUser?.companyId ?? currentTenant?.id ?? ''
+  const HIDDEN_PLANS = ["Basic Plan", "Premium Plan"];
+  const plans = data?.filter((p) => !HIDDEN_PLANS.includes(p.name)) ?? [];
+  const currentPlanCode = (subscription as any)?.planCode ?? "";
+  const companyId = currentUser?.companyId ?? currentTenant?.id ?? "";
 
   const handleConfirm = () => {
-    if (!selected) return
+    if (!selected) return;
 
     if (subscription && (subscription as Subscription).subscriptionId) {
-      const sub = subscription as Subscription
+      const sub = subscription as Subscription;
       updateSub.mutate(
         {
           subscriptionId: sub.subscriptionId,
           planCode: selected,
-          status: 'ACTIVE',
+          status: "ACTIVE",
         },
         {
           onSuccess: (res) =>
-            handleSuccess(res as Subscription, navigate, addToast, queryClient, setSelected),
+            handleSuccess(
+              res as Subscription,
+              navigate,
+              addToast,
+              queryClient,
+              setSelected,
+            ),
           onError: (err) => addToast(`Failed: ${err.message}`),
-        }
-      )
+        },
+      );
     } else if (companyId) {
       createSub.mutate(
         { companyId: String(companyId), planCode: selected },
         {
           onSuccess: (res) =>
-            handleSuccess(res as Subscription, navigate, addToast, queryClient, setSelected),
+            handleSuccess(
+              res as Subscription,
+              navigate,
+              addToast,
+              queryClient,
+              setSelected,
+            ),
           onError: (err) => addToast(`Failed: ${err.message}`),
-        }
-      )
+        },
+      );
     } else {
-      addToast('No company selected. Please switch tenant or contact support.')
+      addToast("No company selected. Please switch tenant or contact support.");
     }
-  }
+  };
 
-  const isPending = createSub.isPending || updateSub.isPending
+  const isPending = createSub.isPending || updateSub.isPending;
 
   return (
     <div className="space-y-6">
@@ -138,16 +182,15 @@ function BillingPlan() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {plans.map((plan, index) => {
-            const isCurrent = plan.code === currentPlanCode
-            const isRecommended = index === 1 && plans.length >= 2
+            const isCurrent = plan.code === currentPlanCode;
+            const isRecommended = index === 1 && plans.length >= 2;
             return (
               <div
                 key={plan.id}
                 className={clsx(
-                  'relative flex flex-col rounded-2xl border border-stroke bg-white p-6',
-                  isCurrent && 'border-ink'
-                )}
-              >
+                  "relative flex flex-col rounded-2xl border border-stroke bg-white p-6",
+                  isCurrent && "border-ink",
+                )}>
                 {isRecommended && (
                   <span className="absolute right-4 top-4 rounded border border-stroke bg-white px-2 py-0.5 text-xs font-medium text-ink">
                     RECOMMENDED
@@ -170,36 +213,38 @@ function BillingPlan() {
                   <button
                     type="button"
                     disabled
-                    className="mt-6 w-full cursor-not-allowed rounded-xl border border-stroke bg-slate-100 py-3 text-sm font-medium text-muted"
-                  >
+                    className="mt-6 w-full cursor-not-allowed rounded-xl border border-stroke bg-slate-100 py-3 text-sm font-medium text-muted">
                     Your current plan
                   </button>
                 ) : (
-                    <Button
-                      className="mt-6 w-full"
-                      onClick={() => setSelected(plan.code)}
-                    >
-                      {plan.name.toLowerCase() === 'free' ? plan.name : `Upgrade to ${plan.name}`}
-                    </Button>
-                  )}
+                  <Button
+                    className="mt-6 w-full"
+                    onClick={() => setSelected(plan.code)}>
+                    {plan.name.toLowerCase() === "free"
+                      ? plan.name
+                      : `Upgrade to ${plan.name}`}
+                  </Button>
+                )}
               </div>
-            )
+            );
           })}
         </div>
       )}
 
       <p className="text-center text-sm text-muted">
-        Need help with billing?{' '}
+        Need help with billing?{" "}
         <button
           type="button"
           className="text-ink underline hover:no-underline"
-          onClick={() => {}}
-        >
+          onClick={() => {}}>
           Contact support
         </button>
       </p>
 
-      <Modal open={!!selected} title="Plan change" onClose={() => setSelected(null)}>
+      <Modal
+        open={!!selected}
+        title="Plan change"
+        onClose={() => setSelected(null)}>
         <div className="space-y-6">
           <div>
             <p className="text-ink">
@@ -214,24 +259,21 @@ function BillingPlan() {
               type="button"
               variant="secondary"
               onClick={() => setSelected(null)}
-              disabled={isPending}
-            >
+              disabled={isPending}>
               Close
             </Button>
             <Button
               type="button"
               disabled={isPending}
               onClick={handleConfirm}
-              className="sm:min-w-[140px]"
-            >
-              {isPending ? 'Processing...' : 'Confirm change'}
+              className="sm:min-w-[140px]">
+              {isPending ? "Processing..." : "Confirm change"}
             </Button>
           </div>
         </div>
       </Modal>
     </div>
-  )
+  );
 }
 
-export default BillingPlan
-
+export default BillingPlan;

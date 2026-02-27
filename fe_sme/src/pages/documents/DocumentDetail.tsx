@@ -1,38 +1,51 @@
-﻿import { useParams } from 'react-router-dom'
-import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Badge } from '../../components/ui/Badge'
-import { Button } from '../../components/ui/Button'
-import { Progress } from '../../components/ui/Progress'
-import { Skeleton } from '../../components/ui/Skeleton'
-import { useAcknowledgeDocument, useDocumentQuery } from '../../hooks/queries'
+﻿import { useParams } from "react-router-dom";
+import { PageHeader } from "../../components/common/PageHeader";
+import { Card } from "../../components/ui/Card";
+import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
+import { Progress } from "../../components/ui/Progress";
+import { Skeleton } from "../../components/ui/Skeleton";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiAcknowledgeDocument } from "@/api/document/document.api";
+
+/** @deprecated stub — no gateway operation yet */
+const useDocumentQuery = (id?: string) =>
+  useQuery({
+    queryKey: ["document", id],
+    queryFn: () => Promise.resolve(null),
+    enabled: Boolean(id),
+  });
+const useAcknowledgeDocument = () =>
+  useMutation({ mutationFn: apiAcknowledgeDocument });
 
 function DocumentDetail() {
-  const { documentId } = useParams()
-  const { data, isLoading, isError, refetch } = useDocumentQuery(documentId ?? '')
-  const acknowledge = useAcknowledgeDocument()
+  const { documentId } = useParams();
+  const { data, isLoading, isError, refetch } = useDocumentQuery(
+    documentId ?? "",
+  );
+  const acknowledge = useAcknowledgeDocument();
 
   if (isLoading) {
-    return <Skeleton className="h-64" />
+    return <Skeleton className="h-64" />;
   }
 
   if (isError) {
     return (
       <Card>
         <p className="text-sm">
-          Something went wrong.{' '}
+          Something went wrong.{" "}
           <button className="font-semibold" onClick={() => refetch()}>
             Retry
           </button>
         </p>
       </Card>
-    )
+    );
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={data?.title ?? 'Document'}
+        title={data?.title ?? "Document"}
         subtitle="Track reads and acknowledgments."
         extra={data?.required ? <Badge>Required</Badge> : null}
         actionLabel="Edit"
@@ -51,7 +64,9 @@ function DocumentDetail() {
             <Progress value={54} />
           </div>
           {data?.required && (
-            <Button className="mt-6" onClick={() => acknowledge.mutate(data.id)}>
+            <Button
+              className="mt-6"
+              onClick={() => acknowledge.mutate(data.id)}>
               Acknowledge
             </Button>
           )}
@@ -76,8 +91,7 @@ function DocumentDetail() {
         </Card>
       </div>
     </div>
-  )
+  );
 }
 
-export default DocumentDetail
-
+export default DocumentDetail;

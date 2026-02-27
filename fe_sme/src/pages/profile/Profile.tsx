@@ -1,58 +1,78 @@
-import { useState, useEffect } from 'react'
-import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Button } from '../../components/ui/Button'
-import { Badge } from '../../components/ui/Badge'
-import { Skeleton } from '../../components/ui/Skeleton'
-import { useToast } from '../../components/ui/Toast'
-import { useAppStore } from '../../store/useAppStore'
-import { useUserDetailQuery, useUpdateUser } from '../../hooks/queries'
-import { useQueryClient } from '@tanstack/react-query'
-import { ROLE_LABELS } from '../../shared/rbac'
-import { User, Mail, Phone, Briefcase, MapPin, Calendar } from 'lucide-react'
+import { useState, useEffect } from "react";
+import { PageHeader } from "../../components/common/PageHeader";
+import { Card } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { Badge } from "../../components/ui/Badge";
+import { Skeleton } from "../../components/ui/Skeleton";
+import { useToast } from "../../components/ui/Toast";
+import { useAppStore } from "../../store/useAppStore";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiGetUserById, apiUpdateUser } from "@/api/identity/identity.api";
+import { mapUserDetail } from "@/utils/mappers/identity";
+
+const useUserDetailQuery = (userId: string | undefined) =>
+  useQuery({
+    queryKey: ["user-detail", userId],
+    queryFn: () => apiGetUserById(userId!),
+    enabled: Boolean(userId),
+    select: (res: any) => mapUserDetail(res),
+  });
+const useUpdateUser = () =>
+  useMutation({
+    mutationFn: (v: { id: string; name?: string; phone?: string }) =>
+      apiUpdateUser({ userId: v.id, fullName: v.name, phone: v.phone }),
+  });
+import { ROLE_LABELS } from "../../shared/rbac";
+import { User, Mail, Phone, Briefcase, MapPin, Calendar } from "lucide-react";
 
 function Profile() {
-  const currentUser = useAppStore((s) => s.currentUser)
-  const setUser = useAppStore((s) => s.setUser)
-  const queryClient = useQueryClient()
-  const toast = useToast()
+  const currentUser = useAppStore((s) => s.currentUser);
+  const setUser = useAppStore((s) => s.setUser);
+  const queryClient = useQueryClient();
+  const toast = useToast();
 
-  const { data: detail, isLoading: detailLoading } = useUserDetailQuery(currentUser?.id)
-  const updateUser = useUpdateUser()
+  const { data: detail, isLoading: detailLoading } = useUserDetailQuery(
+    currentUser?.id,
+  );
+  const updateUser = useUpdateUser();
 
-  const [fullName, setFullName] = useState('')
-  const [phone, setPhone] = useState('')
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
 
   useEffect(() => {
-    if (detail && 'fullName' in detail) {
-      setFullName(detail.fullName ?? '')
-      setPhone(detail.phone ?? '')
+    if (detail && "fullName" in detail) {
+      setFullName(detail.fullName ?? "");
+      setPhone(detail.phone ?? "");
     } else if (currentUser) {
-      setFullName(currentUser.name ?? '')
-      setPhone('')
+      setFullName(currentUser.name ?? "");
+      setPhone("");
     }
-  }, [currentUser, detail])
+  }, [currentUser, detail]);
 
   const handleSave = async () => {
-    if (!currentUser?.id) return
+    if (!currentUser?.id) return;
     try {
       const updated = await updateUser.mutateAsync({
         id: currentUser.id,
         name: fullName,
         phone,
-      })
-      setUser(updated)
-      queryClient.invalidateQueries({ queryKey: ['user-detail', currentUser.id] })
-      toast('Profile updated.')
+      });
+      setUser(updated);
+      queryClient.invalidateQueries({
+        queryKey: ["user-detail", currentUser.id],
+      });
+      toast("Profile updated.");
     } catch {
-      toast('Failed to update profile.')
+      toast("Failed to update profile.");
     }
-  }
+  };
 
-  const isDetail = detail && 'userId' in detail
-  const primaryRole = currentUser?.roles?.length ? currentUser.roles[0] : null
-  const roleLabel = primaryRole ? ROLE_LABELS[primaryRole] : null
-  const initial = (currentUser?.name ?? currentUser?.email ?? '?').charAt(0).toUpperCase()
+  const isDetail = detail && "userId" in detail;
+  const primaryRole = currentUser?.roles?.length ? currentUser.roles[0] : null;
+  const roleLabel = primaryRole ? ROLE_LABELS[primaryRole] : null;
+  const initial = (currentUser?.name ?? currentUser?.email ?? "?")
+    .charAt(0)
+    .toUpperCase();
 
   return (
     <div className="space-y-6">
@@ -125,9 +145,8 @@ function Profile() {
           <div className="mt-6">
             <Button
               onClick={handleSave}
-              disabled={updateUser.isPending || !currentUser?.id}
-            >
-              {updateUser.isPending ? 'Saving…' : 'Save changes'}
+              disabled={updateUser.isPending || !currentUser?.id}>
+              {updateUser.isPending ? "Saving…" : "Save changes"}
             </Button>
           </div>
         </Card>
@@ -149,28 +168,44 @@ function Profile() {
             <dl className="mt-4 space-y-4">
               {(detail as any).jobTitle && (
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-muted">Job title</dt>
-                  <dd className="mt-1 text-sm font-medium text-ink">{(detail as any).jobTitle}</dd>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted">
+                    Job title
+                  </dt>
+                  <dd className="mt-1 text-sm font-medium text-ink">
+                    {(detail as any).jobTitle}
+                  </dd>
                 </div>
               )}
               {(detail as any).departmentId && (
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-muted">Department ID</dt>
-                  <dd className="mt-1 text-sm font-medium text-ink">{(detail as any).departmentId}</dd>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted">
+                    Department ID
+                  </dt>
+                  <dd className="mt-1 text-sm font-medium text-ink">
+                    {(detail as any).departmentId}
+                  </dd>
                 </div>
               )}
               {(detail as any).employeeId && (
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-muted">Employee ID</dt>
-                  <dd className="mt-1 text-sm font-medium text-ink">{(detail as any).employeeId}</dd>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted">
+                    Employee ID
+                  </dt>
+                  <dd className="mt-1 text-sm font-medium text-ink">
+                    {(detail as any).employeeId}
+                  </dd>
                 </div>
               )}
               {(detail as any).startDate && (
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted" />
                   <div>
-                    <dt className="text-xs font-medium uppercase tracking-wide text-muted">Start date</dt>
-                    <dd className="mt-1 text-sm font-medium text-ink">{(detail as any).startDate}</dd>
+                    <dt className="text-xs font-medium uppercase tracking-wide text-muted">
+                      Start date
+                    </dt>
+                    <dd className="mt-1 text-sm font-medium text-ink">
+                      {(detail as any).startDate}
+                    </dd>
                   </div>
                 </div>
               )}
@@ -178,28 +213,46 @@ function Profile() {
                 <div className="flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-muted" />
                   <div>
-                    <dt className="text-xs font-medium uppercase tracking-wide text-muted">Work location</dt>
-                    <dd className="mt-1 text-sm font-medium text-ink">{(detail as any).workLocation}</dd>
+                    <dt className="text-xs font-medium uppercase tracking-wide text-muted">
+                      Work location
+                    </dt>
+                    <dd className="mt-1 text-sm font-medium text-ink">
+                      {(detail as any).workLocation}
+                    </dd>
                   </div>
                 </div>
               )}
               {(detail as any).managerUserId && (
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-muted">Manager user ID</dt>
-                  <dd className="mt-1 text-sm font-medium text-ink">{(detail as any).managerUserId}</dd>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted">
+                    Manager user ID
+                  </dt>
+                  <dd className="mt-1 text-sm font-medium text-ink">
+                    {(detail as any).managerUserId}
+                  </dd>
                 </div>
               )}
-              {![(detail as any).jobTitle, (detail as any).departmentId, (detail as any).employeeId, (detail as any).startDate, (detail as any).workLocation].some(Boolean) && (
-                <p className="text-sm text-muted">No work details on file yet.</p>
+              {![
+                (detail as any).jobTitle,
+                (detail as any).departmentId,
+                (detail as any).employeeId,
+                (detail as any).startDate,
+                (detail as any).workLocation,
+              ].some(Boolean) && (
+                <p className="text-sm text-muted">
+                  No work details on file yet.
+                </p>
               )}
             </dl>
           ) : (
-            <p className="mt-4 text-sm text-muted">Sign in to see work details.</p>
+            <p className="mt-4 text-sm text-muted">
+              Sign in to see work details.
+            </p>
           )}
         </Card>
       </div>
     </div>
-  )
+  );
 }
 
-export default Profile
+export default Profile;

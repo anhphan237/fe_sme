@@ -1,53 +1,57 @@
-import { useState } from 'react'
-import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Button } from '../../components/ui/Button'
-import { useRolesQuery } from '../../hooks/queries'
-import { Skeleton } from '../../components/ui/Skeleton'
-import { ROLE_LABELS } from '../../shared/rbac'
+import { useState } from "react";
+import { PageHeader } from "../../components/common/PageHeader";
+import { Card } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { useQuery } from "@tanstack/react-query";
+
+/** @deprecated stub — no gateway operation yet */
+const useRolesQuery = () =>
+  useQuery({ queryKey: ["roles"], queryFn: () => Promise.resolve([]) });
+import { Skeleton } from "../../components/ui/Skeleton";
+import { ROLE_LABELS } from "../../shared/rbac";
 
 const permissions = [
-  'manage_departments',
-  'manage_users',
-  'manage_roles',
-  'view_company_billing',
-  'manage_employee_profiles',
-  'manage_onboarding_templates',
-  'create_onboarding_instances',
-  'assign_tasks',
-  'track_onboarding_progress',
-  'manage_automation',
-  'manage_surveys',
-  'view_survey_analytics',
-  'manage_documents',
-  'manage_kb',
-  'view_team_onboarding',
-  'update_assigned_tasks',
-  'comment_tasks',
-  'upload_attachments',
-  'answer_surveys',
-  'view_documents',
-  'view_my_onboarding',
-  'update_task_status',
-  'manage_tenants',
-  'manage_plans',
-  'manage_subscriptions',
-  'manage_invoices',
-  'manage_payments',
-  'manage_dunning',
-  'view_usage',
-  'view_finance',
-  'view_email_logs',
-  'support_lookup_invoices',
-  'support_lookup_payments',
-  'view_tenant_health',
-]
+  "manage_departments",
+  "manage_users",
+  "manage_roles",
+  "view_company_billing",
+  "manage_employee_profiles",
+  "manage_onboarding_templates",
+  "create_onboarding_instances",
+  "assign_tasks",
+  "track_onboarding_progress",
+  "manage_automation",
+  "manage_surveys",
+  "view_survey_analytics",
+  "manage_documents",
+  "manage_kb",
+  "view_team_onboarding",
+  "update_assigned_tasks",
+  "comment_tasks",
+  "upload_attachments",
+  "answer_surveys",
+  "view_documents",
+  "view_my_onboarding",
+  "update_task_status",
+  "manage_tenants",
+  "manage_plans",
+  "manage_subscriptions",
+  "manage_invoices",
+  "manage_payments",
+  "manage_dunning",
+  "view_usage",
+  "view_finance",
+  "view_email_logs",
+  "support_lookup_invoices",
+  "support_lookup_payments",
+  "view_tenant_health",
+];
 
 function AdminRoles() {
-  const { data, isLoading, isError, refetch } = useRolesQuery()
-  const [activeId, setActiveId] = useState<string | null>(null)
+  const { data, isLoading, isError, refetch } = useRolesQuery();
+  const [activeId, setActiveId] = useState<string | null>(null);
 
-  const activeRole = data?.find((role) => role.id === activeId) ?? data?.[0]
+  const activeRole = data?.find((role) => role.id === activeId) ?? data?.[0];
 
   return (
     <div className="space-y-6">
@@ -61,7 +65,7 @@ function AdminRoles() {
       ) : isError ? (
         <Card>
           <p className="text-sm">
-            Something went wrong.{' '}
+            Something went wrong.{" "}
             <button className="font-semibold" onClick={() => refetch()}>
               Retry
             </button>
@@ -77,11 +81,10 @@ function AdminRoles() {
                   key={role.id}
                   className={`w-full rounded-2xl border px-4 py-2 text-left text-sm font-medium ${
                     role.id === activeRole?.id
-                      ? 'border-slate-900 bg-slate-900 text-white'
-                      : 'border-stroke bg-white text-muted'
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-stroke bg-white text-muted"
                   }`}
-                  onClick={() => setActiveId(role.id)}
-                >
+                  onClick={() => setActiveId(role.id)}>
                   {ROLE_LABELS[role.name]}
                 </button>
               ))}
@@ -117,8 +120,7 @@ function AdminRoles() {
         </div>
       )}
     </div>
-  )
+  );
 }
 
-export default AdminRoles
-
+export default AdminRoles;

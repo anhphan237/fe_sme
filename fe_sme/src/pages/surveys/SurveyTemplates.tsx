@@ -1,15 +1,22 @@
-﻿import { useNavigate } from 'react-router-dom'
-import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Table } from '../../components/ui/Table'
-import { Button } from '../../components/ui/Button'
-import { EmptyState } from '../../components/ui/EmptyState'
-import { Skeleton } from '../../components/ui/Skeleton'
-import { useSurveyTemplatesQuery } from '../../hooks/queries'
+﻿import { useNavigate } from "react-router-dom";
+import { PageHeader } from "../../components/common/PageHeader";
+import { Card } from "../../components/ui/Card";
+import { Table } from "../../components/ui/Table";
+import { Button } from "../../components/ui/Button";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { Skeleton } from "../../components/ui/Skeleton";
+import { useQuery } from "@tanstack/react-query";
+
+/** @deprecated stub — no gateway operation yet */
+const useSurveyTemplatesQuery = () =>
+  useQuery({
+    queryKey: ["survey-templates"],
+    queryFn: () => Promise.resolve([]),
+  });
 
 function SurveyTemplates() {
-  const navigate = useNavigate()
-  const { data, isLoading, isError, refetch } = useSurveyTemplatesQuery()
+  const navigate = useNavigate();
+  const { data, isLoading, isError, refetch } = useSurveyTemplatesQuery();
 
   return (
     <div className="space-y-6">
@@ -17,7 +24,7 @@ function SurveyTemplates() {
         title="Survey Templates"
         subtitle="Design the questions employees will answer at key milestones."
         actionLabel="New Template"
-        onAction={() => navigate('/surveys/templates/new')}
+        onAction={() => navigate("/surveys/templates/new")}
       />
 
       <Card className="p-0">
@@ -28,7 +35,7 @@ function SurveyTemplates() {
           </div>
         ) : isError ? (
           <div className="p-6 text-sm">
-            Something went wrong.{' '}
+            Something went wrong.{" "}
             <button className="font-semibold" onClick={() => refetch()}>
               Retry
             </button>
@@ -39,7 +46,7 @@ function SurveyTemplates() {
               title="No survey templates"
               description="Create a survey template to start sending feedback requests."
               actionLabel="New Template"
-              onAction={() => navigate('/surveys/templates/new')}
+              onAction={() => navigate("/surveys/templates/new")}
             />
           </div>
         ) : (
@@ -55,13 +62,21 @@ function SurveyTemplates() {
             </thead>
             <tbody>
               {data?.map((template) => (
-                <tr key={template.id} className="border-t border-stroke hover:bg-slate-50">
+                <tr
+                  key={template.id}
+                  className="border-t border-stroke hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium">{template.name}</td>
-                  <td className="px-4 py-3 text-muted">{template.questions.length}</td>
+                  <td className="px-4 py-3 text-muted">
+                    {template.questions.length}
+                  </td>
                   <td className="px-4 py-3 text-muted">{template.target}</td>
                   <td className="px-4 py-3 text-muted">{template.updatedAt}</td>
                   <td className="px-4 py-3">
-                    <Button variant="ghost" onClick={() => navigate(`/surveys/templates/${template.id}`)}>
+                    <Button
+                      variant="ghost"
+                      onClick={() =>
+                        navigate(`/surveys/templates/${template.id}`)
+                      }>
                       View
                     </Button>
                   </td>
@@ -72,8 +87,7 @@ function SurveyTemplates() {
         )}
       </Card>
     </div>
-  )
+  );
 }
 
-export default SurveyTemplates
-
+export default SurveyTemplates;
