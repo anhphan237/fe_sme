@@ -12,7 +12,12 @@ import { apiCheckEmailExists } from "@/api/identity/identity.api";
 import { apiRegisterCompany } from "@/api/company/company.api";
 
 // ── Languages ─────────────────────────────────────────────
-const LANGUAGES: { value: Locale; flag: string; label: string; native: string }[] = [
+const LANGUAGES: {
+  value: Locale;
+  flag: string;
+  label: string;
+  native: string;
+}[] = [
   { value: "vi_VN", flag: "🇻🇳", label: "Tiếng Việt", native: "VI" },
   { value: "en_US", flag: "🇺🇸", label: "English", native: "EN" },
 ];
@@ -28,7 +33,8 @@ function LangSwitcher() {
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -41,20 +47,29 @@ function LangSwitcher() {
         onClick={() => setOpen((o) => !o)}
         aria-label={t("register.lang.label")}
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] font-semibold border transition-all duration-200
-          ${open
-            ? "border-brand/40 text-brand bg-brand/5"
-            : "border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-800 bg-white"
+          ${
+            open
+              ? "border-brand/40 text-brand bg-brand/5"
+              : "border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-800 bg-white"
           }`}>
         <span className="text-base leading-none">{current.flag}</span>
         <span>{current.native}</span>
         <svg
           className={`w-3 h-3 opacity-60 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-          viewBox="0 0 12 12" fill="none">
-          <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          viewBox="0 0 12 12"
+          fill="none">
+          <path
+            d="M2 4l4 4 4-4"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </button>
 
-      <div className={`absolute right-0 top-[calc(100%+8px)] w-44 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50
+      <div
+        className={`absolute right-0 top-[calc(100%+8px)] w-44 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50
         transition-all duration-200 origin-top-right
         ${open ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none"}`}>
         <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
@@ -68,17 +83,33 @@ function LangSwitcher() {
             <button
               key={lang.value}
               type="button"
-              onClick={() => { setLocale(lang.value); setOpen(false); }}
+              onClick={() => {
+                setLocale(lang.value);
+                setOpen(false);
+              }}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition-colors
                 ${isActive ? "bg-brand/5 text-brand" : "text-gray-700 hover:bg-gray-50"}`}>
               <span className="text-xl leading-none">{lang.flag}</span>
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-semibold leading-tight">{lang.label}</p>
-                <p className="text-[10px] text-gray-400 leading-tight">{lang.native}</p>
+                <p className="text-[13px] font-semibold leading-tight">
+                  {lang.label}
+                </p>
+                <p className="text-[10px] text-gray-400 leading-tight">
+                  {lang.native}
+                </p>
               </div>
               {isActive && (
-                <svg className="w-4 h-4 text-brand shrink-0" viewBox="0 0 16 16" fill="none">
-                  <path d="M3 8l3.5 3.5L13 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <svg
+                  className="w-4 h-4 text-brand shrink-0"
+                  viewBox="0 0 16 16"
+                  fill="none">
+                  <path
+                    d="M3 8l3.5 3.5L13 5"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
               )}
             </button>
@@ -189,8 +220,13 @@ function RegisterCompany() {
         desc: t("register.step1.desc"),
         icon: (
           <svg viewBox="0 0 20 20" fill="none" className="w-4 h-4">
-            <path d="M2 6.5l8 5 8-5M2 6.5A1.5 1.5 0 013.5 5h13A1.5 1.5 0 0118 6.5v7a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 012 13.5v-7z"
-              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d="M2 6.5l8 5 8-5M2 6.5A1.5 1.5 0 013.5 5h13A1.5 1.5 0 0118 6.5v7a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 012 13.5v-7z"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         ),
       },
@@ -199,8 +235,13 @@ function RegisterCompany() {
         desc: t("register.step2.desc"),
         icon: (
           <svg viewBox="0 0 20 20" fill="none" className="w-4 h-4">
-            <path d="M3 17V7l7-4 7 4v10M3 17h14M8 17v-4h4v4"
-              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d="M3 17V7l7-4 7 4v10M3 17h14M8 17v-4h4v4"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         ),
       },
@@ -209,9 +250,19 @@ function RegisterCompany() {
         desc: t("register.step3.desc"),
         icon: (
           <svg viewBox="0 0 20 20" fill="none" className="w-4 h-4">
-            <circle cx="10" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.5" />
-            <path d="M3 17c0-3.314 3.134-6 7-6s7 2.686 7 6"
-              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <circle
+              cx="10"
+              cy="7"
+              r="3.5"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            />
+            <path
+              d="M3 17c0-3.314 3.134-6 7-6s7 2.686 7 6"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
           </svg>
         ),
       },
@@ -220,7 +271,13 @@ function RegisterCompany() {
         desc: t("register.step4.desc"),
         icon: (
           <svg viewBox="0 0 20 20" fill="none" className="w-4 h-4">
-            <path d="M4 10.5l4 4 8-8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d="M4 10.5l4 4 8-8"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         ),
       },
@@ -409,7 +466,9 @@ function RegisterCompany() {
             <h2 className="text-2xl font-bold text-white leading-snug mb-2">
               {t("register.panel.heading")}
               <br />
-              <span className="text-brand">{t("register.panel.heading_highlight")}</span>
+              <span className="text-brand">
+                {t("register.panel.heading_highlight")}
+              </span>
             </h2>
             <p className="text-sm text-white/50 leading-relaxed">
               {t("register.panel.subtitle")}
@@ -555,14 +614,31 @@ function RegisterCompany() {
             <div className="mb-8">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-brand/8 rounded-full mb-3">
                 <span className="text-[11px] font-bold text-brand uppercase tracking-wider">
-                  {t("register.step_badge", { current: String(step + 1), total: "4" })}
+                  {t("register.step_badge", {
+                    current: String(step + 1),
+                    total: "4",
+                  })}
                 </span>
               </div>
               <h1 className="text-2xl font-bold text-gray-900 mb-1">
-                {[t("register.step0.title"), t("register.step1.title"), t("register.step2.title"), t("register.step3.title")][step]}
+                {
+                  [
+                    t("register.step0.title"),
+                    t("register.step1.title"),
+                    t("register.step2.title"),
+                    t("register.step3.title"),
+                  ][step]
+                }
               </h1>
               <p className="text-[14px] text-gray-500">
-                {[t("register.step0.subtitle"), t("register.step1.subtitle"), t("register.step2.subtitle"), t("register.step3.subtitle")][step]}
+                {
+                  [
+                    t("register.step0.subtitle"),
+                    t("register.step1.subtitle"),
+                    t("register.step2.subtitle"),
+                    t("register.step3.subtitle"),
+                  ][step]
+                }
               </p>
             </div>
 
@@ -677,28 +753,36 @@ function RegisterCompany() {
             {/* ── Step 1: Company ── */}
             {step === 1 && (
               <div className="space-y-5">
-                <Field label={t("register.company.name.label")} error={errors.companyName?.message}>
+                <Field
+                  label={t("register.company.name.label")}
+                  error={errors.companyName?.message}>
                   <input
                     className={INPUT_CLS}
                     placeholder={t("register.company.name.placeholder")}
                     {...register("companyName")}
                   />
                 </Field>
-                <Field label={t("register.company.taxcode.label")} error={errors.taxCode?.message}>
+                <Field
+                  label={t("register.company.taxcode.label")}
+                  error={errors.taxCode?.message}>
                   <input
                     className={INPUT_CLS}
                     placeholder={t("register.company.taxcode.placeholder")}
                     {...register("taxCode")}
                   />
                 </Field>
-                <Field label={t("register.company.address.label")} error={errors.address?.message}>
+                <Field
+                  label={t("register.company.address.label")}
+                  error={errors.address?.message}>
                   <input
                     className={INPUT_CLS}
                     placeholder={t("register.company.address.placeholder")}
                     {...register("address")}
                   />
                 </Field>
-                <Field label={t("register.company.timezone.label")} error={errors.timezone?.message}>
+                <Field
+                  label={t("register.company.timezone.label")}
+                  error={errors.timezone?.message}>
                   <div className="relative">
                     <select className={SELECT_CLS} {...register("timezone")}>
                       {TIMEZONES.map((tz) => (
@@ -726,14 +810,18 @@ function RegisterCompany() {
             {/* ── Step 2: Admin ── */}
             {step === 2 && (
               <div className="space-y-5">
-                <Field label={t("register.admin.fullname.label")} error={errors.adminFullName?.message}>
+                <Field
+                  label={t("register.admin.fullname.label")}
+                  error={errors.adminFullName?.message}>
                   <input
                     className={INPUT_CLS}
                     placeholder={t("register.admin.fullname.placeholder")}
                     {...register("adminFullName")}
                   />
                 </Field>
-                <Field label={t("register.admin.password.label")} error={errors.adminPassword?.message}>
+                <Field
+                  label={t("register.admin.password.label")}
+                  error={errors.adminPassword?.message}>
                   <div className="relative">
                     <input
                       type={showPassword ? "text" : "password"}
@@ -792,7 +880,9 @@ function RegisterCompany() {
                     </button>
                   </div>
                 </Field>
-                <Field label={t("register.admin.phone.label")} hint={t("register.admin.phone.hint")}>
+                <Field
+                  label={t("register.admin.phone.label")}
+                  hint={t("register.admin.phone.hint")}>
                   <div className="relative">
                     <div className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-gray-400">
                       <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none">
@@ -841,10 +931,22 @@ function RegisterCompany() {
                   </div>
                   <dl className="px-5 py-4 space-y-3">
                     {[
-                      { label: t("register.confirm.field.name"), value: getValues("companyName") },
-                      { label: t("register.confirm.field.taxcode"), value: getValues("taxCode") },
-                      { label: t("register.confirm.field.address"), value: getValues("address") },
-                      { label: t("register.confirm.field.timezone"), value: getValues("timezone") },
+                      {
+                        label: t("register.confirm.field.name"),
+                        value: getValues("companyName"),
+                      },
+                      {
+                        label: t("register.confirm.field.taxcode"),
+                        value: getValues("taxCode"),
+                      },
+                      {
+                        label: t("register.confirm.field.address"),
+                        value: getValues("address"),
+                      },
+                      {
+                        label: t("register.confirm.field.timezone"),
+                        value: getValues("timezone"),
+                      },
                     ].map(({ label, value }) => (
                       <div
                         key={label}
@@ -889,10 +991,21 @@ function RegisterCompany() {
                   </div>
                   <dl className="px-5 py-4 space-y-3">
                     {[
-                      { label: t("register.confirm.field.name"), value: getValues("adminFullName") },
-                      { label: t("register.confirm.field.email"), value: getValues("adminUsername") },
+                      {
+                        label: t("register.confirm.field.name"),
+                        value: getValues("adminFullName"),
+                      },
+                      {
+                        label: t("register.confirm.field.email"),
+                        value: getValues("adminUsername"),
+                      },
                       ...(getValues("adminPhone")
-                        ? [{ label: t("register.confirm.field.phone"), value: getValues("adminPhone")! }]
+                        ? [
+                            {
+                              label: t("register.confirm.field.phone"),
+                              value: getValues("adminPhone")!,
+                            },
+                          ]
                         : []),
                     ].map(({ label, value }) => (
                       <div
