@@ -54,10 +54,35 @@ export interface PlanGetRequest {
 
 /** com.sme.billing.plan.list */
 export interface PlanListRequest {
-  active?: boolean;
+  /** Filter by status e.g. "ACTIVE" | "INACTIVE" */
+  status?: string;
 }
 
-/** Single plan item */
+/**
+ * Matches BE: PlanSummaryResponse
+ * Fields: planId, code, name, employeeLimitPerMonth, priceVndMonthly, priceVndYearly, status
+ */
+export interface PlanSummaryResponse {
+  planId: string;
+  code: string;
+  name: string;
+  employeeLimitPerMonth: number | null;
+  priceVndMonthly: number | null;
+  priceVndYearly: number | null;
+  status: string;
+}
+
+/** com.sme.billing.plan.list → response data */
+export interface PlanListResponse {
+  plans: PlanSummaryResponse[];
+}
+
+/** com.sme.billing.plan.get → response data */
+export interface PlanGetResponse extends PlanSummaryResponse {}
+
+/**
+ * @deprecated Use PlanSummaryResponse — kept for backward compatibility
+ */
 export interface PlanItem {
   planId: string;
   name: string;
@@ -68,14 +93,6 @@ export interface PlanItem {
   features: string[];
   maxSeats: number | null;
 }
-
-/** com.sme.billing.plan.list → response data */
-export interface PlanListResponse {
-  plans: PlanItem[];
-}
-
-/** com.sme.billing.plan.get → response data */
-export interface PlanGetResponse extends PlanItem {}
 
 // ---------------------------
 // Invoice

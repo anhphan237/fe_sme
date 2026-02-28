@@ -1,4 +1,5 @@
 import { gatewayRequest } from "../core/gateway";
+import type { PlanListResponse, PlanGetResponse } from "@/interface/billing";
 
 // ── Subscription ────────────────────────────────────────────
 
@@ -31,11 +32,11 @@ export const apiGetSubscription = (companyId?: string) =>
 // ── Plan ────────────────────────────────────────────────────
 
 /** com.sme.billing.plan.list */
-export const apiGetPlans = (status?: string) =>
+export const apiGetPlans = (status?: string): Promise<PlanListResponse> =>
   gatewayRequest("com.sme.billing.plan.list", status ? { status } : {});
 
 /** com.sme.billing.plan.get */
-export const apiGetCurrentPlan = (planId?: string) =>
+export const apiGetCurrentPlan = (planId?: string): Promise<PlanGetResponse> =>
   gatewayRequest("com.sme.billing.plan.get", planId ? { planId } : {});
 
 // ── Usage ───────────────────────────────────────────────────

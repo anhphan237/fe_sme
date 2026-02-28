@@ -134,9 +134,10 @@ export const HOW_STATS = [
 
 export const PRICING_TIERS = [
   {
+    code: "FREE",
     nameKey: "landing.pricing.plan_basic.name",
-    monthlyPrice: `${"$"}0`,
-    yearlyPrice: `${"$"}0`,
+    monthlyPrice: "",
+    yearlyPrice: "",
     usersKey: "landing.pricing.plan_basic.users",
     descKey: "landing.pricing.plan_basic.desc",
     popular: false,
@@ -150,9 +151,10 @@ export const PRICING_TIERS = [
     ctaKey: "landing.pricing.plan_basic.cta",
   },
   {
+    code: "PRO",
     nameKey: "landing.pricing.plan_pro.name",
-    monthlyPrice: `${"$"}49`,
-    yearlyPrice: `${"$"}39`,
+    monthlyPrice: "500.000 ₫",
+    yearlyPrice: "5.000.000 ₫",
     usersKey: "landing.pricing.plan_pro.users",
     descKey: "landing.pricing.plan_pro.desc",
     popular: true,
@@ -168,9 +170,10 @@ export const PRICING_TIERS = [
     ctaKey: "landing.pricing.plan_pro.cta",
   },
   {
+    code: "BUSINESS",
     nameKey: "landing.pricing.plan_business.name",
-    monthlyPrice: `${"$"}129`,
-    yearlyPrice: `${"$"}99`,
+    monthlyPrice: "1.500.000 ₫",
+    yearlyPrice: "15.000.000 ₫",
     usersKey: "landing.pricing.plan_business.users",
     descKey: "landing.pricing.plan_business.desc",
     popular: false,
@@ -186,6 +189,7 @@ export const PRICING_TIERS = [
     ctaKey: "landing.pricing.plan_business.cta",
   },
   {
+    code: "ENTERPRISE",
     nameKey: "landing.pricing.plan_enterprise.name",
     monthlyPrice: "",
     yearlyPrice: "",

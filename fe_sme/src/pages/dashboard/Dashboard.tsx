@@ -95,13 +95,19 @@ const progressData = [
 function Dashboard() {
   const currentUser = useAppStore((state) => state.currentUser);
   const isPlatformUser = isPlatformRole(currentUser?.roles ?? []);
-  const { isLoading: instancesLoading, isError } =
-    useInstancesQuery(!isPlatformUser);
-  const { data: documents, isLoading: docsLoading } =
-    useDocumentsQuery(!isPlatformUser);
+  const { isLoading: instancesLoading, isError } = useInstancesQuery(
+    undefined,
+    !isPlatformUser,
+  );
+  const { data: documentsRaw, isLoading: docsLoading } = useDocumentsQuery();
+  const documents = documentsRaw
+    ? Array.isArray(documentsRaw)
+      ? documentsRaw
+      : documentsRaw.items
+    : [];
 
   const primaryRole = getPrimaryRole(currentUser?.roles ?? ["EMPLOYEE"]);
-  const kpis = kpiMap[primaryRole];
+  const kpis = kpiMap[primaryRole] ?? kpiMap["HR"];
 
   return (
     <div className="space-y-6">
@@ -192,11 +198,11 @@ function Dashboard() {
             </div>
           ) : (
             <ul className="mt-4 space-y-3 text-sm">
-              {documents?.slice(0, 4).map((doc) => (
+              {documents.slice(0, 4).map((doc) => (
                 <li
-                  key={doc.id}
+                  key={doc.documentId}
                   className="flex items-center justify-between rounded-2xl border border-stroke bg-slate-50 p-3">
-                  <span>{doc.title}</span>
+                  <span>{doc.name}</span>
                   <Badge>{doc.required ? "Required" : "Optional"}</Badge>
                 </li>
               ))}
