@@ -1,10 +1,16 @@
-import { useState } from 'react'
-import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Tabs } from '../../components/ui/Tabs'
-import { Table } from '../../components/ui/Table'
-import { useSaFinanceQuery, useSaTenantsQuery } from '../../hooks/queries'
-import { Skeleton } from '../../components/ui/Skeleton'
+import { useState } from "react";
+import { PageHeader } from "../../components/common/PageHeader";
+import { Card } from "../../components/ui/Card";
+import { Tabs } from "../../components/ui/Tabs";
+import { Table } from "../../components/ui/Table";
+import { useQuery } from "@tanstack/react-query";
+
+/** @deprecated stub — no gateway operation yet */
+const useSaTenantsQuery = () =>
+  useQuery({ queryKey: ["sa-tenants"], queryFn: () => Promise.resolve([]) });
+const useSaFinanceQuery = () =>
+  useQuery({ queryKey: ["sa-finance"], queryFn: () => Promise.resolve({}) });
+import { Skeleton } from "../../components/ui/Skeleton";
 import {
   LineChart,
   Line,
@@ -15,12 +21,12 @@ import {
   YAxis,
   BarChart,
   Bar,
-} from 'recharts'
+} from "recharts";
 
 function SuperAdmin() {
-  const [tab, setTab] = useState('tenants')
-  const { data: tenants, isLoading } = useSaTenantsQuery()
-  const { data: finance } = useSaFinanceQuery()
+  const [tab, setTab] = useState("tenants");
+  const { data: tenants, isLoading } = useSaTenantsQuery();
+  const { data: finance } = useSaFinanceQuery();
 
   return (
     <div className="space-y-6">
@@ -31,15 +37,15 @@ function SuperAdmin() {
 
       <Tabs
         items={[
-          { label: 'Tenants', value: 'tenants' },
-          { label: 'Subscriptions', value: 'subscriptions' },
-          { label: 'Finance', value: 'finance' },
+          { label: "Tenants", value: "tenants" },
+          { label: "Subscriptions", value: "subscriptions" },
+          { label: "Finance", value: "finance" },
         ]}
         value={tab}
         onChange={setTab}
       />
 
-      {tab === 'tenants' && (
+      {tab === "tenants" && (
         <Card className="p-0">
           {isLoading ? (
             <div className="p-6">
@@ -70,7 +76,7 @@ function SuperAdmin() {
         </Card>
       )}
 
-      {tab === 'subscriptions' && (
+      {tab === "subscriptions" && (
         <Card>
           <h3 className="text-lg font-semibold">Subscription status</h3>
           <div className="mt-4 space-y-2 text-sm">
@@ -90,7 +96,7 @@ function SuperAdmin() {
         </Card>
       )}
 
-      {tab === 'finance' && (
+      {tab === "finance" && (
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <h3 className="text-lg font-semibold">MRR</h3>
@@ -122,10 +128,8 @@ function SuperAdmin() {
           </Card>
         </div>
       )}
-
     </div>
-  )
+  );
 }
 
-export default SuperAdmin
-
+export default SuperAdmin;

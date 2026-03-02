@@ -1,239 +1,412 @@
-import { useMemo, useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
-import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Button } from '../../components/ui/Button'
-import { Skeleton } from '../../components/ui/Skeleton'
-import { Stepper } from '../../components/ui/Stepper'
-import { useSaveTemplate, useTemplateQuery } from '../../hooks/queries'
-import { useToast } from '../../components/ui/Toast'
-import { useAppStore } from '../../store/useAppStore'
-import { buildCreateTemplatePayload, templateToCreateForm } from '../../shared/api/onboarding'
-import type { CreateOnboardingTemplatePayload } from '../../shared/api/onboarding'
-import { ROLE_LABELS } from '../../shared/rbac'
-import type { OnboardingTemplate } from '../../shared/types'
+import { useMemo, useState, useEffect, useRef } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { PageHeader } from "../../components/common/PageHeader";
+import { Card } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { Skeleton } from "../../components/ui/Skeleton";
+import { Stepper } from "../../components/ui/Stepper";
+import {
+  apiGetTemplate,
+  apiCreateTemplate,
+  apiUpdateTemplate,
+} from "@/api/onboarding/onboarding.api";
+import { mapTemplate } from "@/utils/mappers/onboarding";
+import { useToast } from "../../components/ui/Toast";
+import { useAppStore } from "../../store/useAppStore";
+import { ROLE_LABELS } from "../../shared/rbac";
+import type { OnboardingTemplate } from "../../shared/types";
 
-const WIZARD_STEPS = ['Template', 'Stages', 'Tasks', 'Review']
+const useTemplateQuery = (id?: string) =>
+  useQuery({
+    queryKey: ["template", id],
+    queryFn: () => apiGetTemplate(id ?? ""),
+    enabled: Boolean(id) && id !== "new",
+    select: (res: any) => {
+      const raw =
+        res?.template ?? res?.data ?? res?.result ?? res?.payload ?? res;
+      return mapTemplate(raw && typeof raw === "object" ? raw : {});
+    },
+  });
+const useSaveTemplate = () =>
+  useMutation({
+    mutationFn: (payload: any) => {
+      const templateId = payload.templateId ?? payload.id;
+      return !templateId || templateId === "new"
+        ? apiCreateTemplate(payload)
+        : apiUpdateTemplate({
+            templateId,
+            name: payload.name,
+            description: payload.description ?? "",
+            status: payload.status ?? "ACTIVE",
+            ...(payload.checklists?.length
+              ? { checklists: payload.checklists }
+              : {}),
+          });
+    },
+  });
+
+// ── Template builder helpers (inline, no mapper dependency) ──
+
+export interface CreateOnboardingTemplatePayload {
+  name: string;
+  description?: string;
+  status?: string;
+  createdBy?: string;
+  checklists?: Array<{
+    name: string;
+    stage: string;
+    sortOrder: number;
+    status?: string;
+    tasks: Array<{
+      title: string;
+      description?: string;
+      ownerType: string;
+      ownerRefId: string;
+      dueDaysOffset: number;
+      requireAck: boolean;
+      sortOrder: number;
+      status?: string;
+    }>;
+  }>;
+}
+
+const _STAGE_VALUES = [
+  "PRE_BOARDING",
+  "DAY_1",
+  "DAY_7",
+  "DAY_30",
+  "DAY_60",
+] as const;
+
+const _parseDueOffset = (s: string): number => {
+  if (s == null || s === "") return 0;
+  const n = parseInt(String(s).replace(/\D/g, ""), 10);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const buildCreateTemplatePayload = (
+  payload: CreateOnboardingTemplatePayload & { createdBy: string },
+): CreateOnboardingTemplatePayload & { createdBy: string } => ({
+  name: payload.name,
+  description: payload.description ?? "",
+  status: payload.status ?? "ACTIVE",
+  createdBy: payload.createdBy,
+  checklists: (payload.checklists ?? []).map((c, i) => ({
+    name: c.name,
+    stage: c.stage,
+    sortOrder: c.sortOrder ?? i + 1,
+    status: c.status ?? "ACTIVE",
+    tasks: (c.tasks ?? []).map((t, j) => ({
+      title: t.title,
+      description: t.description ?? "",
+      ownerType: t.ownerType,
+      ownerRefId: t.ownerRefId,
+      dueDaysOffset: t.dueDaysOffset,
+      requireAck: t.requireAck ?? false,
+      sortOrder: t.sortOrder ?? j + 1,
+      status: t.status ?? "ACTIVE",
+    })),
+  })),
+});
+
+const templateToCreateForm = (
+  t: OnboardingTemplate,
+): CreateOnboardingTemplatePayload => {
+  const stages = t.stages ?? [];
+  const defaultChecklist = (): NonNullable<
+    CreateOnboardingTemplatePayload["checklists"]
+  >[0] => ({
+    name: "",
+    stage: "DAY_1",
+    sortOrder: 1,
+    status: "ACTIVE",
+    tasks: [
+      {
+        title: "",
+        description: "",
+        ownerType: "ROLE",
+        ownerRefId: "HR",
+        dueDaysOffset: 0,
+        requireAck: false,
+        sortOrder: 1,
+        status: "ACTIVE",
+      },
+    ],
+  });
+  return {
+    name: t.name ?? "",
+    description: t.description ?? "",
+    status: "ACTIVE",
+    checklists: stages.length
+      ? stages.map((stage, i) => ({
+          name: stage.name ?? "",
+          stage: _STAGE_VALUES[i] ?? "DAY_1",
+          sortOrder: i + 1,
+          status: "ACTIVE",
+          tasks: (stage.tasks ?? []).map((task, j) => ({
+            title: task.title ?? "",
+            description: "",
+            ownerType: "ROLE",
+            ownerRefId: (task.ownerRole ?? "HR") as string,
+            dueDaysOffset: _parseDueOffset(task.dueOffset ?? "0"),
+            requireAck: task.required ?? false,
+            sortOrder: j + 1,
+            status: "ACTIVE",
+          })),
+        }))
+      : [defaultChecklist()],
+  };
+};
+
+const WIZARD_STEPS = ["Template", "Stages", "Tasks", "Review"];
 
 const STAGE_OPTIONS = [
-  { value: 'PRE_BOARDING', label: 'Pre-boarding' },
-  { value: 'DAY_1', label: 'First day' },
-  { value: 'DAY_7', label: 'Day 7' },
-  { value: 'DAY_30', label: 'Day 30' },
-  { value: 'DAY_60', label: 'Day 60' },
-]
+  { value: "PRE_BOARDING", label: "Pre-boarding" },
+  { value: "DAY_1", label: "First day" },
+  { value: "DAY_7", label: "Day 7" },
+  { value: "DAY_30", label: "Day 30" },
+  { value: "DAY_60", label: "Day 60" },
+];
 
 const OWNER_TYPE_OPTIONS = [
-  { value: 'ROLE', label: 'Role' },
-  { value: 'DEPARTMENT', label: 'Department' },
-]
+  { value: "ROLE", label: "Role" },
+  { value: "DEPARTMENT", label: "Department" },
+];
 
-const ROLE_REF_OPTIONS = ['HR', 'IT', 'MANAGER', 'EMPLOYEE'] as const
+const ROLE_REF_OPTIONS = ["HR", "IT", "MANAGER", "EMPLOYEE"] as const;
 
-type ChecklistForm = CreateOnboardingTemplatePayload['checklists'] extends (infer C)[] | undefined
+type ChecklistForm = CreateOnboardingTemplatePayload["checklists"] extends
+  | (infer C)[]
+  | undefined
   ? NonNullable<C>
-  : never
-type TaskForm = ChecklistForm['tasks'][number]
+  : never;
+type TaskForm = ChecklistForm["tasks"][number];
 
 const emptyTask = (): TaskForm => ({
-  title: '',
-  description: '',
-  ownerType: 'ROLE',
-  ownerRefId: 'HR',
+  title: "",
+  description: "",
+  ownerType: "ROLE",
+  ownerRefId: "HR",
   dueDaysOffset: 0,
   requireAck: false,
   sortOrder: 1,
-  status: 'ACTIVE',
-})
+  status: "ACTIVE",
+});
 
 const emptyChecklist = (): ChecklistForm => ({
-  name: '',
-  stage: 'DAY_1',
+  name: "",
+  stage: "DAY_1",
   sortOrder: 1,
-  status: 'ACTIVE',
+  status: "ACTIVE",
   tasks: [emptyTask()],
-})
+});
 
 const initialCreateForm = (): CreateOnboardingTemplatePayload => ({
-  name: '',
-  description: '',
-  status: 'ACTIVE',
+  name: "",
+  description: "",
+  status: "ACTIVE",
   checklists: [emptyChecklist()],
-})
+});
 
 const inputClass =
-  'w-full rounded-xl border border-[#d2d2d7] bg-white px-4 py-3 text-[15px] transition focus:border-[#0071e3] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20'
-const labelClass = 'mb-1.5 block text-sm font-medium text-[#1d1d1f]'
+  "w-full rounded-xl border border-[#d2d2d7] bg-white px-4 py-3 text-[15px] transition focus:border-[#0071e3] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20";
+const labelClass = "mb-1.5 block text-sm font-medium text-[#1d1d1f]";
 
 function TemplateEditor() {
-  const { templateId } = useParams()
-  const navigate = useNavigate()
-  const location = useLocation()
-  const queryClient = useQueryClient()
-  const toast = useToast()
-  const currentUser = useAppStore((s) => s.currentUser)
-  const { data, isLoading } = useTemplateQuery(templateId)
-  const saveTemplate = useSaveTemplate()
+  const { templateId } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const currentUser = useAppStore((s) => s.currentUser);
+  const { data, isLoading } = useTemplateQuery(templateId);
+  const saveTemplate = useSaveTemplate();
 
-  const isCreate = templateId === 'new' || !templateId
-  const duplicateFrom = (location.state as { duplicateFrom?: OnboardingTemplate })?.duplicateFrom
-  const [createForm, setCreateForm] = useState<CreateOnboardingTemplatePayload>(initialCreateForm)
-  const [wizardStep, setWizardStep] = useState(0)
-  const [tasksStageIndex, setTasksStageIndex] = useState(0)
-  const editFormSynced = useRef(false)
+  const isCreate = templateId === "new" || !templateId;
+  const duplicateFrom = (
+    location.state as { duplicateFrom?: OnboardingTemplate }
+  )?.duplicateFrom;
+  const [createForm, setCreateForm] =
+    useState<CreateOnboardingTemplatePayload>(initialCreateForm);
+  const [wizardStep, setWizardStep] = useState(0);
+  const [tasksStageIndex, setTasksStageIndex] = useState(0);
+  const editFormSynced = useRef(false);
 
-  const checklists = createForm.checklists ?? []
-  const activeChecklist = checklists[tasksStageIndex]
+  const checklists = createForm.checklists ?? [];
+  const activeChecklist = checklists[tasksStageIndex];
 
   // Prefill form for duplicate (create from existing)
   useEffect(() => {
-    if (!isCreate || !duplicateFrom) return
-    setCreateForm(templateToCreateForm(duplicateFrom))
-  }, [isCreate, duplicateFrom])
+    if (!isCreate || !duplicateFrom) return;
+    setCreateForm(templateToCreateForm(duplicateFrom));
+  }, [isCreate, duplicateFrom]);
 
   // Reset sync flag when editing a different template
   useEffect(() => {
-    if (isCreate) return
-    editFormSynced.current = false
-  }, [templateId, isCreate])
+    if (isCreate) return;
+    editFormSynced.current = false;
+  }, [templateId, isCreate]);
 
   // Prefill form for edit when template data is loaded
   useEffect(() => {
-    if (isCreate || !data) return
-    if (editFormSynced.current) return
-    editFormSynced.current = true
-    setCreateForm(templateToCreateForm(data))
-  }, [isCreate, data])
+    if (isCreate || !data) return;
+    if (editFormSynced.current) return;
+    editFormSynced.current = true;
+    setCreateForm(templateToCreateForm(data));
+  }, [isCreate, data]);
 
   useEffect(() => {
-    if (!isCreate) return
-    setTasksStageIndex((s) => Math.min(s, Math.max(0, checklists.length - 1)))
-  }, [isCreate, checklists.length])
+    if (!isCreate) return;
+    setTasksStageIndex((s) => Math.min(s, Math.max(0, checklists.length - 1)));
+  }, [isCreate, checklists.length]);
 
   const template = useMemo(
     () =>
       data ?? {
-        name: '',
-        description: '',
+        name: "",
+        description: "",
         stages: [
           {
-            id: 'stage-new',
-            name: 'New stage',
+            id: "stage-new",
+            name: "New stage",
             tasks: [
-              { id: 'task-new', title: 'New task', ownerRole: 'EMPLOYEE' as const, dueOffset: 'Day 1', required: false },
+              {
+                id: "task-new",
+                title: "New task",
+                ownerRole: "EMPLOYEE" as const,
+                dueOffset: "Day 1",
+                required: false,
+              },
             ],
           },
         ],
       },
-    [data]
-  )
+    [data],
+  );
 
   const handleSaveCreate = async () => {
-    const createdBy = currentUser?.id ?? ''
+    const createdBy = currentUser?.id ?? "";
     if (!createdBy) {
-      toast('You must be logged in to create a template.')
-      return
+      toast("You must be logged in to create a template.");
+      return;
     }
     if (!createForm.name?.trim()) {
-      toast('Template name is required.')
-      return
+      toast("Template name is required.");
+      return;
     }
-    const payload = buildCreateTemplatePayload({ ...createForm, createdBy })
+    const payload = buildCreateTemplatePayload({ ...createForm, createdBy });
     try {
-      await saveTemplate.mutateAsync(payload)
-      queryClient.invalidateQueries({ queryKey: ['templates'] })
-      toast('Template created.')
-      navigate('/onboarding/templates')
+      await saveTemplate.mutateAsync(payload);
+      queryClient.invalidateQueries({ queryKey: ["templates"] });
+      toast("Template created.");
+      navigate("/onboarding/templates");
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Failed to create template.')
+      toast(e instanceof Error ? e.message : "Failed to create template.");
     }
-  }
+  };
 
   const handleSaveEdit = async () => {
-    if (!templateId || templateId === 'new') return
+    if (!templateId || templateId === "new") return;
     if (!createForm.name?.trim()) {
-      toast('Template name is required.')
-      return
+      toast("Template name is required.");
+      return;
     }
     try {
       await saveTemplate.mutateAsync({
         ...createForm,
         templateId,
         id: templateId,
-      })
-      queryClient.invalidateQueries({ queryKey: ['templates'] })
-      queryClient.invalidateQueries({ queryKey: ['template', templateId] })
-      toast('Template saved.')
-      navigate('/onboarding/templates')
+      });
+      queryClient.invalidateQueries({ queryKey: ["templates"] });
+      queryClient.invalidateQueries({ queryKey: ["template", templateId] });
+      toast("Template saved.");
+      navigate("/onboarding/templates");
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Failed to save template.')
+      toast(e instanceof Error ? e.message : "Failed to save template.");
     }
-  }
+  };
 
-  const updateCreateForm = (updates: Partial<CreateOnboardingTemplatePayload>) => {
-    setCreateForm((prev) => ({ ...prev, ...updates }))
-  }
+  const updateCreateForm = (
+    updates: Partial<CreateOnboardingTemplatePayload>,
+  ) => {
+    setCreateForm((prev) => ({ ...prev, ...updates }));
+  };
 
   const updateChecklist = (index: number, updates: Partial<ChecklistForm>) => {
     setCreateForm((prev) => {
-      const list = [...(prev.checklists ?? [])]
-      list[index] = { ...list[index], ...updates }
-      return { ...prev, checklists: list }
-    })
-  }
+      const list = [...(prev.checklists ?? [])];
+      list[index] = { ...list[index], ...updates };
+      return { ...prev, checklists: list };
+    });
+  };
 
-  const updateTask = (checklistIndex: number, taskIndex: number, updates: Partial<TaskForm>) => {
+  const updateTask = (
+    checklistIndex: number,
+    taskIndex: number,
+    updates: Partial<TaskForm>,
+  ) => {
     setCreateForm((prev) => {
-      const list = [...(prev.checklists ?? [])]
-      const tasks = [...(list[checklistIndex]?.tasks ?? [])]
-      tasks[taskIndex] = { ...tasks[taskIndex], ...updates }
-      list[checklistIndex] = { ...list[checklistIndex], tasks }
-      return { ...prev, checklists: list }
-    })
-  }
+      const list = [...(prev.checklists ?? [])];
+      const tasks = [...(list[checklistIndex]?.tasks ?? [])];
+      tasks[taskIndex] = { ...tasks[taskIndex], ...updates };
+      list[checklistIndex] = { ...list[checklistIndex], tasks };
+      return { ...prev, checklists: list };
+    });
+  };
 
   const addChecklist = () => {
     setCreateForm((prev) => ({
       ...prev,
       checklists: [...(prev.checklists ?? []), emptyChecklist()],
-    }))
-  }
+    }));
+  };
 
   const removeChecklist = (index: number) => {
     setCreateForm((prev) => ({
       ...prev,
       checklists: prev.checklists?.filter((_, i) => i !== index) ?? [],
-    }))
-    setTasksStageIndex((s) => Math.min(s, Math.max(0, (createForm.checklists?.length ?? 1) - 2)))
-  }
+    }));
+    setTasksStageIndex((s) =>
+      Math.min(s, Math.max(0, (createForm.checklists?.length ?? 1) - 2)),
+    );
+  };
 
   const addTask = (checklistIndex: number) => {
     setCreateForm((prev) => {
-      const list = [...(prev.checklists ?? [])]
-      const tasks = [...(list[checklistIndex]?.tasks ?? []), emptyTask()]
-      tasks[tasks.length - 1].sortOrder = tasks.length
-      list[checklistIndex] = { ...list[checklistIndex], tasks }
-      return { ...prev, checklists: list }
-    })
-  }
+      const list = [...(prev.checklists ?? [])];
+      const tasks = [...(list[checklistIndex]?.tasks ?? []), emptyTask()];
+      tasks[tasks.length - 1].sortOrder = tasks.length;
+      list[checklistIndex] = { ...list[checklistIndex], tasks };
+      return { ...prev, checklists: list };
+    });
+  };
 
   const removeTask = (checklistIndex: number, taskIndex: number) => {
     setCreateForm((prev) => {
-      const list = [...(prev.checklists ?? [])]
-      const tasks = (list[checklistIndex]?.tasks ?? []).filter((_, i) => i !== taskIndex)
-      list[checklistIndex] = { ...list[checklistIndex], tasks: tasks.length ? tasks : [emptyTask()] }
-      return { ...prev, checklists: list }
-    })
-  }
+      const list = [...(prev.checklists ?? [])];
+      const tasks = (list[checklistIndex]?.tasks ?? []).filter(
+        (_, i) => i !== taskIndex,
+      );
+      list[checklistIndex] = {
+        ...list[checklistIndex],
+        tasks: tasks.length ? tasks : [emptyTask()],
+      };
+      return { ...prev, checklists: list };
+    });
+  };
 
   const canNext = () => {
-    if (wizardStep === 0) return !!createForm.name?.trim()
-    if (wizardStep === 1) return checklists.length > 0 && checklists.every((c) => c.name?.trim())
-    return true
-  }
+    if (wizardStep === 0) return !!createForm.name?.trim();
+    if (wizardStep === 1)
+      return checklists.length > 0 && checklists.every((c) => c.name?.trim());
+    return true;
+  };
 
-  const totalTasks = checklists.reduce((sum, c) => sum + (c.tasks?.length ?? 0), 0)
+  const totalTasks = checklists.reduce(
+    (sum, c) => sum + (c.tasks?.length ?? 0),
+    0,
+  );
 
   // Edit mode: wait for template data then show wizard
   if (!isCreate && isLoading) {
@@ -242,17 +415,23 @@ function TemplateEditor() {
         <PageHeader title="Edit template" subtitle="Loading…" />
         <Skeleton className="h-64" />
       </div>
-    )
+    );
   }
 
   // Create or Edit flow: same wizard (create vs edit labels/actions)
-  const isEdit = !isCreate && data
+  const isEdit = !isCreate && data;
   if (isCreate || isEdit) {
     return (
       <div className="min-h-screen bg-slate-50/60 pb-28">
         <div className="mx-auto max-w-3xl px-4 pt-6">
           <PageHeader
-            title={isEdit ? 'Edit onboarding template' : duplicateFrom ? 'Duplicate onboarding template' : 'New onboarding template'}
+            title={
+              isEdit
+                ? "Edit onboarding template"
+                : duplicateFrom
+                  ? "Duplicate onboarding template"
+                  : "New onboarding template"
+            }
             subtitle="Set up checklists and tasks in a few steps."
           />
 
@@ -263,8 +442,12 @@ function TemplateEditor() {
             {wizardStep === 0 && (
               <Card className="overflow-hidden p-0 shadow-sm">
                 <div className="border-b border-stroke bg-white/80 px-6 py-4">
-                  <h2 className="text-lg font-semibold text-[#1d1d1f]">Template details</h2>
-                  <p className="text-sm text-muted">Name and describe this onboarding template.</p>
+                  <h2 className="text-lg font-semibold text-[#1d1d1f]">
+                    Template details
+                  </h2>
+                  <p className="text-sm text-muted">
+                    Name and describe this onboarding template.
+                  </p>
                 </div>
                 <div className="space-y-6 p-6">
                   <div>
@@ -272,7 +455,9 @@ function TemplateEditor() {
                     <input
                       type="text"
                       value={createForm.name}
-                      onChange={(e) => updateCreateForm({ name: e.target.value })}
+                      onChange={(e) =>
+                        updateCreateForm({ name: e.target.value })
+                      }
                       placeholder="e.g. Standard Employee Onboarding"
                       className={inputClass}
                       autoFocus
@@ -281,11 +466,13 @@ function TemplateEditor() {
                   <div>
                     <label className={labelClass}>Description</label>
                     <textarea
-                      value={createForm.description ?? ''}
-                      onChange={(e) => updateCreateForm({ description: e.target.value })}
+                      value={createForm.description ?? ""}
+                      onChange={(e) =>
+                        updateCreateForm({ description: e.target.value })
+                      }
                       placeholder="Default onboarding template for new employees"
                       rows={4}
-                      className={inputClass + ' resize-none'}
+                      className={inputClass + " resize-none"}
                     />
                   </div>
                 </div>
@@ -296,16 +483,20 @@ function TemplateEditor() {
             {wizardStep === 1 && (
               <Card className="overflow-hidden p-0 shadow-sm">
                 <div className="border-b border-stroke bg-white/80 px-6 py-4">
-                  <h2 className="text-lg font-semibold text-[#1d1d1f]">Stages (checklists)</h2>
-                  <p className="text-sm text-muted">Add the phases of your onboarding (e.g. Pre-boarding, First day).</p>
+                  <h2 className="text-lg font-semibold text-[#1d1d1f]">
+                    Stages (checklists)
+                  </h2>
+                  <p className="text-sm text-muted">
+                    Add the phases of your onboarding (e.g. Pre-boarding, First
+                    day).
+                  </p>
                 </div>
                 <div className="p-6">
                   <ul className="space-y-4">
                     {checklists.map((c, i) => (
                       <li
                         key={i}
-                        className="flex flex-wrap items-center gap-3 rounded-xl border border-stroke bg-white p-4 shadow-sm"
-                      >
+                        className="flex flex-wrap items-center gap-3 rounded-xl border border-stroke bg-white p-4 shadow-sm">
                         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-muted">
                           {i + 1}
                         </span>
@@ -313,15 +504,18 @@ function TemplateEditor() {
                           <input
                             type="text"
                             value={c.name}
-                            onChange={(e) => updateChecklist(i, { name: e.target.value })}
+                            onChange={(e) =>
+                              updateChecklist(i, { name: e.target.value })
+                            }
                             placeholder="Stage name"
-                            className={inputClass + ' sm:max-w-[200px]'}
+                            className={inputClass + " sm:max-w-[200px]"}
                           />
                           <select
                             value={c.stage}
-                            onChange={(e) => updateChecklist(i, { stage: e.target.value })}
-                            className={inputClass + ' sm:max-w-[180px]'}
-                          >
+                            onChange={(e) =>
+                              updateChecklist(i, { stage: e.target.value })
+                            }
+                            className={inputClass + " sm:max-w-[180px]"}>
                             {STAGE_OPTIONS.map((o) => (
                               <option key={o.value} value={o.value}>
                                 {o.label}
@@ -334,14 +528,17 @@ function TemplateEditor() {
                           variant="ghost"
                           className="shrink-0 text-red-600 hover:bg-red-50"
                           onClick={() => removeChecklist(i)}
-                          disabled={checklists.length <= 1}
-                        >
+                          disabled={checklists.length <= 1}>
                           Remove
                         </Button>
                       </li>
                     ))}
                   </ul>
-                  <Button type="button" variant="secondary" className="mt-4 w-full" onClick={addChecklist}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="mt-4 w-full"
+                    onClick={addChecklist}>
                     + Add stage
                   </Button>
                 </div>
@@ -352,8 +549,13 @@ function TemplateEditor() {
             {wizardStep === 2 && (
               <Card className="overflow-hidden p-0 shadow-sm">
                 <div className="border-b border-stroke bg-white/80 px-6 py-4">
-                  <h2 className="text-lg font-semibold text-[#1d1d1f]">Tasks</h2>
-                  <p className="text-sm text-muted">Define tasks for each stage. Select a stage, then add or edit tasks.</p>
+                  <h2 className="text-lg font-semibold text-[#1d1d1f]">
+                    Tasks
+                  </h2>
+                  <p className="text-sm text-muted">
+                    Define tasks for each stage. Select a stage, then add or
+                    edit tasks.
+                  </p>
                 </div>
                 <div className="p-6">
                   {/* Stage tabs */}
@@ -365,10 +567,9 @@ function TemplateEditor() {
                         onClick={() => setTasksStageIndex(i)}
                         className={`rounded-lg border px-4 py-2 text-sm font-medium transition ${
                           i === tasksStageIndex
-                            ? 'border-[#0071e3] bg-[#0071e3] text-white'
-                            : 'border-stroke bg-white text-muted hover:bg-slate-50'
-                        }`}
-                      >
+                            ? "border-[#0071e3] bg-[#0071e3] text-white"
+                            : "border-stroke bg-white text-muted hover:bg-slate-50"
+                        }`}>
                         {c.name || `Stage ${i + 1}`}
                       </button>
                     ))}
@@ -378,9 +579,15 @@ function TemplateEditor() {
                     <>
                       <div className="mb-4 flex items-center justify-between">
                         <h3 className="text-base font-semibold text-[#1d1d1f]">
-                          Tasks for “{activeChecklist.name || `Stage ${tasksStageIndex + 1}`}”
+                          Tasks for “
+                          {activeChecklist.name ||
+                            `Stage ${tasksStageIndex + 1}`}
+                          ”
                         </h3>
-                        <Button type="button" variant="secondary" onClick={() => addTask(tasksStageIndex)}>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => addTask(tasksStageIndex)}>
                           + Add task
                         </Button>
                       </div>
@@ -388,27 +595,33 @@ function TemplateEditor() {
                         {(activeChecklist.tasks ?? []).map((task, ti) => (
                           <li
                             key={ti}
-                            className="rounded-xl border border-stroke bg-white p-4 shadow-sm"
-                          >
+                            className="rounded-xl border border-stroke bg-white p-4 shadow-sm">
                             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                               <div className="sm:col-span-2">
                                 <label className={labelClass}>Title</label>
                                 <input
                                   type="text"
                                   value={task.title}
-                                  onChange={(e) => updateTask(tasksStageIndex, ti, { title: e.target.value })}
+                                  onChange={(e) =>
+                                    updateTask(tasksStageIndex, ti, {
+                                      title: e.target.value,
+                                    })
+                                  }
                                   placeholder="Task title"
                                   className={inputClass}
                                 />
                               </div>
                               <div>
-                                <label className={labelClass}>Due (days from start)</label>
+                                <label className={labelClass}>
+                                  Due (days from start)
+                                </label>
                                 <input
                                   type="number"
                                   value={task.dueDaysOffset}
                                   onChange={(e) =>
                                     updateTask(tasksStageIndex, ti, {
-                                      dueDaysOffset: parseInt(e.target.value, 10) || 0,
+                                      dueDaysOffset:
+                                        parseInt(e.target.value, 10) || 0,
                                     })
                                   }
                                   className={inputClass}
@@ -420,7 +633,9 @@ function TemplateEditor() {
                                     type="checkbox"
                                     checked={task.requireAck}
                                     onChange={(e) =>
-                                      updateTask(tasksStageIndex, ti, { requireAck: e.target.checked })
+                                      updateTask(tasksStageIndex, ti, {
+                                        requireAck: e.target.checked,
+                                      })
                                     }
                                     className="h-4 w-4 rounded border-stroke"
                                   />
@@ -430,20 +645,25 @@ function TemplateEditor() {
                                   type="button"
                                   variant="ghost"
                                   className="text-red-600"
-                                  onClick={() => removeTask(tasksStageIndex, ti)}
-                                >
+                                  onClick={() =>
+                                    removeTask(tasksStageIndex, ti)
+                                  }>
                                   Remove
                                 </Button>
                               </div>
                             </div>
                             <div className="mt-4 grid gap-4 sm:grid-cols-2">
                               <div>
-                                <label className={labelClass}>Description (optional)</label>
+                                <label className={labelClass}>
+                                  Description (optional)
+                                </label>
                                 <input
                                   type="text"
-                                  value={task.description ?? ''}
+                                  value={task.description ?? ""}
                                   onChange={(e) =>
-                                    updateTask(tasksStageIndex, ti, { description: e.target.value })
+                                    updateTask(tasksStageIndex, ti, {
+                                      description: e.target.value,
+                                    })
                                   }
                                   placeholder="Short description"
                                   className={inputClass}
@@ -451,14 +671,17 @@ function TemplateEditor() {
                               </div>
                               <div className="flex gap-2">
                                 <div className="flex-1">
-                                  <label className={labelClass}>Owner type</label>
+                                  <label className={labelClass}>
+                                    Owner type
+                                  </label>
                                   <select
                                     value={task.ownerType}
                                     onChange={(e) =>
-                                      updateTask(tasksStageIndex, ti, { ownerType: e.target.value })
+                                      updateTask(tasksStageIndex, ti, {
+                                        ownerType: e.target.value,
+                                      })
                                     }
-                                    className={inputClass}
-                                  >
+                                    className={inputClass}>
                                     {OWNER_TYPE_OPTIONS.map((o) => (
                                       <option key={o.value} value={o.value}>
                                         {o.label}
@@ -468,14 +691,15 @@ function TemplateEditor() {
                                 </div>
                                 <div className="flex-1">
                                   <label className={labelClass}>Owner</label>
-                                  {task.ownerType === 'ROLE' ? (
+                                  {task.ownerType === "ROLE" ? (
                                     <select
                                       value={task.ownerRefId}
                                       onChange={(e) =>
-                                        updateTask(tasksStageIndex, ti, { ownerRefId: e.target.value })
+                                        updateTask(tasksStageIndex, ti, {
+                                          ownerRefId: e.target.value,
+                                        })
                                       }
-                                      className={inputClass}
-                                    >
+                                      className={inputClass}>
                                       {ROLE_REF_OPTIONS.map((r) => (
                                         <option key={r} value={r}>
                                           {ROLE_LABELS[r] ?? r}
@@ -487,7 +711,9 @@ function TemplateEditor() {
                                       type="text"
                                       value={task.ownerRefId}
                                       onChange={(e) =>
-                                        updateTask(tasksStageIndex, ti, { ownerRefId: e.target.value })
+                                        updateTask(tasksStageIndex, ti, {
+                                          ownerRefId: e.target.value,
+                                        })
                                       }
                                       placeholder="Dept code (e.g. IT)"
                                       className={inputClass}
@@ -509,15 +735,25 @@ function TemplateEditor() {
             {wizardStep === 3 && (
               <Card className="overflow-hidden p-0 shadow-sm">
                 <div className="border-b border-stroke bg-white/80 px-6 py-4">
-                  <h2 className="text-lg font-semibold text-[#1d1d1f]">Review</h2>
-                  <p className="text-sm text-muted">Check the template before creating.</p>
+                  <h2 className="text-lg font-semibold text-[#1d1d1f]">
+                    Review
+                  </h2>
+                  <p className="text-sm text-muted">
+                    Check the template before creating.
+                  </p>
                 </div>
                 <div className="space-y-6 p-6">
                   <div className="rounded-xl border border-stroke bg-slate-50/50 p-4">
-                    <h3 className="text-sm font-semibold text-muted">Template</h3>
-                    <p className="mt-1 font-medium text-[#1d1d1f]">{createForm.name || '—'}</p>
+                    <h3 className="text-sm font-semibold text-muted">
+                      Template
+                    </h3>
+                    <p className="mt-1 font-medium text-[#1d1d1f]">
+                      {createForm.name || "—"}
+                    </p>
                     {createForm.description && (
-                      <p className="mt-1 text-sm text-muted">{createForm.description}</p>
+                      <p className="mt-1 text-sm text-muted">
+                        {createForm.description}
+                      </p>
                     )}
                   </div>
                   <div>
@@ -526,19 +762,25 @@ function TemplateEditor() {
                     </h3>
                     <ul className="space-y-3">
                       {checklists.map((c, i) => (
-                        <li key={i} className="rounded-lg border border-stroke bg-white p-4">
+                        <li
+                          key={i}
+                          className="rounded-lg border border-stroke bg-white p-4">
                           <div className="flex items-center gap-2">
                             <span className="rounded bg-slate-200 px-2 py-0.5 text-xs font-medium text-muted">
-                              {STAGE_OPTIONS.find((o) => o.value === c.stage)?.label ?? c.stage}
+                              {STAGE_OPTIONS.find((o) => o.value === c.stage)
+                                ?.label ?? c.stage}
                             </span>
-                            <span className="font-medium">{c.name || `Stage ${i + 1}`}</span>
+                            <span className="font-medium">
+                              {c.name || `Stage ${i + 1}`}
+                            </span>
                           </div>
                           <ul className="mt-2 ml-4 list-disc space-y-1 text-sm text-muted">
                             {(c.tasks ?? []).map((t, j) => (
                               <li key={j}>
-                                {t.title || 'Untitled task'} — due {t.dueDaysOffset} day(s), owner{' '}
-                                {t.ownerType}: {t.ownerRefId}
-                                {t.requireAck && ' · ack required'}
+                                {t.title || "Untitled task"} — due{" "}
+                                {t.dueDaysOffset} day(s), owner {t.ownerType}:{" "}
+                                {t.ownerRefId}
+                                {t.requireAck && " · ack required"}
                               </li>
                             ))}
                           </ul>
@@ -557,11 +799,15 @@ function TemplateEditor() {
           <div className="mx-auto flex max-w-3xl items-center justify-between px-4">
             <div className="flex gap-2">
               {wizardStep > 0 ? (
-                <Button variant="secondary" onClick={() => setWizardStep((s) => s - 1)}>
+                <Button
+                  variant="secondary"
+                  onClick={() => setWizardStep((s) => s - 1)}>
                   Back
                 </Button>
               ) : (
-                <Button variant="secondary" onClick={() => navigate('/onboarding/templates')}>
+                <Button
+                  variant="secondary"
+                  onClick={() => navigate("/onboarding/templates")}>
                   Cancel
                 </Button>
               )}
@@ -571,32 +817,30 @@ function TemplateEditor() {
                 <Button
                   variant="primary"
                   onClick={() => setWizardStep((s) => s + 1)}
-                  disabled={!canNext()}
-                >
+                  disabled={!canNext()}>
                   Next
                 </Button>
               ) : (
                 <Button
                   onClick={isEdit ? handleSaveEdit : handleSaveCreate}
-                  disabled={saveTemplate.isPending || !createForm.name?.trim()}
-                >
+                  disabled={saveTemplate.isPending || !createForm.name?.trim()}>
                   {saveTemplate.isPending
                     ? isEdit
-                      ? 'Saving…'
-                      : 'Creating…'
+                      ? "Saving…"
+                      : "Creating…"
                     : isEdit
-                      ? 'Save changes'
-                      : 'Create template'}
+                      ? "Save changes"
+                      : "Create template"}
                 </Button>
               )}
             </div>
           </div>
         </div>
       </div>
-    )
+    );
   }
 
-  return null
+  return null;
 }
 
-export default TemplateEditor
+export default TemplateEditor;
