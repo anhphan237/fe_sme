@@ -1,32 +1,30 @@
-import { type ReactNode, useMemo } from 'react'
-import { loadStripe } from '@stripe/stripe-js'
-import { Elements } from '@stripe/react-stripe-js'
-
-const STRIPE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string
+import { type ReactNode } from "react";
+import { Elements } from "@stripe/react-stripe-js";
+import { stripePromise } from "@/lib/stripe";
 
 interface StripeProviderProps {
-  clientSecret: string
-  children: ReactNode
+  clientSecret: string;
+  children: ReactNode;
 }
 
-export function StripeProvider({ clientSecret, children }: StripeProviderProps) {
-  const stripePromise = useMemo(() => loadStripe(STRIPE_KEY), [])
-
+export function StripeProvider({
+  clientSecret,
+  children,
+}: StripeProviderProps) {
   return (
     <Elements
       stripe={stripePromise}
       options={{
         clientSecret,
         appearance: {
-          theme: 'stripe',
+          theme: "stripe",
           variables: {
-            borderRadius: '12px',
-            fontFamily: 'Inter, system-ui, sans-serif',
+            borderRadius: "12px",
+            fontFamily: "Inter, system-ui, sans-serif",
           },
         },
-      }}
-    >
+      }}>
       {children}
     </Elements>
-  )
+  );
 }

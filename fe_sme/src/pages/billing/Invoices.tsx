@@ -19,6 +19,7 @@ const useInvoicesQuery = () =>
     queryFn: () => apiGetInvoices(),
     select: (res: any) =>
       extractList(res, "invoices", "items").map(mapInvoice) as Invoice[],
+    refetchOnMount: "always",
   });
 const useInvoiceQuery = (invoiceId?: string) =>
   useQuery({

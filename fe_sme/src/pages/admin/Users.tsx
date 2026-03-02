@@ -33,24 +33,33 @@ const useUserDetailQuery = (userId: string | undefined) =>
     enabled: Boolean(userId),
     select: (res: any) => mapUserDetail(res),
   });
+function generateTempPassword(): string {
+  const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#";
+  return Array.from(
+    { length: 12 },
+    () => chars[Math.floor(Math.random() * chars.length)],
+  ).join("");
+}
+
 const useInviteUser = () =>
   useMutation({
     mutationFn: (payload: {
       email: string;
-      name?: string;
-      password?: string;
+      name: string;
+      password: string;
       phone?: string;
-      roleCode?: string;
-      roles?: string[];
-      department?: string;
-      manager?: string;
+      roleCode: string;
+      departmentId?: string;
+      managerUserId?: string;
     }) =>
       apiCreateUser({
         email: payload.email,
-        fullName: payload.name ?? "Invited User",
-        password: payload.password ?? "changeme",
+        fullName: payload.name,
+        password: payload.password,
         phone: payload.phone,
-        roleCode: payload.roleCode ?? "EMPLOYEE",
+        roleCode: payload.roleCode,
+        departmentId: payload.departmentId,
+        managerUserId: payload.managerUserId,
       }),
   });
 import { ROLE_LABELS } from "../../shared/rbac";
@@ -233,21 +242,45 @@ function AdminUsers() {
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
   const [form, setForm] = useState({
     email: "",
-    department: "HR",
+    name: "",
+    roleCode: "EMPLOYEE",
+    department: "",
     manager: "",
+    tempPassword: generateTempPassword(),
   });
+  const [showTempPassword, setShowTempPassword] = useState(false);
+  const [copied, setCopied] = useState(false);
   const { data: userDetail, isLoading: detailLoading } = useUserDetailQuery(
     detailUserId ?? undefined,
   );
 
+  const handleOpenInvite = () => {
+    setForm((prev) => ({ ...prev, tempPassword: generateTempPassword() }));
+    setShowTempPassword(false);
+    setCopied(false);
+    setOpen(true);
+  };
+
+  const handleCopyPassword = () => {
+    navigator.clipboard.writeText(form.tempPassword).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
   const handleInvite = async () => {
+    if (!form.email || !form.name) {
+      toast("Email and full name are required.");
+      return;
+    }
     await inviteUser.mutateAsync({
       email: form.email,
-      roles: ["EMPLOYEE"],
-      department: form.department,
-      manager: form.manager,
+      name: form.name,
+      password: form.tempPassword,
+      roleCode: form.roleCode,
+      managerUserId: form.manager || undefined,
     });
-    toast("Invite sent.");
+    toast(`User ${form.email} created. Share the temporary password securely.`);
     setOpen(false);
   };
 
@@ -257,7 +290,7 @@ function AdminUsers() {
         title="Users"
         subtitle="Invite and manage access across tenants."
         actionLabel="Invite User"
-        onAction={() => setOpen(true)}
+        onAction={handleOpenInvite}
       />
 
       <Card>
@@ -408,40 +441,112 @@ function AdminUsers() {
       </Modal>
 
       <Modal open={open} title="Invite user" onClose={() => setOpen(false)}>
-        <div className="grid gap-3">
+        <div className="grid gap-4">
+          {/* Email */}
           <label className="grid gap-1 text-sm">
-            Email
+            <span className="font-medium">
+              Email <span className="text-red-500">*</span>
+            </span>
             <input
-              className="rounded-2xl border border-stroke px-4 py-2"
+              type="email"
+              placeholder="employee@company.com"
+              className="rounded-2xl border border-stroke px-4 py-2 text-sm focus:border-slate-900 focus:outline-none"
               value={form.email}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, email: event.target.value }))
+              onChange={(e) =>
+                setForm((p) => ({ ...p, email: e.target.value }))
               }
             />
           </label>
+
+          {/* Full name */}
           <label className="grid gap-1 text-sm">
-            Department
+            <span className="font-medium">
+              Full name <span className="text-red-500">*</span>
+            </span>
+            <input
+              placeholder="Nguyen Van A"
+              className="rounded-2xl border border-stroke px-4 py-2 text-sm focus:border-slate-900 focus:outline-none"
+              value={form.name}
+              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+            />
+          </label>
+
+          {/* Role */}
+          <label className="grid gap-1 text-sm">
+            <span className="font-medium">Role</span>
             <select
-              className="rounded-2xl border border-stroke px-4 py-2"
-              value={form.department}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, department: event.target.value }))
+              className="rounded-2xl border border-stroke px-4 py-2 text-sm focus:border-slate-900 focus:outline-none"
+              value={form.roleCode}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, roleCode: e.target.value }))
               }>
-              <option>HR</option>
-              <option>Engineering</option>
+              <option value="EMPLOYEE">Employee</option>
+              <option value="HR">HR</option>
+              <option value="MANAGER">Manager</option>
+              <option value="IT">IT</option>
+              <option value="ADMIN">Admin</option>
             </select>
           </label>
+
+          {/* Manager (optional) */}
           <label className="grid gap-1 text-sm">
-            Manager (optional)
+            <span className="font-medium">Manager user ID (optional)</span>
             <input
-              className="rounded-2xl border border-stroke px-4 py-2"
+              placeholder="Manager's user ID"
+              className="rounded-2xl border border-stroke px-4 py-2 text-sm focus:border-slate-900 focus:outline-none"
               value={form.manager}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, manager: event.target.value }))
+              onChange={(e) =>
+                setForm((p) => ({ ...p, manager: e.target.value }))
               }
             />
           </label>
-          <Button onClick={handleInvite}>Send invite</Button>
+
+          {/* Temp password */}
+          <div className="grid gap-1 text-sm">
+            <span className="font-medium">Temporary password</span>
+            <div className="flex items-center gap-2">
+              <input
+                type={showTempPassword ? "text" : "password"}
+                readOnly
+                className="flex-1 rounded-2xl border border-stroke bg-slate-50 px-4 py-2 font-mono text-sm"
+                value={form.tempPassword}
+              />
+              <button
+                type="button"
+                className="rounded-xl border border-stroke px-3 py-2 text-xs font-medium text-muted hover:bg-slate-50"
+                onClick={() => setShowTempPassword((v) => !v)}>
+                {showTempPassword ? "Hide" : "Show"}
+              </button>
+              <button
+                type="button"
+                className="rounded-xl border border-stroke px-3 py-2 text-xs font-medium text-muted hover:bg-slate-50"
+                onClick={handleCopyPassword}>
+                {copied ? "Copied!" : "Copy"}
+              </button>
+              <button
+                type="button"
+                className="rounded-xl border border-stroke px-3 py-2 text-xs font-medium text-muted hover:bg-slate-50"
+                onClick={() =>
+                  setForm((p) => ({
+                    ...p,
+                    tempPassword: generateTempPassword(),
+                  }))
+                }>
+                Regen
+              </button>
+            </div>
+            <p className="text-xs text-muted">
+              Share this password securely with the new user — they should
+              change it on first login.
+            </p>
+          </div>
+
+          <Button
+            className="mt-1"
+            onClick={handleInvite}
+            disabled={inviteUser.isPending}>
+            {inviteUser.isPending ? "Creating..." : "Create user"}
+          </Button>
         </div>
       </Modal>
     </div>
