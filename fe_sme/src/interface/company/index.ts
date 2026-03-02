@@ -42,6 +42,7 @@ export interface CompanyRegisterRequest {
     fullName: string;
     phone?: string;
   };
+  planCode: string;
 }
 
 /** com.sme.company.register → response data */

@@ -396,8 +396,10 @@
   "register.step1.subtitle": "Basic information about your company.",
   "register.step2.title": "Create your account",
   "register.step2.subtitle": "Set up your admin profile and password.",
-  "register.step3.title": "Review & confirm",
-  "register.step3.subtitle": "Everything looks good? Let's go!",
+  "register.step3.title": "Choose your plan",
+  "register.step3.subtitle": "Select a plan that fits your business needs. You will be redirected to payment.",
+  "register.step4.title": "Review & confirm",
+  "register.step4.subtitle": "Everything looks good? Complete your workspace setup.",
 
   "register.step1.label": "Email",
   "register.step1.desc": "Your admin account",
@@ -405,8 +407,10 @@
   "register.step2.desc": "Business information",
   "register.step3.label": "Admin",
   "register.step3.desc": "Account credentials",
-  "register.step4.label": "Confirm",
-  "register.step4.desc": "Review & create",
+  "register.step4.label": "Plan",
+  "register.step4.desc": "Select your plan",
+  "register.step5.label": "Confirm",
+  "register.step5.desc": "Review & pay",
 
   "register.panel.heading": "Set up your workspace",
   "register.panel.heading_highlight": "in minutes",
@@ -453,11 +457,21 @@
 
   "register.btn.back": "Back",
   "register.btn.continue": "Continue",
-  "register.btn.create": "Create workspace",
+  "register.btn.create": "Create Workspace & Pay",
   "register.btn.creating": "Creating your workspace…",
+  "register.btn.registering": "Registering your company…",
   "register.btn.edit_details": "Edit details",
 
   "register.error.failed": "Registration failed. Please try again.",
+
+  "register.plan.none_selected": "Please select a plan to continue",
+  "register.plan.recommended": "Recommended",
+  "register.plan.selected": "Selected",
+  "register.plan.select": "Select {name}",
+  "register.plan.loading": "Loading plans…",
+  "register.plan.empty": "No plans available at the moment.",
+  "register.plan.per_month": "/month",
+  "register.plan.free": "Free",
 
   "register.zod.email_required": "Valid email is required",
   "register.zod.company_name_required": "Company name is required",

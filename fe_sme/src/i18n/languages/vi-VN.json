@@ -407,8 +407,10 @@
   "register.step1.subtitle": "Thông tin cơ bản về doanh nghiệp của bạn.",
   "register.step2.title": "Tạo tài khoản admin",
   "register.step2.subtitle": "Thiết lập hồ sơ và mật khẩu admin.",
-  "register.step3.title": "Xác nhận thông tin",
-  "register.step3.subtitle": "Mọi thứ đã ổn? Bắt đầu thôi!",
+  "register.step3.title": "Chọn gói dịch vụ",
+  "register.step3.subtitle": "Chọn gói phù hợp với nhu cầu doanh nghiệp. Bạn sẽ được chuyển đến trang thanh toán.",
+  "register.step4.title": "Xác nhận thông tin",
+  "register.step4.subtitle": "Mọi thứ đã ổn? Hoàn tất thiết lập workspace.",
 
   "register.step1.label": "Email",
   "register.step1.desc": "Tài khoản admin",
@@ -416,8 +418,10 @@
   "register.step2.desc": "Thông tin doanh nghiệp",
   "register.step3.label": "Admin",
   "register.step3.desc": "Thông tin đăng nhập",
-  "register.step4.label": "Xác nhận",
-  "register.step4.desc": "Kiểm tra & tạo",
+  "register.step4.label": "Gói dịch vụ",
+  "register.step4.desc": "Chọn gói của bạn",
+  "register.step5.label": "Xác nhận",
+  "register.step5.desc": "Kiểm tra & thanh toán",
 
   "register.panel.heading": "Thiết lập workspace của bạn",
   "register.panel.heading_highlight": "chỉ trong vài phút",
@@ -464,11 +468,21 @@
 
   "register.btn.back": "Quay lại",
   "register.btn.continue": "Tiếp tục",
-  "register.btn.create": "Tạo workspace",
+  "register.btn.create": "Tạo Workspace & Thanh toán",
   "register.btn.creating": "Đang tạo workspace…",
+  "register.btn.registering": "Đang đăng ký doanh nghiệp…",
   "register.btn.edit_details": "Chỉnh sửa thông tin",
 
   "register.error.failed": "Đăng ký thất bại. Vui lòng thử lại.",
+
+  "register.plan.none_selected": "Vui lòng chọn một gói để tiếp tục",
+  "register.plan.recommended": "Được đề xuất",
+  "register.plan.selected": "Đã chọn",
+  "register.plan.select": "Chọn {name}",
+  "register.plan.loading": "Đang tải gói dịch vụ…",
+  "register.plan.empty": "Hiện không có gói dịch vụ nào.",
+  "register.plan.per_month": "/tháng",
+  "register.plan.free": "Miễn phí",
 
   "register.zod.email_required": "Email hợp lệ là bắt buộc",
   "register.zod.company_name_required": "Tên công ty là bắt buộc",
