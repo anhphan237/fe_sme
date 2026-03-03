@@ -278,6 +278,7 @@ function AdminUsers() {
       name: form.name,
       password: form.tempPassword,
       roleCode: form.roleCode,
+      departmentId: form.department || undefined,
       managerUserId: form.manager || undefined,
     });
     toast(`User ${form.email} created. Share the temporary password securely.`);
@@ -486,6 +487,19 @@ function AdminUsers() {
               <option value="IT">IT</option>
               <option value="ADMIN">Admin</option>
             </select>
+          </label>
+
+          {/* Manager (optional) */}
+          <label className="grid gap-1 text-sm">
+            <span className="font-medium">Department ID (optional)</span>
+            <input
+              placeholder="dept-uuid"
+              className="rounded-2xl border border-stroke px-4 py-2 text-sm focus:border-slate-900 focus:outline-none"
+              value={form.department}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, department: e.target.value }))
+              }
+            />
           </label>
 
           {/* Manager (optional) */}
