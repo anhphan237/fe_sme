@@ -6,6 +6,8 @@ import {
   financeSnapshots,
   invoices,
   knowledgeBase,
+  paymentProviders,
+  paymentTransactions,
   plans,
   roles,
   surveyInstances,
@@ -107,7 +109,7 @@ export const handlers = [
     if (auth instanceof HttpResponse) {
       return auth
     }
-    if (hasAnyRole(auth.roles, ['PLATFORM_ADMIN', 'PLATFORM_MANAGER'])) {
+    if (hasAnyRole(auth.roles, ['ADMIN'])) {
       return HttpResponse.json(tenants)
     }
     const companyId = requireCompany(auth)
@@ -117,7 +119,7 @@ export const handlers = [
     return HttpResponse.json(tenants.filter((tenant) => tenant.id === companyId))
   }),
   http.patch('/api/tenants/:id', async ({ params, request }) => {
-    const auth = authorize(request, ['PLATFORM_ADMIN'])
+    const auth = authorize(request, ['ADMIN'])
     if (auth instanceof HttpResponse) {
       return auth
     }
@@ -130,7 +132,7 @@ export const handlers = [
   }),
 
   http.get('/api/users', ({ request }) => {
-    const auth = authorize(request, ['COMPANY_ADMIN', 'HR', 'MANAGER'])
+    const auth = authorize(request, ['HR', 'IT', 'MANAGER'])
     if (auth instanceof HttpResponse) {
       return auth
     }
@@ -141,7 +143,7 @@ export const handlers = [
     return HttpResponse.json(filterByCompany(users, companyId))
   }),
   http.post('/api/users/invite', async ({ request }) => {
-    const auth = authorize(request, ['COMPANY_ADMIN'])
+    const auth = authorize(request, ['HR'])
     if (auth instanceof HttpResponse) {
       return auth
     }
@@ -164,7 +166,7 @@ export const handlers = [
     return HttpResponse.json(next)
   }),
   http.patch('/api/users/:id', async ({ params, request }) => {
-    const auth = authorize(request, ['COMPANY_ADMIN'])
+    const auth = authorize(request, ['HR'])
     if (auth instanceof HttpResponse) {
       return auth
     }
@@ -185,14 +187,14 @@ export const handlers = [
   }),
 
   http.get('/api/roles', ({ request }) => {
-    const auth = authorize(request, ['COMPANY_ADMIN'])
+    const auth = authorize(request, ['HR'])
     if (auth instanceof HttpResponse) {
       return auth
     }
-    return HttpResponse.json(roles.filter((role) => !role.name.startsWith('PLATFORM_')))
+    return HttpResponse.json(roles.filter((role) => role.name !== 'ADMIN' && role.name !== 'STAFF'))
   }),
   http.patch('/api/roles/:id', async ({ params, request }) => {
-    const auth = authorize(request, ['COMPANY_ADMIN'])
+    const auth = authorize(request, ['HR'])
     if (auth instanceof HttpResponse) {
       return auth
     }
@@ -649,35 +651,35 @@ export const handlers = [
   }),
 
   http.get('/api/plans', ({ request }) => {
-    const auth = authorize(request, ['COMPANY_ADMIN'])
+    const auth = authorize(request, ['HR'])
     if (auth instanceof HttpResponse) {
       return auth
     }
     return HttpResponse.json(plans)
   }),
   http.get('/api/subscription', ({ request }) => {
-    const auth = authorize(request, ['COMPANY_ADMIN'])
+    const auth = authorize(request, ['HR'])
     if (auth instanceof HttpResponse) {
       return auth
     }
     return HttpResponse.json({ planId: 'plan-pro' })
   }),
   http.patch('/api/subscription', ({ request }) => {
-    const auth = authorize(request, ['COMPANY_ADMIN'])
+    const auth = authorize(request, ['HR'])
     if (auth instanceof HttpResponse) {
       return auth
     }
     return HttpResponse.json({ ok: true })
   }),
   http.get('/api/usage', ({ request }) => {
-    const auth = authorize(request, ['COMPANY_ADMIN'])
+    const auth = authorize(request, ['HR'])
     if (auth instanceof HttpResponse) {
       return auth
     }
     return HttpResponse.json(usage)
   }),
   http.get('/api/invoices', ({ request }) => {
-    const auth = authorize(request, ['COMPANY_ADMIN'])
+    const auth = authorize(request, ['HR'])
     if (auth instanceof HttpResponse) {
       return auth
     }
@@ -688,22 +690,69 @@ export const handlers = [
     return HttpResponse.json(filterByCompany(invoices, companyId))
   }),
   http.post('/api/payment/connect', ({ request }) => {
-    const auth = authorize(request, ['COMPANY_ADMIN'])
+    const auth = authorize(request, ['HR'])
     if (auth instanceof HttpResponse) {
       return auth
     }
     return HttpResponse.json({ ok: true })
   }),
+  http.get('/api/payment/providers', ({ request }) => {
+    const auth = authorize(request, ['HR'])
+    if (auth instanceof HttpResponse) {
+      return auth
+    }
+    return HttpResponse.json(paymentProviders)
+  }),
+  http.post('/api/payment/create-intent', async ({ request }) => {
+    const auth = authorize(request, ['HR'])
+    if (auth instanceof HttpResponse) {
+      return auth
+    }
+    const body = (await request.json()) as { invoiceId: string }
+    const invoice = invoices.find((inv) => inv.id === body.invoiceId)
+    const amount = invoice
+      ? parseFloat(invoice.amount.replace(/[^0-9.]/g, '')) * 100
+      : 12900
+    return HttpResponse.json({
+      id: `pi_mock_${Date.now()}`,
+      clientSecret: `pi_mock_${Date.now()}_secret_mock`,
+      amount,
+      currency: 'usd',
+      status: 'requires_payment_method',
+      invoiceId: body.invoiceId,
+    })
+  }),
+  http.get('/api/payment/status/:id', ({ params, request }) => {
+    const auth = authorize(request, ['HR'])
+    if (auth instanceof HttpResponse) {
+      return auth
+    }
+    return HttpResponse.json({
+      id: params.id,
+      clientSecret: '',
+      amount: 12900,
+      currency: 'usd',
+      status: 'succeeded',
+      invoiceId: 'INV-2025-102',
+    })
+  }),
+  http.get('/api/payment/transactions', ({ request }) => {
+    const auth = authorize(request, ['STAFF', 'ADMIN'])
+    if (auth instanceof HttpResponse) {
+      return auth
+    }
+    return HttpResponse.json(paymentTransactions)
+  }),
 
   http.get('/api/sa/tenants', ({ request }) => {
-    const auth = authorize(request, ['PLATFORM_ADMIN', 'PLATFORM_MANAGER'])
+    const auth = authorize(request, ['ADMIN'])
     if (auth instanceof HttpResponse) {
       return auth
     }
     return HttpResponse.json(tenants)
   }),
   http.get('/api/sa/finance', ({ request }) => {
-    const auth = authorize(request, ['PLATFORM_ADMIN', 'PLATFORM_MANAGER'])
+    const auth = authorize(request, ['ADMIN'])
     if (auth instanceof HttpResponse) {
       return auth
     }

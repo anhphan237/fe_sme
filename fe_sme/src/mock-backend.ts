@@ -112,7 +112,7 @@ const handleAuthMe = async () => {
 
 const handleTenants = async () => {
   const payload = authorize()
-  if (hasAnyRole(payload.roles, ['PLATFORM_ADMIN', 'PLATFORM_MANAGER'])) {
+  if (hasAnyRole(payload.roles, ['ADMIN'])) {
     return tenants
   }
   const companyId = requireCompany(payload.company_id)
@@ -120,7 +120,7 @@ const handleTenants = async () => {
 }
 
 const handleTenantPatch = async (id: string, body: Partial<Tenant>) => {
-  authorize(['PLATFORM_ADMIN'])
+  authorize(['ADMIN'])
   const index = tenants.findIndex((tenant) => tenant.id === id)
   if (index >= 0) {
     tenants[index] = { ...tenants[index], ...body }
@@ -129,13 +129,13 @@ const handleTenantPatch = async (id: string, body: Partial<Tenant>) => {
 }
 
 const handleUsers = async () => {
-  const payload = authorize(['COMPANY_ADMIN', 'HR', 'MANAGER'])
+  const payload = authorize(['HR', 'IT', 'MANAGER'])
   const companyId = requireCompany(payload.company_id)
   return filterByCompany(users, companyId)
 }
 
 const handleUserInvite = async (body: Partial<User>) => {
-  const payload = authorize(['COMPANY_ADMIN'])
+  const payload = authorize(['HR'])
   const companyId = requireCompany(payload.company_id)
   const next: User = {
     id: `user-${users.length + 1}`,
@@ -152,7 +152,7 @@ const handleUserInvite = async (body: Partial<User>) => {
 }
 
 const handleUserPatch = async (id: string, body: Partial<User>) => {
-  const payload = authorize(['COMPANY_ADMIN'])
+  const payload = authorize(['HR'])
   const companyId = requireCompany(payload.company_id)
   const index = users.findIndex((user) => user.id === id)
   if (index >= 0) {
@@ -166,12 +166,12 @@ const handleUserPatch = async (id: string, body: Partial<User>) => {
 }
 
 const handleRoles = async () => {
-  authorize(['COMPANY_ADMIN'])
-  return roles.filter((role) => !role.name.startsWith('PLATFORM_'))
+  authorize(['HR'])
+  return roles.filter((role) => role.name !== 'ADMIN' && role.name !== 'STAFF')
 }
 
 const handleRolePatch = async (id: string, body: Partial<RoleDefinition>) => {
-  authorize(['COMPANY_ADMIN'])
+  authorize(['HR'])
   const index = roles.findIndex((role) => role.id === id)
   if (index >= 0) {
     roles[index] = { ...roles[index], ...body }
@@ -180,7 +180,7 @@ const handleRolePatch = async (id: string, body: Partial<RoleDefinition>) => {
 }
 
 const handleDepartments = async () => {
-  const payload = authorize(['COMPANY_ADMIN', 'HR', 'MANAGER', 'EMPLOYEE'])
+  const payload = authorize(['HR', 'IT', 'MANAGER', 'EMPLOYEE'])
   const companyId = requireCompany(payload.company_id)
   return filterByCompany(departments, companyId)
 }
@@ -516,44 +516,44 @@ const handleChatbotConversations = async () => {
 }
 
 const handlePlans = async () => {
-  authorize(['COMPANY_ADMIN'])
+  authorize(['HR'])
   return plans
 }
 
 const handleSubscription = async () => {
-  authorize(['COMPANY_ADMIN'])
+  authorize(['HR'])
   const current = plans.find((plan) => plan.current)
   return { planId: current?.id ?? plans[0]?.id ?? '' }
 }
 
 const handleSubscriptionPatch = async () => {
-  authorize(['COMPANY_ADMIN'])
+  authorize(['HR'])
   return { ok: true }
 }
 
 const handleUsage = async () => {
-  authorize(['COMPANY_ADMIN'])
+  authorize(['HR'])
   return usage
 }
 
 const handleInvoices = async () => {
-  const payload = authorize(['COMPANY_ADMIN'])
+  const payload = authorize(['HR'])
   const companyId = requireCompany(payload.company_id)
   return filterByCompany(invoices, companyId)
 }
 
 const handlePaymentConnect = async () => {
-  authorize(['COMPANY_ADMIN'])
+  authorize(['HR'])
   return { ok: true }
 }
 
 const handleSaTenants = async () => {
-  authorize(['PLATFORM_ADMIN', 'PLATFORM_MANAGER'])
+  authorize(['ADMIN'])
   return tenants
 }
 
 const handleSaFinance = async () => {
-  authorize(['PLATFORM_ADMIN', 'PLATFORM_MANAGER'])
+  authorize(['ADMIN'])
   return financeSnapshots
 }
 

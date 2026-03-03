@@ -15,6 +15,8 @@ import type {
   Notification,
   OnboardingInstance,
   OnboardingTemplate,
+  PaymentProvider,
+  PaymentTransaction,
   RoleDefinition,
   SurveyInstance,
   SurveyResponse,
@@ -52,8 +54,8 @@ export const users: User[] = [
   {
     id: 'user-1',
     name: 'Alicia Nguyen',
-    email: 'admin@acme.com',
-    roles: ['COMPANY_ADMIN'],
+    email: 'hr@acme.com',
+    roles: ['HR'],
     companyId,
     department: 'HR',
     status: 'Active',
@@ -62,10 +64,10 @@ export const users: User[] = [
   {
     id: 'user-2',
     name: 'Huy Tran',
-    email: 'hr@acme.com',
-    roles: ['HR'],
+    email: 'it@acme.com',
+    roles: ['IT'],
     companyId,
-    department: 'HR',
+    department: 'IT',
     status: 'Active',
     createdAt: '2025-01-06',
   },
@@ -93,8 +95,8 @@ export const users: User[] = [
   {
     id: 'user-5',
     name: 'Platform Admin',
-    email: 'platform_admin@demo.com',
-    roles: ['PLATFORM_ADMIN'],
+    email: 'admin@demo.com',
+    roles: ['ADMIN'],
     companyId: null,
     department: 'Platform Ops',
     status: 'Active',
@@ -102,23 +104,13 @@ export const users: User[] = [
   },
   {
     id: 'user-6',
-    name: 'Platform Manager',
-    email: 'platform_manager@demo.com',
-    roles: ['PLATFORM_MANAGER'],
+    name: 'Platform Staff',
+    email: 'staff@demo.com',
+    roles: ['STAFF'],
     companyId: null,
     department: 'Platform Ops',
     status: 'Active',
     createdAt: '2024-12-05',
-  },
-  {
-    id: 'user-7',
-    name: 'Platform Staff',
-    email: 'platform_staff@demo.com',
-    roles: ['PLATFORM_STAFF'],
-    companyId: null,
-    department: 'Platform Ops',
-    status: 'Active',
-    createdAt: '2024-12-06',
   },
 ]
 
@@ -136,14 +128,13 @@ export const employeeProfiles: EmployeeProfile[] = [
 
 export const roles: RoleDefinition[] = [
   {
-    id: 'role-company-admin',
-    name: 'COMPANY_ADMIN',
-    permissions: ['manage_departments', 'manage_users', 'manage_roles', 'view_company_billing'],
-  },
-  {
     id: 'role-hr',
     name: 'HR',
     permissions: [
+      'manage_departments',
+      'manage_users',
+      'manage_roles',
+      'view_company_billing',
       'manage_employee_profiles',
       'manage_onboarding_templates',
       'create_onboarding_instances',
@@ -154,6 +145,15 @@ export const roles: RoleDefinition[] = [
       'view_survey_analytics',
       'manage_documents',
       'manage_kb',
+    ],
+  },
+  {
+    id: 'role-it',
+    name: 'IT',
+    permissions: [
+      'manage_departments',
+      'manage_users',
+      'view_documents',
     ],
   },
   {
@@ -181,8 +181,8 @@ export const roles: RoleDefinition[] = [
     ],
   },
   {
-    id: 'role-platform-admin',
-    name: 'PLATFORM_ADMIN',
+    id: 'role-admin',
+    name: 'ADMIN',
     permissions: [
       'manage_tenants',
       'manage_plans',
@@ -196,13 +196,8 @@ export const roles: RoleDefinition[] = [
     ],
   },
   {
-    id: 'role-platform-manager',
-    name: 'PLATFORM_MANAGER',
-    permissions: ['view_usage', 'view_finance', 'view_tenant_health'],
-  },
-  {
-    id: 'role-platform-staff',
-    name: 'PLATFORM_STAFF',
+    id: 'role-staff',
+    name: 'STAFF',
     permissions: ['support_lookup_invoices', 'support_lookup_payments', 'view_email_logs'],
   },
 ]
@@ -581,23 +576,32 @@ export const notifications: Notification[] = [
 export const plans: BillingPlan[] = [
   {
     id: 'plan-basic',
+    code: 'BASIC',
     name: 'Basic',
     price: '$49',
+    priceYearly: '$490',
+    employeeLimit: 50,
     limits: 'Up to 50 employees',
     features: ['Core onboarding', 'Email reminders', 'Docs library'],
   },
   {
     id: 'plan-pro',
+    code: 'PRO',
     name: 'Pro',
     price: '$129',
+    priceYearly: '$1,290',
+    employeeLimit: 200,
     limits: 'Up to 200 employees',
     features: ['Advanced automation', 'Survey analytics', 'Chatbot'],
     current: true,
   },
   {
     id: 'plan-business',
+    code: 'BUSINESS',
     name: 'Business',
     price: '$299',
+    priceYearly: '$2,990',
+    employeeLimit: 500,
     limits: 'Up to 500 employees',
     features: ['Multi-tenant insights', 'Custom templates', 'Priority SLA'],
   },
@@ -610,8 +614,22 @@ export const usage: UsageMetric[] = [
 ]
 
 export const invoices: Invoice[] = [
-  { id: 'INV-2025-101', amount: '$129', status: 'Paid', date: '2025-01-05', companyId },
-  { id: 'INV-2025-102', amount: '$129', status: 'Open', date: '2025-02-05', companyId },
+  { id: 'INV-2025-101', invoiceNo: 'INV-2025-101', amount: '$129', amountRaw: 12900, currency: 'USD', status: 'Paid', date: '2025-01-05', companyId },
+  { id: 'INV-2025-102', invoiceNo: 'INV-2025-102', amount: '$129', amountRaw: 12900, currency: 'USD', status: 'Open', date: '2025-02-05', companyId },
+]
+
+export const paymentProviders: PaymentProvider[] = [
+  { name: 'Stripe', status: 'Connected', accountId: 'acct_1NxB3sK9', lastSync: '2025-01-20 09:00' },
+  { name: 'MoMo', status: 'Disconnected' },
+  { name: 'ZaloPay', status: 'Disconnected' },
+  { name: 'VNPay', status: 'Connected', accountId: 'vnp_8472', lastSync: '2025-01-18 15:30' },
+]
+
+export const paymentTransactions: PaymentTransaction[] = [
+  { id: 'txn_3Mx2Qs', invoiceId: 'INV-2025-101', amount: '129.00', currency: 'usd', status: 'succeeded', provider: 'stripe', createdAt: '2025-01-05 10:23', companyId },
+  { id: 'txn_7Jk9Wp', invoiceId: 'INV-2025-100', amount: '129.00', currency: 'usd', status: 'succeeded', provider: 'stripe', createdAt: '2024-12-05 14:11', companyId },
+  { id: 'txn_1Ab4Cd', invoiceId: 'INV-2025-099', amount: '99.00', currency: 'usd', status: 'refunded', provider: 'stripe', createdAt: '2024-11-05 08:45', companyId },
+  { id: 'txn_9Ef5Gh', invoiceId: 'INV-2025-098', amount: '129.00', currency: 'usd', status: 'failed', provider: 'vnpay', createdAt: '2024-10-05 16:30', companyId },
 ]
 
 export const financeSnapshots: FinanceSnapshot[] = [

@@ -1,11 +1,20 @@
-﻿import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Progress } from '../../components/ui/Progress'
-import { useUsageQuery } from '../../hooks/queries'
-import { Skeleton } from '../../components/ui/Skeleton'
+﻿import { PageHeader } from "../../components/common/PageHeader";
+import { Card } from "../../components/ui/Card";
+import { Progress } from "../../components/ui/Progress";
+import { useQuery } from "@tanstack/react-query";
+import { apiGetUsage } from "@/api/billing/billing.api";
+import { mapUsage } from "@/utils/mappers/billing";
+
+const useUsageQuery = (month?: string) =>
+  useQuery({
+    queryKey: ["usage", month],
+    queryFn: () => apiGetUsage(month),
+    select: (res: any) => mapUsage(res),
+  });
+import { Skeleton } from "../../components/ui/Skeleton";
 
 function BillingUsage() {
-  const { data, isLoading } = useUsageQuery()
+  const { data, isLoading } = useUsageQuery();
 
   return (
     <div className="space-y-6">
@@ -64,8 +73,7 @@ function BillingUsage() {
         </>
       )}
     </div>
-  )
+  );
 }
 
-export default BillingUsage
-
+export default BillingUsage;

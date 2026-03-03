@@ -1,12 +1,41 @@
-import { Card } from '../../components/ui/Card'
-import { PageHeader } from '../../components/common/PageHeader'
-import { Badge } from '../../components/ui/Badge'
-import { Progress } from '../../components/ui/Progress'
-import { Skeleton } from '../../components/ui/Skeleton'
-import { useInstancesQuery, useDocumentsQuery } from '../../hooks/queries'
-import { useAppStore } from '../../store/useAppStore'
-import { getPrimaryRole, isPlatformRole } from '../../shared/rbac'
-import type { Role } from '../../shared/types'
+import { Card } from "../../components/ui/Card";
+import { PageHeader } from "../../components/common/PageHeader";
+import { Badge } from "../../components/ui/Badge";
+import { Progress } from "../../components/ui/Progress";
+import { Skeleton } from "../../components/ui/Skeleton";
+import { useQuery } from "@tanstack/react-query";
+import { apiListInstances } from "@/api/onboarding/onboarding.api";
+import { apiGetDocuments } from "@/api/document/document.api";
+import { extractList } from "@/api/core/types";
+import { mapInstance } from "@/utils/mappers/onboarding";
+import type { OnboardingInstance } from "@/shared/types";
+
+const useInstancesQuery = (
+  filters?: { employeeId?: string; status?: string },
+  enabled = true,
+) =>
+  useQuery({
+    queryKey: [
+      "instances",
+      filters?.employeeId ?? "",
+      filters?.status ?? "ACTIVE",
+    ],
+    queryFn: () =>
+      apiListInstances({
+        employeeId: filters?.employeeId,
+        status: filters?.status ?? "ACTIVE",
+      }),
+    enabled,
+    select: (res: any) =>
+      extractList(res, "instances", "items", "list").map(
+        mapInstance,
+      ) as OnboardingInstance[],
+  });
+const useDocumentsQuery = () =>
+  useQuery({ queryKey: ["documents"], queryFn: apiGetDocuments });
+import { useAppStore } from "../../store/useAppStore";
+import { getPrimaryRole, isPlatformRole } from "../../shared/rbac";
+import type { Role } from "../../shared/types";
 import {
   BarChart,
   Bar,
@@ -15,68 +44,70 @@ import {
   ResponsiveContainer,
   XAxis,
   YAxis,
-} from 'recharts'
+} from "recharts";
 
 const kpiMap: Record<Role, { label: string; value: string }[]> = {
-  COMPANY_ADMIN: [
-    { label: 'Org setup tasks', value: '6' },
-    { label: 'Active users', value: '28' },
-    { label: 'Open invitations', value: '3' },
-    { label: 'Billing status', value: 'Healthy' },
-  ],
   HR: [
-    { label: 'Active onboardings', value: '12' },
-    { label: 'Tasks due this week', value: '9' },
-    { label: 'Survey completion %', value: '82%' },
-    { label: 'Automation rules', value: '4' },
+    { label: "Active onboardings", value: "12" },
+    { label: "Tasks due this week", value: "9" },
+    { label: "Survey completion %", value: "82%" },
+    { label: "Billing status", value: "Healthy" },
+  ],
+  IT: [
+    { label: "Org setup tasks", value: "6" },
+    { label: "Active users", value: "28" },
+    { label: "Open invitations", value: "3" },
+    { label: "Systems configured", value: "12" },
   ],
   MANAGER: [
-    { label: 'Team onboardings', value: '4' },
-    { label: 'Tasks assigned', value: '6' },
-    { label: 'Pending surveys', value: '2' },
-    { label: 'Docs to review', value: '3' },
+    { label: "Team onboardings", value: "4" },
+    { label: "Tasks assigned", value: "6" },
+    { label: "Pending surveys", value: "2" },
+    { label: "Docs to review", value: "3" },
   ],
   EMPLOYEE: [
-    { label: 'Checklist progress %', value: '64%' },
-    { label: 'Required docs pending', value: '1' },
-    { label: 'Surveys due', value: '1' },
-    { label: 'Messages from HR', value: '2' },
+    { label: "Checklist progress %", value: "64%" },
+    { label: "Required docs pending", value: "1" },
+    { label: "Surveys due", value: "1" },
+    { label: "Messages from HR", value: "2" },
   ],
-  PLATFORM_ADMIN: [
-    { label: 'Active tenants', value: '34' },
-    { label: 'Plans managed', value: '4' },
-    { label: 'Open invoices', value: '18' },
-    { label: 'Dunning cases', value: '3' },
+  ADMIN: [
+    { label: "Active tenants", value: "34" },
+    { label: "Plans managed", value: "4" },
+    { label: "Open invoices", value: "18" },
+    { label: "Dunning cases", value: "3" },
   ],
-  PLATFORM_MANAGER: [
-    { label: 'Active tenants', value: '34' },
-    { label: 'MRR growth', value: '+12%' },
-    { label: 'Usage growth', value: '+8%' },
-    { label: 'Payment success', value: '96%' },
+  STAFF: [
+    { label: "Invoices to review", value: "8" },
+    { label: "Payments failed", value: "4" },
+    { label: "Email failures", value: "2" },
+    { label: "Tickets handled", value: "11" },
   ],
-  PLATFORM_STAFF: [
-    { label: 'Invoices to review', value: '8' },
-    { label: 'Payments failed', value: '4' },
-    { label: 'Email failures', value: '2' },
-    { label: 'Tickets handled', value: '11' },
-  ],
-}
+};
 
 const progressData = [
-  { stage: 'Welcome', value: 6 },
-  { stage: 'Systems', value: 4 },
-  { stage: 'Role setup', value: 3 },
-  { stage: 'First month', value: 2 },
-]
+  { stage: "Welcome", value: 6 },
+  { stage: "Systems", value: 4 },
+  { stage: "Role setup", value: 3 },
+  { stage: "First month", value: 2 },
+];
 
 function Dashboard() {
-  const currentUser = useAppStore((state) => state.currentUser)
-  const isPlatformUser = isPlatformRole(currentUser?.roles ?? [])
-  const { isLoading: instancesLoading, isError } = useInstancesQuery(!isPlatformUser)
-  const { data: documents, isLoading: docsLoading } = useDocumentsQuery(!isPlatformUser)
+  const currentUser = useAppStore((state) => state.currentUser);
+  const isPlatformUser = isPlatformRole(currentUser?.roles ?? []);
+  const { isLoading: instancesLoading, isError } = useInstancesQuery(
+    undefined,
+    !isPlatformUser,
+  );
+  const { data: documentsRaw, isLoading: docsLoading } = useDocumentsQuery();
+  const documents = documentsRaw
+    ? Array.isArray(documentsRaw)
+      ? documentsRaw
+      : documentsRaw.items
+    : [];
 
-  const primaryRole = getPrimaryRole(currentUser?.roles ?? ['EMPLOYEE'])
-  const kpis = kpiMap[primaryRole]
+  const primaryRole = getPrimaryRole(currentUser?.roles ?? ["EMPLOYEE"]);
+  const kpis = kpiMap[primaryRole] ?? kpiMap["HR"];
 
   return (
     <div className="space-y-6">
@@ -167,13 +198,12 @@ function Dashboard() {
             </div>
           ) : (
             <ul className="mt-4 space-y-3 text-sm">
-              {documents?.slice(0, 4).map((doc) => (
+              {documents.slice(0, 4).map((doc) => (
                 <li
-                  key={doc.id}
-                  className="flex items-center justify-between rounded-2xl border border-stroke bg-slate-50 p-3"
-                >
-                  <span>{doc.title}</span>
-                  <Badge>{doc.required ? 'Required' : 'Optional'}</Badge>
+                  key={doc.documentId}
+                  className="flex items-center justify-between rounded-2xl border border-stroke bg-slate-50 p-3">
+                  <span>{doc.name}</span>
+                  <Badge>{doc.required ? "Required" : "Optional"}</Badge>
                 </li>
               ))}
             </ul>
@@ -185,7 +215,8 @@ function Dashboard() {
           <p className="text-sm text-muted">Timeline</p>
           {isError ? (
             <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm">
-              Something went wrong. <button className="font-semibold">Retry</button>
+              Something went wrong.{" "}
+              <button className="font-semibold">Retry</button>
             </div>
           ) : (
             <div className="mt-4 space-y-4 text-sm">
@@ -206,7 +237,7 @@ function Dashboard() {
         </Card>
       </div>
     </div>
-  )
+  );
 }
 
-export default Dashboard
+export default Dashboard;

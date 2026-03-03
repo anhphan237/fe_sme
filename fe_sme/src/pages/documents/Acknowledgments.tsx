@@ -1,17 +1,37 @@
-﻿import { useNavigate } from 'react-router-dom'
-import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Table } from '../../components/ui/Table'
-import { Skeleton } from '../../components/ui/Skeleton'
-import { EmptyState } from '../../components/ui/EmptyState'
-import { useAcknowledgmentsQuery, useDocumentsQuery } from '../../hooks/queries'
-import { useUsersQuery } from '../../hooks/queries'
+﻿import { useNavigate } from "react-router-dom";
+import { PageHeader } from "../../components/common/PageHeader";
+import { Card } from "../../components/ui/Card";
+import { Table } from "../../components/ui/Table";
+import { Skeleton } from "../../components/ui/Skeleton";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { useQuery } from "@tanstack/react-query";
+import { apiGetDocuments } from "@/api/document/document.api";
+import { apiSearchUsers } from "@/api/identity/identity.api";
+import { extractList } from "@/api/core/types";
+import { mapUser } from "@/utils/mappers/identity";
+import type { User } from "@/shared/types";
+
+/** @deprecated stub — no gateway operation yet */
+const useAcknowledgmentsQuery = () =>
+  useQuery({
+    queryKey: ["acknowledgments"],
+    queryFn: () => Promise.resolve([]),
+  });
+const useDocumentsQuery = () =>
+  useQuery({ queryKey: ["documents"], queryFn: apiGetDocuments });
+const useUsersQuery = () =>
+  useQuery({
+    queryKey: ["users"],
+    queryFn: () => apiSearchUsers(),
+    select: (res: any) =>
+      extractList(res, "users", "items").map(mapUser) as User[],
+  });
 
 function Acknowledgments() {
-  const navigate = useNavigate()
-  const { data, isLoading, isError, refetch } = useAcknowledgmentsQuery()
-  const { data: documents } = useDocumentsQuery()
-  const { data: users } = useUsersQuery()
+  const navigate = useNavigate();
+  const { data, isLoading, isError, refetch } = useAcknowledgmentsQuery();
+  const { data: documents } = useDocumentsQuery();
+  const { data: users } = useUsersQuery();
 
   return (
     <div className="space-y-6">
@@ -49,7 +69,7 @@ function Acknowledgments() {
           </div>
         ) : isError ? (
           <div className="p-6 text-sm">
-            Something went wrong.{' '}
+            Something went wrong.{" "}
             <button className="font-semibold" onClick={() => refetch()}>
               Retry
             </button>
@@ -60,7 +80,7 @@ function Acknowledgments() {
               title="No acknowledgments yet"
               description="Acknowledge documents to start tracking progress."
               actionLabel="Go to Documents"
-              onAction={() => navigate('/documents')}
+              onAction={() => navigate("/documents")}
             />
           </div>
         ) : (
@@ -76,26 +96,32 @@ function Acknowledgments() {
             </thead>
             <tbody>
               {data?.map((ack) => {
-                const doc = documents?.find((item) => item.id === ack.documentId)
-                const user = users?.find((item) => item.id === ack.employeeId)
+                const doc = documents?.find(
+                  (item) => item.id === ack.documentId,
+                );
+                const user = users?.find((item) => item.id === ack.employeeId);
                 return (
-                  <tr key={ack.id} className="border-t border-stroke hover:bg-slate-50">
+                  <tr
+                    key={ack.id}
+                    className="border-t border-stroke hover:bg-slate-50">
                     <td className="px-4 py-3 font-medium">{user?.name}</td>
                     <td className="px-4 py-3 text-muted">{doc?.title}</td>
                     <td className="px-4 py-3 text-muted">{ack.progress}%</td>
                     <td className="px-4 py-3 text-muted">
-                      {ack.acknowledged ? 'Yes' : 'No'}
+                      {ack.acknowledged ? "Yes" : "No"}
                     </td>
-                    <td className="px-4 py-3 text-muted">{ack.timestamp ?? '-'}</td>
+                    <td className="px-4 py-3 text-muted">
+                      {ack.timestamp ?? "-"}
+                    </td>
                   </tr>
-                )}
-              )}
+                );
+              })}
             </tbody>
           </Table>
         )}
       </Card>
     </div>
-  )
+  );
 }
 
-export default Acknowledgments
+export default Acknowledgments;
