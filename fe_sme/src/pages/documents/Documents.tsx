@@ -1,20 +1,24 @@
-﻿import { useState } from 'react'
-import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Button } from '../../components/ui/Button'
-import { Badge } from '../../components/ui/Badge'
-import { Modal } from '../../components/ui/Modal'
-import { EmptyState } from '../../components/ui/EmptyState'
-import { useDocumentsQuery } from '../../hooks/queries'
-import { Skeleton } from '../../components/ui/Skeleton'
+﻿import { useState } from "react";
+import { PageHeader } from "../../components/common/PageHeader";
+import { Card } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { Badge } from "../../components/ui/Badge";
+import { Modal } from "../../components/ui/Modal";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { useQuery } from "@tanstack/react-query";
+import { apiGetDocuments } from "@/api/document/document.api";
 
-const folders = ['Company', 'Department', 'Compliance', 'Security']
-const tags = ['Required', 'Guide', 'Policy', 'Checklist']
+const useDocumentsQuery = () =>
+  useQuery({ queryKey: ["documents"], queryFn: apiGetDocuments });
+import { Skeleton } from "../../components/ui/Skeleton";
+
+const folders = ["Company", "Department", "Compliance", "Security"];
+const tags = ["Required", "Guide", "Policy", "Checklist"];
 
 function Documents() {
-  const { data, isLoading, isError, refetch } = useDocumentsQuery()
-  const [open, setOpen] = useState(false)
-  const [view, setView] = useState<'grid' | 'list'>('grid')
+  const { data, isLoading, isError, refetch } = useDocumentsQuery();
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState<"grid" | "list">("grid");
 
   return (
     <div className="space-y-6">
@@ -38,8 +42,7 @@ function Documents() {
             {folders.map((folder) => (
               <button
                 key={folder}
-                className="flex w-full items-center justify-between rounded-2xl border border-stroke bg-slate-50 px-4 py-2"
-              >
+                className="flex w-full items-center justify-between rounded-2xl border border-stroke bg-slate-50 px-4 py-2">
                 {folder}
                 <span className="text-muted">12</span>
               </button>
@@ -59,10 +62,14 @@ function Documents() {
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold">Library</h3>
             <div className="flex gap-2">
-              <Button variant={view === 'grid' ? 'primary' : 'secondary'} onClick={() => setView('grid')}>
+              <Button
+                variant={view === "grid" ? "primary" : "secondary"}
+                onClick={() => setView("grid")}>
                 Grid
               </Button>
-              <Button variant={view === 'list' ? 'primary' : 'secondary'} onClick={() => setView('list')}>
+              <Button
+                variant={view === "list" ? "primary" : "secondary"}
+                onClick={() => setView("list")}>
                 List
               </Button>
             </div>
@@ -75,7 +82,7 @@ function Documents() {
             </div>
           ) : isError ? (
             <div className="mt-4 text-sm">
-              Something went wrong.{' '}
+              Something went wrong.{" "}
               <button className="font-semibold" onClick={() => refetch()}>
                 Retry
               </button>
@@ -87,7 +94,7 @@ function Documents() {
               actionLabel="Upload Document"
               onAction={() => setOpen(true)}
             />
-          ) : view === 'grid' ? (
+          ) : view === "grid" ? (
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               {data?.map((doc) => (
                 <Card key={doc.id} className="border border-stroke">
@@ -95,7 +102,9 @@ function Documents() {
                     <h4 className="text-sm font-semibold">{doc.title}</h4>
                     {doc.required && <Badge>Required</Badge>}
                   </div>
-                  <p className="mt-2 text-xs text-muted">Updated {doc.updatedAt}</p>
+                  <p className="mt-2 text-xs text-muted">
+                    Updated {doc.updatedAt}
+                  </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {doc.tags.map((tag) => (
                       <Badge key={tag}>{tag}</Badge>
@@ -109,8 +118,7 @@ function Documents() {
               {data?.map((doc) => (
                 <div
                   key={doc.id}
-                  className="flex items-center justify-between rounded-2xl border border-stroke bg-slate-50 px-4 py-3 text-sm"
-                >
+                  className="flex items-center justify-between rounded-2xl border border-stroke bg-slate-50 px-4 py-3 text-sm">
                   <span>{doc.title}</span>
                   <span className="text-muted">{doc.updatedAt}</span>
                 </div>
@@ -153,8 +161,7 @@ function Documents() {
         </div>
       </Modal>
     </div>
-  )
+  );
 }
 
-export default Documents
-
+export default Documents;

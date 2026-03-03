@@ -1,36 +1,51 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
-import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Button } from '../../components/ui/Button'
-import { useToast } from '../../components/ui/Toast'
-import { useCreateUser, useDepartmentsQuery } from '../../hooks/queries'
-import { ROLE_LABELS } from '../../shared/rbac'
-import type { Role } from '../../shared/types'
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { PageHeader } from "../../components/common/PageHeader";
+import { Card } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { useToast } from "../../components/ui/Toast";
+import { apiCreateUser } from "@/api/identity/identity.api";
+import { apiListDepartments } from "@/api/company/company.api";
+import { extractList } from "@/api/core/types";
+import type { CreateUserRequest } from "@/interface/identity";
+import type { DepartmentItem } from "@/interface/company";
 
-const EMPLOYEE_ROLES: Role[] = ['EMPLOYEE', 'MANAGER', 'HR']
+const useDepartmentsQuery = () =>
+  useQuery({
+    queryKey: ["departments"],
+    queryFn: () => apiListDepartments(),
+    select: (res: any) => extractList<DepartmentItem>(res, "items"),
+  });
+const useCreateUser = () =>
+  useMutation({
+    mutationFn: (payload: CreateUserRequest) => apiCreateUser(payload),
+  });
+import { ROLE_LABELS } from "../../shared/rbac";
+import type { Role } from "../../shared/types";
+
+const EMPLOYEE_ROLES: Role[] = ["EMPLOYEE", "MANAGER", "HR"];
 
 function CreateEmployee() {
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const toast = useToast()
-  const createUser = useCreateUser()
-  const { data: departments } = useDepartmentsQuery()
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const createUser = useCreateUser();
+  const { data: departments } = useDepartmentsQuery();
   const [form, setForm] = useState({
-    email: '',
-    fullName: '',
-    phone: '',
-    roleCode: 'EMPLOYEE' as Role,
-    password: '',
-    departmentId: '',
-  })
+    email: "",
+    fullName: "",
+    phone: "",
+    roleCode: "EMPLOYEE" as Role,
+    password: "",
+    departmentId: "",
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (!form.email?.trim() || !form.fullName?.trim()) {
-      toast('Email and full name are required.')
-      return
+      toast("Email and full name are required.");
+      return;
     }
     try {
       await createUser.mutateAsync({
@@ -38,16 +53,16 @@ function CreateEmployee() {
         fullName: form.fullName.trim(),
         phone: form.phone.trim() || undefined,
         roleCode: form.roleCode,
-        password: form.password || 'changeme',
+        password: form.password || "changeme",
         departmentId: form.departmentId || undefined,
-      })
-      queryClient.invalidateQueries({ queryKey: ['users'] })
-      toast('Employee created.')
-      navigate('/onboarding/employees/new')
+      });
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      toast("Employee created.");
+      navigate("/onboarding/employees/new");
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Failed to create employee.')
+      toast(err instanceof Error ? err.message : "Failed to create employee.");
     }
-  }
+  };
 
   return (
     <div className="space-y-6">
@@ -64,7 +79,9 @@ function CreateEmployee() {
               type="email"
               className="rounded-xl border border-stroke px-4 py-2.5 text-[15px] focus:border-[#0071e3] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20"
               value={form.email}
-              onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, email: e.target.value }))
+              }
               placeholder="email@company.com"
               required
             />
@@ -75,7 +92,9 @@ function CreateEmployee() {
               type="text"
               className="rounded-xl border border-stroke px-4 py-2.5 text-[15px] focus:border-[#0071e3] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20"
               value={form.fullName}
-              onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, fullName: e.target.value }))
+              }
               placeholder="Nguyen Van A"
               required
             />
@@ -86,7 +105,9 @@ function CreateEmployee() {
               type="tel"
               className="rounded-xl border border-stroke px-4 py-2.5 text-[15px] focus:border-[#0071e3] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20"
               value={form.phone}
-              onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, phone: e.target.value }))
+              }
               placeholder="0912345678"
             />
           </label>
@@ -95,8 +116,9 @@ function CreateEmployee() {
             <select
               className="rounded-xl border border-stroke px-4 py-2.5 text-[15px] focus:border-[#0071e3] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20"
               value={form.roleCode}
-              onChange={(e) => setForm((p) => ({ ...p, roleCode: e.target.value as Role }))}
-            >
+              onChange={(e) =>
+                setForm((p) => ({ ...p, roleCode: e.target.value as Role }))
+              }>
               {EMPLOYEE_ROLES.map((r) => (
                 <option key={r} value={r}>
                   {ROLE_LABELS[r]}
@@ -110,8 +132,9 @@ function CreateEmployee() {
               <select
                 className="rounded-xl border border-stroke px-4 py-2.5 text-[15px] focus:border-[#0071e3] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20"
                 value={form.departmentId}
-                onChange={(e) => setForm((p) => ({ ...p, departmentId: e.target.value }))}
-              >
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, departmentId: e.target.value }))
+                }>
                 <option value="">— Select —</option>
                 {departments.map((d) => (
                   <option key={d.id} value={d.id}>
@@ -127,23 +150,30 @@ function CreateEmployee() {
               type="password"
               className="rounded-xl border border-stroke px-4 py-2.5 text-[15px] focus:border-[#0071e3] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20"
               value={form.password}
-              onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, password: e.target.value }))
+              }
               placeholder="Leave blank to send invite"
             />
-            <span className="text-xs text-muted">Leave blank if you will send an invite link.</span>
+            <span className="text-xs text-muted">
+              Leave blank if you will send an invite link.
+            </span>
           </label>
           <div className="flex gap-3 pt-2">
             <Button type="submit" disabled={createUser.isPending}>
-              {createUser.isPending ? 'Creating…' : 'Create employee'}
+              {createUser.isPending ? "Creating…" : "Create employee"}
             </Button>
-            <Button type="button" variant="secondary" onClick={() => navigate('/onboarding/employees/new')}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => navigate("/onboarding/employees/new")}>
               Hủy
             </Button>
           </div>
         </form>
       </Card>
     </div>
-  )
+  );
 }
 
-export default CreateEmployee
+export default CreateEmployee;

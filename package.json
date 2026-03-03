@@ -1,0 +1,7 @@
+{
+  "name": "fe_sme_root",
+  "private": true,
+  "scripts": {
+    "build": "cd fe_sme && npm install && npm run build"
+  }
+}

@@ -1,15 +1,22 @@
-﻿import { useNavigate } from 'react-router-dom'
-import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Table } from '../../components/ui/Table'
-import { EmptyState } from '../../components/ui/EmptyState'
-import { Skeleton } from '../../components/ui/Skeleton'
-import { Button } from '../../components/ui/Button'
-import { useSurveyInstancesQuery } from '../../hooks/queries'
+﻿import { useNavigate } from "react-router-dom";
+import { PageHeader } from "../../components/common/PageHeader";
+import { Card } from "../../components/ui/Card";
+import { Table } from "../../components/ui/Table";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { Skeleton } from "../../components/ui/Skeleton";
+import { Button } from "../../components/ui/Button";
+import { useQuery } from "@tanstack/react-query";
+import { apiGetSurveyInstances } from "@/api/survey/survey.api";
+
+const useSurveyInstancesQuery = () =>
+  useQuery({
+    queryKey: ["survey-instances"],
+    queryFn: () => apiGetSurveyInstances(),
+  });
 
 function SurveyInbox() {
-  const navigate = useNavigate()
-  const { data, isLoading, isError, refetch } = useSurveyInstancesQuery()
+  const navigate = useNavigate();
+  const { data, isLoading, isError, refetch } = useSurveyInstancesQuery();
 
   return (
     <div className="space-y-6">
@@ -26,7 +33,7 @@ function SurveyInbox() {
           </div>
         ) : isError ? (
           <div className="p-6 text-sm">
-            Something went wrong.{' '}
+            Something went wrong.{" "}
             <button className="font-semibold" onClick={() => refetch()}>
               Retry
             </button>
@@ -37,7 +44,7 @@ function SurveyInbox() {
               title="No surveys"
               description="Surveys will appear here once scheduled."
               actionLabel="Send surveys"
-              onAction={() => navigate('/surveys/send')}
+              onAction={() => navigate("/surveys/send")}
             />
           </div>
         ) : (
@@ -52,12 +59,16 @@ function SurveyInbox() {
             </thead>
             <tbody>
               {data?.map((survey) => (
-                <tr key={survey.id} className="border-t border-stroke hover:bg-slate-50">
+                <tr
+                  key={survey.id}
+                  className="border-t border-stroke hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium">{survey.templateId}</td>
                   <td className="px-4 py-3 text-muted">{survey.dueDate}</td>
                   <td className="px-4 py-3 text-muted">{survey.status}</td>
                   <td className="px-4 py-3">
-                    <Button variant="ghost" onClick={() => navigate(`/surveys/inbox/${survey.id}`)}>
+                    <Button
+                      variant="ghost"
+                      onClick={() => navigate(`/surveys/inbox/${survey.id}`)}>
                       Open
                     </Button>
                   </td>
@@ -68,8 +79,7 @@ function SurveyInbox() {
         )}
       </Card>
     </div>
-  )
+  );
 }
 
-export default SurveyInbox
-
+export default SurveyInbox;

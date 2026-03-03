@@ -1,9 +1,8 @@
 export type Role =
-  | 'PLATFORM_ADMIN'
-  | 'PLATFORM_MANAGER'
-  | 'PLATFORM_STAFF'
-  | 'COMPANY_ADMIN'
+  | 'ADMIN'
+  | 'STAFF'
   | 'HR'
+  | 'IT'
   | 'MANAGER'
   | 'EMPLOYEE'
 
@@ -286,25 +285,49 @@ export interface ChatConversation {
 
 export interface BillingPlan {
   id: string
+  code: string
   name: string
   price: string
+  priceYearly: string
+  employeeLimit: number
   limits: string
   features: string[]
   current?: boolean
 }
 
+export interface Subscription {
+  subscriptionId: string
+  planCode: string
+  status: string
+  billingCycle?: string
+  currentPeriodStart?: string
+  currentPeriodEnd?: string
+  autoRenew?: boolean
+  prorateCreditVnd?: number
+  prorateChargeVnd?: number
+  invoiceId?: string
+}
+
 export interface Invoice {
   id: string
+  invoiceNo: string
   amount: string
-  status: 'Paid' | 'Open' | 'Overdue'
+  amountRaw: number
+  currency: string
+  status: 'Paid' | 'Open' | 'Overdue' | 'Draft' | 'Void'
   date: string
+  dueDate?: string
   companyId?: string | null
+  eInvoiceUrl?: string
 }
 
 export interface UsageMetric {
   label: string
   used: number
   limit: number
+  alertLevel?: 'NONE' | 'APPROACHING' | 'EXCEEDED'
+  limitPercent?: number
+  month?: string
 }
 
 export interface KnowledgeBaseArticle {
@@ -324,6 +347,40 @@ export interface KbArticleTag {
   id: string
   articleId: string
   tagId: string
+}
+
+export interface PaymentIntent {
+  id: string
+  paymentTransactionId?: string
+  clientSecret: string
+  gateway?: string
+  amount: number
+  currency: string
+  status:
+    | 'requires_payment_method'
+    | 'requires_confirmation'
+    | 'processing'
+    | 'succeeded'
+    | 'canceled'
+  invoiceId: string
+}
+
+export interface PaymentTransaction {
+  id: string
+  invoiceId: string
+  amount: string
+  currency: string
+  status: 'pending' | 'processing' | 'succeeded' | 'failed' | 'refunded'
+  provider: string
+  createdAt: string
+  companyId?: string | null
+}
+
+export interface PaymentProvider {
+  name: string
+  status: 'Connected' | 'Disconnected'
+  accountId?: string
+  lastSync?: string
 }
 
 export interface DiscountCode {
