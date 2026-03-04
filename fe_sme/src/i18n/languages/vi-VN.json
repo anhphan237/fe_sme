@@ -297,6 +297,8 @@
   "onboarding.detail.activity.title": "Hoạt động",
   "onboarding.detail.activity.empty": "Chưa có hoạt động. Hoàn thành nhiệm vụ để xem lịch sử.",
   "onboarding.detail.activity.task_completed": "Đã hoàn thành: {title}",
+  "onboarding.detail.error.something_wrong": "Đã xảy ra lỗi.",
+  "onboarding.detail.error.retry": "Thử lại",
 
   "survey.title": "Khảo sát",
   "survey.add": "Tạo khảo sát",

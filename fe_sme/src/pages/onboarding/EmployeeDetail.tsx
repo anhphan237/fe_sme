@@ -88,7 +88,7 @@ const useUsersQuery = () =>
     queryKey: ["users"],
     queryFn: () => apiSearchUsers(),
     select: (res: any) =>
-      extractList(res, "users", "items").map(mapUser) as User[],
+      (extractList(res, "users", "items") as any[]).map(mapUser) as User[],
   });
 
 const useUserDetailQuery = (userId?: string) =>
@@ -649,9 +649,9 @@ function EmployeeDetail() {
     return (
       <Card>
         <p className="text-sm">
-          Something went wrong.{" "}
+          {t("onboarding.detail.error.something_wrong")}{" "}
           <button className="font-semibold" onClick={() => refetchInstance()}>
-            Retry
+            {t("onboarding.detail.error.retry")}
           </button>
         </p>
       </Card>
@@ -773,82 +773,3 @@ function EmployeeDetail() {
 }
 
 export default EmployeeDetail;
-
-const useInstanceQuery = (instanceId?: string) =>
-  useQuery({
-    queryKey: ["instance", instanceId],
-    queryFn: () => apiGetInstance(instanceId!),
-    enabled: Boolean(instanceId),
-    select: (res: any) => {
-      const raw =
-        res?.instance ?? res?.data ?? res?.result ?? res?.payload ?? res;
-      return mapInstance(raw && typeof raw === "object" ? raw : {});
-    },
-  });
-const useInstancesQuery = (
-  filters?: { employeeId?: string; status?: string },
-  enabled = true,
-) =>
-  useQuery({
-    queryKey: [
-      "instances",
-      filters?.employeeId ?? "",
-      filters?.status ?? "ACTIVE",
-    ],
-    queryFn: () =>
-      apiListInstances({
-        employeeId: filters?.employeeId,
-        status: filters?.status ?? "ACTIVE",
-      }),
-    enabled,
-    select: (res: any) =>
-      extractList(res, "instances", "items", "list").map(
-        mapInstance,
-      ) as OnboardingInstance[],
-  });
-const useTemplatesQuery = () =>
-  useQuery({
-    queryKey: ["templates"],
-    queryFn: () => apiListTemplates(),
-    select: (res: any) =>
-      extractList(res, "templates", "items", "list").map(
-        mapTemplate,
-      ) as OnboardingTemplate[],
-  });
-const useUsersQuery = () =>
-  useQuery({
-    queryKey: ["users"],
-    queryFn: () => apiSearchUsers(),
-    select: (res: any) =>
-      extractList(res, "users", "items").map(mapUser) as User[],
-  });
-const useUserDetailQuery = (userId: string | undefined) =>
-  useQuery({
-    queryKey: ["user-detail", userId],
-    queryFn: () => apiGetUserById(userId!),
-    enabled: Boolean(userId),
-    select: (res: any) => mapUserDetail(res),
-  });
-const useOnboardingTasksByInstanceQuery = (
-  onboardingId?: string,
-  options?: any,
-  enabled = true,
-) =>
-  useQuery({
-    queryKey: ["onboarding-tasks-by-instance", onboardingId ?? "", options],
-    queryFn: () => apiListTasks(onboardingId!, options),
-    enabled: Boolean(enabled && onboardingId),
-    select: (res: any) =>
-      extractList(res, "content", "tasks", "items", "list").map(
-        mapTask,
-      ) as OnboardingTask[],
-  });
-const useUpdateOnboardingTaskStatus = () =>
-  useMutation({
-    mutationFn: ({ taskId, status }: { taskId: string; status: string }) =>
-      apiUpdateTaskStatus(taskId, status),
-  });
-const useSaveEvaluation = () =>
-  useMutation({
-    mutationFn: (_payload: any) => Promise.resolve(undefined as any),
-  });

@@ -296,6 +296,8 @@
   "onboarding.detail.activity.title": "Activity",
   "onboarding.detail.activity.empty": "No activity yet. Complete tasks to see history here.",
   "onboarding.detail.activity.task_completed": "Task completed: {title}",
+  "onboarding.detail.error.something_wrong": "Something went wrong.",
+  "onboarding.detail.error.retry": "Retry",
 
   "survey.title": "Survey",
   "survey.add": "Create Survey",
