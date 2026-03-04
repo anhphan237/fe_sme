@@ -51,7 +51,7 @@ export function Sidebar({ open, onClose }: Props) {
     <>
       <aside
         className={clsx(
-          "fixed inset-y-0 left-0 z-30 flex w-64 flex-col bg-[#0f172a] transition-transform duration-300 lg:static lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-30 flex h-screen w-64 shrink-0 flex-col bg-[#0f172a] transition-transform duration-300 lg:sticky lg:top-0 lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
         )}>
         {/* Logo */}

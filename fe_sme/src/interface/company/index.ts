@@ -69,24 +69,21 @@ export interface UpdateDepartmentRequest {
   departmentId: string;
   name?: string;
   type?: string;
-  managerId?: string;
   status?: EntityStatus;
+  managerUserId?: string;
 }
 
 /** com.sme.company.department.list */
 export interface ListDepartmentRequest {
-  /** ACTIVE | INACTIVE | omit for all */
   status?: EntityStatus;
 }
 
-/** Single department item in list response */
+/** Single department item in list response (matches BE DepartmentItem) */
 export interface DepartmentItem {
   departmentId: string;
   name: string;
   type: string | null;
-  managerId: string | null;
-  managerName: string | null;
-  status: EntityStatus;
+  managerUserId: string | null;
 }
 
 /** com.sme.company.department.list → response data */
