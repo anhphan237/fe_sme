@@ -31,8 +31,9 @@ export const mapTemplate = (t: any): OnboardingTemplate => {
     id: t?.templateId ?? t?.id ?? "",
     name: t.name ?? "",
     description: t.description ?? "",
+    status: t.status ?? "ACTIVE",
     stages,
-    updatedAt: t.updatedAt ?? new Date().toISOString().slice(0, 10),
+    updatedAt: t.updatedAt ?? "",
     companyId: t.companyId ?? null,
   };
 };
