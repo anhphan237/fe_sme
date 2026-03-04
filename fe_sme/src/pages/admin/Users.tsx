@@ -1,4 +1,4 @@
-﻿import { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Users as UsersIcon, Search } from "lucide-react";
 import { clsx } from "clsx";
 import { useQuery } from "@tanstack/react-query";
@@ -55,12 +55,7 @@ function AdminUsers() {
   const [search, setSearch] = useState("");
   const [disablingId, setDisablingId] = useState<string | null>(null);
 
-  const {
-    data: users,
-    isLoading,
-    isError,
-    refetch,
-  } = useUsersQuery();
+  const { data: users, isLoading, isError, refetch } = useUsersQuery();
 
   const filtered = useMemo(() => {
     if (!users) return [];
@@ -141,7 +136,9 @@ function AdminUsers() {
           </div>
         ) : isError ? (
           <div className="flex flex-col items-center gap-3 p-10 text-center">
-            <p className="text-sm text-slate-500">{t("user.error.load_failed")}</p>
+            <p className="text-sm text-slate-500">
+              {t("user.error.load_failed")}
+            </p>
             <Button variant="secondary" onClick={() => refetch()}>
               {t("user.retry")}
             </Button>
@@ -179,7 +176,11 @@ function AdminUsers() {
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-semibold text-indigo-600">
-                          {(user.name?.[0] ?? user.email?.[0] ?? "?").toUpperCase()}
+                          {(
+                            user.name?.[0] ??
+                            user.email?.[0] ??
+                            "?"
+                          ).toUpperCase()}
                         </div>
                         <div>
                           <button

@@ -42,6 +42,26 @@ export interface UserDetail {
   employeeStatus: string | null;
 }
 
+/** Response shape của com.sme.identity.user.get (hiển thị user detail) */
+export interface UserDetail {
+  userId: string;
+  email: string;
+  fullName: string;
+  phone: string | null;
+  status: "ACTIVE" | "INVITED" | "DISABLED";
+  employeeId: string | null;
+  departmentId: string | null;
+  employeeCode: string | null;
+  employeeName: string | null;
+  employeeEmail: string | null;
+  employeePhone: string | null;
+  jobTitle: string | null;
+  managerUserId: string | null;
+  startDate: string | null;
+  workLocation: string | null;
+  employeeStatus: string | null;
+}
+
 export interface RoleDefinition {
   id: string;
   name: Role;
@@ -303,6 +323,19 @@ export interface Subscription {
   invoiceId?: string;
 }
 
+export interface Subscription {
+  subscriptionId: string;
+  planCode: string;
+  status: string;
+  billingCycle?: string;
+  currentPeriodStart?: string;
+  currentPeriodEnd?: string;
+  autoRenew?: boolean;
+  prorateCreditVnd?: number;
+  prorateChargeVnd?: number;
+  invoiceId?: string;
+}
+
 export interface Invoice {
   id: string;
   invoiceNo: string;
@@ -342,6 +375,40 @@ export interface KbArticleTag {
   id: string;
   articleId: string;
   tagId: string;
+}
+
+export interface PaymentIntent {
+  id: string;
+  paymentTransactionId?: string;
+  clientSecret: string;
+  gateway?: string;
+  amount: number;
+  currency: string;
+  status:
+    | "requires_payment_method"
+    | "requires_confirmation"
+    | "processing"
+    | "succeeded"
+    | "canceled";
+  invoiceId: string;
+}
+
+export interface PaymentTransaction {
+  id: string;
+  invoiceId: string;
+  amount: string;
+  currency: string;
+  status: "pending" | "processing" | "succeeded" | "failed" | "refunded";
+  provider: string;
+  createdAt: string;
+  companyId?: string | null;
+}
+
+export interface PaymentProvider {
+  name: string;
+  status: "Connected" | "Disconnected";
+  accountId?: string;
+  lastSync?: string;
 }
 
 export interface PaymentIntent {

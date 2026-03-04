@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -145,7 +145,11 @@ export default function TemplateEditor() {
     try {
       const payload = buildPayload(form, createdBy);
       if (isEdit && templateId) {
-        await saveTemplate.mutateAsync({ ...payload, templateId, id: templateId });
+        await saveTemplate.mutateAsync({
+          ...payload,
+          templateId,
+          id: templateId,
+        });
         queryClient.invalidateQueries({ queryKey: ["templates"] });
         queryClient.invalidateQueries({ queryKey: ["template", templateId] });
         toast(t("onboarding.template.editor.toast.saved"));
