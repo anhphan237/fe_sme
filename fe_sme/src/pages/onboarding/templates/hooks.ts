@@ -21,10 +21,13 @@ export const useTemplatesQuery = (status: StatusFilter) =>
   useQuery({
     queryKey: ["templates", status],
     queryFn: () => apiListTemplates(status),
-    select: (res: any) =>
-      extractList(res, "templates", "items", "list").map(
-        mapTemplate,
-      ) as OnboardingTemplate[],
+    select: (res: unknown) =>
+      extractList(
+        res as Record<string, unknown>,
+        "templates",
+        "items",
+        "list",
+      ).map(mapTemplate) as OnboardingTemplate[],
   });
 
 export const useDeactivateTemplate = () =>

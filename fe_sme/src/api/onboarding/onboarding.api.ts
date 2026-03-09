@@ -4,6 +4,13 @@ import type {
   OnboardingTemplateUpdateRequest,
   OnboardingInstanceCreateRequest,
   CompanySetupRequest,
+  EvaluationCreateRequest,
+  EvaluationListRequest,
+  CommentListRequest,
+  CommentAddRequest,
+  AutomationRuleListRequest,
+  AutomationRuleToggleRequest,
+  EmailLogListRequest,
 } from "@/interface/onboarding";
 
 // ── Templates ──────────────────────────────────────────────
@@ -115,3 +122,55 @@ export const apiAssignTask = (taskId: string, assigneeUserId: string) =>
 /** com.sme.onboarding.company.setup */
 export const apiCompanySetup = (payload?: CompanySetupRequest) =>
   gatewayRequest("com.sme.onboarding.company.setup", payload ?? {});
+
+// ── Evaluations ────────────────────────────────────────────
+
+/** com.sme.onboarding.evaluation.create */
+export const apiCreateEvaluation = (payload: EvaluationCreateRequest) =>
+  gatewayRequest("com.sme.onboarding.evaluation.create", payload);
+
+/** com.sme.onboarding.evaluation.list */
+export const apiListEvaluations = (params: EvaluationListRequest) =>
+  gatewayRequest(
+    "com.sme.onboarding.evaluation.list",
+    { instanceId: params.instanceId },
+    { flatPayload: true },
+  );
+
+// ── Task Comments ──────────────────────────────────────────
+
+/** com.sme.onboarding.task.comment.list */
+export const apiListComments = (params: CommentListRequest) =>
+  gatewayRequest(
+    "com.sme.onboarding.task.comment.list",
+    { taskId: params.taskId },
+    { flatPayload: true },
+  );
+
+/** com.sme.onboarding.task.comment.add */
+export const apiAddComment = (payload: CommentAddRequest) =>
+  gatewayRequest("com.sme.onboarding.task.comment.add", payload);
+
+// ── Automation Rules ───────────────────────────────────────
+
+/** com.sme.onboarding.automation.rule.list */
+export const apiListAutomationRules = (params?: AutomationRuleListRequest) =>
+  gatewayRequest(
+    "com.sme.onboarding.automation.rule.list",
+    params ?? {},
+    { flatPayload: true },
+  );
+
+/** com.sme.onboarding.automation.rule.toggle */
+export const apiToggleAutomationRule = (payload: AutomationRuleToggleRequest) =>
+  gatewayRequest("com.sme.onboarding.automation.rule.toggle", payload);
+
+// ── Email Logs ──────────────────────────────────────────────
+
+/** com.sme.onboarding.automation.email.list */
+export const apiListEmailLogs = (params?: EmailLogListRequest) =>
+  gatewayRequest(
+    "com.sme.onboarding.automation.email.list",
+    params ?? {},
+    { flatPayload: true },
+  );

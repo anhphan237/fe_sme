@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Building2 } from "lucide-react";
 import { clsx } from "clsx";
 import { PageHeader } from "../../components/common/PageHeader";
@@ -10,69 +9,19 @@ import { Skeleton } from "../../components/ui/Skeleton";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Badge } from "../../components/ui/Badge";
 import { useToast } from "../../components/ui/Toast";
-import { apiSearchUsers } from "@/api/identity/identity.api";
 import {
-  apiListDepartments,
   apiCreateDepartment,
   apiUpdateDepartment,
 } from "@/api/company/company.api";
-import { extractList } from "@/api/core/types";
-import { mapUser } from "@/utils/mappers/identity";
 import { useLocale } from "@/i18n";
 import { useAppStore } from "../../store/useAppStore";
+import { getDeptTypeLabel, getDeptTypeStyle } from "./shared";
+import { useUsersQuery, useDepartmentsQuery } from "./hooks";
 import {
   DepartmentFormModal,
   type DepartmentModalMode,
 } from "./components/DepartmentFormModal";
-import type { User } from "@/shared/types";
 import type { DepartmentItem } from "@/interface/company";
-import type { UserListItem } from "@/interface/identity";
-
-const DEPARTMENT_TYPES = [
-  { value: "IT", label: "IT" },
-  { value: "HR", label: "HR" },
-  { value: "FCT", label: "Finance" },
-  { value: "OPS", label: "Operations" },
-  { value: "SLS", label: "Sales" },
-  { value: "MKT", label: "Marketing" },
-  { value: "GEN", label: "General" },
-  { value: "OTHER", label: "Other" },
-] as const;
-
-const TYPE_STYLES: Record<string, string> = {
-  IT: "bg-blue-50 text-blue-700",
-  HR: "bg-purple-50 text-purple-700",
-  FCT: "bg-emerald-50 text-emerald-700",
-  OPS: "bg-amber-50 text-amber-700",
-  SLS: "bg-rose-50 text-rose-700",
-  MKT: "bg-pink-50 text-pink-700",
-  GEN: "bg-slate-100 text-slate-600",
-  OTHER: "bg-gray-100 text-gray-600",
-};
-
-function getTypeLabel(value: string | null): string {
-  if (!value) return "Other";
-  return DEPARTMENT_TYPES.find((t) => t.value === value)?.label ?? value;
-}
-
-function getTypeStyle(value: string | null): string {
-  return TYPE_STYLES[value ?? "OTHER"] ?? TYPE_STYLES.OTHER;
-}
-
-const useDepartmentsQuery = () =>
-  useQuery({
-    queryKey: ["departments"],
-    queryFn: () => apiListDepartments(),
-    select: (res: unknown) => extractList<DepartmentItem>(res, "items"),
-  });
-
-const useUsersQuery = () =>
-  useQuery({
-    queryKey: ["users"],
-    queryFn: () => apiSearchUsers(),
-    select: (res: unknown) =>
-      extractList<UserListItem>(res, "users", "items").map(mapUser) as User[],
-  });
 
 function Departments() {
   const [modalMode, setModalMode] = useState<DepartmentModalMode>(null);
@@ -208,7 +157,7 @@ function Departments() {
                           <button
                             type="button"
                             onClick={() => openEdit(dept)}
-                            className="text-left font-medium text-slate-900 hover:text-indigo-600 hover:underline transition-colors">
+                            className="text-left font-medium text-slate-900 transition-colors hover:text-indigo-600 hover:underline">
                             {dept.name}
                           </button>
                           <p className="mt-0.5 text-xs text-slate-400">
@@ -219,8 +168,11 @@ function Departments() {
                     </td>
                     <td className="px-5 py-3.5">
                       <Badge
-                        className={clsx("text-xs", getTypeStyle(dept.type))}>
-                        {getTypeLabel(dept.type)}
+                        className={clsx(
+                          "text-xs",
+                          getDeptTypeStyle(dept.type),
+                        )}>
+                        {getDeptTypeLabel(dept.type)}
                       </Badge>
                     </td>
                     <td className="px-5 py-3.5">

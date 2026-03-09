@@ -83,6 +83,26 @@ export const apiRevokeRole = (userId: string, roleCode: Role) =>
     { userId, roleCode },
   );
 
+/** com.sme.identity.role.grantPermission */
+export const apiGrantRolePermission = (
+  roleCode: Role,
+  permissionCode: string,
+) =>
+  gatewayRequest<{ roleCode: Role; permissionCode: string }, void>(
+    "com.sme.identity.role.grantPermission",
+    { roleCode, permissionCode },
+  );
+
+/** com.sme.identity.role.revokePermission */
+export const apiRevokeRolePermission = (
+  roleCode: Role,
+  permissionCode: string,
+) =>
+  gatewayRequest<{ roleCode: Role; permissionCode: string }, void>(
+    "com.sme.identity.role.revokePermission",
+    { roleCode, permissionCode },
+  );
+
 // ── Session ───────────────────────────────────────────────
 
 /** Logout — gateway is stateless, resolve immediately */

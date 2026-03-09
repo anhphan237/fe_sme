@@ -32,6 +32,10 @@ interface AppState {
   setRoles: (roles: string[]) => void;
   setLocale: (locale: Locale) => void;
   logout: () => void;
+
+  // --- Breadcrumb mapping (PMS setBreadCrumbs pattern) ---
+  breadcrumbs: { [key: string]: string };
+  setBreadcrumbs: (entries: { [key: string]: string }) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -76,6 +80,9 @@ export const useAppStore = create<AppState>((set) => ({
     }
     set({ locale });
   },
+  breadcrumbs: {},
+  setBreadcrumbs: (entries) =>
+    set((state) => ({ breadcrumbs: { ...state.breadcrumbs, ...entries } })),
   logout: () => {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(AUTH_TOKEN_KEY);

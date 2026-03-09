@@ -17,17 +17,20 @@ const AdminKnowledgeBase = lazy(() => import("./pages/admin/KnowledgeBase"));
 const AdminDepartments = lazy(() => import("./pages/admin/Departments"));
 const Profile = lazy(() => import("./pages/profile/Profile"));
 const Notifications = lazy(() => import("./pages/settings/Notifications"));
-const Templates = lazy(() => import("./pages/onboarding/Templates"));
-const TemplateEditor = lazy(() => import("./pages/onboarding/TemplateEditor"));
-const Employees = lazy(() => import("./pages/onboarding/Employees"));
-const CreateEmployee = lazy(() => import("./pages/onboarding/CreateEmployee"));
-const EmployeeManagement = lazy(
-  () => import("./pages/onboarding/EmployeeManagement"),
+const Templates = lazy(() => import("./pages/onboarding/templates"));
+const TemplateEditor = lazy(
+  () => import("./pages/onboarding/templates/editor"),
 );
-const EmployeeDetail = lazy(() => import("./pages/onboarding/EmployeeDetail"));
-const OnboardingTasks = lazy(() => import("./pages/onboarding/Tasks"));
+const Employees = lazy(() => import("./pages/onboarding/employees"));
+const EmployeeManagement = lazy(
+  () => import("./pages/onboarding/employees/management"),
+);
+const EmployeeDetail = lazy(
+  () => import("./pages/onboarding/employees/detail"),
+);
+const OnboardingTasks = lazy(() => import("./pages/onboarding/tasks"));
 const OnboardingAutomation = lazy(
-  () => import("./pages/onboarding/Automation"),
+  () => import("./pages/onboarding/automation"),
 );
 const Documents = lazy(() => import("./pages/documents/Documents"));
 const DocumentDetail = lazy(() => import("./pages/documents/DocumentDetail"));
@@ -139,10 +142,6 @@ export const router = createBrowserRouter([
       {
         path: "/onboarding/employees/new",
         element: suspense(withRoles(<EmployeeManagement />, ["HR"])),
-      },
-      {
-        path: "/onboarding/employees/create",
-        element: suspense(withRoles(<CreateEmployee />, ["HR"])),
       },
       {
         path: "/onboarding/employees/:employeeId",

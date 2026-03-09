@@ -1,7 +1,6 @@
 import { useState, useMemo } from "react";
 import { Users as UsersIcon, Search } from "lucide-react";
 import { clsx } from "clsx";
-import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "../../components/common/PageHeader";
 import { Card } from "../../components/ui/Card";
 import { Table } from "../../components/ui/Table";
@@ -11,41 +10,16 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { useToast } from "../../components/ui/Toast";
 import { Button } from "../../components/ui/Button";
 import {
-  apiSearchUsers,
   apiCreateUser,
   apiDisableUser,
+  apiUpdateUser,
 } from "@/api/identity/identity.api";
-import { extractList } from "@/api/core/types";
-import { mapUser } from "@/utils/mappers/identity";
 import { useLocale } from "@/i18n";
 import { ROLE_LABELS, getPrimaryRole } from "@/shared/rbac";
+import { ROLE_BADGE_STYLES, statusVariant } from "./shared";
+import { useUsersQuery } from "./hooks";
 import { InviteUserModal } from "./components/InviteUserModal";
 import { UserDetailModal } from "./components/UserDetailModal";
-import type { User } from "@/shared/types";
-import type { UserListItem } from "@/interface/identity";
-
-const STATUS_STYLES: Record<string, string> = {
-  Active: "bg-emerald-50 text-emerald-700",
-  Invited: "bg-amber-50 text-amber-700",
-  Inactive: "bg-red-50 text-red-600",
-};
-
-const ROLE_BADGE_STYLES: Record<string, string> = {
-  ADMIN: "bg-indigo-50 text-indigo-700",
-  HR: "bg-purple-50 text-purple-700",
-  MANAGER: "bg-blue-50 text-blue-700",
-  IT: "bg-cyan-50 text-cyan-700",
-  EMPLOYEE: "bg-slate-100 text-slate-600",
-  STAFF: "bg-slate-100 text-slate-600",
-};
-
-const useUsersQuery = () =>
-  useQuery({
-    queryKey: ["users"],
-    queryFn: () => apiSearchUsers(),
-    select: (res: unknown) =>
-      extractList<UserListItem>(res, "users", "items").map(mapUser) as User[],
-  });
 
 function AdminUsers() {
   const { t } = useLocale();
@@ -54,6 +28,7 @@ function AdminUsers() {
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [disablingId, setDisablingId] = useState<string | null>(null);
+  const [enablingId, setEnablingId] = useState<string | null>(null);
 
   const { data: users, isLoading, isError, refetch } = useUsersQuery();
 
@@ -98,6 +73,17 @@ function AdminUsers() {
       await refetch();
     } finally {
       setDisablingId(null);
+    }
+  };
+
+  const handleEnable = async (userId: string) => {
+    setEnablingId(userId);
+    try {
+      await apiUpdateUser({ userId, status: "ACTIVE" });
+      toast(t("user.enable.success"));
+      await refetch();
+    } finally {
+      setEnablingId(null);
     }
   };
 
@@ -214,11 +200,8 @@ function AdminUsers() {
                     </td>
                     <td className="px-5 py-3.5">
                       <Badge
-                        className={clsx(
-                          "text-xs",
-                          STATUS_STYLES[user.status] ??
-                            "bg-slate-100 text-slate-600",
-                        )}>
+                        variant={statusVariant(user.status)}
+                        className="text-xs">
                         {t(`user.status.${user.status.toLowerCase()}`)}
                       </Badge>
                     </td>
@@ -226,7 +209,17 @@ function AdminUsers() {
                       {user.createdAt?.slice(0, 10) ?? "â€”"}
                     </td>
                     <td className="px-5 py-3.5 text-right">
-                      {user.status !== "Inactive" && (
+                      {user.status === "Inactive" ? (
+                        <button
+                          type="button"
+                          disabled={enablingId === user.id}
+                          onClick={() => handleEnable(user.id)}
+                          className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-emerald-600 transition-colors hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-40">
+                          {enablingId === user.id
+                            ? t("user.enabling")
+                            : t("user.enable")}
+                        </button>
+                      ) : (
                         <button
                           type="button"
                           disabled={disablingId === user.id}
@@ -255,6 +248,7 @@ function AdminUsers() {
       <UserDetailModal
         userId={detailUserId}
         onClose={() => setDetailUserId(null)}
+        onUpdated={refetch}
       />
     </div>
   );

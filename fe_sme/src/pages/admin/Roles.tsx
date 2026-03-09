@@ -1,97 +1,50 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { PageHeader } from "../../components/common/PageHeader";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
 import { useToast } from "../../components/ui/Toast";
+import { useLocale } from "@/i18n";
+import {
+  apiGrantRolePermission,
+  apiRevokeRolePermission,
+} from "@/api/identity/identity.api";
 import type { Role } from "../../shared/types";
 import { ROLE_LABELS } from "../../shared/rbac";
 
 // ── Permission catalogue ───────────────────────────────────
 
-type PermEntry = { code: string; label: string; group: string };
+type PermEntry = { code: string; groupKey: string };
 
 const ALL_PERMISSIONS: PermEntry[] = [
   // Organisation
-  {
-    code: "manage_departments",
-    label: "Manage departments",
-    group: "Organisation",
-  },
-  { code: "manage_users", label: "Manage users", group: "Organisation" },
-  { code: "manage_roles", label: "Manage roles", group: "Organisation" },
-  {
-    code: "view_company_billing",
-    label: "View company billing",
-    group: "Organisation",
-  },
+  { code: "manage_departments", groupKey: "organisation" },
+  { code: "manage_users", groupKey: "organisation" },
+  { code: "manage_roles", groupKey: "organisation" },
+  { code: "view_company_billing", groupKey: "organisation" },
   // HR / Onboarding
-  {
-    code: "manage_employee_profiles",
-    label: "Manage employee profiles",
-    group: "HR & Onboarding",
-  },
-  {
-    code: "manage_onboarding_templates",
-    label: "Manage onboarding templates",
-    group: "HR & Onboarding",
-  },
-  {
-    code: "create_onboarding_instances",
-    label: "Create onboarding instances",
-    group: "HR & Onboarding",
-  },
-  { code: "assign_tasks", label: "Assign tasks", group: "HR & Onboarding" },
-  {
-    code: "track_onboarding_progress",
-    label: "Track onboarding progress",
-    group: "HR & Onboarding",
-  },
-  {
-    code: "manage_automation",
-    label: "Manage automation",
-    group: "HR & Onboarding",
-  },
-  { code: "manage_surveys", label: "Manage surveys", group: "HR & Onboarding" },
-  {
-    code: "view_survey_analytics",
-    label: "View survey analytics",
-    group: "HR & Onboarding",
-  },
+  { code: "manage_employee_profiles", groupKey: "hr_onboarding" },
+  { code: "manage_onboarding_templates", groupKey: "hr_onboarding" },
+  { code: "create_onboarding_instances", groupKey: "hr_onboarding" },
+  { code: "assign_tasks", groupKey: "hr_onboarding" },
+  { code: "track_onboarding_progress", groupKey: "hr_onboarding" },
+  { code: "manage_automation", groupKey: "hr_onboarding" },
+  { code: "manage_surveys", groupKey: "hr_onboarding" },
+  { code: "view_survey_analytics", groupKey: "hr_onboarding" },
   // Content
-  { code: "manage_documents", label: "Manage documents", group: "Content" },
-  { code: "manage_kb", label: "Manage knowledge base", group: "Content" },
+  { code: "manage_documents", groupKey: "content" },
+  { code: "manage_kb", groupKey: "content" },
   // Team
-  {
-    code: "view_team_onboarding",
-    label: "View team onboarding",
-    group: "Team",
-  },
-  {
-    code: "update_assigned_tasks",
-    label: "Update assigned tasks",
-    group: "Team",
-  },
+  { code: "view_team_onboarding", groupKey: "team" },
+  { code: "update_assigned_tasks", groupKey: "team" },
   // Collaboration
-  { code: "comment_tasks", label: "Comment on tasks", group: "Collaboration" },
-  {
-    code: "upload_attachments",
-    label: "Upload attachments",
-    group: "Collaboration",
-  },
+  { code: "comment_tasks", groupKey: "collaboration" },
+  { code: "upload_attachments", groupKey: "collaboration" },
   // Employee self-service
-  {
-    code: "view_my_onboarding",
-    label: "View my onboarding",
-    group: "Self-service",
-  },
-  {
-    code: "update_task_status",
-    label: "Update task status",
-    group: "Self-service",
-  },
-  { code: "answer_surveys", label: "Answer surveys", group: "Self-service" },
-  { code: "view_documents", label: "View documents", group: "Self-service" },
+  { code: "view_my_onboarding", groupKey: "self_service" },
+  { code: "update_task_status", groupKey: "self_service" },
+  { code: "answer_surveys", groupKey: "self_service" },
+  { code: "view_documents", groupKey: "self_service" },
 ];
 
 // ── Default permission sets per role ──────────────────────
@@ -119,7 +72,6 @@ const DEFAULT_PERMISSIONS: Record<Role, string[]> = {
     "answer_surveys",
     "view_documents",
   ],
-  // STAFF is a platform-level role - not shown here
   STAFF: [],
   HR: [
     "manage_employee_profiles",
@@ -161,38 +113,42 @@ const DEFAULT_PERMISSIONS: Record<Role, string[]> = {
   ],
 };
 
-const ROLE_DESCRIPTIONS: Record<Role, string> = {
-  ADMIN: "Full access: manages users, roles, billing and system settings.",
-  STAFF: "Internal platform staff (platform-level, not company-level).",
-  HR: "Owns employee onboarding workflows, surveys and documents.",
-  MANAGER: "Guides team onboarding and updates assigned tasks.",
-  IT: "Manages knowledge base and documentation.",
-  EMPLOYEE: "Completes personal onboarding tasks and surveys.",
-};
-
-// Company-level roles only (platform roles managed separately)
+// Company-level roles only
 const COMPANY_ROLES: Role[] = ["ADMIN", "HR", "MANAGER", "IT", "EMPLOYEE"];
 
 // ── Page component ────────────────────────────────────────
 
 function AdminRoles() {
   const toast = useToast();
+  const { t } = useLocale();
   const [activeRole, setActiveRole] = useState<Role>("ADMIN");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Local editable permissions state (source-of-truth until BE grantPermission op is available)
+  // Current (edited) permissions per role
   const [permsState, setPermsState] = useState<Record<Role, Set<string>>>(
     () => {
       const map = {} as Record<Role, Set<string>>;
-      for (const role of COMPANY_ROLES) {
+      for (const role of COMPANY_ROLES)
         map[role] = new Set(DEFAULT_PERMISSIONS[role]);
-      }
       return map;
     },
   );
 
-  const groups = Array.from(new Set(ALL_PERMISSIONS.map((p) => p.group)));
+  // Last-saved permissions per role (for hasChanges & diff calculation)
+  const [savedPerms, setSavedPerms] = useState<Record<Role, Set<string>>>(
+    () => {
+      const map = {} as Record<Role, Set<string>>;
+      for (const role of COMPANY_ROLES)
+        map[role] = new Set(DEFAULT_PERMISSIONS[role]);
+      return map;
+    },
+  );
+
+  const groups = Array.from(new Set(ALL_PERMISSIONS.map((p) => p.groupKey)));
 
   const toggle = (code: string) => {
+    setSaveError(null);
     setPermsState((prev) => {
       const next = new Set(prev[activeRole]);
       if (next.has(code)) next.delete(code);
@@ -201,9 +157,46 @@ function AdminRoles() {
     });
   };
 
-  const handleSave = () => {
-    // TODO: wire to com.sme.identity.role.grantPermission / revokePermission when BE ready
-    toast(`Permissions for ${ROLE_LABELS[activeRole]} saved.`);
+  const hasChanges = useMemo(() => {
+    const saved = savedPerms[activeRole];
+    const current = permsState[activeRole];
+    if (current.size !== saved.size) return true;
+    for (const code of current) if (!saved.has(code)) return true;
+    return false;
+  }, [activeRole, permsState, savedPerms]);
+
+  const handleReset = () => {
+    setSaveError(null);
+    setPermsState((prev) => ({
+      ...prev,
+      [activeRole]: new Set(savedPerms[activeRole]),
+    }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveError(null);
+
+    const saved = savedPerms[activeRole];
+    const current = permsState[activeRole];
+    const toGrant = [...current].filter((p) => !saved.has(p));
+    const toRevoke = [...saved].filter((p) => !current.has(p));
+
+    try {
+      await Promise.all([
+        ...toGrant.map((p) => apiGrantRolePermission(activeRole, p)),
+        ...toRevoke.map((p) => apiRevokeRolePermission(activeRole, p)),
+      ]);
+      setSavedPerms((prev) => ({
+        ...prev,
+        [activeRole]: new Set(current),
+      }));
+      toast(t("role.save_success"));
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : t("role.save_failed"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const active = permsState[activeRole];
@@ -211,20 +204,23 @@ function AdminRoles() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Roles & Permissions"
-        subtitle="Configure access for each role within your organisation."
+        title={t("role.page_title")}
+        subtitle={t("role.page_subtitle")}
       />
 
       <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
         {/* Left — role list */}
         <Card className="self-start space-y-1 p-4">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">
-            Company roles
+            {t("role.company_roles")}
           </p>
           {COMPANY_ROLES.map((role) => (
             <button
               key={role}
-              onClick={() => setActiveRole(role)}
+              onClick={() => {
+                setActiveRole(role);
+                setSaveError(null);
+              }}
               className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium transition-colors ${
                 role === activeRole
                   ? "bg-slate-900 text-white"
@@ -251,20 +247,25 @@ function AdminRoles() {
                 {ROLE_LABELS[activeRole]}
               </h3>
               <p className="text-sm text-muted">
-                {ROLE_DESCRIPTIONS[activeRole]}
+                {t(`role.desc.${activeRole.toLowerCase()}`)}
               </p>
             </div>
             <Badge>
-              {active.size} / {ALL_PERMISSIONS.length} permissions
+              {t("role.permissions_count", {
+                current: active.size,
+                total: ALL_PERMISSIONS.length,
+              })}
             </Badge>
           </div>
 
-          {groups.map((group) => {
-            const groupPerms = ALL_PERMISSIONS.filter((p) => p.group === group);
+          {groups.map((groupKey) => {
+            const groupPerms = ALL_PERMISSIONS.filter(
+              (p) => p.groupKey === groupKey,
+            );
             return (
-              <div key={group} className="space-y-1">
+              <div key={groupKey} className="space-y-1">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
-                  {group}
+                  {t(`role.group.${groupKey}`)}
                 </p>
                 {groupPerms.map((perm) => {
                   const checked = active.has(perm.code);
@@ -273,7 +274,7 @@ function AdminRoles() {
                       key={perm.code}
                       className="flex cursor-pointer items-center justify-between rounded-xl border border-stroke px-4 py-2.5 text-sm transition-colors hover:bg-slate-50">
                       <span className={checked ? "text-ink" : "text-muted"}>
-                        {perm.label}
+                        {t(`role.perm.${perm.code}`)}
                       </span>
                       <input
                         type="checkbox"
@@ -288,12 +289,24 @@ function AdminRoles() {
             );
           })}
 
-          <div className="flex items-center justify-between border-t border-stroke pt-4">
-            <p className="text-xs text-muted">
-              Changes are saved locally until backend permission management is
-              available.
-            </p>
-            <Button onClick={handleSave}>Save changes</Button>
+          <div className="flex items-center justify-between gap-4 border-t border-stroke pt-4">
+            <div>
+              {saveError && <p className="text-sm text-red-600">{saveError}</p>}
+            </div>
+            <div className="flex items-center gap-2">
+              {hasChanges && (
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  disabled={saving}
+                  className="rounded-lg px-3 py-1.5 text-sm text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40">
+                  {t("global.reset")}
+                </button>
+              )}
+              <Button onClick={handleSave} disabled={!hasChanges || saving}>
+                {saving ? t("role.saving") : t("role.save_changes")}
+              </Button>
+            </div>
           </div>
         </Card>
       </div>

@@ -1,18 +1,22 @@
 ﻿import { ChevronRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { useAppStore } from '@/store/useAppStore'
 
 interface BreadcrumbsProps {
   pathname: string
 }
 
 export function Breadcrumbs({ pathname }: BreadcrumbsProps) {
+  const breadcrumbs = useAppStore((s) => s.breadcrumbs)
   const parts = pathname.split('/').filter(Boolean)
   const crumbs = parts.map((part, index) => {
     const to = '/' + parts.slice(0, index + 1).join('/')
-    const label = part
-      .split('-')
-      .map((word) => word[0].toUpperCase() + word.slice(1))
-      .join(' ')
+    const label =
+      breadcrumbs[part] ??
+      part
+        .split('-')
+        .map((word) => word[0].toUpperCase() + word.slice(1))
+        .join(' ')
 
     return { label, to }
   })

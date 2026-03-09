@@ -1,20 +1,11 @@
-import { useState, useRef, useEffect, useMemo } from "react";
-import {
-  Eye,
-  EyeOff,
-  Copy,
-  RefreshCw,
-  Search,
-  ChevronDown,
-} from "lucide-react";
-import { clsx } from "clsx";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect, useMemo } from "react";
+import { Eye, EyeOff, Copy, RefreshCw } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { Modal } from "../../../components/ui/Modal";
 import { useLocale } from "@/i18n";
-import { apiListDepartments } from "@/api/company/company.api";
-import { extractList } from "@/api/core/types";
-import type { DepartmentItem } from "@/interface/company";
+import { useDepartmentsQuery } from "../hooks";
+import { SearchableSelect } from "./SearchableSelect";
+import { ManagerPicker } from "./ManagerPicker";
 
 interface InviteForm {
   email: string;
@@ -34,135 +25,12 @@ const ROLE_OPTIONS = [
 ] as const;
 
 function generatePassword(): string {
-  const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#";
+  const chars =
+    "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#";
   return Array.from(
     { length: 12 },
     () => chars[Math.floor(Math.random() * chars.length)],
   ).join("");
-}
-
-interface DepartmentSelectProps {
-  value: string;
-  onChange: (id: string) => void;
-  placeholder?: string;
-}
-
-function DepartmentSelect({
-  value,
-  onChange,
-  placeholder,
-}: DepartmentSelectProps) {
-  const { t } = useLocale();
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
-
-  const { data: departments = [] } = useQuery({
-    queryKey: ["departments"],
-    queryFn: () => apiListDepartments(),
-    select: (res: unknown) => extractList<DepartmentItem>(res, "items"),
-  });
-
-  const selected = useMemo(
-    () => departments.find((d) => d.departmentId === value),
-    [departments, value],
-  );
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return departments;
-    return departments.filter((d) => d.name.toLowerCase().includes(q));
-  }, [departments, query]);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node))
-        setOpen(false);
-    };
-    if (open) {
-      document.addEventListener("mousedown", handler);
-      return () => document.removeEventListener("mousedown", handler);
-    }
-  }, [open]);
-
-  return (
-    <div ref={ref} className="relative w-full">
-      <button
-        type="button"
-        onClick={() => {
-          setOpen((v) => !v);
-          setQuery("");
-        }}
-        className={clsx(
-          "flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-100",
-          open ? "border-indigo-400" : "border-slate-200",
-        )}>
-        <span className={selected ? "text-slate-800" : "text-slate-400"}>
-          {selected
-            ? selected.name
-            : (placeholder ?? t("user.invite.department_placeholder"))}
-        </span>
-        <ChevronDown
-          className={clsx(
-            "h-4 w-4 text-slate-400 transition-transform",
-            open && "rotate-180",
-          )}
-        />
-      </button>
-      {open && (
-        <div className="absolute z-20 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg">
-          <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">
-            <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-            <input
-              autoFocus
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t("department.search_placeholder")}
-              className="flex-1 bg-transparent text-sm text-slate-700 placeholder-slate-400 focus:outline-none"
-            />
-          </div>
-          <ul className="max-h-44 overflow-auto py-1">
-            {value && (
-              <li
-                role="option"
-                className="cursor-pointer px-3 py-2 text-sm text-slate-400 hover:bg-slate-50"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  onChange("");
-                  setOpen(false);
-                }}>
-                {t("department.clear_selection")}
-              </li>
-            )}
-            {filtered.length === 0 ? (
-              <li className="px-3 py-2 text-sm text-slate-400">
-                {t("department.no_matches")}
-              </li>
-            ) : (
-              filtered.map((d) => (
-                <li
-                  key={d.departmentId}
-                  role="option"
-                  className={clsx(
-                    "cursor-pointer px-3 py-2 text-sm hover:bg-indigo-50",
-                    d.departmentId === value &&
-                      "bg-indigo-50 font-medium text-indigo-700",
-                  )}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    onChange(d.departmentId);
-                    setOpen(false);
-                  }}>
-                  {d.name}
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
 }
 
 const INITIAL_FORM: InviteForm = {
@@ -187,14 +55,34 @@ export function InviteUserModal({
 }: InviteUserModalProps) {
   const { t } = useLocale();
   const [form, setForm] = useState<InviteForm>(INITIAL_FORM);
-  const [showPassword, setShowPassword] = useState(false);
+  const [showPassword, setShowPassword] = useState(true);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const { data: departments = [] } = useDepartmentsQuery();
+
+  const departmentOptions = useMemo(
+    () => departments.map((d) => ({ id: d.departmentId, label: d.name })),
+    [departments],
+  );
+
+  // Auto-copy password when modal opens
+  useEffect(() => {
+    if (!open) return;
+    navigator.clipboard
+      .writeText(form.tempPassword)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   const reset = () => {
     setForm({ ...INITIAL_FORM, tempPassword: generatePassword() });
-    setShowPassword(false);
+    setShowPassword(true);
     setCopied(false);
     setError(null);
   };
@@ -206,6 +94,15 @@ export function InviteUserModal({
 
   const handleCopy = () => {
     navigator.clipboard.writeText(form.tempPassword).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const handleRegen = () => {
+    const pw = generatePassword();
+    setForm((f) => ({ ...f, tempPassword: pw }));
+    navigator.clipboard.writeText(pw).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
@@ -296,21 +193,20 @@ export function InviteUserModal({
             <label className="mb-1.5 block text-sm font-medium text-slate-700">
               {t("user.invite.department_id")}
             </label>
-            <DepartmentSelect
+            <SearchableSelect
+              options={departmentOptions}
               value={form.departmentId}
               onChange={(id) => field(id, "departmentId")}
+              placeholder={t("user.invite.department_placeholder")}
             />
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">
               {t("user.invite.manager_id")}
             </label>
-            <input
-              type="text"
+            <ManagerPicker
               value={form.managerUserId}
-              onChange={(e) => field(e.target.value, "managerUserId")}
-              placeholder="manager-uuid"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm transition-colors focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+              onChange={(id) => field(id, "managerUserId")}
             />
           </div>
         </div>
@@ -331,9 +227,7 @@ export function InviteUserModal({
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              title={
-                showPassword ? t("user.invite.hide") : t("user.invite.show")
-              }
+              title={showPassword ? t("user.invite.hide") : t("user.invite.show")}
               className="rounded-lg border border-slate-200 p-2 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700">
               {showPassword ? (
                 <EyeOff className="h-4 w-4" />
@@ -350,7 +244,7 @@ export function InviteUserModal({
             </button>
             <button
               type="button"
-              onClick={() => field(generatePassword(), "tempPassword")}
+              onClick={handleRegen}
               title={t("user.invite.regen")}
               className="rounded-lg border border-slate-200 p-2 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700">
               <RefreshCw className="h-4 w-4" />
