@@ -52,9 +52,9 @@ export const mapInstance = (i: any): OnboardingInstance => ({
   managerName: i.managerName ?? i.manager_name ?? null,
   templateId: i.templateId ?? "",
   startDate: i.startDate ?? i.createdAt ?? "",
-  progress: i.progress ?? 0,
+  progress: i.progressPercent ?? i.progress ?? 0,
   status:
-    i.status === "COMPLETED" || i.status === "Completed"
+    i.status === "DONE" || i.status === "COMPLETED" || i.status === "Completed"
       ? "COMPLETED"
       : i.status === "CANCELLED" ||
           i.status === "CANCELED" ||

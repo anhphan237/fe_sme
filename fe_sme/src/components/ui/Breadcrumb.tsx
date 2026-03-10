@@ -1,25 +1,25 @@
-﻿import { ChevronRight } from 'lucide-react'
-import { Link } from 'react-router-dom'
-import { useAppStore } from '@/store/useAppStore'
+﻿import { ChevronRight } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useGlobalStore } from "@/stores/global.store";
 
 interface BreadcrumbsProps {
-  pathname: string
+  pathname: string;
 }
 
 export function Breadcrumbs({ pathname }: BreadcrumbsProps) {
-  const breadcrumbs = useAppStore((s) => s.breadcrumbs)
-  const parts = pathname.split('/').filter(Boolean)
+  const breadcrumbs = useGlobalStore((s) => s.breadcrumbs);
+  const parts = pathname.split("/").filter(Boolean);
   const crumbs = parts.map((part, index) => {
-    const to = '/' + parts.slice(0, index + 1).join('/')
+    const to = "/" + parts.slice(0, index + 1).join("/");
     const label =
       breadcrumbs[part] ??
       part
-        .split('-')
+        .split("-")
         .map((word) => word[0].toUpperCase() + word.slice(1))
-        .join(' ')
+        .join(" ");
 
-    return { label, to }
-  })
+    return { label, to };
+  });
 
   return (
     <div className="flex items-center gap-2 text-sm text-muted">
@@ -33,6 +33,5 @@ export function Breadcrumbs({ pathname }: BreadcrumbsProps) {
         </span>
       ))}
     </div>
-  )
+  );
 }
-

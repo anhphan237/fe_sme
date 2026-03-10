@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Search } from "lucide-react";
 import { clsx } from "clsx";
 import { useLocale } from "@/i18n";
@@ -27,12 +27,9 @@ export function SearchableSelect({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const selected = useMemo(
-    () => options.find((o) => o.id === value),
-    [options, value],
-  );
+  const selected = options.find((o) => o.id === value);
 
-  const filtered = useMemo(() => {
+  const filtered = (() => {
     const q = query.trim().toLowerCase();
     if (!q) return options;
     return options.filter(
@@ -40,7 +37,7 @@ export function SearchableSelect({
         o.label.toLowerCase().includes(q) ||
         (o.subLabel ?? "").toLowerCase().includes(q),
     );
-  }, [options, query]);
+  })();
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {

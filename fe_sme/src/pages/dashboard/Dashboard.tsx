@@ -33,7 +33,7 @@ const useInstancesQuery = (
   });
 const useDocumentsQuery = () =>
   useQuery({ queryKey: ["documents"], queryFn: apiGetDocuments });
-import { useAppStore } from "../../store/useAppStore";
+import { useUserStore } from "@/stores/user.store";
 import { getPrimaryRole, isPlatformRole } from "../../shared/rbac";
 import type { Role } from "../../shared/types";
 import {
@@ -93,7 +93,7 @@ const progressData = [
 ];
 
 function Dashboard() {
-  const currentUser = useAppStore((state) => state.currentUser);
+  const currentUser = useUserStore((state) => state.currentUser);
   const isPlatformUser = isPlatformRole(currentUser?.roles ?? []);
   const { isLoading: instancesLoading, isError } = useInstancesQuery(
     undefined,

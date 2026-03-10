@@ -1,183 +1,25 @@
 import { useState } from "react";
-import {
-  Zap,
-  Mail,
-  ToggleLeft,
-  ToggleRight,
-  AlertTriangle,
-  RefreshCw,
-} from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Tabs } from "@/components/ui/Tabs";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { Pill } from "@/components/ui/Pill";
-import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/Toast";
 import { useLocale } from "@/i18n";
 import {
-  apiListAutomationRules,
-  apiListEmailLogs,
-  apiToggleAutomationRule,
-} from "@/api/onboarding/onboarding.api";
-import { extractList } from "@/api/core/types";
-import type {
-  AutomationRuleResponse,
-  EmailLogResponse,
-} from "@/interface/onboarding";
-
-// ── Local Hooks ───────────────────────────────────────────────────────────────
-
-const useAutomationRulesQuery = () =>
-  useQuery({
-    queryKey: ["automation-rules"],
-    queryFn: () => apiListAutomationRules(),
-    select: (res: unknown) =>
-      extractList(
-        res as Record<string, unknown>,
-        "rules",
-        "items",
-        "list",
-      ) as AutomationRuleResponse[],
-  });
-
-const useEmailLogsQuery = () =>
-  useQuery({
-    queryKey: ["email-logs"],
-    queryFn: () => apiListEmailLogs(),
-    select: (res: unknown) =>
-      extractList(
-        res as Record<string, unknown>,
-        "logs",
-        "items",
-        "list",
-      ) as EmailLogResponse[],
-  });
-
-const useToggleAutomationRule = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (ruleId: string) => apiToggleAutomationRule(ruleId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["automation-rules"] });
-    },
-  });
-};
-
-// ── Sub-components ─────────────────────────────────────────────────────────────
-
-function RuleRow({
-  rule,
-  onToggle,
-  isToggling,
-}: {
-  rule: AutomationRuleResponse;
-  onToggle: (ruleId: string) => void;
-  isToggling: boolean;
-}) {
-  const { t } = useLocale();
-  const channelCls =
-    rule.channel === "email"
-      ? "bg-blue-100 text-blue-700"
-      : "bg-purple-100 text-purple-700";
-
-  return (
-    <div className="flex items-center gap-4 rounded-xl border border-stroke bg-white px-5 py-4 transition hover:shadow-sm">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100">
-        {rule.channel === "email" ? (
-          <Mail className="h-4 w-4 text-slate-500" />
-        ) : (
-          <Zap className="h-4 w-4 text-slate-500" />
-        )}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold text-ink">{rule.name}</p>
-        <p className="mt-0.5 truncate text-xs text-muted">
-          {t("onboarding.automation.rule.trigger_label")}: {rule.trigger}
-        </p>
-      </div>
-
-      <Pill className={channelCls}>{rule.channel}</Pill>
-
-      <button
-        type="button"
-        onClick={() => onToggle(rule.ruleId)}
-        disabled={isToggling}
-        aria-label={
-          rule.enabled
-            ? t("onboarding.automation.rule.disable")
-            : t("onboarding.automation.rule.enable")
-        }
-        className="shrink-0 text-muted transition hover:text-brand disabled:opacity-50">
-        {rule.enabled ? (
-          <ToggleRight className="h-7 w-7 text-emerald-500" />
-        ) : (
-          <ToggleLeft className="h-7 w-7" />
-        )}
-      </button>
-    </div>
-  );
-}
-
-function EmailLogRow({ log }: { log: EmailLogResponse }) {
-  const { t } = useLocale();
-  const isSent = log.status === "Sent";
-  return (
-    <tr className="border-b border-stroke last:border-0">
-      <td className="py-3 pr-4 text-sm font-medium text-ink">{log.subject}</td>
-      <td className="py-3 pr-4 text-sm text-muted">
-        {log.recipientEmail ?? "—"}
-      </td>
-      <td className="py-3 pr-4 text-sm text-muted">{log.sentAt ?? "—"}</td>
-      <td className="py-3">
-        <Pill
-          className={
-            isSent
-              ? "bg-emerald-100 text-emerald-700"
-              : "bg-red-100 text-red-700"
-          }>
-          {isSent
-            ? t("onboarding.automation.log.status_sent")
-            : t("onboarding.automation.log.status_failed")}
-        </Pill>
-      </td>
-    </tr>
-  );
-}
-
-// ── Shared error state ─────────────────────────────────────────────────────────
-
-function InlineError({
-  message,
-  onRetry,
-}: {
-  message: string;
-  onRetry: () => void;
-}) {
-  const { t } = useLocale();
-  return (
-    <div className="flex flex-col items-center gap-3 py-10 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-50">
-        <AlertTriangle className="h-6 w-6 text-red-400" />
-      </div>
-      <p className="text-sm font-medium text-ink">{message}</p>
-      <Button variant="secondary" onClick={onRetry}>
-        <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-        {t("onboarding.template.error.retry")}
-      </Button>
-    </div>
-  );
-}
-
-// ── Page ───────────────────────────────────────────────────────────────────────
+  useAutomationRulesQuery,
+  useEmailLogsQuery,
+  useToggleAutomationRule,
+} from "./hooks";
+import { RuleRow } from "./RuleRow";
+import { EmailLogRow } from "./EmailLogRow";
+import { InlineError } from "./InlineError";
 
 function Automation() {
   const { t } = useLocale();
   const toast = useToast();
   const [tab, setTab] = useState("rules");
+  const [pendingRuleId, setPendingRuleId] = useState<string | null>(null);
 
   const {
     data: rules = [],
@@ -195,12 +37,15 @@ function Automation() {
 
   const toggleRule = useToggleAutomationRule();
 
-  const handleToggle = async (ruleId: string) => {
+  const handleToggle = async (ruleId: string, currentEnabled: boolean) => {
+    setPendingRuleId(ruleId);
     try {
-      await toggleRule.mutateAsync(ruleId);
+      await toggleRule.mutateAsync({ ruleId, enabled: !currentEnabled });
       toast(t("onboarding.automation.rule.toast.toggled"));
     } catch {
       toast(t("onboarding.automation.rule.toast.failed"));
+    } finally {
+      setPendingRuleId(null);
     }
   };
 
@@ -220,7 +65,6 @@ function Automation() {
         onChange={setTab}
       />
 
-      {/* ─── Rules tab ─────────────────────────────────────────────────────── */}
       {tab === "rules" && (
         <Card>
           {rulesLoading ? (
@@ -241,7 +85,7 @@ function Automation() {
                   key={rule.ruleId}
                   rule={rule}
                   onToggle={handleToggle}
-                  isToggling={toggleRule.isPending}
+                  isToggling={pendingRuleId === rule.ruleId}
                 />
               ))}
             </div>
@@ -254,7 +98,6 @@ function Automation() {
         </Card>
       )}
 
-      {/* ─── Email Logs tab ────────────────────────────────────────────────── */}
       {tab === "logs" && (
         <Card>
           {logsLoading ? (

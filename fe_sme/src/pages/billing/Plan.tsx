@@ -13,7 +13,7 @@ import {
 } from "@/api/billing/billing.api";
 import { extractList } from "@/api/core/types";
 import { mapPlan, mapSubscription } from "@/utils/mappers/billing";
-import { useAppStore } from "../../store/useAppStore";
+import { useUserStore } from "@/stores/user.store";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { useToast } from "../../components/ui/Toast";
 import type { Subscription, BillingPlan } from "../../shared/types";
@@ -108,8 +108,8 @@ async function handleSuccess(
 
 function BillingPlan() {
   const navigate = useNavigate();
-  const currentUser = useAppStore((s) => s.currentUser);
-  const currentTenant = useAppStore((s) => s.currentTenant);
+  const currentUser = useUserStore((s) => s.currentUser);
+  const currentTenant = useUserStore((s) => s.currentTenant);
   const { data, isLoading } = usePlansQuery();
   const { data: subscription } = useSubscriptionQuery();
   const createSub = useCreateSubscription();

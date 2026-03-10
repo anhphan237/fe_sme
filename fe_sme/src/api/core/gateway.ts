@@ -1,4 +1,4 @@
-import { useAppStore } from "@/store/useAppStore";
+import { useUserStore } from "@/stores/user.store";
 import type { GatewayRequestBody, GatewayResponse } from "@/interface/common";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -10,11 +10,11 @@ function getBaseUrl(): string {
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("auth_token") || useAppStore.getState().token;
+  return localStorage.getItem("auth_token") || useUserStore.getState().token;
 }
 
 function getTenantId(): string | null {
-  const tenant = useAppStore.getState().currentTenant;
+  const tenant = useUserStore.getState().currentTenant;
   return tenant?.id ?? null;
 }
 

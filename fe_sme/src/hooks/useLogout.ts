@@ -2,10 +2,10 @@
  * useLogout — logout flow hook (adapted from PMS for SME)
  */
 import { APP_CONFIG, AppRouters } from "@/constants";
-import { useAppStore } from "@/store/useAppStore";
+import { useUserStore } from "@/stores/user.store";
 
 const useLogout = () => {
-  const { logout: storeLogout } = useAppStore();
+  const { logout: storeLogout } = useUserStore();
 
   const handleLogout = () => {
     storeLogout();

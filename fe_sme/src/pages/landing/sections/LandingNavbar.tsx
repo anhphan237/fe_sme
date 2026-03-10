@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useLocale } from "@/i18n";
-import { useAppStore } from "@/store/useAppStore";
-import type { Locale } from "@/store/useAppStore";
+import { useUserStore } from "@/stores/user.store";
+import type { Locale } from "@/stores/user.store";
 import { NAV_LINK_KEYS } from "../landing.constants";
 
 const LANGUAGES: {
@@ -17,8 +17,8 @@ const LANGUAGES: {
 
 export default function LandingNavbar() {
   const { t } = useLocale();
-  const locale = useAppStore((s) => s.locale);
-  const setLocale = useAppStore((s) => s.setLocale);
+  const locale = useUserStore((s) => s.locale);
+  const setLocale = useUserStore((s) => s.setLocale);
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);

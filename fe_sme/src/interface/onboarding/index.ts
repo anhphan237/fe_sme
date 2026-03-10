@@ -116,6 +116,10 @@ export interface OnboardingInstanceCreateRequest {
   employeeId: string;
   /** Optional — for assignee resolution */
   managerId?: string;
+  /** Optional — for IT staff task assignment */
+  itStaffUserId?: string;
+  /** Optional — desired onboarding start date (ISO date string) */
+  startDate?: string;
   /** Idempotency key */
   requestNo?: string;
 }
@@ -191,6 +195,15 @@ export interface OnboardingTaskAssignRequest {
 export interface OnboardingTaskUpdateStatusRequest {
   taskId: string;
   status: "PENDING" | "IN_PROGRESS" | "DONE";
+}
+
+/** com.sme.onboarding.task.listByOnboarding — query options */
+export interface ListTasksByOnboardingOptions {
+  status?: string;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortOrder?: "ASC" | "DESC";
 }
 
 /** com.sme.onboarding.task.listByOnboarding */

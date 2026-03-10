@@ -8,7 +8,7 @@ const useTenantsQuery = (enabled = true) =>
     queryFn: () => Promise.resolve([]),
     enabled,
   });
-import { useAppStore } from "../../store/useAppStore";
+import { useUserStore } from "@/stores/user.store";
 import { Badge } from "../ui/Badge";
 import {
   ROLE_LABELS,
@@ -17,7 +17,7 @@ import {
 } from "../../shared/rbac";
 
 export function RoleTenantSwitcher() {
-  const { currentTenant, setTenant, currentUser } = useAppStore();
+  const { currentTenant, setTenant, currentUser } = useUserStore();
   const canLoadTenants =
     Boolean(currentUser?.companyId) ||
     hasRequiredRole(currentUser?.roles ?? [], ["ADMIN"]);

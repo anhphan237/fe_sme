@@ -2,7 +2,7 @@
  * usePermission - ported from PMS internal system
  * Permission/role-based access control utility
  */
-import { useAppStore } from "@/store/useAppStore";
+import { useGlobalStore } from "@/stores/global.store";
 
 type RequiredRole = string | string[];
 
@@ -43,8 +43,8 @@ export const hasPermission = (
  * canFull('employee') // true only if user has full permission on 'employee'
  */
 export const usePermission = () => {
-  const permissions = useAppStore((s) => s.permissions);
-  const roles = useAppStore((s) => s.roles);
+  const permissions = useGlobalStore((s) => s.permissions);
+  const roles = useGlobalStore((s) => s.roles);
 
   const can = (resource: RequiredRole): boolean =>
     hasPermission(resource, permissions, false);

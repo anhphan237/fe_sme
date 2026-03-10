@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../../components/ui/Toast";
-import { useAppStore } from "../../store/useAppStore";
+import { useUserStore } from "@/stores/user.store";
 import { apiLogin } from "@/api/identity/identity.api";
 import { mapLoginToAppUser } from "@/utils/mappers/identity";
 import { LoginLeftPanel } from "./components/LoginLeftPanel";
@@ -13,8 +13,8 @@ import { RegisterTopBar } from "./components/RegisterTopBar";
 function Login() {
   const navigate = useNavigate();
   const toast = useToast();
-  const setUser = useAppStore((state) => state.setUser);
-  const setToken = useAppStore((state) => state.setToken);
+  const setUser = useUserStore((state) => state.setUser);
+  const setToken = useUserStore((state) => state.setToken);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const handleSubmitData = async (data: LoginForm) => {

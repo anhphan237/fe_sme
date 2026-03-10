@@ -1,4 +1,4 @@
-export type Role = "ADMIN" | "STAFF" | "HR" | "IT" | "MANAGER" | "EMPLOYEE";
+export type { Role } from "@/enums/Role";
 
 export interface Tenant {
   id: string;

@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Bell, LogOut, Menu, Settings, User } from "lucide-react";
 import { useLocale } from "@/i18n";
-import { useAppStore } from "@/store/useAppStore";
+import { useUserStore } from "@/stores/user.store";
 import { apiLogout } from "@/api/identity/identity.api";
 import { RoleTenantSwitcher } from "@/components/common/RoleTenantSwitcher";
 import { Breadcrumbs } from "@/components/ui/Breadcrumb";
@@ -16,8 +16,8 @@ type Props = {
 export function TopBar({ pathname, onMenuClick }: Props) {
   const { t } = useLocale();
   const navigate = useNavigate();
-  const logoutStore = useAppStore((s) => s.logout);
-  const currentUser = useAppStore((s) => s.currentUser);
+  const logoutStore = useUserStore((s) => s.logout);
+  const currentUser = useUserStore((s) => s.currentUser);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 

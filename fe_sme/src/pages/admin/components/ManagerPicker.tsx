@@ -1,7 +1,6 @@
-import { useMemo } from "react";
+import { Select } from "antd";
 import { useLocale } from "@/i18n";
 import { useUsersQuery } from "../hooks";
-import { SearchableSelect } from "./SearchableSelect";
 
 export interface ManagerPickerProps {
   value: string;
@@ -11,23 +10,22 @@ export interface ManagerPickerProps {
 export function ManagerPicker({ value, onChange }: ManagerPickerProps) {
   const { t } = useLocale();
   const { data: users = [] } = useUsersQuery();
-
-  const options = useMemo(
-    () =>
-      users.map((u) => ({
-        id: u.id,
-        label: u.name || u.email,
-        subLabel: u.name ? u.email : undefined,
-      })),
-    [users],
-  );
+  const options = users.map((u) => ({ value: u.id, label: u.name || u.email }));
 
   return (
-    <SearchableSelect
+    <Select
+      className="w-full"
+      showSearch
+      allowClear
+      value={value || undefined}
+      onChange={(v) => onChange(v ?? "")}
       options={options}
-      value={value}
-      onChange={onChange}
       placeholder={t("department.manager_search_placeholder")}
+      filterOption={(input, option) =>
+        String(option?.label ?? "")
+          .toLowerCase()
+          .includes(input.toLowerCase())
+      }
     />
   );
 }

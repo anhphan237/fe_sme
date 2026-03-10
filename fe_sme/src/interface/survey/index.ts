@@ -174,8 +174,31 @@ export interface SurveySatisfactionReportRequest {
   endDate?: string;
 }
 
-/** Aggregated satisfaction report */
-export interface SurveySatisfactionReport {
+// ---------------------------
+// Analytics
+// ---------------------------
+
+/** com.sme.survey.analytics.report */
+export interface SurveyAnalyticsReportRequest {
+  templateId?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+/** com.sme.survey.analytics.report → response data */
+export interface SurveyAnalyticsReport {
+  totalSurveys: number;
+  completionRate: number;
+  averageScore: number;
+  byQuestion: {
+    questionId: string;
+    text: string;
+    averageRating: number;
+    responseCount: number;
+  }[];
+  [key: string]: unknown;
+}
+
   totalResponses: number;
   averageRating: number;
   distribution: Record<string, number>;

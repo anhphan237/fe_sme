@@ -6,14 +6,15 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { Stepper } from "@/components/ui/Stepper";
 import { useToast } from "@/components/ui/Toast";
 import { useLocale } from "@/i18n";
-import { useAppStore } from "@/store/useAppStore";
+import { useUserStore } from "@/stores/user.store";
+import { useGlobalStore } from "@/stores/global.store";
 import type { OnboardingTemplate } from "@/shared/types";
 
-import { StepInfo } from "./components/StepInfo";
-import { StepStages } from "./components/StepStages";
-import { StepTasks } from "./components/StepTasks";
-import { StepReview } from "./components/StepReview";
-import { WizardFooter } from "./components/WizardFooter";
+import { StepInfo } from "./StepInfo";
+import { StepStages } from "./StepStages";
+import { StepTasks } from "./StepTasks";
+import { StepReview } from "./StepReview";
+import { WizardFooter } from "./WizardFooter";
 import {
   type EditorForm,
   type ChecklistDraft,
@@ -35,8 +36,8 @@ export default function TemplateEditor() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const { t } = useLocale();
-  const currentUser = useAppStore((s) => s.currentUser);
-  const setBreadcrumbs = useAppStore((s) => s.setBreadcrumbs);
+  const currentUser = useUserStore((s) => s.currentUser);
+  const setBreadcrumbs = useGlobalStore((s) => s.setBreadcrumbs);
 
   const isCreate = !templateId || templateId === "new";
   const duplicateFrom = (

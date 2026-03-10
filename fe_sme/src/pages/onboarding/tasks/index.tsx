@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
-import { useAppStore } from "@/store/useAppStore";
+import { useUserStore } from "@/stores/user.store";
 import { useLocale } from "@/i18n";
 import { isOnboardingEmployee } from "@/shared/rbac";
 import {
@@ -86,7 +86,7 @@ function Tasks() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const { t } = useLocale();
-  const currentUser = useAppStore((s) => s.currentUser);
+  const currentUser = useUserStore((s) => s.currentUser);
   const userId = currentUser?.id;
   const isEmployee = isOnboardingEmployee(currentUser?.roles ?? []);
 

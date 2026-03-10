@@ -1,7 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { useAppStore } from "../../store/useAppStore";
-import { apiGetMe } from "@/api/identity/identity.api";
-import { mapLoginToAppUser } from "@/utils/mappers/identity";
+import { useUserStore } from "@/stores/user.store";
 import type { User } from "../../shared/types";
 import { PageSkeleton } from "../ui/Skeleton";
 
@@ -39,9 +37,9 @@ interface AuthRehydrateProps {
  */
 export function AuthRehydrate({ children }: AuthRehydrateProps) {
   const [rehydrated, setRehydrated] = useState(false);
-  const setToken = useAppStore((s) => s.setToken);
-  const setUser = useAppStore((s) => s.setUser);
-  const logout = useAppStore((s) => s.logout);
+  const setToken = useUserStore((s) => s.setToken);
+  const setUser = useUserStore((s) => s.setUser);
+  const logout = useUserStore((s) => s.logout);
 
   useEffect(() => {
     const token =
@@ -62,36 +60,11 @@ export function AuthRehydrate({ children }: AuthRehydrateProps) {
     const user = parseStoredUser(storedUser);
     if (user) {
       setUser(user);
-      setRehydrated(true);
-      // Refresh user from API in background
-      apiGetMe()
-        .then((res) => {
-          if (res && typeof window !== "undefined") {
-            const fresh = mapLoginToAppUser(res);
-            setUser(fresh);
-            window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(fresh));
-          }
-        })
-        .catch(() => {});
-      return;
+    } else {
+      // No stored user state — session is stale, force re-login
+      logout();
     }
-
-    // No stored user (e.g. old session): must fetch apiGetMe() before showing app
-    apiGetMe()
-      .then((res) => {
-        if (res) {
-          const u = mapLoginToAppUser(res);
-          setUser(u);
-          if (typeof window !== "undefined") {
-            window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(u));
-          }
-        }
-        setRehydrated(true);
-      })
-      .catch(() => {
-        logout();
-        setRehydrated(true);
-      });
+    setRehydrated(true);
   }, [setToken, setUser, logout]);
 
   if (!rehydrated) {

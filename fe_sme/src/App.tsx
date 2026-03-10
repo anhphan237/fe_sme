@@ -4,10 +4,11 @@ import { IntlProvider } from "react-intl";
 import { ConfigProvider, Spin } from "antd";
 import vi_VN from "antd/lib/locale/vi_VN";
 import en_US from "antd/lib/locale/en_US";
-import { router } from "./router";
+import { router } from "./routes";
 import { ToastViewport } from "./components/ui/Toast";
 import { AuthRehydrate } from "./components/auth/AuthRehydrate";
-import { useAppStore } from "./store/useAppStore";
+import { useUserStore } from "./stores/user.store";
+import { useGlobalStore } from "./stores/global.store";
 import { localeConfig } from "./i18n";
 
 const queryClient = new QueryClient({
@@ -21,8 +22,8 @@ const queryClient = new QueryClient({
 
 /** Inner component so it can read Zustand locale state */
 function AppProviders() {
-  const locale = useAppStore((s) => s.locale);
-  const loading = useAppStore((s) => s.loading);
+  const locale = useUserStore((s) => s.locale);
+  const loading = useGlobalStore((s) => s.loading);
 
   const antdLocale = locale === "vi_VN" ? vi_VN : en_US;
   const intlMessages = localeConfig[locale] ?? localeConfig["vi_VN"];

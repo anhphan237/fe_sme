@@ -3,7 +3,7 @@ import { LifeBuoy, X, Layers } from "lucide-react";
 import { clsx } from "clsx";
 import { useLocation } from "react-router-dom";
 import { useLocale } from "@/i18n";
-import { useAppStore } from "@/store/useAppStore";
+import { useUserStore } from "@/stores/user.store";
 import { hasRequiredRole } from "@/shared/rbac";
 import { NAV_SECTIONS } from "../nav.config";
 import type { NavSection } from "../nav.config";
@@ -17,7 +17,7 @@ type Props = {
 export function Sidebar({ open, onClose }: Props) {
   const { t } = useLocale();
   const location = useLocation();
-  const currentUser = useAppStore((s) => s.currentUser);
+  const currentUser = useUserStore((s) => s.currentUser);
   const userRoles = currentUser?.roles ?? [];
   const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({});
 

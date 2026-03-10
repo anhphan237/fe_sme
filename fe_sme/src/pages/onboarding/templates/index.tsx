@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import { useLocale } from "@/i18n";
-import { useAppStore } from "@/store/useAppStore";
+import { useGlobalStore } from "@/stores/global.store";
 import type { OnboardingTemplate } from "@/shared/types";
 import {
   useTemplatesQuery,
@@ -18,15 +18,15 @@ import {
   STATUS_TAB_KEYS,
   type StatusFilter,
 } from "./hooks";
-import { TemplateRow } from "./components/TemplateRow";
-import { DeactivateModal } from "./components/DeactivateModal";
+import { TemplateRow } from "./TemplateRow";
+import { DeactivateModal } from "./DeactivateModal";
 
 function Templates() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const toast = useToast();
   const { t } = useLocale();
-  const setBreadcrumbs = useAppStore((s) => s.setBreadcrumbs);
+  const setBreadcrumbs = useGlobalStore((s) => s.setBreadcrumbs);
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ACTIVE");
   const [actionTarget, setActionTarget] = useState<OnboardingTemplate | null>(

@@ -8,14 +8,14 @@ import { Table } from "@/components/ui/Table";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { useAppStore } from "@/store/useAppStore";
+import { useUserStore } from "@/stores/user.store";
 import { useLocale } from "@/i18n";
 import { canManageOnboarding } from "@/shared/rbac";
-import { FilterTabs } from "./components/FilterTabs";
-import { InstanceRow } from "./components/InstanceRow";
-import { StartOnboardingDrawer } from "./components/StartOnboardingDrawer";
+import { FilterTabs } from "./FilterTabs";
+import { InstanceRow } from "./InstanceRow";
+import { StartOnboardingDrawer } from "./StartOnboardingDrawer";
 import { useInstancesQuery, useUsersQuery } from "./hooks";
-import type { StatusFilter } from "./components/FilterTabs";
+import type { StatusFilter } from "./FilterTabs";
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -23,7 +23,7 @@ function Employees() {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useLocale();
-  const currentUser = useAppStore((s) => s.currentUser);
+  const currentUser = useUserStore((s) => s.currentUser);
   const canStart = canManageOnboarding(currentUser?.roles ?? []);
 
   const locationState = location.state as { newEmployeeId?: string } | null;

@@ -5,7 +5,7 @@ import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { useToast } from "../../components/ui/Toast";
-import { useAppStore } from "../../store/useAppStore";
+import { useUserStore } from "@/stores/user.store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGetUserById, apiUpdateUser } from "@/api/identity/identity.api";
 import { mapUserDetail } from "@/utils/mappers/identity";
@@ -26,8 +26,8 @@ import { ROLE_LABELS } from "../../shared/rbac";
 import { User, Mail, Phone, Briefcase, MapPin, Calendar } from "lucide-react";
 
 function Profile() {
-  const currentUser = useAppStore((s) => s.currentUser);
-  const setUser = useAppStore((s) => s.setUser);
+  const currentUser = useUserStore((s) => s.currentUser);
+  const setUser = useUserStore((s) => s.setUser);
   const queryClient = useQueryClient();
   const toast = useToast();
 

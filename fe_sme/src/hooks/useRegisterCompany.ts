@@ -11,7 +11,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/Toast";
-import { useAppStore } from "@/store/useAppStore";
+import { useUserStore } from "@/stores/user.store";
 import { useLocale } from "@/i18n";
 import type { BillingPlan, Tenant } from "@/shared/types";
 import type { Role } from "@/shared/types";
@@ -87,7 +87,7 @@ export function useRegisterCompany(): UseRegisterCompanyResult {
   const { t } = useLocale();
   const navigate = useNavigate();
   const toast = useToast();
-  const { setTenant, setUser, setToken } = useAppStore();
+  const { setTenant, setUser, setToken } = useUserStore();
 
   const [step, setStep] = useState(0);
   const [submitError, setSubmitError] = useState<string | null>(null);
