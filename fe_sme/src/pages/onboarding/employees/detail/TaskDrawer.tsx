@@ -1,18 +1,18 @@
-import { Drawer } from "@/components/ui/Drawer";
-import { Pill } from "@/components/ui/Pill";
-import { Button } from "@/components/ui/Button";
+﻿import { Drawer } from "@core/components/ui/Drawer";
+import { Pill } from "@core/components/ui/Pill";
+import { Button } from "@core/components/ui/Button";
 import { useLocale } from "@/i18n";
 import { STATUS_DONE } from "../../hooks";
 import { CommentThread } from "./CommentThread";
 import type { TaskDrawerProps } from "../types";
 
-export function TaskDrawer({
+export const TaskDrawer = ({
   open,
   task,
   isUpdating,
   onToggle,
   onClose,
-}: TaskDrawerProps) {
+}: TaskDrawerProps) => {
   const { t } = useLocale();
   return (
     <Drawer
@@ -45,4 +45,4 @@ export function TaskDrawer({
       </div>
     </Drawer>
   );
-}
+};

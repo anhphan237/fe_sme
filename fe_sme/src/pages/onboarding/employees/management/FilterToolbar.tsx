@@ -1,5 +1,5 @@
-import { Search } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+﻿import { Search } from "lucide-react";
+import { Button } from "@core/components/ui/Button";
 import { useLocale } from "@/i18n";
 import { inputCls, type StatusFilter } from "../constants";
 import type { DepartmentItem } from "@/interface/company";
@@ -16,7 +16,7 @@ interface Props {
   onReset: () => void;
 }
 
-export function FilterToolbar({
+export const FilterToolbar = ({
   searchText,
   onSearchChange,
   filterStatus,
@@ -26,7 +26,7 @@ export function FilterToolbar({
   departments,
   hasActiveFilter,
   onReset,
-}: Props) {
+}: Props) => {
   const { t } = useLocale();
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-stroke px-4 py-3">
@@ -75,4 +75,4 @@ export function FilterToolbar({
       )}
     </div>
   );
-}
+};

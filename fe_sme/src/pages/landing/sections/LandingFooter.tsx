@@ -1,8 +1,8 @@
-import { Link } from "react-router-dom";
+﻿import { Link } from "react-router-dom";
 import { useLocale } from "@/i18n";
 import { FOOTER_LINKS } from "../landing.constants";
 
-export default function LandingFooter() {
+const LandingFooter = () => {
   const { t } = useLocale();
 
   return (
@@ -94,4 +94,6 @@ export default function LandingFooter() {
       </div>
     </footer>
   );
-}
+};
+
+export default LandingFooter;

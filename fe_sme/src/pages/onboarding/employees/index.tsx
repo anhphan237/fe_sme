@@ -1,13 +1,13 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { AlertTriangle, Search } from "lucide-react";
 
-import { PageHeader } from "@/components/common/PageHeader";
-import { Card } from "@/components/ui/Card";
-import { Table } from "@/components/ui/Table";
-import { Button } from "@/components/ui/Button";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Table } from "@core/components/ui/Table";
+import { Button } from "@core/components/ui/Button";
+import { EmptyState } from "@core/components/ui/EmptyState";
+import { Skeleton } from "@core/components/ui/Skeleton";
 import { useUserStore } from "@/stores/user.store";
 import { useLocale } from "@/i18n";
 import { canManageOnboarding } from "@/shared/rbac";
@@ -19,7 +19,7 @@ import type { StatusFilter } from "./FilterTabs";
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-function Employees() {
+const Employees = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useLocale();
@@ -180,6 +180,6 @@ function Employees() {
       />
     </div>
   );
-}
+};
 
 export default Employees;

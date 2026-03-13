@@ -1,5 +1,5 @@
-import { Mail } from "lucide-react";
-import { Table } from "@/components/ui/Table";
+﻿import { Mail } from "lucide-react";
+import { Table } from "@core/components/ui/Table";
 import { useLocale } from "@/i18n";
 import { ROLE_LABELS, getPrimaryRole } from "@/shared/rbac";
 import { StatusBadge } from "./StatCard";
@@ -10,7 +10,7 @@ interface Props {
   onSelectUser: (userId: string) => void;
 }
 
-export function EmployeeTable({ users, onSelectUser }: Props) {
+export const EmployeeTable = ({ users, onSelectUser }: Props) => {
   const { t } = useLocale();
   return (
     <>
@@ -68,4 +68,4 @@ export function EmployeeTable({ users, onSelectUser }: Props) {
       </Table>
     </>
   );
-}
+};

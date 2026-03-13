@@ -1,7 +1,7 @@
 import BaseFormItem from "@core/components/Form/BaseFormItem";
-import { ColorPicker, ColorPickerProps, FormItemProps } from "antd";
-import { Color } from "antd/es/color-picker";
-import { NamePath } from "antd/es/form/interface";
+import { ColorPicker, type ColorPickerProps, type FormItemProps } from "antd";
+import type { Color } from "antd/es/color-picker";
+import type { NamePath } from "antd/es/form/interface";
 
 export interface BaseColorPickerProps extends ColorPickerProps {
   name: NamePath;

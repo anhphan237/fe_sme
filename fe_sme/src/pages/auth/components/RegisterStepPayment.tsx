@@ -13,12 +13,12 @@ const isValidStripeSecret = (s: string) =>
   s.includes("_secret_") &&
   !s.toLowerCase().includes("mock");
 
-export function RegisterStepPayment({
+export const RegisterStepPayment = ({
   clientSecret,
   invoiceId,
   amount,
   onError,
-}: RegisterStepPaymentProps) {
+}: RegisterStepPaymentProps) => {
   const returnUrl = `${window.location.origin}/billing/payment/confirmation`;
 
   if (!isValidStripeSecret(clientSecret)) {
@@ -40,4 +40,4 @@ export function RegisterStepPayment({
       />
     </StripeProvider>
   );
-}
+};

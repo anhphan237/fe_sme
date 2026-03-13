@@ -1,8 +1,8 @@
-import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Button } from "../../components/ui/Button";
-import { Skeleton } from "../../components/ui/Skeleton";
-import { useToast } from "../../components/ui/Toast";
+﻿import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Button } from "@core/components/ui/Button";
+import { Skeleton } from "@core/components/ui/Skeleton";
+import { useToast } from "@core/components/ui/Toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   apiGetPaymentProviders,
@@ -33,7 +33,7 @@ const PROVIDER_ICONS: Record<string, string> = {
   VNPay: "V",
 };
 
-function BillingPayment() {
+const BillingPayment = () => {
   const {
     data: providers,
     isLoading,
@@ -154,6 +154,6 @@ function BillingPayment() {
       )}
     </div>
   );
-}
+};
 
 export default BillingPayment;

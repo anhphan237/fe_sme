@@ -1,21 +1,21 @@
 ﻿import { useState } from "react";
-import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Button } from "../../components/ui/Button";
-import { Badge } from "../../components/ui/Badge";
-import { Modal } from "../../components/ui/Modal";
-import { EmptyState } from "../../components/ui/EmptyState";
+import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Button } from "@core/components/ui/Button";
+import { Badge } from "@core/components/ui/Badge";
+import { Modal } from "@core/components/ui/Modal";
+import { EmptyState } from "@core/components/ui/EmptyState";
 import { useQuery } from "@tanstack/react-query";
 import { apiGetDocuments } from "@/api/document/document.api";
 
 const useDocumentsQuery = () =>
   useQuery({ queryKey: ["documents"], queryFn: apiGetDocuments });
-import { Skeleton } from "../../components/ui/Skeleton";
+import { Skeleton } from "@core/components/ui/Skeleton";
 
 const folders = ["Company", "Department", "Compliance", "Security"];
 const tags = ["Required", "Guide", "Policy", "Checklist"];
 
-function Documents() {
+const Documents = () => {
   const { data, isLoading, isError, refetch } = useDocumentsQuery();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"grid" | "list">("grid");
@@ -162,6 +162,6 @@ function Documents() {
       </Modal>
     </div>
   );
-}
+};
 
 export default Documents;

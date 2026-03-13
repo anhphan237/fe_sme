@@ -1,6 +1,6 @@
 import BaseFormItem from "@core/components/Form/BaseFormItem";
-import { FormItemProps, Select, SelectProps } from "antd";
-import { NamePath } from "antd/es/form/interface";
+import { Select, type FormItemProps, type SelectProps } from "antd";
+import type { NamePath } from "antd/es/form/interface";
 
 export interface BaseSelectProps extends SelectProps {
   name: NamePath;

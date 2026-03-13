@@ -1,11 +1,11 @@
-import { Card } from "@/components/ui/Card";
-import { Progress } from "@/components/ui/Progress";
+﻿import { Card } from "@core/components/ui/Card";
+import { Progress } from "@core/components/ui/Progress";
 import { useLocale } from "@/i18n";
 import { ROLE_LABELS, getPrimaryRole } from "@/shared/rbac";
 import { InstanceStatusBadge } from "../InstanceStatusBadge";
 import type { InfoCardProps } from "../types";
 
-export function InfoCard({
+export const InfoCard = ({
   instance,
   template,
   employeeDisplayName,
@@ -15,7 +15,7 @@ export function InfoCard({
   completedCount,
   totalTasks,
   progressPercent,
-}: InfoCardProps) {
+}: InfoCardProps) => {
   const { t } = useLocale();
   return (
     <Card className="overflow-hidden">
@@ -80,4 +80,4 @@ export function InfoCard({
       </div>
     </Card>
   );
-}
+};

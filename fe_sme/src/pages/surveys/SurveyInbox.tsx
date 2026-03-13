@@ -1,10 +1,10 @@
 ﻿import { useNavigate } from "react-router-dom";
-import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Table } from "../../components/ui/Table";
-import { EmptyState } from "../../components/ui/EmptyState";
-import { Skeleton } from "../../components/ui/Skeleton";
-import { Button } from "../../components/ui/Button";
+import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Table } from "@core/components/ui/Table";
+import { EmptyState } from "@core/components/ui/EmptyState";
+import { Skeleton } from "@core/components/ui/Skeleton";
+import { Button } from "@core/components/ui/Button";
 import { useQuery } from "@tanstack/react-query";
 import { apiGetSurveyInstances } from "@/api/survey/survey.api";
 
@@ -14,7 +14,7 @@ const useSurveyInstancesQuery = () =>
     queryFn: () => apiGetSurveyInstances(),
   });
 
-function SurveyInbox() {
+const SurveyInbox = () => {
   const navigate = useNavigate();
   const { data, isLoading, isError, refetch } = useSurveyInstancesQuery();
 
@@ -80,6 +80,6 @@ function SurveyInbox() {
       </Card>
     </div>
   );
-}
+};
 
 export default SurveyInbox;

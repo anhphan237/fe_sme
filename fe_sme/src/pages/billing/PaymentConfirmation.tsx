@@ -1,16 +1,16 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Button } from "../../components/ui/Button";
-import { Skeleton } from "../../components/ui/Skeleton";
+import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Button } from "@core/components/ui/Button";
+import { Skeleton } from "@core/components/ui/Skeleton";
 import { stripePromise } from "@/lib/stripe";
 import { apiGetPaymentStatus } from "@/api/billing/billing.api";
 
 type Status = "loading" | "succeeded" | "processing" | "failed";
 
-function PaymentConfirmation() {
+const PaymentConfirmation = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -163,6 +163,6 @@ function PaymentConfirmation() {
       </Card>
     </div>
   );
-}
+};
 
 export default PaymentConfirmation;

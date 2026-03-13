@@ -1,21 +1,21 @@
-﻿import { useMemo } from 'react'
-import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Button } from '../../components/ui/Button'
+﻿import { useMemo } from "react";
+import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Button } from "@core/components/ui/Button";
 
-function SurveySend() {
+const SurveySend = () => {
   const dates = useMemo(() => {
-    const start = new Date()
+    const start = new Date();
     const addDays = (days: number) =>
       new Date(start.getTime() + days * 24 * 60 * 60 * 1000)
         .toISOString()
-        .slice(0, 10)
+        .slice(0, 10);
     return {
       day7: addDays(7),
       day30: addDays(30),
       day60: addDays(60),
-    }
-  }, [])
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -27,7 +27,9 @@ function SurveySend() {
         <div className="grid gap-4 lg:grid-cols-2">
           <label className="grid gap-2 text-sm">
             Choose employees
-            <select className="rounded-2xl border border-stroke px-4 py-2" multiple>
+            <select
+              className="rounded-2xl border border-stroke px-4 py-2"
+              multiple>
               <option>Leah Porter</option>
               <option>Jin Park</option>
               <option>Evan Cole</option>
@@ -36,7 +38,10 @@ function SurveySend() {
           </label>
           <label className="grid gap-2 text-sm">
             Start date
-            <input type="date" className="rounded-2xl border border-stroke px-4 py-2" />
+            <input
+              type="date"
+              className="rounded-2xl border border-stroke px-4 py-2"
+            />
           </label>
           <label className="grid gap-2 text-sm">
             Day 7 template
@@ -69,8 +74,7 @@ function SurveySend() {
         <Button className="mt-6">Schedule</Button>
       </Card>
     </div>
-  )
-}
+  );
+};
 
-export default SurveySend
-
+export default SurveySend;

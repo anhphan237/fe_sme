@@ -1,11 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { Skeleton } from "antd";
 import { useUserStore } from "@/stores/user.store";
 import type { User } from "../../shared/types";
-import { PageSkeleton } from "../ui/Skeleton";
 
 const AUTH_USER_KEY = "auth_user";
 
-function parseStoredUser(raw: string | null): User | null {
+const parseStoredUser = (raw: string | null): User | null => {
   if (!raw) return null;
   try {
     const u = JSON.parse(raw) as unknown;
@@ -25,7 +25,7 @@ function parseStoredUser(raw: string | null): User | null {
   } catch {
     return null;
   }
-}
+};
 
 interface AuthRehydrateProps {
   children: ReactNode;
@@ -35,7 +35,7 @@ interface AuthRehydrateProps {
  * On mount: restore token + user from localStorage so reload keeps session.
  * Optionally refreshes user via me() in background.
  */
-export function AuthRehydrate({ children }: AuthRehydrateProps) {
+export const AuthRehydrate = ({ children }: AuthRehydrateProps) => {
   const [rehydrated, setRehydrated] = useState(false);
   const setToken = useUserStore((s) => s.setToken);
   const setUser = useUserStore((s) => s.setUser);
@@ -70,10 +70,10 @@ export function AuthRehydrate({ children }: AuthRehydrateProps) {
   if (!rehydrated) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <PageSkeleton />
+        <Skeleton active paragraph={{ rows: 6 }} />
       </div>
     );
   }
 
   return <>{children}</>;
-}
+};

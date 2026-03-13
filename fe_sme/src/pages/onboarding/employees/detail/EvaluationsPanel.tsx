@@ -1,12 +1,12 @@
-import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
+﻿import { Card } from "@core/components/ui/Card";
+import { Button } from "@core/components/ui/Button";
 import { useLocale } from "@/i18n";
 import type { EvaluationsPanelProps } from "../types";
 
-export function EvaluationsPanel({
+export const EvaluationsPanel = ({
   milestones,
   onCreateEval,
-}: EvaluationsPanelProps) {
+}: EvaluationsPanelProps) => {
   const { t } = useLocale();
   return (
     <div className="grid gap-4 lg:grid-cols-3">
@@ -29,4 +29,4 @@ export function EvaluationsPanel({
       ))}
     </div>
   );
-}
+};

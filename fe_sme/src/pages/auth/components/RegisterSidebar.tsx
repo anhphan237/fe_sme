@@ -70,7 +70,7 @@ interface RegisterSidebarProps {
   step: number;
 }
 
-export function RegisterSidebar({ step }: RegisterSidebarProps) {
+export const RegisterSidebar = ({ step }: RegisterSidebarProps) => {
   const { t } = useLocale();
 
   const steps = STEP_KEYS.map((k, i) => ({
@@ -235,4 +235,4 @@ export function RegisterSidebar({ step }: RegisterSidebarProps) {
       </div>
     </aside>
   );
-}
+};

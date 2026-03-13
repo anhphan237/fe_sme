@@ -9,7 +9,7 @@ import LandingFAQ from "./sections/LandingFAQ";
 import LandingCTA from "./sections/LandingCTA";
 import LandingFooter from "./sections/LandingFooter";
 
-export default function LandingPage() {
+const LandingPage = () => {
   return (
     <div className="min-h-screen bg-white font-sans">
       <LandingNavbar />
@@ -26,4 +26,6 @@ export default function LandingPage() {
       <LandingFooter />
     </div>
   );
-}
+};
+
+export default LandingPage;

@@ -1,4 +1,4 @@
-import { Badge } from "@/components/ui/Badge";
+﻿import { Badge } from "@core/components/ui/Badge";
 
 const INSTANCE_STATUS_VARIANT: Record<
   string,
@@ -13,7 +13,7 @@ interface InstanceStatusBadgeProps {
   status: string;
 }
 
-export function InstanceStatusBadge({ status }: InstanceStatusBadgeProps) {
+export const InstanceStatusBadge = ({ status }: InstanceStatusBadgeProps) => {
   const variant = INSTANCE_STATUS_VARIANT[status.toUpperCase()] ?? "default";
   return <Badge variant={variant}>{status}</Badge>;
-}
+};

@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { Drawer } from "@/components/ui/Drawer";
-import { Button } from "@/components/ui/Button";
-import { Skeleton } from "@/components/ui/Skeleton";
-import { useToast } from "@/components/ui/Toast";
+import { Drawer } from "@core/components/ui/Drawer";
+import { Button } from "@core/components/ui/Button";
+import { Skeleton } from "@core/components/ui/Skeleton";
+import { useToast } from "@core/components/ui/Toast";
 import { useLocale } from "@/i18n";
 import {
   apiCreateInstance,
@@ -49,13 +49,13 @@ const labelCls = "grid gap-1.5 text-sm font-medium text-ink";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function StartOnboardingDrawer({
+export const StartOnboardingDrawer = ({
   open,
   onClose,
   onCreated,
   users,
   defaultEmployeeId,
-}: StartOnboardingDrawerProps) {
+}: StartOnboardingDrawerProps) => {
   const { t } = useLocale();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -237,4 +237,4 @@ export function StartOnboardingDrawer({
       )}
     </Drawer>
   );
-}
+};

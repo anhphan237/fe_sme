@@ -47,6 +47,7 @@ export function mapUser(u: UserListItem | Record<string, unknown>): User {
       (raw["tenantId"] as string | null) ??
       null,
     department: String(raw["departmentName"] ?? raw["department"] ?? ""),
+    departmentId: (raw["departmentId"] as string | null) ?? null,
     status:
       raw["status"] === "DISABLED"
         ? "Inactive"

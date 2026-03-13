@@ -1,7 +1,25 @@
+﻿import { memo } from "react";
 import { FileText, Pencil, Copy, XCircle, CheckCircle2 } from "lucide-react";
+import { Tag } from "antd";
 import { useLocale } from "@/i18n";
 import type { OnboardingTemplate } from "@/shared/types";
-import { StatusBadge } from "./StatusBadge";
+
+const StatusBadge = memo(function StatusBadge({ status }: { status?: string }) {
+  const { t } = useLocale();
+  const isActive = (status ?? "").toUpperCase() === "ACTIVE";
+  return (
+    <Tag
+      color={isActive ? "success" : "default"}
+      className="inline-flex items-center gap-1">
+      <span
+        className={`inline-block h-1.5 w-1.5 rounded-full ${isActive ? "bg-emerald-500" : "bg-slate-400"}`}
+      />
+      {isActive
+        ? t("onboarding.template.status.active")
+        : t("onboarding.template.status.inactive")}
+    </Tag>
+  );
+});
 
 export interface TemplateRowProps {
   template: OnboardingTemplate;
@@ -10,7 +28,7 @@ export interface TemplateRowProps {
   onToggleStatus: (t: OnboardingTemplate) => void;
 }
 
-export function TemplateRow({
+export const TemplateRow = memo(function TemplateRow({
   template,
   onEdit,
   onDuplicate,
@@ -116,4 +134,4 @@ export function TemplateRow({
       </td>
     </tr>
   );
-}
+});

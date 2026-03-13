@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+﻿import { Link } from "react-router-dom";
 import { useLocale } from "@/i18n";
 import {
   HERO_TRUST_KEYS,
@@ -6,7 +6,7 @@ import {
   HERO_MOCK_EMPLOYEES,
 } from "../landing.constants";
 
-export default function LandingHero() {
+const LandingHero = () => {
   const { t } = useLocale();
 
   const scrollToSection = (id: string) => {
@@ -206,4 +206,6 @@ export default function LandingHero() {
       </div>
     </section>
   );
-}
+};
+
+export default LandingHero;

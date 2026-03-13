@@ -1,10 +1,10 @@
 ﻿import { useParams } from "react-router-dom";
-import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Badge } from "../../components/ui/Badge";
-import { Button } from "../../components/ui/Button";
-import { Progress } from "../../components/ui/Progress";
-import { Skeleton } from "../../components/ui/Skeleton";
+import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Badge } from "@core/components/ui/Badge";
+import { Button } from "@core/components/ui/Button";
+import { Progress } from "@core/components/ui/Progress";
+import { Skeleton } from "@core/components/ui/Skeleton";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiAcknowledgeDocument } from "@/api/document/document.api";
 
@@ -18,7 +18,7 @@ const useDocumentQuery = (id?: string) =>
 const useAcknowledgeDocument = () =>
   useMutation({ mutationFn: apiAcknowledgeDocument });
 
-function DocumentDetail() {
+const DocumentDetail = () => {
   const { documentId } = useParams();
   const { data, isLoading, isError, refetch } = useDocumentQuery(
     documentId ?? "",
@@ -92,6 +92,6 @@ function DocumentDetail() {
       </div>
     </div>
   );
-}
+};
 
 export default DocumentDetail;

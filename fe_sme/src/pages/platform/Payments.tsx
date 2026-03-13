@@ -1,9 +1,9 @@
-import { useState } from "react";
-import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Table } from "../../components/ui/Table";
-import { EmptyState } from "../../components/ui/EmptyState";
-import { Skeleton } from "../../components/ui/Skeleton";
+﻿import { useState } from "react";
+import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Table } from "@core/components/ui/Table";
+import { EmptyState } from "@core/components/ui/EmptyState";
+import { Skeleton } from "@core/components/ui/Skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { apiGetPaymentTransactions } from "@/api/billing/billing.api";
 import { extractList } from "@/api/core/types";
@@ -28,7 +28,7 @@ const STATUS_STYLES: Record<string, string> = {
   refunded: "bg-purple-100 text-purple-700",
 };
 
-function PlatformPayments() {
+const PlatformPayments = () => {
   const { data, isLoading, isError, refetch } = usePaymentTransactionsQuery();
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
@@ -122,6 +122,6 @@ function PlatformPayments() {
       </Card>
     </div>
   );
-}
+};
 
 export default PlatformPayments;

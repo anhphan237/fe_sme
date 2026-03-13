@@ -1,7 +1,7 @@
 import BaseFormItem from "@core/components/Form/BaseFormItem";
-import { AutoComplete, FormItemProps } from "antd";
-import { NamePath } from "antd/es/form/interface";
-import { AutoCompleteProps } from "antd/lib";
+import { AutoComplete, type FormItemProps } from "antd";
+import type { NamePath } from "antd/es/form/interface";
+import type { AutoCompleteProps } from "antd/lib";
 
 export interface BaseAutoCompleteProps extends AutoCompleteProps {
   name: NamePath;

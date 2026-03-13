@@ -1,7 +1,7 @@
 import BaseFormItem from "@core/components/Form/BaseFormItem";
-import { Checkbox, FormItemProps } from "antd";
-import { NamePath } from "antd/es/form/interface";
-import { CheckboxProps } from "antd/lib";
+import { Checkbox, type FormItemProps } from "antd";
+import type { NamePath } from "antd/es/form/interface";
+import type { CheckboxProps } from "antd/lib";
 
 export interface BaseCheckboxProps extends CheckboxProps {
   name: NamePath;

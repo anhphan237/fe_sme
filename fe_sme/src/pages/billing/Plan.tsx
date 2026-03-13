@@ -1,8 +1,8 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { clsx } from "clsx";
-import { Button } from "../../components/ui/Button";
-import { Modal } from "../../components/ui/Modal";
+import { Button } from "@core/components/ui/Button";
+import { Modal } from "@core/components/ui/Modal";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   apiGetPlans,
@@ -14,8 +14,8 @@ import {
 import { extractList } from "@/api/core/types";
 import { mapPlan, mapSubscription } from "@/utils/mappers/billing";
 import { useUserStore } from "@/stores/user.store";
-import { Skeleton } from "../../components/ui/Skeleton";
-import { useToast } from "../../components/ui/Toast";
+import { Skeleton } from "@core/components/ui/Skeleton";
+import { useToast } from "@core/components/ui/Toast";
 import type { Subscription, BillingPlan } from "../../shared/types";
 
 const usePlansQuery = () =>
@@ -39,14 +39,14 @@ const useCreateSubscription = () =>
 const useUpdateSubscription = () =>
   useMutation({ mutationFn: apiUpdateSubscription });
 
-function formatVnd(amount: number) {
+const formatVnd = (amount: number) => {
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
     currency: "VND",
   }).format(amount);
-}
+};
 
-function getCurrentPeriod() {
+const getCurrentPeriod = () => {
   const now = new Date();
   const y = now.getFullYear();
   const m = now.getMonth();
@@ -56,15 +56,15 @@ function getCurrentPeriod() {
     periodStart: start.toISOString().slice(0, 10),
     periodEnd: end.toISOString().slice(0, 10),
   };
-}
+};
 
-async function handleSuccess(
+const handleSuccess = async (
   res: Subscription | undefined,
   navigate: (path: string) => void,
   addToast: (msg: string) => void,
   queryClient: any,
   setSelected: (v: string | null) => void,
-) {
+) => {
   queryClient.invalidateQueries({ queryKey: ["subscription"] });
   queryClient.invalidateQueries({ queryKey: ["plans"] });
   setSelected(null);
@@ -104,9 +104,9 @@ async function handleSuccess(
   } else {
     addToast("Plan updated successfully.");
   }
-}
+};
 
-function BillingPlan() {
+const BillingPlan = () => {
   const navigate = useNavigate();
   const currentUser = useUserStore((s) => s.currentUser);
   const currentTenant = useUserStore((s) => s.currentTenant);
@@ -274,6 +274,6 @@ function BillingPlan() {
       </Modal>
     </div>
   );
-}
+};
 
 export default BillingPlan;

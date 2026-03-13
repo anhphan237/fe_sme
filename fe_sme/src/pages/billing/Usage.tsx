@@ -1,6 +1,6 @@
-﻿import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Progress } from "../../components/ui/Progress";
+﻿import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Progress } from "@core/components/ui/Progress";
 import { useQuery } from "@tanstack/react-query";
 import { apiGetUsage } from "@/api/billing/billing.api";
 import { mapUsage } from "@/utils/mappers/billing";
@@ -11,9 +11,9 @@ const useUsageQuery = (month?: string) =>
     queryFn: () => apiGetUsage(month),
     select: (res: any) => mapUsage(res),
   });
-import { Skeleton } from "../../components/ui/Skeleton";
+import { Skeleton } from "@core/components/ui/Skeleton";
 
-function BillingUsage() {
+const BillingUsage = () => {
   const { data, isLoading } = useUsageQuery();
 
   return (
@@ -74,6 +74,6 @@ function BillingUsage() {
       )}
     </div>
   );
-}
+};
 
 export default BillingUsage;

@@ -1,9 +1,9 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Star } from "lucide-react";
-import { Modal } from "@/components/ui/Modal";
-import { Button } from "@/components/ui/Button";
-import { useToast } from "@/components/ui/Toast";
+import { Modal } from "@core/components/ui/Modal";
+import { Button } from "@core/components/ui/Button";
+import { useToast } from "@core/components/ui/Toast";
 import { useLocale } from "@/i18n";
 import type { EvaluationCreateRequest } from "@/interface/onboarding";
 
@@ -18,12 +18,12 @@ export interface EvaluationModalProps {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function EvaluationModal({
+export const EvaluationModal = ({
   open,
   onClose,
   instanceId,
   milestone,
-}: EvaluationModalProps) {
+}: EvaluationModalProps) => {
   const { t } = useLocale();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -131,4 +131,4 @@ export function EvaluationModal({
       </div>
     </Modal>
   );
-}
+};

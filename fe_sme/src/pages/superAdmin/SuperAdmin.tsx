@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Tabs } from "../../components/ui/Tabs";
-import { Table } from "../../components/ui/Table";
+﻿import { useState } from "react";
+import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Tabs } from "@core/components/ui/Tabs";
+import { Table } from "@core/components/ui/Table";
 import { useQuery } from "@tanstack/react-query";
 
 /** @deprecated stub — no gateway operation yet */
@@ -10,7 +10,7 @@ const useSaTenantsQuery = () =>
   useQuery({ queryKey: ["sa-tenants"], queryFn: () => Promise.resolve([]) });
 const useSaFinanceQuery = () =>
   useQuery({ queryKey: ["sa-finance"], queryFn: () => Promise.resolve({}) });
-import { Skeleton } from "../../components/ui/Skeleton";
+import { Skeleton } from "@core/components/ui/Skeleton";
 import {
   LineChart,
   Line,
@@ -23,7 +23,7 @@ import {
   Bar,
 } from "recharts";
 
-function SuperAdmin() {
+const SuperAdmin = () => {
   const [tab, setTab] = useState("tenants");
   const { data: tenants, isLoading } = useSaTenantsQuery();
   const { data: finance } = useSaFinanceQuery();
@@ -130,6 +130,6 @@ function SuperAdmin() {
       )}
     </div>
   );
-}
+};
 
 export default SuperAdmin;

@@ -1,14 +1,14 @@
 ﻿import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Card } from "../../components/ui/Card";
-import { Button } from "../../components/ui/Button";
+import { Card, Alert, Input } from "antd";
+import BaseButton from "@/components/button";
 import { apiLogin } from "@/api/identity/identity.api";
 import { apiUpdateUser } from "@/api/identity/identity.api";
 import type { LoginResponse } from "@/interface/identity";
 
 type Step = "verify" | "set-password" | "done";
 
-function InviteAccept() {
+const InviteAccept = () => {
   const [step, setStep] = useState<Step>("verify");
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
@@ -19,7 +19,6 @@ function InviteAccept() {
   const [tempPassword, setTempPassword] = useState("");
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
-  const [showTemp, setShowTemp] = useState(false);
 
   // Step 2 state
   const [fullName, setFullName] = useState("");
@@ -27,7 +26,6 @@ function InviteAccept() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwError, setPwError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [showNew, setShowNew] = useState(false);
 
   /* ── Step 1: verify identity with temp creds ── */
   const handleVerify = async () => {
@@ -121,18 +119,20 @@ function InviteAccept() {
             </div>
 
             {verifyError && (
-              <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
-                {verifyError}
-              </div>
+              <Alert
+                type="error"
+                showIcon
+                message={verifyError}
+                className="rounded-xl"
+              />
             )}
 
             <label className="grid gap-1 text-sm">
               <span className="font-medium">Work email</span>
-              <input
+              <Input
                 type="email"
                 autoComplete="email"
                 placeholder="you@company.com"
-                className="rounded-2xl border border-stroke px-4 py-2 text-sm focus:border-slate-900 focus:outline-none"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleVerify()}
@@ -141,31 +141,23 @@ function InviteAccept() {
 
             <label className="grid gap-1 text-sm">
               <span className="font-medium">Temporary password</span>
-              <div className="relative">
-                <input
-                  type={showTemp ? "text" : "password"}
-                  autoComplete="current-password"
-                  placeholder="Temporary password from HR"
-                  className="w-full rounded-2xl border border-stroke px-4 py-2 pr-16 text-sm focus:border-slate-900 focus:outline-none"
-                  value={tempPassword}
-                  onChange={(e) => setTempPassword(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted hover:text-ink"
-                  onClick={() => setShowTemp((v) => !v)}>
-                  {showTemp ? "Hide" : "Show"}
-                </button>
-              </div>
+              <Input.Password
+                autoComplete="current-password"
+                placeholder="Temporary password from HR"
+                value={tempPassword}
+                onChange={(e) => setTempPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleVerify()}
+              />
             </label>
 
-            <Button
+            <BaseButton
+              type="primary"
               className="w-full"
               onClick={handleVerify}
+              loading={verifying}
               disabled={verifying}>
               {verifying ? "Verifying..." : "Continue"}
-            </Button>
+            </BaseButton>
 
             <p className="text-center text-xs text-muted">
               Already set up?{" "}
@@ -191,16 +183,18 @@ function InviteAccept() {
             </div>
 
             {pwError && (
-              <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
-                {pwError}
-              </div>
+              <Alert
+                type="error"
+                showIcon
+                message={pwError}
+                className="rounded-xl"
+              />
             )}
 
             <label className="grid gap-1 text-sm">
               <span className="font-medium">Full name</span>
-              <input
+              <Input
                 placeholder="Nguyen Van A"
-                className="rounded-2xl border border-stroke px-4 py-2 text-sm focus:border-slate-900 focus:outline-none"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
               />
@@ -208,22 +202,12 @@ function InviteAccept() {
 
             <label className="grid gap-1 text-sm">
               <span className="font-medium">New password</span>
-              <div className="relative">
-                <input
-                  type={showNew ? "text" : "password"}
-                  autoComplete="new-password"
-                  placeholder="Min. 8 characters"
-                  className="w-full rounded-2xl border border-stroke px-4 py-2 pr-16 text-sm focus:border-slate-900 focus:outline-none"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted hover:text-ink"
-                  onClick={() => setShowNew((v) => !v)}>
-                  {showNew ? "Hide" : "Show"}
-                </button>
-              </div>
+              <Input.Password
+                autoComplete="new-password"
+                placeholder="Min. 8 characters"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
               {/* Strength indicator */}
               {newPassword.length > 0 && (
                 <div className="flex gap-1 pt-1">
@@ -260,23 +244,23 @@ function InviteAccept() {
 
             <label className="grid gap-1 text-sm">
               <span className="font-medium">Confirm new password</span>
-              <input
-                type="password"
+              <Input.Password
                 autoComplete="new-password"
                 placeholder="Repeat new password"
-                className="rounded-2xl border border-stroke px-4 py-2 text-sm focus:border-slate-900 focus:outline-none"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSetPassword()}
               />
             </label>
 
-            <Button
+            <BaseButton
+              type="primary"
               className="w-full"
               onClick={handleSetPassword}
+              loading={saving}
               disabled={saving}>
               {saving ? "Saving..." : "Activate account"}
-            </Button>
+            </BaseButton>
           </Card>
         )}
 
@@ -305,13 +289,15 @@ function InviteAccept() {
               </p>
             </div>
             <Link to="/login">
-              <Button className="w-full">Go to login</Button>
+              <BaseButton type="primary" className="w-full">
+                Go to login
+              </BaseButton>
             </Link>
           </Card>
         )}
       </div>
     </div>
   );
-}
+};
 
 export default InviteAccept;

@@ -1,9 +1,9 @@
-import { Suspense, lazy } from "react";
+﻿import { Suspense, lazy } from "react";
 import { Navigate, Outlet, createBrowserRouter } from "react-router-dom";
+import { Skeleton } from "antd";
 import AppLayout from "@/layouts/AppLayout";
 import AuthLayout from "@/layouts/AuthLayout";
 import { GuestRoute, RequireAuth, RequireRoles } from "./route-guard";
-import { PageSkeleton } from "@/components/ui/Skeleton";
 import type { Role } from "@/shared/types";
 
 const LandingPage = lazy(() => import("@/pages/landing/LandingPage"));
@@ -11,10 +11,10 @@ const Login = lazy(() => import("@/pages/auth/Login"));
 const RegisterCompany = lazy(() => import("@/pages/auth/RegisterCompany"));
 const InviteAccept = lazy(() => import("@/pages/auth/InviteAccept"));
 const Dashboard = lazy(() => import("@/pages/dashboard/Dashboard"));
-const AdminUsers = lazy(() => import("@/pages/admin/users"));
-const AdminRoles = lazy(() => import("@/pages/admin/roles"));
-const AdminKnowledgeBase = lazy(() => import("@/pages/admin/knowledge-base"));
-const AdminDepartments = lazy(() => import("@/pages/admin/departments"));
+const AdminUsers = lazy(() => import("@/pages/users"));
+const AdminRoles = lazy(() => import("@/pages/roles"));
+const AdminKnowledgeBase = lazy(() => import("@/pages/knowledge-base"));
+const AdminDepartments = lazy(() => import("@/pages/departments"));
 const Profile = lazy(() => import("@/pages/profile/Profile"));
 const Notifications = lazy(() => import("@/pages/settings/Notifications"));
 const Templates = lazy(() => import("@/pages/onboarding/templates"));
@@ -52,18 +52,16 @@ const BillingCheckout = lazy(() => import("@/pages/billing/Checkout"));
 const PaymentConfirmation = lazy(
   () => import("@/pages/billing/PaymentConfirmation"),
 );
-const PlatformTenants = lazy(() => import("@/pages/platform/Tenants"));
-const PlatformPlans = lazy(() => import("@/pages/platform/Plans"));
-const PlatformSubscriptions = lazy(
-  () => import("@/pages/platform/Subscriptions"),
-);
-const PlatformUsage = lazy(() => import("@/pages/platform/Usage"));
-const PlatformFinance = lazy(() => import("@/pages/platform/Finance"));
-const PlatformDunning = lazy(() => import("@/pages/platform/Dunning"));
-const PlatformInvoices = lazy(() => import("@/pages/platform/Invoices"));
 const PlatformPayments = lazy(() => import("@/pages/platform/Payments"));
-const PlatformEmailLogs = lazy(() => import("@/pages/platform/EmailLogs"));
 const Forbidden = lazy(() => import("@/pages/Forbidden"));
+
+const PageSkeleton = () => (
+  <div className="space-y-4 p-6">
+    <Skeleton active paragraph={{ rows: 1 }} title={{ width: "33%" }} />
+    <Skeleton active paragraph={{ rows: 4 }} />
+    <Skeleton active paragraph={{ rows: 4 }} />
+  </div>
+);
 
 const suspense = (node: JSX.Element) => (
   <Suspense fallback={<PageSkeleton />}>{node}</Suspense>
@@ -238,40 +236,8 @@ export const router = createBrowserRouter([
         element: suspense(withRoles(<PaymentConfirmation />, ["HR"])),
       },
       {
-        path: "/platform/tenants",
-        element: suspense(withRoles(<PlatformTenants />, ["ADMIN"])),
-      },
-      {
-        path: "/platform/plans",
-        element: suspense(withRoles(<PlatformPlans />, ["ADMIN"])),
-      },
-      {
-        path: "/platform/subscriptions",
-        element: suspense(withRoles(<PlatformSubscriptions />, ["ADMIN"])),
-      },
-      {
-        path: "/platform/usage",
-        element: suspense(withRoles(<PlatformUsage />, ["ADMIN"])),
-      },
-      {
-        path: "/platform/finance",
-        element: suspense(withRoles(<PlatformFinance />, ["ADMIN"])),
-      },
-      {
-        path: "/platform/dunning",
-        element: suspense(withRoles(<PlatformDunning />, ["ADMIN"])),
-      },
-      {
-        path: "/platform/invoices",
-        element: suspense(withRoles(<PlatformInvoices />, ["STAFF"])),
-      },
-      {
         path: "/platform/payments",
         element: suspense(withRoles(<PlatformPayments />, ["STAFF"])),
-      },
-      {
-        path: "/platform/email-logs",
-        element: suspense(withRoles(<PlatformEmailLogs />, ["STAFF"])),
       },
       { path: "/403", element: suspense(<Forbidden />) },
     ],

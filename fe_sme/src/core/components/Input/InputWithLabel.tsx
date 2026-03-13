@@ -1,6 +1,8 @@
+import React from "react";
+import { Input, type InputProps } from "antd";
+import type { FormItemProps } from "antd/lib";
+import type { NamePath } from "antd/es/form/interface";
 import BaseFormItem from "@core/components/Form/BaseFormItem";
-import { FormItemProps, Input, InputProps } from "antd";
-import { NamePath } from "antd/es/form/interface";
 
 export interface InputWithLabelProps extends InputProps {
   name: NamePath;

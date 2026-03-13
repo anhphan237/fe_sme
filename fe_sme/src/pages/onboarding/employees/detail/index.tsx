@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ChevronLeft } from "lucide-react";
-import { PageHeader } from "@/components/common/PageHeader";
-import { Card } from "@/components/ui/Card";
-import { Tabs } from "@/components/ui/Tabs";
-import { Button } from "@/components/ui/Button";
-import { Modal } from "@/components/ui/Modal";
-import { Skeleton } from "@/components/ui/Skeleton";
-import { useToast } from "@/components/ui/Toast";
+import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Tabs } from "@core/components/ui/Tabs";
+import { Button } from "@core/components/ui/Button";
+import { Modal } from "@core/components/ui/Modal";
+import { Skeleton } from "@core/components/ui/Skeleton";
+import { useToast } from "@core/components/ui/Toast";
 import { isOnboardingEmployee, canManageOnboarding } from "@/shared/rbac";
 import { useUserStore } from "@/stores/user.store";
 import { useGlobalStore } from "@/stores/global.store";
@@ -39,7 +39,7 @@ import {
 import { useTemplatesQuery } from "../../templates/hooks";
 import type { OnboardingTask } from "@/shared/types";
 
-function EmployeeDetail() {
+const EmployeeDetail = () => {
   const { employeeId: instanceId } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -462,6 +462,6 @@ function EmployeeDetail() {
       )}
     </div>
   );
-}
+};
 
 export default EmployeeDetail;

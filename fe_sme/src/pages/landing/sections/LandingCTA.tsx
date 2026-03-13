@@ -1,7 +1,7 @@
-import { Link } from "react-router-dom";
+﻿import { Link } from "react-router-dom";
 import { useLocale } from "@/i18n";
 
-export default function LandingCTA() {
+const LandingCTA = () => {
   const { t } = useLocale();
 
   return (
@@ -38,4 +38,6 @@ export default function LandingCTA() {
       </div>
     </section>
   );
-}
+};
+
+export default LandingCTA;

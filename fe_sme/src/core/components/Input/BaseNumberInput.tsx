@@ -1,7 +1,13 @@
 import BaseFormItem from "@core/components/Form/BaseFormItem";
-import { FormItemProps, InputNumber, InputNumberProps, Tooltip } from "antd";
-import { NamePath } from "antd/es/form/interface";
-import { TooltipProps } from "antd/lib";
+import {
+  InputNumber,
+  Tooltip,
+  type InputNumberProps,
+  type TooltipProps,
+} from "antd";
+import type { NamePath } from "antd/es/form/interface";
+import type { FormItemProps } from "antd/lib";
+
 import React from "react";
 
 export interface InputNumberWithLabelProps extends InputNumberProps {

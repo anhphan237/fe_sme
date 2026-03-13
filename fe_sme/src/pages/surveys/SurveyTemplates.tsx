@@ -1,10 +1,10 @@
 ﻿import { useNavigate } from "react-router-dom";
-import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Table } from "../../components/ui/Table";
-import { Button } from "../../components/ui/Button";
-import { EmptyState } from "../../components/ui/EmptyState";
-import { Skeleton } from "../../components/ui/Skeleton";
+import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Table } from "@core/components/ui/Table";
+import { Button } from "@core/components/ui/Button";
+import { EmptyState } from "@core/components/ui/EmptyState";
+import { Skeleton } from "@core/components/ui/Skeleton";
 import { useQuery } from "@tanstack/react-query";
 
 /** @deprecated stub — no gateway operation yet */
@@ -14,7 +14,7 @@ const useSurveyTemplatesQuery = () =>
     queryFn: () => Promise.resolve([]),
   });
 
-function SurveyTemplates() {
+const SurveyTemplates = () => {
   const navigate = useNavigate();
   const { data, isLoading, isError, refetch } = useSurveyTemplatesQuery();
 
@@ -88,6 +88,6 @@ function SurveyTemplates() {
       </Card>
     </div>
   );
-}
+};
 
 export default SurveyTemplates;

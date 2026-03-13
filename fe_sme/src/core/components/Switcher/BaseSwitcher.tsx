@@ -1,7 +1,7 @@
 import BaseFormItem from "@core/components/Form/BaseFormItem";
-import { FormItemProps, Switch } from "antd";
-import { NamePath } from "antd/es/form/interface";
-import { SwitchProps } from "antd/lib";
+import { Switch, type FormItemProps } from "antd";
+import type { NamePath } from "antd/es/form/interface";
+import type { SwitchProps } from "antd/lib";
 
 export interface BaseSwitcherProps extends SwitchProps {
   name: NamePath;

@@ -160,6 +160,43 @@ export interface RevokeRoleRequest {
 }
 
 // ---------------------------
+// Bulk Import
+// ---------------------------
+
+/** Single row in com.sme.identity.user.bulkCreate request */
+export interface BulkCreateUserRow {
+  email: string;
+  fullName: string;
+  phone?: string;
+  roleCode?: string;
+  departmentId?: string;
+  jobTitle?: string;
+  employeeCode?: string;
+  startDate?: string;
+  workLocation?: string;
+}
+
+/** com.sme.identity.user.bulkCreate */
+export interface BulkCreateUsersRequest {
+  users: BulkCreateUserRow[];
+}
+
+/** Single result row from bulk create */
+export interface BulkCreateUserResult {
+  index: number;
+  success: boolean;
+  message?: string;
+  userId?: string;
+}
+
+/** com.sme.identity.user.bulkCreate → response data */
+export interface BulkCreateUsersResponse {
+  results: BulkCreateUserResult[];
+  successCount: number;
+  failedCount: number;
+}
+
+// ---------------------------
 // App-level normalized User (used by store / pages)
 // ---------------------------
 

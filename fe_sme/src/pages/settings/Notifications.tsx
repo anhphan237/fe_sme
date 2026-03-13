@@ -1,8 +1,8 @@
-﻿import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Button } from '../../components/ui/Button'
+﻿import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Button } from "@core/components/ui/Button";
 
-function Notifications() {
+const Notifications = () => {
   return (
     <div className="space-y-6">
       <PageHeader
@@ -29,8 +29,7 @@ function Notifications() {
         </div>
       </Card>
     </div>
-  )
-}
+  );
+};
 
-export default Notifications
-
+export default Notifications;

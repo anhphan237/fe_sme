@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
-import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Button } from "../../components/ui/Button";
-import { Badge } from "../../components/ui/Badge";
-import { Skeleton } from "../../components/ui/Skeleton";
-import { useToast } from "../../components/ui/Toast";
+﻿import { useState, useEffect } from "react";
+import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Button } from "@core/components/ui/Button";
+import { Badge } from "@core/components/ui/Badge";
+import { Skeleton } from "@core/components/ui/Skeleton";
+import { useToast } from "@core/components/ui/Toast";
 import { useUserStore } from "@/stores/user.store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGetUserById, apiUpdateUser } from "@/api/identity/identity.api";
@@ -25,7 +25,7 @@ const useUpdateUser = () =>
 import { ROLE_LABELS } from "../../shared/rbac";
 import { User, Mail, Phone, Briefcase, MapPin, Calendar } from "lucide-react";
 
-function Profile() {
+const Profile = () => {
   const currentUser = useUserStore((s) => s.currentUser);
   const setUser = useUserStore((s) => s.setUser);
   const queryClient = useQueryClient();
@@ -253,6 +253,6 @@ function Profile() {
       </div>
     </div>
   );
-}
+};
 
 export default Profile;

@@ -10,13 +10,13 @@ interface RegisterStepPlanProps {
   onClearError: () => void;
 }
 
-export function RegisterStepPlan({
+export const RegisterStepPlan = ({
   planList,
   plansLoading,
   selectedPlanCode,
   setSelectedPlanCode,
   onClearError,
-}: RegisterStepPlanProps) {
+}: RegisterStepPlanProps) => {
   const { t } = useLocale();
 
   if (plansLoading) {
@@ -141,4 +141,4 @@ export function RegisterStepPlan({
       })}
     </div>
   );
-}
+};

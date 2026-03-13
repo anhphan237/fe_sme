@@ -1,7 +1,7 @@
-import { Link } from 'react-router-dom'
-import { Card } from '../components/ui/Card'
+﻿import { Link } from "react-router-dom";
+import { Card } from "@core/components/ui/Card";
 
-function Forbidden() {
+const Forbidden = () => {
   return (
     <div className="relative mx-auto flex min-h-[80vh] max-w-5xl items-center px-4 py-10">
       <div className="pointer-events-none absolute inset-0 -z-10">
@@ -25,8 +25,7 @@ function Forbidden() {
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <Link
                 to="/dashboard"
-                className="inline-flex items-center justify-center rounded-full bg-ink px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:translate-y-[-1px] hover:bg-ink/90"
-              >
+                className="inline-flex items-center justify-center rounded-full bg-ink px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:translate-y-[-1px] hover:bg-ink/90">
                 Back to dashboard
               </Link>
               <span className="text-xs text-muted">
@@ -53,7 +52,7 @@ function Forbidden() {
         </div>
       </Card>
     </div>
-  )
-}
+  );
+};
 
-export default Forbidden
+export default Forbidden;

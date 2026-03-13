@@ -1,7 +1,7 @@
-import { useLocale } from "@/i18n";
+﻿import { useLocale } from "@/i18n";
 import { LOGO_COMPANIES } from "../landing.constants";
 
-export default function LandingLogos() {
+const LandingLogos = () => {
   const { t } = useLocale();
 
   return (
@@ -29,4 +29,6 @@ export default function LandingLogos() {
       </div>
     </section>
   );
-}
+};
+
+export default LandingLogos;

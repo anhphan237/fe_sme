@@ -1,23 +1,23 @@
-﻿import { useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Button } from '../../components/ui/Button'
-import { Tabs } from '../../components/ui/Tabs'
+﻿import { useState } from "react";
+import { useParams } from "react-router-dom";
+import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Button } from "@core/components/ui/Button";
+import { Tabs } from "@core/components/ui/Tabs";
 
-function SurveyTemplateEditor() {
-  const { templateId } = useParams()
-  const [activeQuestion, setActiveQuestion] = useState(0)
+const SurveyTemplateEditor = () => {
+  const { templateId } = useParams();
+  const [activeQuestion, setActiveQuestion] = useState(0);
   const questions = [
-    { label: 'How supported do you feel?', type: 'rating' },
-    { label: 'Most helpful resource', type: 'multiple' },
-    { label: 'What can we improve?', type: 'text' },
-  ]
+    { label: "How supported do you feel?", type: "rating" },
+    { label: "Most helpful resource", type: "multiple" },
+    { label: "What can we improve?", type: "text" },
+  ];
 
   return (
     <div className="space-y-6 pb-20">
       <PageHeader
-        title={templateId ? 'Survey Template' : 'New Survey Template'}
+        title={templateId ? "Survey Template" : "New Survey Template"}
         subtitle="Build targeted surveys for key milestones."
       />
 
@@ -30,11 +30,10 @@ function SurveyTemplateEditor() {
                 key={question.label}
                 className={`w-full rounded-2xl border px-4 py-2 text-left text-sm ${
                   index === activeQuestion
-                    ? 'border-slate-900 bg-slate-900 text-white'
-                    : 'border-stroke text-muted'
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-stroke text-muted"
                 }`}
-                onClick={() => setActiveQuestion(index)}
-              >
+                onClick={() => setActiveQuestion(index)}>
                 {question.label}
               </button>
             ))}
@@ -74,13 +73,18 @@ function SurveyTemplateEditor() {
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">Preview</h3>
           <Tabs
-            items={[{ label: 'Mobile', value: 'mobile' }, { label: 'Desktop', value: 'desktop' }]}
+            items={[
+              { label: "Mobile", value: "mobile" },
+              { label: "Desktop", value: "desktop" },
+            ]}
             value="mobile"
             onChange={() => {}}
           />
         </div>
         <div className="mt-4 max-w-xs rounded-2xl border border-stroke bg-slate-50 p-4">
-          <p className="text-sm font-semibold">{questions[activeQuestion].label}</p>
+          <p className="text-sm font-semibold">
+            {questions[activeQuestion].label}
+          </p>
           <div className="mt-3 h-8 rounded-2xl border border-dashed border-stroke" />
         </div>
       </Card>
@@ -92,8 +96,7 @@ function SurveyTemplateEditor() {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default SurveyTemplateEditor
-
+export default SurveyTemplateEditor;

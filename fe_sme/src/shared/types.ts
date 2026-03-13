@@ -15,6 +15,7 @@ export interface User {
   roles: Role[];
   companyId: string | null;
   department: string;
+  departmentId: string | null;
   status: "Active" | "Invited" | "Inactive";
   employeeId?: string | null;
   managerUserId?: string | null;

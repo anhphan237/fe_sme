@@ -1,16 +1,10 @@
-import { useState, useMemo } from "react";
+﻿import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { z } from "zod";
-import { useForm } from "react-hook-form";
-import type {
-  UseFormRegister,
-  FieldErrors,
-  UseFormGetValues,
-} from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { Form } from "antd";
+import type { FormInstance } from "antd";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { useToast } from "@/components/ui/Toast";
+import { useToast } from "@core/components/ui/Toast";
 import { useUserStore } from "@/stores/user.store";
 import { useLocale } from "@/i18n";
 import type { BillingPlan, Tenant } from "@/shared/types";
@@ -27,18 +21,16 @@ import {
 import { extractList } from "@/api/core/types";
 import { mapPlan, mapSubscription, mapInvoice } from "@/utils/mappers/billing";
 
-const _staticSchema = z.object({
-  adminUsername: z.string(),
-  companyName: z.string(),
-  taxCode: z.string(),
-  address: z.string(),
-  timezone: z.string(),
-  adminFullName: z.string(),
-  adminPassword: z.string(),
-  adminPhone: z.string().optional(),
-});
-
-export type RegisterFormSchema = z.infer<typeof _staticSchema>;
+export interface RegisterFormValues {
+  adminUsername: string;
+  companyName: string;
+  taxCode: string;
+  address: string;
+  timezone: string;
+  adminFullName: string;
+  adminPassword: string;
+  adminPhone?: string;
+}
 
 const HIDDEN_PLANS = ["Basic Plan", "Premium Plan"];
 
@@ -57,9 +49,7 @@ export interface UseRegisterCompanyResult {
   handleNext: () => Promise<void>;
   handleBack: () => void;
 
-  register: UseFormRegister<RegisterFormSchema>;
-  errors: FieldErrors<RegisterFormSchema>;
-  getValues: UseFormGetValues<RegisterFormSchema>;
+  form: FormInstance<RegisterFormValues>;
 
   emailExistsError: string | null;
   checkingEmail: boolean;
@@ -89,6 +79,12 @@ export function useRegisterCompany(): UseRegisterCompanyResult {
   const toast = useToast();
   const { setTenant, setUser, setToken } = useUserStore();
 
+  const detectedTimezone =
+    Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Ho_Chi_Minh";
+
+  const [form] = Form.useForm<RegisterFormValues>();
+
+  // Set timezone default after form creation
   const [step, setStep] = useState(0);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [emailExistsError, setEmailExistsError] = useState<string | null>(null);
@@ -101,32 +97,6 @@ export function useRegisterCompany(): UseRegisterCompanyResult {
     null,
   );
   const [checkoutAmount, setCheckoutAmount] = useState<string>("0 ₫");
-
-  const schema = useMemo(
-    () =>
-      z.object({
-        adminUsername: z.string().email(t("register.zod.email_required")),
-        companyName: z.string().min(2, t("register.zod.company_name_required")),
-        taxCode: z.string().min(1, t("register.zod.tax_code_required")),
-        address: z.string().min(2, t("register.zod.address_required")),
-        timezone: z.string().min(1, t("register.zod.timezone_required")),
-        adminFullName: z.string().min(2, t("register.zod.fullname_required")),
-        adminPassword: z.string().min(6, t("register.zod.password_min")),
-        adminPhone: z.string().optional(),
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t],
-  );
-
-  const {
-    register,
-    formState: { errors },
-    getValues,
-    trigger,
-  } = useForm<RegisterFormSchema>({
-    resolver: zodResolver(schema),
-    defaultValues: { timezone: "Asia/Ho_Chi_Minh" },
-  });
 
   const { data: planList, isLoading: plansLoading } = useQuery({
     queryKey: ["register_plans"],
@@ -141,9 +111,12 @@ export function useRegisterCompany(): UseRegisterCompanyResult {
 
   const handleContinueFromEmail = async () => {
     setEmailExistsError(null);
-    const ok = await trigger("adminUsername");
-    if (!ok) return;
-    const email = getValues("adminUsername");
+    try {
+      await form.validateFields(["adminUsername"]);
+    } catch {
+      return;
+    }
+    const email = form.getFieldValue("adminUsername") as string;
     setCheckingEmail(true);
     try {
       const { exists } = await apiCheckEmailExists(email);
@@ -167,7 +140,7 @@ export function useRegisterCompany(): UseRegisterCompanyResult {
     setIsPaying(true);
     setSubmitError(null);
     try {
-      const data = getValues();
+      const data = form.getFieldsValue();
       const result = await apiRegisterCompany({
         company: {
           name: data.companyName,
@@ -282,16 +255,24 @@ export function useRegisterCompany(): UseRegisterCompanyResult {
     if (step === 0) {
       await handleContinueFromEmail();
     } else if (step === 1) {
-      const ok = await trigger([
-        "companyName",
-        "taxCode",
-        "address",
-        "timezone",
-      ]);
-      if (ok) setStep(2);
+      try {
+        await form.validateFields([
+          "companyName",
+          "taxCode",
+          "address",
+          "timezone",
+        ]);
+        setStep(2);
+      } catch {
+        /* validation failed — Ant Form shows inline errors */
+      }
     } else if (step === 2) {
-      const ok = await trigger(["adminFullName", "adminPassword"]);
-      if (ok) setStep(3);
+      try {
+        await form.validateFields(["adminFullName", "adminPassword"]);
+        setStep(3);
+      } catch {
+        /* validation failed */
+      }
     } else if (step === 3) {
       await handlePayment();
     }
@@ -308,9 +289,7 @@ export function useRegisterCompany(): UseRegisterCompanyResult {
     step,
     handleNext,
     handleBack,
-    register,
-    errors,
-    getValues,
+    form,
     emailExistsError,
     checkingEmail,
     showPassword,

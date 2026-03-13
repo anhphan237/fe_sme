@@ -1,7 +1,7 @@
-import { useLocale } from "@/i18n";
+﻿import { useLocale } from "@/i18n";
 import { FEATURE_ITEMS } from "../landing.constants";
 
-export default function LandingFeatures() {
+const LandingFeatures = () => {
   const { t } = useLocale();
 
   return (
@@ -40,4 +40,6 @@ export default function LandingFeatures() {
       </div>
     </section>
   );
-}
+};
+
+export default LandingFeatures;

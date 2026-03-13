@@ -1,6 +1,6 @@
-﻿import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Button } from '../../components/ui/Button'
+﻿import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Button } from "@core/components/ui/Button";
 import {
   LineChart,
   Line,
@@ -11,22 +11,22 @@ import {
   YAxis,
   BarChart,
   Bar,
-} from 'recharts'
+} from "recharts";
 
 const trendData = [
-  { month: 'Sep', value: 72 },
-  { month: 'Oct', value: 75 },
-  { month: 'Nov', value: 78 },
-  { month: 'Dec', value: 82 },
-  { month: 'Jan', value: 86 },
-]
+  { month: "Sep", value: 72 },
+  { month: "Oct", value: 75 },
+  { month: "Nov", value: 78 },
+  { month: "Dec", value: 82 },
+  { month: "Jan", value: 86 },
+];
 
 const deptData = [
-  { dept: 'HR', value: 88 },
-  { dept: 'Engineering', value: 74 },
-]
+  { dept: "HR", value: 88 },
+  { dept: "Engineering", value: 74 },
+];
 
-function SurveyReports() {
+const SurveyReports = () => {
   return (
     <div className="space-y-6">
       <PageHeader
@@ -63,7 +63,12 @@ function SurveyReports() {
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip />
-                <Line type="monotone" dataKey="value" stroke="#1d4ed8" strokeWidth={2} />
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#1d4ed8"
+                  strokeWidth={2}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -108,8 +113,7 @@ function SurveyReports() {
         </div>
       </Card>
     </div>
-  )
-}
+  );
+};
 
-export default SurveyReports
-
+export default SurveyReports;

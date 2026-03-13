@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from "react";
-import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Button } from "../../components/ui/Button";
+﻿import { useState, useRef, useEffect } from "react";
+import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Button } from "@core/components/ui/Button";
 import { useMutation } from "@tanstack/react-query";
 import { apiChatbotAsk } from "@/api/chatbot/chatbot.api";
 
@@ -24,7 +24,7 @@ const SUGGESTED_PROMPTS = [
   "What are the company benefits?",
 ];
 
-function Chatbot() {
+const Chatbot = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [query, setQuery] = useState("");
   const [conversationTitle, setConversationTitle] = useState<string | null>(
@@ -243,6 +243,6 @@ function Chatbot() {
       </div>
     </div>
   );
-}
+};
 
 export default Chatbot;

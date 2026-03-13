@@ -13,7 +13,7 @@ interface FilterTabsProps {
   onChange: (v: StatusFilter) => void;
 }
 
-export function FilterTabs({ value, onChange }: FilterTabsProps) {
+export const FilterTabs = ({ value, onChange }: FilterTabsProps) => {
   const { t } = useLocale();
 
   return (
@@ -32,4 +32,4 @@ export function FilterTabs({ value, onChange }: FilterTabsProps) {
       ))}
     </div>
   );
-}
+};

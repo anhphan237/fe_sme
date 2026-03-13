@@ -1,12 +1,12 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { EmptyState } from "../../components/ui/EmptyState";
-import { Table } from "../../components/ui/Table";
-import { Button } from "../../components/ui/Button";
-import { Skeleton } from "../../components/ui/Skeleton";
-import { Modal } from "../../components/ui/Modal";
+import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { EmptyState } from "@core/components/ui/EmptyState";
+import { Table } from "@core/components/ui/Table";
+import { Button } from "@core/components/ui/Button";
+import { Skeleton } from "@core/components/ui/Skeleton";
+import { Modal } from "@core/components/ui/Modal";
 import { useQuery } from "@tanstack/react-query";
 import { apiGetInvoices, apiGetInvoiceById } from "@/api/billing/billing.api";
 import { extractList } from "@/api/core/types";
@@ -29,7 +29,7 @@ const useInvoiceQuery = (invoiceId?: string) =>
     select: (res: any) => mapInvoice(res),
   });
 
-function BillingInvoices() {
+const BillingInvoices = () => {
   const navigate = useNavigate();
   const [detailId, setDetailId] = useState<string | null>(null);
   const { data, isLoading, isError, refetch } = useInvoicesQuery();
@@ -239,6 +239,6 @@ function BillingInvoices() {
       </Modal>
     </div>
   );
-}
+};
 
 export default BillingInvoices;

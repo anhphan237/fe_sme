@@ -1,8 +1,8 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useLocale } from "@/i18n";
 import { FAQ_ITEMS } from "../landing.constants";
 
-export default function LandingFAQ() {
+const LandingFAQ = () => {
   const { t } = useLocale();
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
@@ -71,4 +71,6 @@ export default function LandingFAQ() {
       </div>
     </section>
   );
-}
+};
+
+export default LandingFAQ;

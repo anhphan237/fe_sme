@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
 
-import BaseDatePicker, { BaseDatePickerProps } from ".";
+import BaseDatePicker, { type BaseDatePickerProps } from ".";
 
 export type LocalDatePickerProps = BaseDatePickerProps;
 
@@ -23,11 +23,7 @@ const LocalDatePicker = ({ formItemProps, ...props }: LocalDatePickerProps) => {
             value: value && dayjs(value).isValid() ? dayjs(value) : null,
           };
         },
-        normalize: (
-          value: unknown,
-          prevValues?: unknown,
-          allValues?: unknown,
-        ) => {
+        normalize: (value: any, prevValues?: any, allValues?: any) => {
           if (normalize) return normalize(value, prevValues, allValues);
           if (!value) return null;
           const d = dayjs(value as string);

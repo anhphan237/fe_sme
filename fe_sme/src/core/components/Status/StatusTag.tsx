@@ -44,3 +44,30 @@ const StatusTag = ({
 };
 
 export default StatusTag;
+
+// ── User account status tag ──────────────────────────────────────────────────
+
+const USER_STATUS_COLOR: Record<string, string> = {
+  ACTIVE: "bg-emerald-500",
+  INVITED: "bg-amber-500",
+  INACTIVE: "bg-slate-400",
+  DISABLED: "bg-red-500",
+};
+
+export const UserStatusTag = ({
+  status,
+  className,
+}: {
+  status: string;
+  className?: string;
+}) => {
+  const { t } = useLocale();
+  const upper = status.toUpperCase();
+  const color = USER_STATUS_COLOR[upper] ?? "bg-slate-400";
+  return (
+    <Tag
+      className={`inline-flex items-center px-2 py-1 text-xs font-medium text-white rounded ${color} ${className ?? ""}`}>
+      {t(`user.status.${status.toLowerCase()}`)}
+    </Tag>
+  );
+};

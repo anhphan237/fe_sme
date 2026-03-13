@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Drawer } from "@/components/ui/Drawer";
-import { Button } from "@/components/ui/Button";
-import { Skeleton } from "@/components/ui/Skeleton";
-import { useToast } from "@/components/ui/Toast";
+import { Drawer } from "@core/components/ui/Drawer";
+import { Button } from "@core/components/ui/Button";
+import { Skeleton } from "@core/components/ui/Skeleton";
+import { useToast } from "@core/components/ui/Toast";
 import { useLocale } from "@/i18n";
 import {
   apiCreateUser,
@@ -27,6 +27,12 @@ export type EmployeeDrawerMode = "create" | "edit" | null;
 
 const EMPLOYEE_ROLES: Role[] = ["EMPLOYEE", "MANAGER", "HR"];
 const FORM_ID = "employee-form";
+
+function generateEmployeeCode(): string {
+  const year = new Date().getFullYear();
+  const rand = String(Math.floor(1000 + Math.random() * 9000));
+  return `EMP-${year}-${rand}`;
+}
 
 const INITIAL_FORM = {
   email: "",
@@ -55,11 +61,11 @@ const inputCls =
 
 const labelCls = "grid gap-1.5 text-sm font-medium text-ink";
 
-function useEmployeeForm(
+const useEmployeeForm = (
   userId: string | null | undefined,
   onClose: () => void,
   onCreated?: (userId: string) => void,
-) {
+) => {
   const isEdit = typeof userId === "string";
   const { t } = useLocale();
   const toast = useToast();
@@ -94,7 +100,7 @@ function useEmployeeForm(
         workLocation: userDetail.workLocation ?? "",
       });
     } else {
-      setForm(INITIAL_FORM);
+      setForm({ ...INITIAL_FORM, employeeCode: generateEmployeeCode() });
     }
   }, [isEdit, userDetail]);
 
@@ -177,13 +183,13 @@ function useEmployeeForm(
     handleClose,
     handleSubmit,
   };
-}
+};
 
-export function EmployeeFormDrawer({
+export const EmployeeFormDrawer = ({
   userId,
   onClose,
   onCreated,
-}: EmployeeFormDrawerProps) {
+}: EmployeeFormDrawerProps) => {
   const { t } = useLocale();
   const {
     isEdit,
@@ -240,6 +246,7 @@ export function EmployeeFormDrawer({
               placeholder={t("employee.form.email_placeholder")}
               required
               disabled={isEdit}
+              autoFocus={!isEdit}
             />
           </label>
 
@@ -368,4 +375,4 @@ export function EmployeeFormDrawer({
       )}
     </Drawer>
   );
-}
+};

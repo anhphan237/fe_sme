@@ -1,5 +1,5 @@
-import { Card } from "@/components/ui/Card";
-import { Progress } from "@/components/ui/Progress";
+﻿import { Card } from "@core/components/ui/Card";
+import { Progress } from "@core/components/ui/Progress";
 import { useLocale } from "@/i18n";
 import type { StageProgress } from "../types";
 
@@ -7,7 +7,7 @@ interface Props {
   stageProgress: StageProgress[];
 }
 
-export function StageProgressPanel({ stageProgress }: Props) {
+export const StageProgressPanel = ({ stageProgress }: Props) => {
   const { t } = useLocale();
   return (
     <Card>
@@ -35,4 +35,4 @@ export function StageProgressPanel({ stageProgress }: Props) {
       </div>
     </Card>
   );
-}
+};

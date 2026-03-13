@@ -16,11 +16,11 @@ const useSurveyTemplatesQuery = () =>
   });
 const useSaveSurveyResponse = () =>
   useMutation({ mutationFn: (_: any) => Promise.resolve(undefined as any) });
-import { Card } from "../../components/ui/Card";
-import { Button } from "../../components/ui/Button";
-import { Skeleton } from "../../components/ui/Skeleton";
+import { Card } from "@core/components/ui/Card";
+import { Button } from "@core/components/ui/Button";
+import { Skeleton } from "@core/components/ui/Skeleton";
 
-function SurveyDetail() {
+const SurveyDetail = () => {
   const { surveyId } = useParams();
   const navigate = useNavigate();
   const [submitted, setSubmitted] = useState(false);
@@ -112,6 +112,6 @@ function SurveyDetail() {
       </Button>
     </Card>
   );
-}
+};
 
 export default SurveyDetail;

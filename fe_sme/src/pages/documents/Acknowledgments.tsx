@@ -1,9 +1,9 @@
 ﻿import { useNavigate } from "react-router-dom";
-import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Table } from "../../components/ui/Table";
-import { Skeleton } from "../../components/ui/Skeleton";
-import { EmptyState } from "../../components/ui/EmptyState";
+import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Table } from "@core/components/ui/Table";
+import { Skeleton } from "@core/components/ui/Skeleton";
+import { EmptyState } from "@core/components/ui/EmptyState";
 import { useQuery } from "@tanstack/react-query";
 import { apiGetDocuments } from "@/api/document/document.api";
 import { apiSearchUsers } from "@/api/identity/identity.api";
@@ -27,7 +27,7 @@ const useUsersQuery = () =>
       extractList(res, "users", "items").map(mapUser) as User[],
   });
 
-function Acknowledgments() {
+const Acknowledgments = () => {
   const navigate = useNavigate();
   const { data, isLoading, isError, refetch } = useAcknowledgmentsQuery();
   const { data: documents } = useDocumentsQuery();
@@ -122,6 +122,6 @@ function Acknowledgments() {
       </Card>
     </div>
   );
-}
+};
 
 export default Acknowledgments;

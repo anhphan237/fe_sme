@@ -1,7 +1,7 @@
 import BaseFormItem from "@core/components/Form/BaseFormItem";
-import { FormItemProps, Input } from "antd";
-import { NamePath } from "antd/es/form/interface";
-import { TextAreaProps } from "antd/es/input";
+import { Input, type FormItemProps } from "antd";
+import type { NamePath } from "antd/es/form/interface";
+import type { TextAreaProps } from "antd/es/input";
 
 export interface BaseTextAreaProps extends TextAreaProps {
   name: NamePath;

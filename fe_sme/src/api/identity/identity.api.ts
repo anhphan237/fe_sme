@@ -10,6 +10,8 @@ import type {
   CreateUserRequest,
   CreateUserResponse,
   UpdateUserRequest,
+  BulkCreateUsersRequest,
+  BulkCreateUsersResponse,
 } from "@/interface/identity";
 import type { Role } from "@/interface/common";
 
@@ -88,3 +90,12 @@ export const apiRevokeRole = (userId: string, roleCode: Role) =>
 /** Logout — gateway is stateless, resolve immediately */
 export const apiLogout = (): Promise<{ ok: boolean }> =>
   Promise.resolve({ ok: true });
+
+// ── Bulk Import ───────────────────────────────────────────
+
+/** com.sme.identity.user.bulkCreate */
+export const apiBulkCreateUsers = (payload: BulkCreateUsersRequest) =>
+  gatewayRequest<BulkCreateUsersRequest, BulkCreateUsersResponse>(
+    "com.sme.identity.user.bulkCreate",
+    payload,
+  );

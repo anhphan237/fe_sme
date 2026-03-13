@@ -1,5 +1,5 @@
-import { ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+﻿import { ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
+import { Button } from "@core/components/ui/Button";
 import { useLocale } from "@/i18n";
 
 interface Props {
@@ -15,7 +15,7 @@ interface Props {
   onSubmit: () => void;
 }
 
-export function WizardFooter({
+export const WizardFooter = ({
   step,
   totalSteps,
   isEdit,
@@ -26,7 +26,7 @@ export function WizardFooter({
   onCancel,
   onNext,
   onSubmit,
-}: Props) {
+}: Props) => {
   const { t } = useLocale();
   const isLast = step === totalSteps - 1;
 
@@ -117,4 +117,4 @@ export function WizardFooter({
       </div>
     </div>
   );
-}
+};

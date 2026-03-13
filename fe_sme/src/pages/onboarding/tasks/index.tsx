@@ -1,14 +1,14 @@
-import { useNavigate } from "react-router-dom";
+﻿import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 
-import { PageHeader } from "@/components/common/PageHeader";
-import { Card } from "@/components/ui/Card";
-import { Progress } from "@/components/ui/Progress";
-import { Skeleton } from "@/components/ui/Skeleton";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { Button } from "@/components/ui/Button";
-import { useToast } from "@/components/ui/Toast";
+import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Progress } from "@core/components/ui/Progress";
+import { Skeleton } from "@core/components/ui/Skeleton";
+import { EmptyState } from "@core/components/ui/EmptyState";
+import { Button } from "@core/components/ui/Button";
+import { useToast } from "@core/components/ui/Toast";
 import { useUserStore } from "@/stores/user.store";
 import { useLocale } from "@/i18n";
 import { isOnboardingEmployee } from "@/shared/rbac";
@@ -23,13 +23,13 @@ import type { OnboardingTask } from "@/shared/types";
 
 // ── Components ────────────────────────────────────────────────────────────────
 
-function ProgressSummary({
+const ProgressSummary = ({
   completed,
   total,
 }: {
   completed: number;
   total: number;
-}) {
+}) => {
   const { t } = useLocale();
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
   return (
@@ -43,9 +43,9 @@ function ProgressSummary({
       <Progress value={pct} />
     </Card>
   );
-}
+};
 
-function TaskItem({
+const TaskItem = ({
   task,
   isUpdating,
   onChange,
@@ -53,7 +53,7 @@ function TaskItem({
   task: OnboardingTask;
   isUpdating: boolean;
   onChange: (task: OnboardingTask) => void;
-}) {
+}) => {
   const { t } = useLocale();
   const isDone = task.status === STATUS_DONE;
   return (
@@ -77,11 +77,11 @@ function TaskItem({
       )}
     </li>
   );
-}
+};
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-function Tasks() {
+const Tasks = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -197,6 +197,6 @@ function Tasks() {
       </Card>
     </div>
   );
-}
+};
 
 export default Tasks;

@@ -1,8 +1,8 @@
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Button } from "../../components/ui/Button";
-import { Skeleton } from "../../components/ui/Skeleton";
+﻿import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { PageHeader } from "@core/components/PageHeader";
+import { Card } from "@core/components/ui/Card";
+import { Button } from "@core/components/ui/Button";
+import { Skeleton } from "@core/components/ui/Skeleton";
 import { StripeProvider } from "../../components/payment/StripeProvider";
 import { CheckoutForm } from "../../components/payment/CheckoutForm";
 import { useMutation } from "@tanstack/react-query";
@@ -11,9 +11,9 @@ import { apiCreatePaymentIntent } from "@/api/billing/billing.api";
 const useCreatePaymentIntent = () =>
   useMutation({ mutationFn: apiCreatePaymentIntent });
 import { useEffect, useState } from "react";
-import { useToast } from "../../components/ui/Toast";
+import { useToast } from "@core/components/ui/Toast";
 
-function BillingCheckout() {
+const BillingCheckout = () => {
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -100,6 +100,6 @@ function BillingCheckout() {
       </div>
     </div>
   );
-}
+};
 
 export default BillingCheckout;

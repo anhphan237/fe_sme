@@ -1,51 +1,55 @@
-import { type FormEvent, useState } from 'react'
-import { PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
-import { Button } from '../ui/Button'
+import { type FormEvent, useState } from "react";
+import {
+  PaymentElement,
+  useStripe,
+  useElements,
+} from "@stripe/react-stripe-js";
+import { Button } from "antd";
 
 interface CheckoutFormProps {
-  amount: string
-  invoiceId: string
-  returnUrl: string
-  onSuccess?: () => void
-  onError?: (message: string) => void
+  amount: string;
+  invoiceId: string;
+  returnUrl: string;
+  onSuccess?: () => void;
+  onError?: (message: string) => void;
 }
 
-export function CheckoutForm({
+export const CheckoutForm = ({
   amount,
   invoiceId,
   returnUrl,
   onSuccess,
   onError,
-}: CheckoutFormProps) {
-  const stripe = useStripe()
-  const elements = useElements()
-  const [processing, setProcessing] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+}: CheckoutFormProps) => {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [processing, setProcessing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
-    if (!stripe || !elements) return
+    if (!stripe || !elements) return;
 
-    setProcessing(true)
-    setErrorMessage(null)
+    setProcessing(true);
+    setErrorMessage(null);
 
     const { error } = await stripe.confirmPayment({
       elements,
       confirmParams: {
         return_url: returnUrl,
       },
-    })
+    });
 
     if (error) {
-      const msg = error.message ?? 'An unexpected error occurred.'
-      setErrorMessage(msg)
-      onError?.(msg)
-      setProcessing(false)
+      const msg = error.message ?? "An unexpected error occurred.";
+      setErrorMessage(msg);
+      onError?.(msg);
+      setProcessing(false);
     } else {
-      onSuccess?.()
+      onSuccess?.();
     }
-  }
+  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -63,12 +67,12 @@ export function CheckoutForm({
       )}
 
       <Button
-        type="submit"
+        type="primary"
+        htmlType="submit"
         disabled={!stripe || processing}
-        className="w-full"
-      >
-        {processing ? 'Processing...' : `Pay ${amount}`}
+        block>
+        {processing ? "Processing..." : `Pay ${amount}`}
       </Button>
     </form>
-  )
-}
+  );
+};

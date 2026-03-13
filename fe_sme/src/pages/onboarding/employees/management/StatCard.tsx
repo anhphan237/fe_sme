@@ -1,5 +1,5 @@
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+﻿import { Card } from "@core/components/ui/Card";
+import { Badge } from "@core/components/ui/Badge";
 import { STATUS_BADGE_VARIANT } from "../constants";
 
 interface StatCardProps {
@@ -9,7 +9,7 @@ interface StatCardProps {
   colorClass: string;
 }
 
-export function StatCard({ icon, label, value, colorClass }: StatCardProps) {
+export const StatCard = ({ icon, label, value, colorClass }: StatCardProps) => {
   return (
     <Card className="flex items-center gap-4 p-4">
       <div className={`rounded-xl p-2.5 ${colorClass}`}>{icon}</div>
@@ -19,11 +19,11 @@ export function StatCard({ icon, label, value, colorClass }: StatCardProps) {
       </div>
     </Card>
   );
-}
+};
 
-export function StatusBadge({ status }: { status: string }) {
+export const StatusBadge = ({ status }: { status: string }) => {
   const variant =
     STATUS_BADGE_VARIANT[status as keyof typeof STATUS_BADGE_VARIANT] ??
     "default";
   return <Badge variant={variant}>{status}</Badge>;
-}
+};

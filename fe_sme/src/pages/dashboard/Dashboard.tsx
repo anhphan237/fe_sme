@@ -1,20 +1,30 @@
-import { Card } from "../../components/ui/Card";
-import { PageHeader } from "../../components/common/PageHeader";
-import { Badge } from "../../components/ui/Badge";
-import { Progress } from "../../components/ui/Progress";
-import { Skeleton } from "../../components/ui/Skeleton";
-import { useQuery } from "@tanstack/react-query";
+﻿import { useQuery } from "@tanstack/react-query";
+import { Card, Progress, Skeleton, Tag } from "antd";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { useUserStore } from "@/stores/user.store";
+import { getPrimaryRole, isPlatformRole } from "@/shared/rbac";
 import { apiListInstances } from "@/api/onboarding/onboarding.api";
 import { apiGetDocuments } from "@/api/document/document.api";
 import { extractList } from "@/api/core/types";
 import { mapInstance } from "@/utils/mappers/onboarding";
 import type { OnboardingInstance } from "@/shared/types";
+import type { Role } from "@/shared/types";
 
-const useInstancesQuery = (
+// ---- Query hooks ----
+
+function useInstancesQuery(
   filters?: { employeeId?: string; status?: string },
   enabled = true,
-) =>
-  useQuery({
+) {
+  return useQuery({
     queryKey: [
       "instances",
       filters?.employeeId ?? "",
@@ -31,20 +41,34 @@ const useInstancesQuery = (
         mapInstance,
       ) as OnboardingInstance[],
   });
-const useDocumentsQuery = () =>
-  useQuery({ queryKey: ["documents"], queryFn: apiGetDocuments });
-import { useUserStore } from "@/stores/user.store";
-import { getPrimaryRole, isPlatformRole } from "../../shared/rbac";
-import type { Role } from "../../shared/types";
-import {
-  BarChart,
-  Bar,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from "recharts";
+}
+
+function useDocumentsQuery() {
+  return useQuery({ queryKey: ["documents"], queryFn: apiGetDocuments });
+}
+
+// ---- Sub-components ----
+
+function KpiCard({ label, value }: { label: string; value: string }) {
+  return (
+    <Card size="small">
+      <p className="text-sm text-muted">{label}</p>
+      <p className="mt-3 text-2xl font-semibold tabular-nums text-ink">
+        {value}
+      </p>
+    </Card>
+  );
+}
+
+function SkeletonRows({ rows = 3 }: { rows?: number }) {
+  return (
+    <div className="mt-4 space-y-3">
+      {Array.from({ length: rows }, (_, i) => (
+        <Skeleton.Input key={i} active block size="small" />
+      ))}
+    </div>
+  );
+}
 
 const kpiMap: Record<Role, { label: string; value: string }[]> = {
   HR: [
@@ -92,18 +116,29 @@ const progressData = [
   { stage: "First month", value: 2 },
 ];
 
-function Dashboard() {
-  const currentUser = useUserStore((state) => state.currentUser);
+const UPCOMING_TASKS = [
+  "Finalize welcome kit for Linh Do",
+  "Manager check-in: Minh Pham",
+  "Survey send: Day 7 check-in",
+  "Docs review reminder",
+  "Update onboarding template",
+];
+
+const Dashboard = () => {
+  const currentUser = useUserStore((s) => s.currentUser);
   const isPlatformUser = isPlatformRole(currentUser?.roles ?? []);
-  const { isLoading: instancesLoading, isError } = useInstancesQuery(
-    undefined,
-    !isPlatformUser,
-  );
+
+  const {
+    isLoading: instancesLoading,
+    isError,
+    refetch,
+  } = useInstancesQuery(undefined, !isPlatformUser);
   const { data: documentsRaw, isLoading: docsLoading } = useDocumentsQuery();
-  const documents = documentsRaw
+
+  const documents: any[] = documentsRaw
     ? Array.isArray(documentsRaw)
       ? documentsRaw
-      : documentsRaw.items
+      : ((documentsRaw as any).items ?? [])
     : [];
 
   const primaryRole = getPrimaryRole(currentUser?.roles ?? ["EMPLOYEE"]);
@@ -111,34 +146,38 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Dashboard"
-        subtitle="Role-based insights across onboarding progress and employee health."
-        actionLabel="Create action"
-        onAction={() => {}}
-      />
+      {/* Page heading */}
+      <div>
+        <h1 className="text-balance text-2xl font-semibold text-ink">
+          Dashboard
+        </h1>
+        <p className="mt-1 text-sm text-muted">
+          Role-based insights across onboarding progress and employee health.
+        </p>
+      </div>
 
+      {/* KPI row */}
       <div className="grid gap-4 lg:grid-cols-4">
         {kpis.map((kpi) => (
-          <Card key={kpi.label}>
-            <p className="text-sm text-muted">{kpi.label}</p>
-            <p className="mt-3 text-2xl font-semibold text-ink">{kpi.value}</p>
-          </Card>
+          <KpiCard key={kpi.label} {...kpi} />
         ))}
       </div>
 
+      {/* Charts row */}
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold">Onboarding Progress</h3>
+              <h2 className="text-balance text-base font-semibold">
+                Onboarding Progress
+              </h2>
               <p className="text-sm text-muted">Stages by volume</p>
             </div>
-            <Badge>Last 30 days</Badge>
+            <Tag>Last 30 days</Tag>
           </div>
           <div className="mt-6 h-64">
             {instancesLoading ? (
-              <Skeleton className="h-full" />
+              <Skeleton active paragraph={{ rows: 5 }} title={false} />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={progressData}>
@@ -154,56 +193,47 @@ function Dashboard() {
         </Card>
 
         <Card>
-          <h3 className="text-lg font-semibold">Upcoming Tasks</h3>
+          <h2 className="text-base font-semibold">Upcoming Tasks</h2>
           <p className="text-sm text-muted">Next 24 hours</p>
           {instancesLoading ? (
-            <div className="mt-4 space-y-3">
-              <Skeleton className="h-6" />
-              <Skeleton className="h-6" />
-              <Skeleton className="h-6" />
-            </div>
+            <SkeletonRows />
           ) : (
-            <ul className="mt-4 space-y-3 text-sm">
-              <li className="rounded-2xl border border-stroke bg-slate-50 p-3">
-                Finalize welcome kit for Linh Do
-              </li>
-              <li className="rounded-2xl border border-stroke bg-slate-50 p-3">
-                Manager check-in: Minh Pham
-              </li>
-              <li className="rounded-2xl border border-stroke bg-slate-50 p-3">
-                Survey send: Day 7 check-in
-              </li>
-              <li className="rounded-2xl border border-stroke bg-slate-50 p-3">
-                Docs review reminder
-              </li>
-              <li className="rounded-2xl border border-stroke bg-slate-50 p-3">
-                Update onboarding template
-              </li>
+            <ul className="mt-4 space-y-3 text-sm" aria-label="Upcoming tasks">
+              {UPCOMING_TASKS.map((task) => (
+                <li
+                  key={task}
+                  className="rounded-2xl border border-stroke bg-slate-50 p-3">
+                  {task}
+                </li>
+              ))}
             </ul>
           )}
         </Card>
       </div>
 
+      {/* Bottom row */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <h3 className="text-lg font-semibold">
+          <h2 className="text-balance text-base font-semibold">
             Documents Requiring Acknowledgment
-          </h3>
+          </h2>
           <p className="text-sm text-muted">This week</p>
           {docsLoading ? (
-            <div className="mt-4 space-y-3">
-              <Skeleton className="h-6" />
-              <Skeleton className="h-6" />
-              <Skeleton className="h-6" />
-            </div>
+            <SkeletonRows />
+          ) : documents.length === 0 ? (
+            <p className="mt-4 text-sm text-muted">No documents pending.</p>
           ) : (
-            <ul className="mt-4 space-y-3 text-sm">
+            <ul
+              className="mt-4 space-y-3 text-sm"
+              aria-label="Documents pending acknowledgment">
               {documents.slice(0, 4).map((doc) => (
                 <li
                   key={doc.documentId}
-                  className="flex items-center justify-between rounded-2xl border border-stroke bg-slate-50 p-3">
-                  <span>{doc.name}</span>
-                  <Badge>{doc.required ? "Required" : "Optional"}</Badge>
+                  className="flex min-w-0 items-center justify-between rounded-2xl border border-stroke bg-slate-50 p-3">
+                  <span className="truncate">{doc.name}</span>
+                  <Tag color={doc.required ? "red" : "default"}>
+                    {doc.required ? "Required" : "Optional"}
+                  </Tag>
                 </li>
               ))}
             </ul>
@@ -211,26 +241,34 @@ function Dashboard() {
         </Card>
 
         <Card>
-          <h3 className="text-lg font-semibold">Recent Activity</h3>
+          <h2 className="text-base font-semibold">Recent Activity</h2>
           <p className="text-sm text-muted">Timeline</p>
           {isError ? (
-            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm">
+            <div
+              role="alert"
+              aria-live="polite"
+              className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm">
               Something went wrong.{" "}
-              <button className="font-semibold">Retry</button>
+              <button
+                type="button"
+                className="font-semibold underline"
+                onClick={() => refetch()}>
+                Retry
+              </button>
             </div>
           ) : (
             <div className="mt-4 space-y-4 text-sm">
               <div className="rounded-2xl border border-stroke bg-slate-50 p-3">
-                <p className="font-semibold">Survey submitted</p>
+                <p className="font-semibold">Survey Submitted</p>
                 <p className="text-muted">Linh Do completed day 7 survey.</p>
               </div>
               <div className="rounded-2xl border border-stroke bg-slate-50 p-3">
-                <p className="font-semibold">Document acknowledged</p>
+                <p className="font-semibold">Document Acknowledged</p>
                 <p className="text-muted">Employee Handbook signed.</p>
               </div>
               <div className="rounded-2xl border border-stroke bg-slate-50 p-3">
-                <p className="font-semibold">Checklist progress</p>
-                <Progress value={64} />
+                <p className="font-semibold">Checklist Progress</p>
+                <Progress percent={64} size="small" />
               </div>
             </div>
           )}
@@ -238,6 +276,6 @@ function Dashboard() {
       </div>
     </div>
   );
-}
+};
 
 export default Dashboard;

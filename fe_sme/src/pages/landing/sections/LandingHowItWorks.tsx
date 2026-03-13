@@ -1,7 +1,7 @@
 ﻿import { useLocale } from "@/i18n";
 import { STEPS_ITEMS, HOW_STATS } from "../landing.constants";
 
-export default function LandingHowItWorks() {
+const LandingHowItWorks = () => {
   const { t } = useLocale();
 
   return (
@@ -62,4 +62,6 @@ export default function LandingHowItWorks() {
       </div>
     </section>
   );
-}
+};
+
+export default LandingHowItWorks;

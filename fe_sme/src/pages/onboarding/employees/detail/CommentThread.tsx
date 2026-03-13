@@ -1,9 +1,9 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { Send } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Button } from "@/components/ui/Button";
-import { Skeleton } from "@/components/ui/Skeleton";
-import { useToast } from "@/components/ui/Toast";
+import { Button } from "@core/components/ui/Button";
+import { Skeleton } from "@core/components/ui/Skeleton";
+import { useToast } from "@core/components/ui/Toast";
 import { useLocale } from "@/i18n";
 import type { CommentResponse } from "@/interface/onboarding";
 
@@ -31,7 +31,7 @@ export interface CommentThreadProps {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CommentThread({ taskId }: CommentThreadProps) {
+export const CommentThread = ({ taskId }: CommentThreadProps) => {
   const { t } = useLocale();
   const toast = useToast();
   const { data: comments = [], isLoading } = useCommentsQuery(taskId);
@@ -115,4 +115,4 @@ export function CommentThread({ taskId }: CommentThreadProps) {
       </div>
     </div>
   );
-}
+};

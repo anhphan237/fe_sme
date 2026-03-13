@@ -1,18 +1,18 @@
-import { Card } from "@/components/ui/Card";
-import { Pill } from "@/components/ui/Pill";
-import { Button } from "@/components/ui/Button";
-import { Skeleton } from "@/components/ui/Skeleton";
+﻿import { Card } from "@core/components/ui/Card";
+import { Pill } from "@core/components/ui/Pill";
+import { Button } from "@core/components/ui/Button";
+import { Skeleton } from "@core/components/ui/Skeleton";
 import { useLocale } from "@/i18n";
 import { STATUS_DONE } from "../../hooks";
 import type { TaskListPanelProps } from "../types";
 
-export function TaskListPanel({
+export const TaskListPanel = ({
   tasks,
   isLoading,
   isUpdating,
   onToggle,
   onOpenDrawer,
-}: TaskListPanelProps) {
+}: TaskListPanelProps) => {
   const { t } = useLocale();
   return (
     <Card>
@@ -78,4 +78,4 @@ export function TaskListPanel({
       )}
     </Card>
   );
-}
+};

@@ -1,13 +1,12 @@
-import { Card } from "@/components/ui/Card";
+﻿import { Card } from "antd";
 import { useLocale } from "@/i18n";
-import type { EditorForm } from "../shared";
-import { STAGE_OPTIONS } from "../shared";
-
+import { STAGE_OPTIONS } from "./constants";
+import type { EditorForm } from "./constants";
 interface Props {
   form: EditorForm;
 }
 
-export function StepReview({ form }: Props) {
+export const StepReview = ({ form }: Props) => {
   const { t } = useLocale();
   const totalTasks = form.checklists.reduce((n, c) => n + c.tasks.length, 0);
 
@@ -119,4 +118,4 @@ export function StepReview({ form }: Props) {
       </Card>
     </div>
   );
-}
+};

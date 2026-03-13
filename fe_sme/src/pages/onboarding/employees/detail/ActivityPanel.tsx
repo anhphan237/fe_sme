@@ -1,9 +1,12 @@
-import { Card } from "@/components/ui/Card";
+﻿import { Card } from "@core/components/ui/Card";
 import { useLocale } from "@/i18n";
 import type { ActivityPanelProps } from "./types";
 import { STATUS_DONE } from "../hooks";
 
-export function ActivityPanel({ tasks, completedCount }: ActivityPanelProps) {
+export const ActivityPanel = ({
+  tasks,
+  completedCount,
+}: ActivityPanelProps) => {
   const { t } = useLocale();
   return (
     <Card>
@@ -29,4 +32,4 @@ export function ActivityPanel({ tasks, completedCount }: ActivityPanelProps) {
       </div>
     </Card>
   );
-}
+};

@@ -1,4 +1,4 @@
-import { Progress } from "@/components/ui/Progress";
+﻿import { Progress } from "@core/components/ui/Progress";
 import { ROLE_LABELS, getPrimaryRole } from "@/shared/rbac";
 import type { OnboardingInstance, User } from "@/shared/types";
 import { InstanceStatusBadge } from "./InstanceStatusBadge";
@@ -10,12 +10,12 @@ interface InstanceRowProps {
   onOpen: (id: string) => void;
 }
 
-export function InstanceRow({
+export const InstanceRow = ({
   instance,
   users,
   currentUser,
   onOpen,
-}: InstanceRowProps) {
+}: InstanceRowProps) => {
   const isCurrentRow = Boolean(
     currentUser &&
     (instance.employeeUserId === currentUser.id ||
@@ -74,4 +74,4 @@ export function InstanceRow({
       </td>
     </tr>
   );
-}
+};
