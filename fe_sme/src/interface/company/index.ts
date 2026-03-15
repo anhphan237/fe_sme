@@ -33,6 +33,8 @@ export interface CompanyRegisterRequest {
   company: {
     name: string;
     taxCode?: string;
+    /** 3-char company code used as employee ID prefix, e.g. "ABC" → ABC000001. Optional; BE derives from name if omitted. */
+    code?: string;
     address?: string;
     timezone?: string;
   };
@@ -43,6 +45,7 @@ export interface CompanyRegisterRequest {
     phone?: string;
   };
   planCode: string;
+  billingCycle?: "MONTHLY" | "YEARLY";
 }
 
 /** com.sme.company.register → response data */

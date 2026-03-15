@@ -1,17 +1,30 @@
 ﻿import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { Drawer } from "@core/components/ui/Drawer";
-import { Button } from "@core/components/ui/Button";
-import { Skeleton } from "@core/components/ui/Skeleton";
-import { useToast } from "@core/components/ui/Toast";
+import { Button, Drawer, Skeleton } from "antd";
+import { notify } from "@/utils/notify";
 import { useLocale } from "@/i18n";
 import {
   apiCreateInstance,
   apiActivateInstance,
+  apiListTemplates,
 } from "@/api/onboarding/onboarding.api";
-import { useTemplatesQuery } from "../../templates/hooks";
-import type { User } from "@/shared/types";
+import { extractList } from "@/api/core/types";
+import { mapTemplate } from "@/utils/mappers/onboarding";
+import type { OnboardingTemplate, User } from "@/shared/types";
+
+const useTemplatesQuery = (status?: string) =>
+  useQuery({
+    queryKey: ["templates", status ?? ""],
+    queryFn: () => apiListTemplates({ status }),
+    select: (res: unknown) =>
+      extractList(
+        res as Record<string, unknown>,
+        "templates",
+        "items",
+        "list",
+      ).map(mapTemplate) as OnboardingTemplate[],
+  });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -57,7 +70,6 @@ export const StartOnboardingDrawer = ({
   defaultEmployeeId,
 }: StartOnboardingDrawerProps) => {
   const { t } = useLocale();
-  const toast = useToast();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
 
@@ -99,7 +111,7 @@ export const StartOnboardingDrawer = ({
       try {
         await apiActivateInstance(raw.instanceId);
       } catch (err) {
-        toast(
+        notify.error(
           err instanceof Error
             ? err.message
             : t("onboarding.employee.toast.activate_failed"),
@@ -108,11 +120,11 @@ export const StartOnboardingDrawer = ({
       }
 
       queryClient.invalidateQueries({ queryKey: ["instances"] });
-      toast(t("onboarding.employee.toast.started"));
+      notify.success(t("onboarding.employee.toast.started"));
       handleClose();
       onCreated(raw.instanceId);
     } catch (err) {
-      toast(
+      notify.error(
         err instanceof Error
           ? err.message
           : t("onboarding.employee.toast.create_failed"),
@@ -129,10 +141,12 @@ export const StartOnboardingDrawer = ({
 
   const footer = (
     <div className="flex justify-end gap-3">
-      <Button type="button" variant="secondary" onClick={handleClose}>
-        {t("global.cancel")}
-      </Button>
-      <Button type="submit" form={FORM_ID} disabled={isPending || !isFormValid}>
+      <Button onClick={handleClose}>{t("global.cancel")}</Button>
+      <Button
+        type="primary"
+        htmlType="submit"
+        form={FORM_ID}
+        disabled={isPending || !isFormValid}>
         {isPending
           ? t("onboarding.employee.drawer.submitting")
           : t("onboarding.employee.action.start")}
@@ -150,8 +164,8 @@ export const StartOnboardingDrawer = ({
         <div className="grid gap-5">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="grid gap-1.5">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-10" />
+              <Skeleton.Input active block size="small" />
+              <Skeleton.Input active block />
             </div>
           ))}
         </div>

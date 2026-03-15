@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
-import { Eye, EyeOff, Copy, RefreshCw } from "lucide-react";
-import { Button, Form, Input, Space } from "antd";
-import BaseModal from "@core/components/Modal/BaseModal";
+import { Eye, EyeOff, Copy, RefreshCw, UserPlus } from "lucide-react";
+import { Button, Drawer, Form, Input, Space } from "antd";
 import BaseButton from "@/components/button";
 import BaseInput from "@core/components/Input/InputWithLabel";
 import BaseSelect from "@core/components/Select/BaseSelect";
 import { useLocale } from "@/i18n";
-import { useDepartmentsQuery, useUsersQuery } from "@/hooks/adminHooks";
+import { ROLE_OPTIONS } from "../constants";
+import type { User } from "@/shared/types";
+import type { DepartmentItem } from "@/interface/company";
 
 interface InviteForm {
   email: string;
@@ -19,14 +20,6 @@ interface InviteForm {
 
 type InviteFormFields = Omit<InviteForm, "tempPassword">;
 
-const ROLE_OPTIONS = [
-  { value: "EMPLOYEE", label: "Employee" },
-  { value: "HR", label: "HR" },
-  { value: "MANAGER", label: "Manager" },
-  { value: "ADMIN", label: "Admin" },
-  { value: "IT", label: "IT" },
-] as const;
-
 const generatePassword = (): string => {
   const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#";
   return Array.from(
@@ -35,27 +28,45 @@ const generatePassword = (): string => {
   ).join("");
 };
 
-export interface InviteUserModalProps {
+const SectionLabel = ({
+  label,
+  className,
+}: {
+  label: string;
+  className?: string;
+}) => (
+  <div className={`mb-3 flex items-center gap-2 ${className ?? ""}`}>
+    <span className="text-xs font-semibold uppercase tracking-wider text-[#758BA5]">
+      {label}
+    </span>
+    <div className="h-px flex-1 bg-[#E8EDF3]" />
+  </div>
+);
+
+const FORM_ID = "invite-user-form";
+
+export interface InviteUserDrawerProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (form: InviteForm) => Promise<void>;
+  users: User[];
+  departments: DepartmentItem[];
 }
 
-export const InviteUserModal = ({
+export const InviteUserDrawer = ({
   open,
   onClose,
   onSubmit,
-}: InviteUserModalProps) => {
+  users,
+  departments,
+}: InviteUserDrawerProps) => {
   const { t } = useLocale();
   const [form] = Form.useForm<InviteFormFields>();
-  const [tempPassword, setTempPassword] = useState(generatePassword());
+  const [tempPassword, setTempPassword] = useState(generatePassword);
   const [showPassword, setShowPassword] = useState(true);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  const { data: departments = [] } = useDepartmentsQuery();
-  const { data: users = [] } = useUsersQuery();
 
   const selectedDeptId = Form.useWatch("departmentId", form);
 
@@ -66,7 +77,7 @@ export const InviteUserModal = ({
     return filtered.map((u) => ({ value: u.id, label: u.name || u.email }));
   }, [users, selectedDeptId]);
 
-  // Auto-copy password when modal opens
+  // Auto-copy password when drawer opens
   useEffect(() => {
     if (!open) return;
     navigator.clipboard
@@ -123,27 +134,64 @@ export const InviteUserModal = ({
     }
   };
 
+  const footer = (
+    <div className="flex justify-end gap-2">
+      <BaseButton
+        htmlType="button"
+        onClick={handleClose}
+        label="global.cancel"
+      />
+      <BaseButton
+        type="primary"
+        htmlType="submit"
+        form={FORM_ID}
+        loading={submitting}
+        label={submitting ? "user.invite.creating" : "user.invite.create"}
+      />
+    </div>
+  );
+
   return (
-    <BaseModal
+    <Drawer
       open={open}
       title={t("user.invite")}
-      onCancel={handleClose}
-      footer={null}>
+      onClose={handleClose}
+      width={520}
+      destroyOnClose
+      maskClosable={false}
+      footer={footer}>
+      {/* Header accent */}
+      <div className="mb-6 flex items-center gap-4 rounded-xl border border-[#E8EDF3] bg-[#F5F8FC] p-4">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#3684DB]/10">
+          <UserPlus className="h-6 w-6 text-[#3684DB]" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-[#223A59]">
+            {t("user.invite")}
+          </p>
+          <p className="mt-0.5 text-xs text-[#758BA5]">
+            {t("user.invite.hint")}
+          </p>
+        </div>
+      </div>
+
       <Form
+        id={FORM_ID}
         form={form}
         layout="vertical"
         onFinish={handleFinish}
-        initialValues={{ roleCode: "EMPLOYEE" }}
-        className="space-y-4">
+        initialValues={{ roleCode: "EMPLOYEE" }}>
         {error && (
           <div
             role="alert"
             aria-live="polite"
-            className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+            className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
             {error}
           </div>
         )}
 
+        {/* Account */}
+        <SectionLabel label={t("user.section.account")} />
         <div className="grid gap-4 sm:grid-cols-2">
           <BaseInput
             name="email"
@@ -176,14 +224,16 @@ export const InviteUserModal = ({
           />
         </div>
 
+        {/* Role & Department */}
+        <SectionLabel
+          label={t("user.section.role_department")}
+          className="mt-2"
+        />
         <BaseSelect
           name="roleCode"
           label={t("user.role")}
-          options={
-            ROLE_OPTIONS as unknown as { value: string; label: string }[]
-          }
+          options={ROLE_OPTIONS as { value: string; label: string }[]}
         />
-
         <div className="grid gap-4 sm:grid-cols-2">
           <BaseSelect
             name="departmentId"
@@ -216,6 +266,8 @@ export const InviteUserModal = ({
           />
         </div>
 
+        {/* Temporary Password */}
+        <SectionLabel label={t("user.section.password")} className="mt-2" />
         <div>
           <label className="mb-1.5 block text-sm font-medium text-slate-700">
             {t("user.invite.temp_password")}
@@ -260,21 +312,7 @@ export const InviteUserModal = ({
             {t("user.invite.password_hint")}
           </p>
         </div>
-
-        <div className="flex justify-end gap-2 pt-1">
-          <BaseButton
-            htmlType="button"
-            onClick={handleClose}
-            label="global.cancel"
-          />
-          <BaseButton
-            type="primary"
-            htmlType="submit"
-            loading={submitting}
-            label={submitting ? "user.invite.creating" : "user.invite.create"}
-          />
-        </div>
       </Form>
-    </BaseModal>
+    </Drawer>
   );
 };

@@ -1,6 +1,6 @@
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, ReactNode, SetStateAction } from "react";
+import { Mail, Phone, Eye, EyeOff } from "lucide-react";
 import { useLocale } from "@/i18n";
-import BaseButton from "@/components/button";
 import BaseInput from "@core/components/Input/InputWithLabel";
 import BaseSelect from "@core/components/Select/BaseSelect";
 
@@ -16,21 +16,16 @@ const TIMEZONES = [
 
 const TIMEZONE_OPTIONS = TIMEZONES.map((tz) => ({ value: tz, label: tz }));
 
-// ── Step 0: Email ──────────────────────────────────────────────────────────────
+/** Shared wrapper – gives every step form consistent vertical rhythm */
+const StepSection = ({ children }: { children: ReactNode }) => (
+  <section className="flex flex-col gap-4">{children}</section>
+);
 
-interface RegisterStepEmailProps {
-  checkingEmail: boolean;
-  onContinue: () => Promise<void>;
-}
-
-export const RegisterStepEmail = ({
-  checkingEmail,
-  onContinue,
-}: RegisterStepEmailProps) => {
+export const RegisterStepEmail = () => {
   const { t } = useLocale();
 
   return (
-    <div className="space-y-5">
+    <StepSection>
       <BaseInput
         name="adminUsername"
         label={t("register.email.label")}
@@ -38,21 +33,8 @@ export const RegisterStepEmail = ({
         autoFocus
         autoComplete="email"
         placeholder={t("register.email.placeholder")}
-        prefix={
-          <svg
-            className="w-4 h-4 text-gray-400"
-            viewBox="0 0 20 20"
-            fill="none">
-            <path
-              d="M2 6.5l8 5 8-5M2 6.5A1.5 1.5 0 013.5 5h13A1.5 1.5 0 0118 6.5v7a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 012 13.5v-7z"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        }
-        onPressEnter={() => onContinue()}
+        spellCheck={false}
+        prefix={<Mail className="w-4 h-4 text-gray-400" aria-hidden="true" />}
         formItemProps={{
           rules: [
             { required: true, message: t("register.zod.email_required") },
@@ -60,29 +42,18 @@ export const RegisterStepEmail = ({
           ],
         }}
       />
-
-      <p className="text-[12px] text-gray-400">{t("register.email.hint")}</p>
-
-      <BaseButton
-        type="primary"
-        htmlType="button"
-        loading={checkingEmail}
-        disabled={checkingEmail}
-        className="w-full"
-        onClick={() => onContinue()}>
-        {checkingEmail ? t("app.loading") : t("register.btn.continue")}
-      </BaseButton>
-    </div>
+      <p className="text-xs text-gray-400 -mt-2 leading-relaxed">
+        {t("register.email.hint")}
+      </p>
+    </StepSection>
   );
 };
-
-// ── Step 1: Company Info ───────────────────────────────────────────────────────
 
 export const RegisterStepCompany = () => {
   const { t } = useLocale();
 
   return (
-    <div className="space-y-5">
+    <StepSection>
       <BaseInput
         name="companyName"
         label={t("register.company.name.label")}
@@ -134,7 +105,7 @@ export const RegisterStepCompany = () => {
           ],
         }}
       />
-    </div>
+    </StepSection>
   );
 };
 
@@ -152,7 +123,7 @@ export const RegisterStepAdmin = ({
   const { t } = useLocale();
 
   return (
-    <div className="space-y-5">
+    <StepSection>
       <BaseInput
         name="adminFullName"
         label={t("register.admin.fullname.label")}
@@ -178,48 +149,16 @@ export const RegisterStepAdmin = ({
             type="button"
             tabIndex={-1}
             onClick={() => setShowPassword((s) => !s)}
-            className="flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+            className="flex items-center text-gray-400 hover:text-gray-600 transition-colors focus-visible:ring-2 focus-visible:ring-brand rounded"
             aria-label={
               showPassword
                 ? t("register.admin.password.hide")
                 : t("register.admin.password.show")
             }>
             {showPassword ? (
-              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none">
-                <path
-                  d="M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6z"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                />
-                <circle
-                  cx="10"
-                  cy="10"
-                  r="2.5"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                />
-                <path
-                  d="M3 3l14 14"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              </svg>
+              <EyeOff className="w-4 h-4" aria-hidden="true" />
             ) : (
-              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none">
-                <path
-                  d="M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6z"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                />
-                <circle
-                  cx="10"
-                  cy="10"
-                  r="2.5"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                />
-              </svg>
+              <Eye className="w-4 h-4" aria-hidden="true" />
             )}
           </button>
         }
@@ -239,20 +178,8 @@ export const RegisterStepAdmin = ({
         label={t("register.admin.phone.label")}
         type="tel"
         placeholder={t("register.admin.phone.placeholder")}
-        prefix={
-          <svg
-            className="w-4 h-4 text-gray-400"
-            viewBox="0 0 20 20"
-            fill="none">
-            <path
-              d="M3.5 4.5c0-.828.672-1.5 1.5-1.5h2.09c.404 0 .765.245.919.617l.972 2.431a1 1 0 01-.23 1.08L7.336 8.042a11.043 11.043 0 004.622 4.622l.914-1.415a1 1 0 011.08-.23l2.431.972c.372.154.617.515.617.919V15a1.5 1.5 0 01-1.5 1.5C7.268 16.5 3.5 12.732 3.5 9"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-        }
+        prefix={<Phone className="w-4 h-4 text-gray-400" aria-hidden="true" />}
       />
-    </div>
+    </StepSection>
   );
 };

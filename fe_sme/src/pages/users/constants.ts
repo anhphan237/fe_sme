@@ -1,3 +1,11 @@
+export const ROLE_OPTIONS = [
+  { value: "EMPLOYEE", label: "Employee" },
+  { value: "HR", label: "HR" },
+  { value: "MANAGER", label: "Manager" },
+  { value: "ADMIN", label: "Admin" },
+  { value: "IT", label: "IT" },
+];
+
 export const ROLE_BADGE_STYLES: Record<string, string> = {
   ADMIN: "bg-indigo-50 text-indigo-700",
   HR: "bg-purple-50 text-purple-700",

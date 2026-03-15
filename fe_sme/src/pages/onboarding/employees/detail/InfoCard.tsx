@@ -1,9 +1,20 @@
-﻿import { Card } from "@core/components/ui/Card";
-import { Progress } from "@core/components/ui/Progress";
+﻿import { Card, Progress } from "antd";
 import { useLocale } from "@/i18n";
 import { ROLE_LABELS, getPrimaryRole } from "@/shared/rbac";
 import { InstanceStatusBadge } from "../InstanceStatusBadge";
-import type { InfoCardProps } from "../types";
+import type { OnboardingInstance, User } from "@/shared/types";
+
+interface InfoCardProps {
+  instance: OnboardingInstance;
+  template?: { name?: string; description?: string };
+  employeeDisplayName: string;
+  employeeDisplayEmail: string | null;
+  employee?: User;
+  managerDisplayName: string;
+  completedCount: number;
+  totalTasks: number;
+  progressPercent: number;
+}
 
 export const InfoCard = ({
   instance,
@@ -47,7 +58,7 @@ export const InfoCard = ({
           <p className="text-xs font-medium uppercase text-muted">
             {t("onboarding.detail.info.progress")}
           </p>
-          <Progress value={progressPercent} />
+          <Progress percent={progressPercent} showInfo={false} size="small" />
           <p className="text-sm text-muted">
             {t("onboarding.detail.info.tasks_summary", {
               completed: completedCount,

@@ -15,10 +15,10 @@ import {
 import { useLocale } from "@/i18n";
 import { ROLE_LABELS, getPrimaryRole } from "@/shared/rbac";
 import { ROLE_BADGE_STYLES } from "./constants";
-import { useUsersQuery } from "@/hooks/adminHooks";
+import { useUsersQuery, useDepartmentsQuery } from "@/hooks/adminHooks";
 import { UserStatusTag } from "@core/components/Status/StatusTag";
-import { InviteUserModal } from "./components/InviteUserModal";
-import { UserDetailModal } from "./components/UserDetailModal";
+import { InviteUserDrawer } from "./components/InviteUserDrawer";
+import { UserDetailDrawer } from "./components/UserDetailDrawer";
 import { BulkImportModal } from "@/components/bulk-import";
 import { apiBulkCreateUsers } from "@/api/identity/identity.api";
 import type {
@@ -146,6 +146,7 @@ const AdminUsers = () => {
   const [enablingId, setEnablingId] = useState<string | null>(null);
 
   const { data: users, isLoading, isError, refetch } = useUsersQuery();
+  const { data: departments = [] } = useDepartmentsQuery();
 
   const q = search.trim().toLowerCase();
   const filtered = !users
@@ -283,8 +284,14 @@ const AdminUsers = () => {
 
   return (
     <div className="flex h-full flex-col p-4">
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <BaseSearch
+          placeholder={t("user.search_placeholder")}
+          allowClear
+          className="max-w-72 flex-1"
+          onSearch={(val) => setSearch(val ?? "")}
+        />
+        <div className="flex shrink-0 items-center gap-2">
           <BaseButton
             icon={<Upload className="h-4 w-4" />}
             onClick={() => setImportOpen(true)}
@@ -297,12 +304,6 @@ const AdminUsers = () => {
             label="user.invite"
           />
         </div>
-        <BaseSearch
-          placeholder={t("user.search_placeholder")}
-          allowClear
-          className="w-72"
-          onSearch={(val) => setSearch(val ?? "")}
-        />
       </div>
       <MyTable
         columns={userColumns}
@@ -314,15 +315,19 @@ const AdminUsers = () => {
         locale={{ emptyText: emptyLocale }}
       />
 
-      <InviteUserModal
+      <InviteUserDrawer
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
         onSubmit={handleInvite}
+        users={users ?? []}
+        departments={departments}
       />
-      <UserDetailModal
+      <UserDetailDrawer
         userId={detailUserId}
         onClose={() => setDetailUserId(null)}
         onUpdated={refetch}
+        users={users ?? []}
+        departments={departments}
       />
       <BulkImportModal
         open={importOpen}

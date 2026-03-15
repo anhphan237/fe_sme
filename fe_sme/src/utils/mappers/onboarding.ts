@@ -21,7 +21,7 @@ export const mapTemplate = (t: any): OnboardingTemplate => {
       ? rawStages.map((c: any) => ({
           id: c.checklistTemplateId ?? c.id ?? "",
           name: c.name ?? "",
-          stageType: c.stageType ?? c.stage_type ?? undefined,
+          stageType: c.stageType ?? c.stage_type ?? c.stage ?? undefined,
           tasks: (c.tasks ?? []).map((task: any) => ({
             id: task.taskTemplateId ?? task.id ?? "",
             title: task.name ?? task.title ?? "",

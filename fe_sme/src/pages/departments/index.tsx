@@ -16,13 +16,13 @@ import { useUserStore } from "@/stores/user.store";
 import { getDeptTypeLabel, getDeptTypeStyle } from "./constants";
 import { useUsersQuery, useDepartmentsQuery } from "@/hooks/adminHooks";
 import {
-  DepartmentFormModal,
-  type DepartmentModalMode,
-} from "./components/DepartmentFormModal";
+  DepartmentFormDrawer,
+  type DepartmentDrawerMode,
+} from "./components/DepartmentFormDrawer";
 import type { DepartmentItem } from "@/interface/company";
 
 const Departments = () => {
-  const [modalMode, setModalMode] = useState<DepartmentModalMode>(null);
+  const [modalMode, setModalMode] = useState<DepartmentDrawerMode>(null);
   const [editingDept, setEditingDept] = useState<DepartmentItem | null>(null);
   const [search, setSearch] = useState("");
 
@@ -102,9 +102,6 @@ const Departments = () => {
               className="max-w-full truncate text-left font-medium text-[#223A59] transition-colors hover:text-[#3684DB] hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3684DB]">
               {dept.name}
             </button>
-            <p className="mt-0.5 truncate text-xs text-[#758BA5]">
-              {dept.departmentId}
-            </p>
           </div>
         </div>
       ),
@@ -204,7 +201,7 @@ const Departments = () => {
         locale={{ emptyText: emptyLocale }}
       />
 
-      <DepartmentFormModal
+      <DepartmentFormDrawer
         mode={modalMode}
         department={editingDept}
         users={users}

@@ -1,10 +1,16 @@
-﻿import { Card } from "@core/components/ui/Card";
-import { Pill } from "@core/components/ui/Pill";
-import { Button } from "@core/components/ui/Button";
-import { Skeleton } from "@core/components/ui/Skeleton";
+﻿import { Card, Button, Skeleton, Tag } from "antd";
 import { useLocale } from "@/i18n";
-import { STATUS_DONE } from "../../hooks";
-import type { TaskListPanelProps } from "../types";
+import type { OnboardingTask } from "@/shared/types";
+
+const STATUS_DONE = "Done";
+
+interface TaskListPanelProps {
+  tasks: OnboardingTask[];
+  isLoading: boolean;
+  isUpdating: boolean;
+  onToggle: (task: OnboardingTask) => void;
+  onOpenDrawer: (task: OnboardingTask) => void;
+}
 
 export const TaskListPanel = ({
   tasks,
@@ -21,9 +27,9 @@ export const TaskListPanel = ({
       </h3>
       {isLoading ? (
         <div className="mt-4 space-y-2">
-          <Skeleton className="h-10" />
-          <Skeleton className="h-10" />
-          <Skeleton className="h-10" />
+          <Skeleton.Input active block size="small" />
+          <Skeleton.Input active block size="small" />
+          <Skeleton.Input active block size="small" />
         </div>
       ) : tasks.length > 0 ? (
         <ul className="mt-4 space-y-2">
@@ -53,17 +59,17 @@ export const TaskListPanel = ({
                     {t("onboarding.detail.task.due", { date: task.dueDate })}
                   </span>
                 )}
-                <Pill
+                <Tag
                   className={
                     isDone
-                      ? "bg-emerald-100 text-emerald-800"
-                      : "bg-slate-200 text-slate-700"
+                      ? "bg-emerald-100 text-emerald-800 border-0"
+                      : "bg-slate-200 text-slate-700 border-0"
                   }>
                   {task.status ?? t("onboarding.detail.task.status.pending")}
-                </Pill>
+                </Tag>
                 <Button
-                  variant="ghost"
-                  className="py-1.5 text-xs"
+                  type="link"
+                  size="small"
                   onClick={() => onOpenDrawer(task)}>
                   {t("onboarding.detail.task.detail")}
                 </Button>

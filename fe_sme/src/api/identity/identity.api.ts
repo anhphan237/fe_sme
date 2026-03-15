@@ -65,9 +65,10 @@ export const apiUpdateUser = (payload: UpdateUserRequest) =>
 
 /** com.sme.identity.user.disable */
 export const apiDisableUser = (userId: string) =>
-  gatewayRequest<{ userId: string }, void>("com.sme.identity.user.disable", {
-    userId,
-  });
+  gatewayRequest<{ userId: string; disabled: boolean }, void>(
+    "com.sme.identity.user.disable",
+    { userId, disabled: true },
+  );
 
 // ── Role ──────────────────────────────────────────────────
 

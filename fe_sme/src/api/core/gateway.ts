@@ -1,33 +1,33 @@
 import { useUserStore } from "@/stores/user.store";
+import { AppRouters } from "@/constants";
 import type { GatewayRequestBody, GatewayResponse } from "@/interface/common";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const GATEWAY_PATH = "/api/v1/gateway";
 
-function getBaseUrl(): string {
-  return import.meta.env.DEV && BASE_URL ? "" : BASE_URL.replace(/\/$/, "");
-}
+const getBaseUrl = (): string =>
+  import.meta.env.DEV && BASE_URL ? "" : BASE_URL.replace(/\/$/, "");
 
-function getToken(): string | null {
+const getToken = (): string | null => {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("auth_token") || useUserStore.getState().token;
-}
+};
 
-function getTenantId(): string | null {
+const getTenantId = (): string | null => {
   const tenant = useUserStore.getState().currentTenant;
   return tenant?.id ?? null;
-}
+};
 
 export interface GatewayRequestOptions {
   tenantId?: string | null;
   flatPayload?: boolean;
 }
 
-export async function gatewayRequest<TReq = unknown, TRes = unknown>(
+export const gatewayRequest = async <TReq = unknown, TRes = unknown>(
   operationType: string,
   payload: TReq,
   options?: GatewayRequestOptions,
-): Promise<TRes> {
+): Promise<TRes> => {
   const url = `${getBaseUrl()}${GATEWAY_PATH}`;
   const tenantId =
     options?.tenantId !== undefined ? options.tenantId : getTenantId();
@@ -58,10 +58,16 @@ export async function gatewayRequest<TReq = unknown, TRes = unknown>(
     /* non-JSON response */
   }
 
+  if (res.status === 401) {
+    useUserStore.getState().logout();
+    window.location.href = AppRouters.LOGIN;
+    throw new Error("Session expired");
+  }
+
   if (!res.ok) {
     const msg = json.message ?? json.errorCode ?? text;
     throw new Error(String(msg || `Gateway error ${res.status}`));
   }
 
   return (json.data !== undefined ? json.data : json) as TRes;
-}
+};

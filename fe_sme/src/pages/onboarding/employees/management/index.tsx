@@ -1,24 +1,102 @@
 ﻿import { useCallback, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Users, UserCheck, UserX, Mail, Upload } from "lucide-react";
-import { PageHeader } from "@core/components/PageHeader";
-import { Card } from "@core/components/ui/Card";
-import { Skeleton } from "@core/components/ui/Skeleton";
-import { EmptyState } from "@core/components/ui/EmptyState";
-import { Button } from "@core/components/ui/Button";
+import { Button, Card, Empty, Skeleton, Tag } from "antd";
+import BaseSearch from "@/components/search";
 import { useLocale } from "@/i18n";
-import { useUsersQuery, useDepartmentsQuery } from "./hooks";
-import { StatCard } from "./StatCard";
-import { FilterToolbar } from "./FilterToolbar";
-import { EmployeeTable } from "./EmployeeTable";
+import { ROLE_LABELS, getPrimaryRole } from "@/shared/rbac";
 import { EmployeeFormDrawer } from "./EmployeeFormDrawer";
 import { BulkImportModal } from "@/components/bulk-import";
-import { apiBulkCreateUsers } from "@/api/identity/identity.api";
+import {
+  apiBulkCreateUsers,
+  apiSearchUsers,
+} from "@/api/identity/identity.api";
+import { apiListDepartments } from "@/api/company/company.api";
+import { extractList } from "@/api/core/types";
+import { mapUser } from "@/utils/mappers/identity";
+import type { User } from "@/shared/types";
+import type { DepartmentItem } from "@/interface/company";
 import type {
   BulkImportConfig,
   ImportRowResult,
 } from "@/components/bulk-import";
-import type { StatusFilter } from "./constants";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type StatusFilter = "" | "Active" | "Inactive" | "Invited";
+
+// ── Inline components ─────────────────────────────────────────────────────────
+
+const STATUS_BADGE_VARIANT = {
+  Active: "success",
+  Inactive: "danger",
+  Invited: "warning",
+} as const satisfies Record<string, "success" | "danger" | "warning">;
+
+const ANTD_COLOR_MAP: Record<"success" | "danger" | "warning", string> = {
+  success: "success",
+  danger: "error",
+  warning: "warning",
+};
+
+const StatusBadge = ({ status }: { status: string }) => {
+  const variant =
+    STATUS_BADGE_VARIANT[status as keyof typeof STATUS_BADGE_VARIANT];
+  const color = variant ? ANTD_COLOR_MAP[variant] : "default";
+  return <Tag color={color}>{status}</Tag>;
+};
+
+const StatCard = ({
+  icon,
+  label,
+  value,
+  colorClass,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  colorClass: string;
+}) => (
+  <Card
+    styles={{
+      body: {
+        display: "flex",
+        alignItems: "center",
+        gap: "1rem",
+        padding: "1rem",
+      },
+    }}>
+    <div className={`rounded-xl p-2.5 ${colorClass}`}>{icon}</div>
+    <div>
+      <p className="text-xs font-medium text-muted">{label}</p>
+      <p className="text-2xl font-bold text-ink">{value}</p>
+    </div>
+  </Card>
+);
+
+const filterInputCls =
+  "rounded-xl border border-stroke bg-white px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20";
+
+// ── Local hooks ───────────────────────────────────────────────────────────────
+
+const useUsersQuery = () =>
+  useQuery({
+    queryKey: ["users"],
+    queryFn: () => apiSearchUsers(),
+    select: (res: unknown) =>
+      extractList(res as Record<string, unknown>, "users", "items").map((u) =>
+        mapUser(u as Record<string, unknown>),
+      ) as User[],
+  });
+
+const useDepartmentsQuery = () =>
+  useQuery({
+    queryKey: ["departments"],
+    queryFn: () => apiListDepartments(),
+    select: (res: unknown) =>
+      extractList(res as Record<string, unknown>, "items") as DepartmentItem[],
+  });
 
 const EmployeeManagement = () => {
   const { t } = useLocale();
@@ -140,16 +218,20 @@ const EmployeeManagement = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
-        <PageHeader
-          title={t("onboarding.employee.management.title")}
-          subtitle={t("onboarding.employee.management.subtitle")}
-        />
+        <div>
+          <h1 className="text-xl font-semibold text-ink">
+            {t("onboarding.employee.management.title")}
+          </h1>
+          <p className="mt-0.5 text-sm text-muted">
+            {t("onboarding.employee.management.subtitle")}
+          </p>
+        </div>
         <div className="flex shrink-0 gap-2">
-          <Button variant="outline" onClick={() => setImportOpen(true)}>
+          <Button onClick={() => setImportOpen(true)}>
             <Upload className="mr-1.5 h-4 w-4" />
             {t("employee.import_csv")}
           </Button>
-          <Button onClick={() => setSelectedUserId(null)}>
+          <Button type="primary" onClick={() => setSelectedUserId(null)}>
             {t("employee.add")}
           </Button>
         </div>
@@ -184,23 +266,54 @@ const EmployeeManagement = () => {
         </div>
       )}
 
-      <Card className="p-0">
-        <FilterToolbar
-          searchText={searchText}
-          onSearchChange={setSearchText}
-          filterStatus={filterStatus}
-          onStatusChange={setFilterStatus}
-          filterDept={filterDept}
-          onDeptChange={setFilterDept}
-          departments={departments}
-          hasActiveFilter={hasActiveFilter}
-          onReset={handleReset}
-        />
+      <Card styles={{ body: { padding: 0 } }}>
+        {/* Filter toolbar */}
+        <div className="flex flex-wrap items-center gap-3 border-b border-stroke px-4 py-3">
+          <BaseSearch
+            placeholder={t("onboarding.employee.filter.search_placeholder")}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            onSearch={(v) => setSearchText(v ?? "")}
+            className="flex-1 min-w-[200px]"
+          />
+          <select
+            className={filterInputCls}
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value as StatusFilter)}>
+            <option value="">
+              {t("onboarding.employee.filter.all_status")}
+            </option>
+            <option value="Active">{t("global.active")}</option>
+            <option value="Inactive">{t("global.inactive")}</option>
+            <option value="Invited">
+              {t("onboarding.employee.filter.invited")}
+            </option>
+          </select>
+          <select
+            className={filterInputCls}
+            value={filterDept}
+            onChange={(e) => setFilterDept(e.target.value)}>
+            <option value="">{t("onboarding.employee.filter.all_dept")}</option>
+            {departments?.map((d) => (
+              <option key={d.departmentId} value={d.name}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+          {hasActiveFilter && (
+            <Button
+              type="link"
+              className="text-sm font-medium text-brand"
+              onClick={handleReset}>
+              {t("global.reset")}
+            </Button>
+          )}
+        </div>
 
         {isLoading ? (
           <div className="space-y-3 p-6">
             {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-10" />
+              <Skeleton.Input key={i} active block />
             ))}
           </div>
         ) : isError ? (
@@ -211,35 +324,87 @@ const EmployeeManagement = () => {
                 : t("onboarding.template.error.something_wrong")}
             </p>
             <Button
-              variant="ghost"
-              className="font-semibold text-brand hover:underline"
+              type="link"
+              className="font-semibold"
               onClick={() => refetch()}>
               {t("onboarding.template.error.retry")}
             </Button>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="p-6">
+          <div className="p-6 text-center">
             {hasActiveFilter ? (
-              <EmptyState
-                title={t("onboarding.employee.empty.filter_title")}
-                description={t("onboarding.employee.empty.filter_desc")}
-                actionLabel={t("global.reset")}
-                onAction={handleReset}
-              />
+              <Empty description={t("onboarding.employee.empty.filter_desc")}>
+                <Button onClick={handleReset}>{t("global.reset")}</Button>
+              </Empty>
             ) : (
-              <EmptyState
-                title={t("onboarding.employee.empty.title")}
-                description={t("onboarding.employee.empty.desc")}
-                actionLabel={t("employee.add")}
-                onAction={() => setSelectedUserId(null)}
-              />
+              <Empty description={t("onboarding.employee.empty.desc")}>
+                <Button type="primary" onClick={() => setSelectedUserId(null)}>
+                  {t("employee.add")}
+                </Button>
+              </Empty>
             )}
           </div>
         ) : (
-          <EmployeeTable
-            users={filtered}
-            onSelectUser={(id) => setSelectedUserId(id)}
-          />
+          <>
+            <div className="flex items-center justify-between border-b border-stroke px-4 py-2.5">
+              <p className="text-xs text-muted">
+                {filtered.length} {t("onboarding.employee.result_count")}
+              </p>
+            </div>
+            <table className="w-full">
+              <thead className="sticky top-0 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-muted">
+                <tr>
+                  <th className="px-4 py-3 w-[220px]">
+                    {t("onboarding.employee.col.name")}
+                  </th>
+                  <th className="px-4 py-3">{t("auth.email")}</th>
+                  <th className="px-4 py-3 w-[120px]">
+                    {t("onboarding.employee.col.role")}
+                  </th>
+                  <th className="px-4 py-3 w-[160px]">
+                    {t("employee.department")}
+                  </th>
+                  <th className="px-4 py-3 w-[110px]">{t("global.status")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((user) => (
+                  <tr
+                    key={user.id}
+                    className="group cursor-pointer border-t border-stroke transition-colors hover:bg-blue-50/40"
+                    onClick={() => setSelectedUserId(user.id)}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">
+                          {user.name?.charAt(0).toUpperCase() ?? "?"}
+                        </div>
+                        <span className="font-medium text-ink">
+                          {user.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5 text-muted">
+                        <Mail className="h-3.5 w-3.5 shrink-0" />
+                        <span className="text-sm">{user.email}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted">
+                      {ROLE_LABELS[getPrimaryRole(user.roles)]}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted">
+                      {user.department || (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={user.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
         )}
       </Card>
 

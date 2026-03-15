@@ -10,10 +10,13 @@ import type {
 // ── Templates ──────────────────────────────────────────────
 
 /** com.sme.onboarding.template.list */
-export const apiListTemplates = (status?: string) =>
-  gatewayRequest<{ status: string }, unknown>(
+export const apiListTemplates = (params?: {
+  status?: string;
+  search?: string;
+}) =>
+  gatewayRequest<{ status: string; search?: string }, unknown>(
     "com.sme.onboarding.template.list",
-    { status: status ?? "ACTIVE" },
+    { status: params?.status ?? "ACTIVE", search: params?.search },
     { flatPayload: true },
   );
 

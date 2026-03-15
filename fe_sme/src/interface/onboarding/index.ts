@@ -12,16 +12,23 @@ import type { Role } from "../common";
 
 /** Item inside OnboardingTemplateCreateRequest.checklists[].tasks[] */
 export interface TaskTemplateCreateItem {
-  name: string;
+  /** BE field is `title` — must NOT be sent as `name` or task is silently skipped */
+  title: string;
+  /** USER | DEPARTMENT | ROLE */
+  ownerType?: string;
   ownerRefId: Role;
   dueDaysOffset?: number;
   requireAck?: boolean;
   description?: string;
+  sortOrder?: number;
 }
 
 /** Item inside OnboardingTemplateCreateRequest.checklists[] */
 export interface ChecklistTemplateCreateItem {
   name: string;
+  /** BE stage type: PRE_BOARDING | DAY_1 | DAY_7 | DAY_30 | DAY_60 */
+  stage?: string;
+  sortOrder?: number;
   tasks: TaskTemplateCreateItem[];
 }
 
@@ -64,17 +71,24 @@ export interface OnboardingTemplateSummary {
 /** Detailed task in a checklist */
 export interface TaskTemplateDetail {
   taskTemplateId: string;
+  /** BE returns `title`; mapper also checks `name` as fallback */
+  title?: string;
   name: string;
   ownerRefId: Role;
+  ownerType?: string;
   dueDaysOffset: number;
   requireAck: boolean;
   description?: string;
+  sortOrder?: number;
 }
 
 /** Detailed checklist in a template */
 export interface ChecklistTemplateDetail {
   checklistTemplateId: string;
   name: string;
+  /** BE stage type: PRE_BOARDING | DAY_1 | DAY_7 | DAY_30 | DAY_60 */
+  stage?: string;
+  sortOrder?: number;
   tasks: TaskTemplateDetail[];
 }
 

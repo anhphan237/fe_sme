@@ -1,12 +1,16 @@
-﻿import { Badge } from "@core/components/ui/Badge";
+﻿import { Tag } from "antd";
+import { useLocale } from "@/i18n";
 
-const INSTANCE_STATUS_VARIANT: Record<
-  string,
-  "success" | "default" | "warning"
-> = {
+const STATUS_COLOR: Record<string, string> = {
   ACTIVE: "success",
   COMPLETED: "default",
   CANCELLED: "warning",
+};
+
+const STATUS_I18N: Record<string, string> = {
+  ACTIVE: "onboarding.status.active",
+  COMPLETED: "onboarding.status.completed",
+  CANCELLED: "onboarding.status.cancelled",
 };
 
 interface InstanceStatusBadgeProps {
@@ -14,6 +18,9 @@ interface InstanceStatusBadgeProps {
 }
 
 export const InstanceStatusBadge = ({ status }: InstanceStatusBadgeProps) => {
-  const variant = INSTANCE_STATUS_VARIANT[status.toUpperCase()] ?? "default";
-  return <Badge variant={variant}>{status}</Badge>;
+  const { t } = useLocale();
+  const key = status.toUpperCase();
+  const color = STATUS_COLOR[key] ?? "default";
+  const label = STATUS_I18N[key] ? t(STATUS_I18N[key]) : status;
+  return <Tag color={color}>{label}</Tag>;
 };

@@ -1,10 +1,8 @@
 ﻿import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Drawer } from "@core/components/ui/Drawer";
-import { Button } from "@core/components/ui/Button";
-import { Skeleton } from "@core/components/ui/Skeleton";
-import { useToast } from "@core/components/ui/Toast";
+import { Button, Drawer, Skeleton } from "antd";
+import { notify } from "@/utils/notify";
 import { useLocale } from "@/i18n";
 import {
   apiCreateUser,
@@ -68,7 +66,6 @@ const useEmployeeForm = (
 ) => {
   const isEdit = typeof userId === "string";
   const { t } = useLocale();
-  const toast = useToast();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
 
@@ -138,7 +135,7 @@ const useEmployeeForm = (
         });
         queryClient.invalidateQueries({ queryKey: ["users"] });
         queryClient.invalidateQueries({ queryKey: ["user-detail", userId] });
-        toast(t("onboarding.employee.form.update_success"));
+        notify.success(t("onboarding.employee.form.update_success"));
       } else {
         const result = await createUser.mutateAsync({
           email: form.email.trim(),
@@ -153,7 +150,7 @@ const useEmployeeForm = (
           workLocation: form.workLocation.trim() || undefined,
         });
         queryClient.invalidateQueries({ queryKey: ["users"] });
-        toast(t("onboarding.employee.form.create_success"));
+        notify.success(t("onboarding.employee.form.create_success"));
         const newUserId =
           ((result as Record<string, unknown>)?.userId as string | undefined) ??
           ((result as Record<string, unknown>)?.id as string | undefined);
@@ -161,7 +158,7 @@ const useEmployeeForm = (
       }
       handleClose();
     } catch (err) {
-      toast(
+      notify.error(
         err instanceof Error
           ? err.message
           : t(
@@ -204,10 +201,13 @@ export const EmployeeFormDrawer = ({
 
   const footer = (
     <div className="flex justify-end gap-3">
-      <Button type="button" variant="secondary" onClick={handleClose}>
-        {t("global.cancel")}
-      </Button>
-      <Button type="submit" form={FORM_ID} disabled={isPending}>
+      <Button onClick={handleClose}>{t("global.cancel")}</Button>
+      <Button
+        type="primary"
+        htmlType="submit"
+        form={FORM_ID}
+        loading={isPending}
+        disabled={isPending}>
         {isPending
           ? isEdit
             ? t("onboarding.employee.form.updating")
@@ -229,8 +229,8 @@ export const EmployeeFormDrawer = ({
         <div className="grid gap-5">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="grid gap-1.5">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-10" />
+              <Skeleton.Input active block size="small" />
+              <Skeleton.Input active block />
             </div>
           ))}
         </div>
