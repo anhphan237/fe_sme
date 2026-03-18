@@ -12,16 +12,23 @@ import type { Role } from "../common";
 
 /** Item inside OnboardingTemplateCreateRequest.checklists[].tasks[] */
 export interface TaskTemplateCreateItem {
-  name: string;
+  /** BE field is `title` — must NOT be sent as `name` or task is silently skipped */
+  title: string;
+  /** USER | DEPARTMENT | ROLE */
+  ownerType?: string;
   ownerRefId: Role;
   dueDaysOffset?: number;
   requireAck?: boolean;
   description?: string;
+  sortOrder?: number;
 }
 
 /** Item inside OnboardingTemplateCreateRequest.checklists[] */
 export interface ChecklistTemplateCreateItem {
   name: string;
+  /** BE stage type: PRE_BOARDING | DAY_1 | DAY_7 | DAY_30 | DAY_60 */
+  stage?: string;
+  sortOrder?: number;
   tasks: TaskTemplateCreateItem[];
 }
 
@@ -64,17 +71,24 @@ export interface OnboardingTemplateSummary {
 /** Detailed task in a checklist */
 export interface TaskTemplateDetail {
   taskTemplateId: string;
+  /** BE returns `title`; mapper also checks `name` as fallback */
+  title?: string;
   name: string;
   ownerRefId: Role;
+  ownerType?: string;
   dueDaysOffset: number;
   requireAck: boolean;
   description?: string;
+  sortOrder?: number;
 }
 
 /** Detailed checklist in a template */
 export interface ChecklistTemplateDetail {
   checklistTemplateId: string;
   name: string;
+  /** BE stage type: PRE_BOARDING | DAY_1 | DAY_7 | DAY_30 | DAY_60 */
+  stage?: string;
+  sortOrder?: number;
   tasks: TaskTemplateDetail[];
 }
 
@@ -116,6 +130,10 @@ export interface OnboardingInstanceCreateRequest {
   employeeId: string;
   /** Optional — for assignee resolution */
   managerId?: string;
+  /** Optional — for IT staff task assignment */
+  itStaffUserId?: string;
+  /** Optional — desired onboarding start date (ISO date string) */
+  startDate?: string;
   /** Idempotency key */
   requestNo?: string;
 }
@@ -193,6 +211,15 @@ export interface OnboardingTaskUpdateStatusRequest {
   status: "PENDING" | "IN_PROGRESS" | "DONE";
 }
 
+/** com.sme.onboarding.task.listByOnboarding — query options */
+export interface ListTasksByOnboardingOptions {
+  status?: string;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortOrder?: "ASC" | "DESC";
+}
+
 /** com.sme.onboarding.task.listByOnboarding */
 export interface TaskListByOnboardingRequest {
   instanceId: string;
@@ -217,4 +244,119 @@ export interface TaskListByOnboardingResponse {
 export interface OnboardingTaskGenerationResponse {
   generated: number;
   tasks: OnboardingTaskResponse[];
+}
+
+// ---------------------------
+// Onboarding Evaluation
+// ---------------------------
+
+/** com.sme.onboarding.evaluation.create */
+export interface EvaluationCreateRequest {
+  instanceId: string;
+  milestone: "7" | "30" | "60";
+  rating: number;
+  notes?: string;
+}
+
+/** com.sme.onboarding.evaluation.list */
+export interface EvaluationListRequest {
+  instanceId: string;
+}
+
+/** Single evaluation in response */
+export interface EvaluationResponse {
+  evaluationId: string;
+  instanceId: string;
+  milestone: "7" | "30" | "60";
+  rating: number;
+  notes?: string;
+  createdAt?: string;
+}
+
+/** com.sme.onboarding.evaluation.list → response data */
+export interface EvaluationListResponse {
+  evaluations: EvaluationResponse[];
+}
+
+// ---------------------------
+// Task Comments
+// ---------------------------
+
+/** com.sme.onboarding.task.comment.list */
+export interface CommentListRequest {
+  taskId: string;
+}
+
+/** com.sme.onboarding.task.comment.add */
+export interface CommentAddRequest {
+  taskId: string;
+  message: string;
+}
+
+/** Single comment in response */
+export interface CommentResponse {
+  commentId: string;
+  taskId: string;
+  authorId: string;
+  authorName?: string;
+  message: string;
+  createdAt: string;
+}
+
+/** com.sme.onboarding.task.comment.list → response data */
+export interface CommentListResponse {
+  comments: CommentResponse[];
+}
+
+// ---------------------------
+// Automation Rules
+// ---------------------------
+
+/** com.sme.onboarding.automation.rule.list */
+export interface AutomationRuleListRequest {
+  companyId?: string;
+}
+
+/** Single automation rule */
+export interface AutomationRuleResponse {
+  ruleId: string;
+  name: string;
+  trigger: string;
+  channel: "email" | "notification";
+  enabled: boolean;
+}
+
+/** com.sme.onboarding.automation.rule.toggle */
+export interface AutomationRuleToggleRequest {
+  ruleId: string;
+  enabled: boolean;
+}
+
+/** com.sme.onboarding.automation.rule.list → response data */
+export interface AutomationRuleListResponse {
+  rules: AutomationRuleResponse[];
+}
+
+// ---------------------------
+// Email Logs
+// ---------------------------
+
+/** com.sme.onboarding.automation.email.list */
+export interface EmailLogListRequest {
+  page?: number;
+  size?: number;
+}
+
+/** Single email log entry */
+export interface EmailLogResponse {
+  logId: string;
+  subject: string;
+  recipientEmail?: string;
+  status: "Sent" | "Failed";
+  sentAt: string;
+}
+
+/** com.sme.onboarding.automation.email.list → response data */
+export interface EmailLogListResponse {
+  logs: EmailLogResponse[];
 }

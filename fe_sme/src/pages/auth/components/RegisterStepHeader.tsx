@@ -1,3 +1,4 @@
+import { Alert } from "antd";
 import { useLocale } from "@/i18n";
 
 const TITLE_KEYS = [
@@ -18,21 +19,35 @@ const SUBTITLE_KEYS = [
 
 interface RegisterStepHeaderProps {
   step: number;
-  totalSteps?: number;
-  errorMessage?: string | null;
+  totalSteps: number;
+  error?: string | null;
 }
 
-export function RegisterStepHeader({
+export const RegisterStepHeader = ({
   step,
-  totalSteps = 5,
-  errorMessage,
-}: RegisterStepHeaderProps) {
+  totalSteps,
+  error,
+}: RegisterStepHeaderProps) => {
   const { t } = useLocale();
 
   return (
-    <div className="mb-8">
-      <div className="inline-flex items-center gap-2 px-3 py-1 bg-brand/8 rounded-full mb-3">
-        <span className="text-[11px] font-bold text-brand uppercase tracking-wider">
+    <header className="mb-8">
+      {/* Step progress dots */}
+      <div className="flex items-center gap-2 mb-5">
+        {Array.from({ length: totalSteps }, (_, i) => (
+          <span
+            key={i}
+            className={`h-2 rounded-full transition-all duration-300 shrink-0 ${
+              i === step
+                ? "w-6 bg-brand"
+                : i < step
+                  ? "w-3 bg-brand/50"
+                  : "w-3 bg-gray-200"
+            }`}
+            aria-hidden="true"
+          />
+        ))}
+        <span className="ml-auto text-[11px] font-semibold text-gray-400 tracking-wider uppercase">
           {t("register.step_badge", {
             current: String(step + 1),
             total: String(totalSteps),
@@ -40,36 +55,20 @@ export function RegisterStepHeader({
         </span>
       </div>
 
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">
+      <h1 className="text-[22px] font-bold text-gray-900 leading-snug mb-1.5">
         {t(TITLE_KEYS[step] ?? TITLE_KEYS[0])}
       </h1>
-      <p className="text-[14px] text-gray-500">
+      <p className="text-sm text-gray-500 leading-relaxed">
         {t(SUBTITLE_KEYS[step] ?? SUBTITLE_KEYS[0])}
       </p>
-
-      {errorMessage && (
-        <div className="mt-4 flex items-start gap-3 rounded-xl bg-red-50 border border-red-100 px-4 py-3">
-          <svg
-            className="w-4 h-4 text-red-500 shrink-0 mt-0.5"
-            viewBox="0 0 16 16"
-            fill="none">
-            <circle
-              cx="8"
-              cy="8"
-              r="6.5"
-              stroke="currentColor"
-              strokeWidth="1.4"
-            />
-            <path
-              d="M8 5v4M8 11.5v.5"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-            />
-          </svg>
-          <p className="text-[13px] text-red-600">{errorMessage}</p>
-        </div>
+      {error && (
+        <Alert
+          type="error"
+          showIcon
+          message={error}
+          className="mt-4 rounded-xl"
+        />
       )}
-    </div>
+    </header>
   );
-}
+};

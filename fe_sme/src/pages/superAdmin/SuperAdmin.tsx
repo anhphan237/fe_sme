@@ -1,16 +1,12 @@
-import { useState } from "react";
-import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Tabs } from "../../components/ui/Tabs";
-import { Table } from "../../components/ui/Table";
+﻿import { useState } from "react";
+import { Card, Skeleton, Tabs } from "antd";
 import { useQuery } from "@tanstack/react-query";
 
 /** @deprecated stub — no gateway operation yet */
 const useSaTenantsQuery = () =>
   useQuery({ queryKey: ["sa-tenants"], queryFn: () => Promise.resolve([]) });
 const useSaFinanceQuery = () =>
-  useQuery({ queryKey: ["sa-finance"], queryFn: () => Promise.resolve({}) });
-import { Skeleton } from "../../components/ui/Skeleton";
+  useQuery({ queryKey: ["sa-finance"], queryFn: () => Promise.resolve([]) });
 import {
   LineChart,
   Line,
@@ -23,26 +19,28 @@ import {
   Bar,
 } from "recharts";
 
-function SuperAdmin() {
+const SuperAdmin = () => {
   const [tab, setTab] = useState("tenants");
   const { data: tenants, isLoading } = useSaTenantsQuery();
   const { data: finance } = useSaFinanceQuery();
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Super Admin"
-        subtitle="Multi-tenant oversight and finance insights."
-      />
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-800">Super Admin</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Multi-tenant oversight and finance insights.
+        </p>
+      </div>
 
       <Tabs
         items={[
-          { label: "Tenants", value: "tenants" },
-          { label: "Subscriptions", value: "subscriptions" },
-          { label: "Finance", value: "finance" },
+          { label: "Tenants", key: "tenants" },
+          { label: "Subscriptions", key: "subscriptions" },
+          { label: "Finance", key: "finance" },
         ]}
-        value={tab}
-        onChange={setTab}
+        activeKey={tab}
+        onChange={(key) => setTab(key)}
       />
 
       {tab === "tenants" && (
@@ -52,7 +50,7 @@ function SuperAdmin() {
               <Skeleton className="h-6" />
             </div>
           ) : (
-            <Table>
+            <table className="w-full">
               <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase text-muted">
                 <tr>
                   <th className="px-4 py-3">Company</th>
@@ -71,7 +69,7 @@ function SuperAdmin() {
                   </tr>
                 ))}
               </tbody>
-            </Table>
+            </table>
           )}
         </Card>
       )}
@@ -130,6 +128,6 @@ function SuperAdmin() {
       )}
     </div>
   );
-}
+};
 
 export default SuperAdmin;

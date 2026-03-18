@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useLocale } from "@/i18n";
-import { useAppStore } from "@/store/useAppStore";
-import type { Locale } from "@/store/useAppStore";
+import { useUserStore } from "@/stores/user.store";
+import type { Locale } from "@/stores/user.store";
 import { NAV_LINK_KEYS } from "../landing.constants";
 
 const LANGUAGES: {
@@ -11,14 +11,14 @@ const LANGUAGES: {
   label: string;
   native: string;
 }[] = [
-  { value: "vi_VN", flag: "🇻🇳", label: "Tiếng Việt", native: "VI" },
-  { value: "en_US", flag: "🇺🇸", label: "English", native: "EN" },
+  { value: "vi_VN", flag: "ðŸ‡»ðŸ‡³", label: "Tiáº¿ng Viá»‡t", native: "VI" },
+  { value: "en_US", flag: "ðŸ‡ºðŸ‡¸", label: "English", native: "EN" },
 ];
 
-export default function LandingNavbar() {
+const LandingNavbar = () => {
   const { t } = useLocale();
-  const locale = useAppStore((s) => s.locale);
-  const setLocale = useAppStore((s) => s.setLocale);
+  const locale = useUserStore((s) => s.locale);
+  const setLocale = useUserStore((s) => s.setLocale);
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
@@ -51,7 +51,7 @@ export default function LandingNavbar() {
 
   return (
     <header className="fixed top-0 inset-x-0 z-50">
-      {/* Top bar — transitions from transparent to frosted glass */}
+      {/* Top bar â€” transitions from transparent to frosted glass */}
       <div
         className={`transition-all duration-500 ${
           scrolled
@@ -60,7 +60,7 @@ export default function LandingNavbar() {
         }`}>
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="h-[68px] flex items-center justify-between gap-8">
-            {/* ── Logo ── */}
+            {/* â”€â”€ Logo â”€â”€ */}
             <a href="/" className="flex items-center gap-2.5 shrink-0 group">
               <div className="relative w-9 h-9">
                 {/* gradient ring */}
@@ -105,7 +105,7 @@ export default function LandingNavbar() {
               </div>
             </a>
 
-            {/* ── Desktop Nav ── */}
+            {/* â”€â”€ Desktop Nav â”€â”€ */}
             <nav className="hidden md:flex items-center gap-0.5 flex-1 justify-center">
               {NAV_LINK_KEYS.map((link) => (
                 <button
@@ -124,7 +124,7 @@ export default function LandingNavbar() {
               ))}
             </nav>
 
-            {/* ── Language Switcher (desktop dropdown) ── */}
+            {/* â”€â”€ Language Switcher (desktop dropdown) â”€â”€ */}
             <div ref={langRef} className="relative hidden md:block shrink-0">
               <button
                 onClick={() => setLangOpen((o) => !o)}
@@ -212,7 +212,7 @@ export default function LandingNavbar() {
               </div>
             </div>
 
-            {/* ── Desktop CTA ── */}
+            {/* â”€â”€ Desktop CTA â”€â”€ */}
             <div className="hidden md:flex items-center gap-2 shrink-0">
               <Link
                 to="/login"
@@ -243,7 +243,7 @@ export default function LandingNavbar() {
               </Link>
             </div>
 
-            {/* ── Mobile Hamburger ── */}
+            {/* â”€â”€ Mobile Hamburger â”€â”€ */}
             <button
               onClick={() => setMobileOpen(!mobileOpen)}
               aria-label="Toggle menu"
@@ -269,7 +269,7 @@ export default function LandingNavbar() {
         </div>
       </div>
 
-      {/* ── Mobile Menu ── */}
+      {/* â”€â”€ Mobile Menu â”€â”€ */}
       <div
         className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out
           ${mobileOpen ? "max-h-[560px] opacity-100" : "max-h-0 opacity-0"}`}>
@@ -285,7 +285,7 @@ export default function LandingNavbar() {
               </button>
             ))}
           </nav>
-          {/* Language picker — mobile */}
+          {/* Language picker â€” mobile */}
           <div className="mt-4 rounded-xl border border-gray-200 overflow-hidden">
             <p className="px-4 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-widest bg-gray-50 border-b border-gray-100">
               Language
@@ -337,11 +337,13 @@ export default function LandingNavbar() {
               to="/register-company"
               onClick={() => setMobileOpen(false)}
               className="py-2.5 text-[14px] font-semibold text-center bg-brand text-white rounded-xl hover:bg-brandDark transition-colors shadow-md shadow-brand/25">
-              {t("landing.nav.try_free")} →
+              {t("landing.nav.try_free")} â†’
             </Link>
           </div>
         </div>
       </div>
     </header>
   );
-}
+};
+
+export default LandingNavbar;

@@ -1,8 +1,6 @@
-import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Button } from "../../components/ui/Button";
-import { Skeleton } from "../../components/ui/Skeleton";
-import { useToast } from "../../components/ui/Toast";
+﻿import { Card, Skeleton } from "antd";
+import BaseButton from "@/components/button";
+import { notify } from "@/utils/notify";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   apiGetPaymentProviders,
@@ -17,7 +15,7 @@ const usePaymentProvidersQuery = () =>
   useQuery({
     queryKey: ["payment-providers"],
     queryFn: apiGetPaymentProviders,
-    select: (res: any) =>
+    select: (res: unknown) =>
       extractList(res, "providers", "items").map(
         mapProvider,
       ) as PaymentProvider[],
@@ -33,7 +31,7 @@ const PROVIDER_ICONS: Record<string, string> = {
   VNPay: "V",
 };
 
-function BillingPayment() {
+const BillingPayment = () => {
   const {
     data: providers,
     isLoading,
@@ -42,7 +40,6 @@ function BillingPayment() {
   } = usePaymentProvidersQuery();
   const connectPayment = useConnectPayment();
   const testCharge = useCreatePaymentIntent();
-  const addToast = useToast();
   const queryClient = useQueryClient();
 
   const handleToggle = (providerName: string) => {
@@ -50,11 +47,11 @@ function BillingPayment() {
       { provider: providerName },
       {
         onSuccess: () => {
-          addToast(`${providerName} connection updated.`);
+          notify.success(`${providerName} connection updated.`);
           queryClient.invalidateQueries({ queryKey: ["payment-providers"] });
         },
         onError: (err) => {
-          addToast(`Failed to update ${providerName}: ${err.message}`);
+          notify.error(`Failed to update ${providerName}: ${err.message}`);
         },
       },
     );
@@ -63,18 +60,22 @@ function BillingPayment() {
   const handleTestCharge = (providerName: string) => {
     testCharge.mutate("test-charge", {
       onSuccess: () =>
-        addToast(`${providerName} test charge created successfully.`),
+        notify.success(`${providerName} test charge created successfully.`),
       onError: (err) =>
-        addToast(`${providerName} test charge failed: ${err.message}`),
+        notify.error(`${providerName} test charge failed: ${err.message}`),
     });
   };
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Payment Providers"
-        subtitle="Connect and manage payment providers for billing."
-      />
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-800">
+          Payment Providers
+        </h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Connect and manage payment providers for billing.
+        </p>
+      </div>
 
       {isLoading ? (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -131,21 +132,20 @@ function BillingPayment() {
                 </div>
               </div>
               <div className="mt-4 flex gap-2">
-                <Button
-                  variant={
-                    provider.status === "Connected" ? "destructive" : "primary"
-                  }
+                <BaseButton
+                  type={provider.status === "Connected" ? "default" : "primary"}
+                  danger={provider.status === "Connected"}
                   disabled={connectPayment.isPending}
                   onClick={() => handleToggle(provider.name)}>
                   {provider.status === "Connected" ? "Disconnect" : "Connect"}
-                </Button>
+                </BaseButton>
                 {provider.status === "Connected" && (
-                  <Button
-                    variant="ghost"
+                  <BaseButton
+                    type="text"
                     disabled={testCharge.isPending}
                     onClick={() => handleTestCharge(provider.name)}>
                     {testCharge.isPending ? "Testing..." : "Test charge"}
-                  </Button>
+                  </BaseButton>
                 )}
               </div>
             </Card>
@@ -154,6 +154,6 @@ function BillingPayment() {
       )}
     </div>
   );
-}
+};
 
 export default BillingPayment;

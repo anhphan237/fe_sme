@@ -1,12 +1,7 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { EmptyState } from "../../components/ui/EmptyState";
-import { Table } from "../../components/ui/Table";
-import { Button } from "../../components/ui/Button";
-import { Skeleton } from "../../components/ui/Skeleton";
-import { Modal } from "../../components/ui/Modal";
+import { Card, Empty, Modal, Skeleton } from "antd";
+import BaseButton from "@/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { apiGetInvoices, apiGetInvoiceById } from "@/api/billing/billing.api";
 import { extractList } from "@/api/core/types";
@@ -17,7 +12,7 @@ const useInvoicesQuery = () =>
   useQuery({
     queryKey: ["invoices"],
     queryFn: () => apiGetInvoices(),
-    select: (res: any) =>
+    select: (res: unknown) =>
       extractList(res, "invoices", "items").map(mapInvoice) as Invoice[],
     refetchOnMount: "always",
   });
@@ -26,10 +21,10 @@ const useInvoiceQuery = (invoiceId?: string) =>
     queryKey: ["invoice", invoiceId],
     queryFn: () => apiGetInvoiceById(invoiceId!),
     enabled: Boolean(invoiceId),
-    select: (res: any) => mapInvoice(res),
+    select: (res: unknown) => mapInvoice(res),
   });
 
-function BillingInvoices() {
+const BillingInvoices = () => {
   const navigate = useNavigate();
   const [detailId, setDetailId] = useState<string | null>(null);
   const { data, isLoading, isError, refetch } = useInvoicesQuery();
@@ -49,10 +44,12 @@ function BillingInvoices() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Invoices"
-        subtitle="Track billing history and download invoices."
-      />
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-800">Invoices</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Track billing history and download invoices.
+        </p>
+      </div>
 
       <Card className="p-0">
         {isLoading ? (
@@ -69,15 +66,15 @@ function BillingInvoices() {
           </div>
         ) : data && data.length === 0 ? (
           <div className="p-6">
-            <EmptyState
-              title="No invoices available"
-              description="Invoices will appear once billing cycles start."
-              actionLabel="View plan"
-              onAction={() => navigate("/billing/plan")}
-            />
+            <Empty description="No invoices available" />
+            <div className="mt-4 text-center">
+              <BaseButton onClick={() => navigate("/billing/plan")}>
+                View plan
+              </BaseButton>
+            </div>
           </div>
         ) : (
-          <Table>
+          <table className="w-full">
             <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase text-muted">
               <tr>
                 <th className="px-4 py-3">Invoice #</th>
@@ -119,40 +116,42 @@ function BillingInvoices() {
                   <td className="px-4 py-3 text-muted">{invoice.date}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
+                      <BaseButton
+                        type="text"
                         onClick={() => setDetailId(invoice.id)}>
                         View
-                      </Button>
+                      </BaseButton>
                       {(invoice.status === "Open" ||
                         invoice.status === "Overdue") && (
-                        <Button
+                        <BaseButton
+                          type="primary"
                           onClick={() =>
                             navigate(
                               `/billing/checkout/${invoice.id}?amount=${encodeURIComponent(invoice.amount)}`,
                             )
                           }>
                           Pay Now
-                        </Button>
+                        </BaseButton>
                       )}
-                      <Button
-                        variant="ghost"
+                      <BaseButton
+                        type="text"
                         onClick={() => handleDownload(invoice.id)}>
                         Download
-                      </Button>
+                      </BaseButton>
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
-          </Table>
+          </table>
         )}
       </Card>
 
       <Modal
         open={!!detailId}
         title="Invoice detail"
-        onClose={() => setDetailId(null)}>
+        onCancel={() => setDetailId(null)}
+        footer={null}>
         {detailLoading ? (
           <div className="space-y-3 py-4">
             <Skeleton className="h-5 w-1/2" />
@@ -216,7 +215,8 @@ function BillingInvoices() {
             </dl>
             <div className="flex flex-wrap gap-3 pt-2">
               {(detail.status === "Open" || detail.status === "Overdue") && (
-                <Button
+                <BaseButton
+                  type="primary"
                   onClick={() => {
                     setDetailId(null);
                     navigate(
@@ -224,11 +224,9 @@ function BillingInvoices() {
                     );
                   }}>
                   Pay Now
-                </Button>
+                </BaseButton>
               )}
-              <Button variant="secondary" onClick={() => setDetailId(null)}>
-                Close
-              </Button>
+              <BaseButton onClick={() => setDetailId(null)}>Close</BaseButton>
             </div>
           </div>
         ) : (
@@ -239,6 +237,6 @@ function BillingInvoices() {
       </Modal>
     </div>
   );
-}
+};
 
 export default BillingInvoices;

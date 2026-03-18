@@ -1,8 +1,6 @@
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Button } from "../../components/ui/Button";
-import { Skeleton } from "../../components/ui/Skeleton";
+﻿import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { Card, Skeleton } from "antd";
+import BaseButton from "@/components/button";
 import { StripeProvider } from "../../components/payment/StripeProvider";
 import { CheckoutForm } from "../../components/payment/CheckoutForm";
 import { useMutation } from "@tanstack/react-query";
@@ -11,13 +9,12 @@ import { apiCreatePaymentIntent } from "@/api/billing/billing.api";
 const useCreatePaymentIntent = () =>
   useMutation({ mutationFn: apiCreatePaymentIntent });
 import { useEffect, useState } from "react";
-import { useToast } from "../../components/ui/Toast";
+import { notify } from "@/utils/notify";
 
-function BillingCheckout() {
+const BillingCheckout = () => {
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const addToast = useToast();
   const createIntent = useCreatePaymentIntent();
   const [clientSecret, setClientSecret] = useState<string | null>(null);
 
@@ -36,7 +33,7 @@ function BillingCheckout() {
         setClientSecret(data.clientSecret);
       },
       onError: (err) => {
-        addToast(`Failed to initialize payment: ${err.message}`);
+        notify.error(`Failed to initialize payment: ${err.message}`);
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -46,10 +43,12 @@ function BillingCheckout() {
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
-      <PageHeader
-        title="Checkout"
-        subtitle={`Complete payment for Invoice #${invoiceId}`}
-      />
+      <div className="text-center">
+        <h1 className="text-2xl font-semibold text-slate-800">Checkout</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Complete payment for Invoice #{invoiceId}
+        </p>
+      </div>
 
       <Card>
         {createIntent.isPending ? (
@@ -63,11 +62,9 @@ function BillingCheckout() {
             <p className="text-sm text-red-600">
               Could not create payment session. Please try again.
             </p>
-            <Button
-              variant="secondary"
-              onClick={() => navigate("/billing/invoices")}>
+            <BaseButton onClick={() => navigate("/billing/invoices")}>
               Back to Invoices
-            </Button>
+            </BaseButton>
           </div>
         ) : clientSecret && isValidStripeSecret(clientSecret) ? (
           <StripeProvider clientSecret={clientSecret}>
@@ -75,7 +72,7 @@ function BillingCheckout() {
               amount={amount}
               invoiceId={invoiceId ?? ""}
               returnUrl={returnUrl}
-              onError={(msg) => addToast(msg)}
+              onError={(msg) => notify.error(msg)}
             />
           </StripeProvider>
         ) : clientSecret ? (
@@ -84,22 +81,20 @@ function BillingCheckout() {
               Payment is not configured for this invoice. Contact support or try
               again later.
             </p>
-            <Button
-              variant="secondary"
-              onClick={() => navigate("/billing/invoices")}>
+            <BaseButton onClick={() => navigate("/billing/invoices")}>
               Back to Invoices
-            </Button>
+            </BaseButton>
           </div>
         ) : null}
       </Card>
 
       <div className="text-center">
-        <Button variant="ghost" onClick={() => navigate("/billing/invoices")}>
+        <BaseButton type="text" onClick={() => navigate("/billing/invoices")}>
           Cancel and return to Invoices
-        </Button>
+        </BaseButton>
       </div>
     </div>
   );
-}
+};
 
 export default BillingCheckout;

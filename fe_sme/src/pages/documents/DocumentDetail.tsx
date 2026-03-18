@@ -1,11 +1,8 @@
 ﻿import { useParams } from "react-router-dom";
-import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Badge } from "../../components/ui/Badge";
-import { Button } from "../../components/ui/Button";
-import { Progress } from "../../components/ui/Progress";
-import { Skeleton } from "../../components/ui/Skeleton";
+import { Card, Skeleton, Progress } from "antd";
+import BaseButton from "@/components/button";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocale } from "@/i18n";
 import { apiAcknowledgeDocument } from "@/api/document/document.api";
 
 /** @deprecated stub — no gateway operation yet */
@@ -18,7 +15,8 @@ const useDocumentQuery = (id?: string) =>
 const useAcknowledgeDocument = () =>
   useMutation({ mutationFn: apiAcknowledgeDocument });
 
-function DocumentDetail() {
+const DocumentDetail = () => {
+  const { t } = useLocale();
   const { documentId } = useParams();
   const { data, isLoading, isError, refetch } = useDocumentQuery(
     documentId ?? "",
@@ -26,16 +24,18 @@ function DocumentDetail() {
   const acknowledge = useAcknowledgeDocument();
 
   if (isLoading) {
-    return <Skeleton className="h-64" />;
+    return <Skeleton active className="mt-4" />;
   }
 
   if (isError) {
     return (
       <Card>
-        <p className="text-sm">
-          Something went wrong.{" "}
-          <button className="font-semibold" onClick={() => refetch()}>
-            Retry
+        <p className="text-sm text-gray-500">
+          {t("document.error.something_wrong")}{" "}
+          <button
+            className="font-semibold text-blue-600 hover:underline"
+            onClick={() => refetch()}>
+            {t("document.error.retry")}
           </button>
         </p>
       </Card>
@@ -44,46 +44,47 @@ function DocumentDetail() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={data?.title ?? "Document"}
-        subtitle="Track reads and acknowledgments."
-        extra={data?.required ? <Badge>Required</Badge> : null}
-        actionLabel="Edit"
-        onAction={() => {}}
-      />
-
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <h3 className="text-lg font-semibold">Preview</h3>
-          <div className="mt-4 h-64 rounded-2xl border border-dashed border-stroke bg-slate-50" />
+          <h3 className="mb-4 text-base font-semibold text-gray-700">
+            {t("document.detail.preview")}
+          </h3>
+          <div className="h-64 rounded-xl border border-dashed border-gray-200 bg-gray-50" />
         </Card>
         <Card>
-          <h3 className="text-lg font-semibold">Reading progress</h3>
-          <p className="text-sm text-muted">Time spent: 4 min</p>
-          <div className="mt-4">
-            <Progress value={54} />
-          </div>
-          {data?.required && (
-            <Button
-              className="mt-6"
-              onClick={() => acknowledge.mutate(data.id)}>
-              Acknowledge
-            </Button>
+          <h3 className="mb-2 text-base font-semibold text-gray-700">
+            {t("document.detail.progress_title")}
+          </h3>
+          <p className="text-sm text-gray-400">
+            {t("document.detail.time_spent")}
+          </p>
+          <Progress percent={54} className="mt-4" />
+          {data && (
+            <BaseButton
+              type="primary"
+              className="mt-6 w-full"
+              onClick={() => acknowledge.mutate(data.documentId)}>
+              {t("document.action.acknowledge")}
+            </BaseButton>
           )}
         </Card>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <h3 className="text-lg font-semibold">Access settings</h3>
-          <div className="mt-4 space-y-2 text-sm text-muted">
+          <h3 className="mb-3 text-base font-semibold text-gray-700">
+            {t("document.detail.access")}
+          </h3>
+          <div className="mt-2 space-y-2 text-sm text-gray-500">
             <p>Visibility: All departments</p>
             <p>Required roles: HR, Manager</p>
           </div>
         </Card>
         <Card>
-          <h3 className="text-lg font-semibold">Version history</h3>
-          <div className="mt-4 space-y-2 text-sm text-muted">
+          <h3 className="mb-3 text-base font-semibold text-gray-700">
+            {t("document.detail.versions")}
+          </h3>
+          <div className="mt-2 space-y-2 text-sm text-gray-500">
             <p>v3 — Updated 2025-01-18</p>
             <p>v2 — Updated 2024-12-08</p>
             <p>v1 — Initial release</p>
@@ -92,6 +93,6 @@ function DocumentDetail() {
       </div>
     </div>
   );
-}
+};
 
 export default DocumentDetail;

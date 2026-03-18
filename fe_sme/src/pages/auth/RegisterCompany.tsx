@@ -1,7 +1,10 @@
+import { Form, Progress } from "antd";
+import { ArrowLeft } from "lucide-react";
 import { useRegisterCompany } from "@/hooks/useRegisterCompany";
 import { RegisterSidebar } from "./components/RegisterSidebar";
 import { RegisterTopBar } from "./components/RegisterTopBar";
 import { RegisterStepHeader } from "./components/RegisterStepHeader";
+import { RegisterStepNavigation } from "./components/RegisterStepNavigation";
 import {
   RegisterStepEmail,
   RegisterStepCompany,
@@ -9,11 +12,13 @@ import {
 } from "./components/RegisterSteps";
 import { RegisterStepPlan } from "./components/RegisterStepPlan";
 import { RegisterStepPayment } from "./components/RegisterStepPayment";
-import { RegisterNavButtons } from "./components/RegisterNavButtons";
 
 const TOTAL_STEPS = 5;
 
-function RegisterCompany() {
+const DEFAULT_TZ =
+  Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Ho_Chi_Minh";
+
+const RegisterCompany = () => {
   const vm = useRegisterCompany();
 
   return (
@@ -23,75 +28,91 @@ function RegisterCompany() {
       <div className="flex-1 flex flex-col bg-gray-50/50 min-h-screen">
         <RegisterTopBar />
 
-        <div className="lg:hidden h-1 bg-gray-100">
+        <Progress
+          className="lg:hidden !mb-0"
+          percent={((vm.step + 1) / TOTAL_STEPS) * 100}
+          showInfo={false}
+          strokeColor="var(--color-brand)"
+          size={[undefined as unknown as number, 4]}
+          trailColor="#f3f4f6"
+        />
+
+        <div className="flex-1 min-h-0 overflow-y-auto flex items-start justify-center px-6 py-12">
           <div
-            className="h-full bg-brand transition-all duration-500 rounded-r-full"
-            style={{ width: `${((vm.step + 1) / TOTAL_STEPS) * 100}%` }}
-          />
-        </div>
-
-        <div className="flex-1 flex items-center justify-center px-6 py-12">
-          <div className="w-full max-w-[440px]">
-            <RegisterStepHeader
-              step={vm.step}
-              totalSteps={TOTAL_STEPS}
-              errorMessage={vm.emailExistsError ?? vm.submitError}
-            />
-
-            {vm.step === 0 && (
-              <RegisterStepEmail
-                register={vm.register}
-                errors={vm.errors}
-                checkingEmail={vm.checkingEmail}
-                onContinue={vm.handleNext}
-              />
-            )}
-
-            {vm.step === 1 && (
-              <RegisterStepCompany register={vm.register} errors={vm.errors} />
-            )}
-
-            {vm.step === 2 && (
-              <RegisterStepAdmin
-                register={vm.register}
-                errors={vm.errors}
-                showPassword={vm.showPassword}
-                setShowPassword={vm.setShowPassword}
-              />
-            )}
-
-            {vm.step === 3 && (
-              <RegisterStepPlan
-                planList={vm.planList}
-                plansLoading={vm.plansLoading}
-                selectedPlanCode={vm.selectedPlanCode}
-                setSelectedPlanCode={vm.setSelectedPlanCode}
-                onClearError={() => vm.setSubmitError(null)}
-              />
-            )}
-
-            {vm.step === 4 && vm.clientSecret && vm.checkoutInvoiceId && (
-              <RegisterStepPayment
-                clientSecret={vm.clientSecret}
-                invoiceId={vm.checkoutInvoiceId}
-                amount={vm.checkoutAmount}
-                onError={(msg) => vm.setSubmitError(msg)}
-              />
-            )}
-
-            {vm.step > 0 && vm.step < 4 && (
-              <RegisterNavButtons
+            className={`w-full ${vm.step === 3 ? "max-w-5xl" : "max-w-[440px]"}`}>
+            <Form
+              form={vm.form}
+              layout="vertical"
+              initialValues={{ timezone: DEFAULT_TZ }}
+              requiredMark={false}>
+              <RegisterStepHeader
                 step={vm.step}
-                handleBack={vm.handleBack}
-                handleNext={vm.handleNext}
-                registering={vm.isPaying}
+                totalSteps={TOTAL_STEPS}
+                error={vm.emailExistsError ?? vm.submitError}
               />
-            )}
+
+              {vm.step === 0 && <RegisterStepEmail />}
+
+              {vm.step === 1 && <RegisterStepCompany />}
+
+              {vm.step === 2 && (
+                <RegisterStepAdmin
+                  showPassword={vm.showPassword}
+                  setShowPassword={vm.setShowPassword}
+                />
+              )}
+
+              {vm.step === 3 && (
+                <RegisterStepPlan
+                  planList={vm.planList}
+                  plansLoading={vm.plansLoading}
+                  selectedPlanCode={vm.selectedPlanCode}
+                  setSelectedPlanCode={vm.setSelectedPlanCode}
+                  billingCycle={vm.billingCycle}
+                  setBillingCycle={vm.setBillingCycle}
+                  onClearError={() => vm.setSubmitError(null)}
+                />
+              )}
+
+              {vm.step === 4 && vm.clientSecret && vm.checkoutInvoiceId && (
+                <RegisterStepPayment
+                  clientSecret={vm.clientSecret}
+                  invoiceId={vm.checkoutInvoiceId}
+                  amount={vm.checkoutAmount}
+                  planName={
+                    vm.planList?.find((p) => p.code === vm.selectedPlanCode)
+                      ?.name
+                  }
+                  onError={(msg) => vm.setSubmitError(msg)}
+                />
+              )}
+
+              {/* Unified navigation for steps 0-3 */}
+              {vm.step < 4 && (
+                <RegisterStepNavigation
+                  hideBack={vm.step === 0}
+                  onBack={vm.handleBack}
+                  onNext={vm.handleNext}
+                  loading={vm.checkingEmail || vm.isPaying}
+                />
+              )}
+
+              {/* Step 4: allow going back to change plan */}
+              {vm.step === 4 && (
+                <button
+                  type="button"
+                  onClick={vm.handleBack}
+                  className="mt-6 flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-brand transition-colors mx-auto">
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  Đổi gói
+                </button>
+              )}
+            </Form>
           </div>
         </div>
       </div>
     </div>
   );
-}
+};
 
 export default RegisterCompany;

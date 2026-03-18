@@ -1,7 +1,7 @@
-import { useLocale } from "@/i18n";
+﻿import { useLocale } from "@/i18n";
 import { TESTIMONIALS } from "../landing.constants";
 
-export default function LandingTestimonials() {
+const LandingTestimonials = () => {
   const { t } = useLocale();
 
   return (
@@ -57,4 +57,6 @@ export default function LandingTestimonials() {
       </div>
     </section>
   );
-}
+};
+
+export default LandingTestimonials;

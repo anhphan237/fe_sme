@@ -32,20 +32,23 @@ export const INVOICE_STATUS_MAP: Record<string, Invoice["status"]> = {
 
 // ── Mappers ─────────────────────────────────────────────────
 
-export const mapPlan = (p: any): BillingPlan => ({
-  id: p.planId ?? p.id ?? "",
-  code: p.code ?? "",
-  name: p.name ?? "",
-  price: formatVnd(p.priceVndMonthly),
-  priceYearly: formatVnd(p.priceVndYearly),
-  employeeLimit: p.employeeLimitPerMonth ?? 0,
-  limits: `${p.employeeLimitPerMonth ?? 0} employees/month`,
-  features: [
-    `Up to ${p.employeeLimitPerMonth ?? 0} employees per month`,
-    p.priceVndYearly ? `Yearly: ${formatVnd(p.priceVndYearly)}` : "",
-  ].filter(Boolean),
-  current: false,
-});
+export const mapPlan = (p: any): BillingPlan => {
+  const limit = p.employeeLimitPerMonth ?? 0;
+  return {
+    id: p.planId ?? p.id ?? "",
+    code: p.code ?? "",
+    name: p.name ?? "",
+    price: formatVnd(p.priceVndMonthly),
+    priceYearly: formatVnd(p.priceVndYearly),
+    employeeLimit: limit,
+    limits: limit > 0 ? `Tối đa ${limit} nhân viên/tháng` : "",
+    features: [
+      limit > 0 ? `Tối đa ${limit} nhân viên mỗi tháng` : "",
+      p.priceVndYearly ? `Gói năm: ${formatVnd(p.priceVndYearly)}` : "",
+    ].filter(Boolean),
+    current: false,
+  };
+};
 
 export const mapInvoice = (inv: any): Invoice => ({
   id: inv.invoiceId ?? inv.id ?? "",

@@ -1,13 +1,11 @@
-import { useState, useRef, useEffect } from "react";
-import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Button } from "../../components/ui/Button";
+﻿import { useState, useRef, useEffect } from "react";
+import { Card } from "antd";
 import { useMutation } from "@tanstack/react-query";
 import { apiChatbotAsk } from "@/api/chatbot/chatbot.api";
-
-const useChatbotQuery = () => useMutation({ mutationFn: apiChatbotAsk });
-import { Bot, Send, User } from "lucide-react";
+import BaseButton from "@/components/button";
+import { Bot, CalendarDays, Flag, Send, User } from "lucide-react";
 import { clsx } from "clsx";
+import { useLocale } from "@/i18n";
 
 type Message = {
   id: string;
@@ -17,21 +15,43 @@ type Message = {
   createdAt: Date;
 };
 
-const SUGGESTED_PROMPTS = [
-  "What do I need to bring on my first day?",
-  "How do I set up my workspace?",
-  "Where can I find the employee handbook?",
-  "What are the company benefits?",
+const ONBOARDING_JOURNEY = [
+  {
+    key: "day1",
+    titleKey: "chatbot.stage.day1",
+    icon: Flag,
+    prompts: ["chatbot.prompt.day1.first", "chatbot.prompt.day1.second"],
+  },
+  {
+    key: "week1",
+    titleKey: "chatbot.stage.week1",
+    icon: CalendarDays,
+    prompts: ["chatbot.prompt.week1.first", "chatbot.prompt.week1.second"],
+  },
+  {
+    key: "month1",
+    titleKey: "chatbot.stage.month1",
+    icon: Bot,
+    prompts: ["chatbot.prompt.month1.first", "chatbot.prompt.month1.second"],
+  },
 ];
 
-function Chatbot() {
+const Chatbot = () => {
+  const { t } = useLocale();
   const [messages, setMessages] = useState<Message[]>([]);
   const [query, setQuery] = useState("");
   const [conversationTitle, setConversationTitle] = useState<string | null>(
     null,
   );
+  const [selectedStage, setSelectedStage] = useState(ONBOARDING_JOURNEY[0].key);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const chatbot = useChatbotQuery();
+  const messageSeqRef = useRef(0);
+  const chatbot = useMutation({ mutationFn: apiChatbotAsk });
+
+  const nextMessageId = (role: Message["role"]) => {
+    messageSeqRef.current += 1;
+    return `${role}-${messageSeqRef.current}`;
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -52,7 +72,7 @@ function Chatbot() {
       );
 
     const userMsg: Message = {
-      id: `user-${Date.now()}`,
+      id: nextMessageId("user"),
       role: "user",
       content: question,
       createdAt: new Date(),
@@ -62,20 +82,18 @@ function Chatbot() {
     try {
       const result = await chatbot.mutateAsync({ query: question });
       const assistantMsg: Message = {
-        id: `assistant-${Date.now()}`,
+        id: nextMessageId("assistant"),
         role: "assistant",
-        content:
-          result.answer ||
-          "I couldn’t find a specific answer. Try rephrasing or ask your HR team.",
+        content: result.answer || t("chatbot.fallback.no_answer"),
         sources: result.sources?.length ? result.sources : undefined,
         createdAt: new Date(),
       };
       setMessages((prev) => [...prev, assistantMsg]);
     } catch {
       const errMsg: Message = {
-        id: `assistant-${Date.now()}`,
+        id: nextMessageId("assistant"),
         role: "assistant",
-        content: "Sorry, something went wrong. Please try again.",
+        content: t("chatbot.error.generic"),
         createdAt: new Date(),
       };
       setMessages((prev) => [...prev, errMsg]);
@@ -88,61 +106,102 @@ function Chatbot() {
     setQuery("");
   };
 
-  return (
-    <div className="flex h-[calc(100vh-12rem)] flex-col space-y-4">
-      <PageHeader
-        title="Chatbot"
-        subtitle="Ask the onboarding assistant for instant guidance."
-      />
+  const selectedStageConfig =
+    ONBOARDING_JOURNEY.find((x) => x.key === selectedStage) ??
+    ONBOARDING_JOURNEY[0];
 
+  return (
+    <div className="relative flex h-[calc(100vh-12rem)] flex-col overflow-hidden rounded-3xl border border-slate-200/80 bg-[radial-gradient(circle_at_20%_0%,rgba(186,230,253,0.22),transparent_40%),radial-gradient(circle_at_95%_10%,rgba(191,219,254,0.25),transparent_32%),linear-gradient(180deg,#f8fafc_0%,#ffffff_48%,#f8fafc_100%)] p-4 shadow-sm sm:p-5">
       <div className="flex min-h-0 flex-1 gap-4">
-        {/* Sidebar - conversations */}
-        <aside className="hidden w-56 shrink-0 lg:block">
-          <Card className="flex h-full flex-col p-4">
+        <aside className="hidden w-72 shrink-0 xl:block">
+          <Card
+            className="h-full overflow-hidden border-slate-200/80 bg-white/90"
+            classNames={{ body: "h-full p-4" }}>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-semibold text-ink">Chats</span>
-              <Button
-                variant="ghost"
-                className="text-xs"
-                onClick={handleNewChat}>
-                New chat
-              </Button>
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-sky-700">
+                {t("chatbot.journey.label")}
+              </span>
+              <BaseButton size="small" type="text" onClick={handleNewChat}>
+                {t("chatbot.journey.new_chat")}
+              </BaseButton>
             </div>
-            <div className="mt-3 flex-1 overflow-auto text-sm text-muted">
-              {conversationTitle ? (
-                <div className="rounded-xl bg-slate-100 px-3 py-2 font-medium text-ink">
-                  {conversationTitle}
-                </div>
-              ) : (
-                <p className="italic">Start a conversation to see it here.</p>
-              )}
+
+            <div className="mt-3 space-y-2">
+              {ONBOARDING_JOURNEY.map((stage) => {
+                const StageIcon = stage.icon;
+                return (
+                  <button
+                    key={stage.key}
+                    type="button"
+                    onClick={() => setSelectedStage(stage.key)}
+                    className={clsx(
+                      "w-full rounded-xl border px-3 py-3 text-left transition-all duration-200",
+                      selectedStage === stage.key
+                        ? "border-sky-300 bg-sky-50/90 shadow-sm"
+                        : "border-slate-200 bg-white/90 hover:border-slate-300 hover:bg-white",
+                    )}>
+                    <div className="flex items-center gap-2">
+                      <StageIcon className="h-4 w-4 text-sky-600" />
+                      <span className="text-sm font-semibold text-slate-800">
+                        {t(stage.titleKey)}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {t("chatbot.journey.suggested_prompts_count", {
+                        count: stage.prompts.length,
+                      })}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 rounded-xl border border-slate-200/90 bg-slate-50/90 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t("chatbot.journey.conversation")}
+              </p>
+              <p className="mt-1 line-clamp-2 text-sm font-medium text-slate-700">
+                {conversationTitle ??
+                  t("chatbot.journey.conversation_placeholder")}
+              </p>
             </div>
           </Card>
         </aside>
 
-        {/* Main chat area */}
-        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4">
+        <Card
+          className="flex min-h-0 flex-1 flex-col overflow-hidden border-slate-200/80 bg-white/95"
+          classNames={{ body: "flex min-h-0 flex-1 flex-col p-0" }}>
+          <div className="border-b border-slate-200/80 bg-slate-50/70 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+              {t("nav.chatbot")}
+            </p>
+            <p className="mt-1 text-sm text-slate-600">
+              {t("chatbot.panel.subtitle", {
+                stage: t(selectedStageConfig.titleKey),
+              })}
+            </p>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5">
             {messages.length === 0 ? (
               <div className="flex h-full min-h-[280px] flex-col items-center justify-center text-center">
-                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-100 via-white to-indigo-100 ring-1 ring-slate-200/70">
                   <Bot className="h-7 w-7 text-slate-500" />
                 </div>
                 <p className="text-sm font-medium text-ink">
-                  How can I help you today?
+                  {t("chatbot.empty.title")}
                 </p>
                 <p className="mt-1 text-sm text-muted">
-                  Ask about policies, first day, or benefits.
+                  {t("chatbot.empty.subtitle")}
                 </p>
                 <div className="mt-6 flex flex-wrap justify-center gap-2">
-                  {SUGGESTED_PROMPTS.map((prompt) => (
+                  {selectedStageConfig.prompts.map((promptKey) => (
                     <button
-                      key={prompt}
+                      key={promptKey}
                       type="button"
-                      onClick={() => handleAsk(prompt)}
-                      className="rounded-xl border border-stroke bg-white px-4 py-2 text-left text-sm text-muted transition hover:border-slate-300 hover:bg-slate-50 hover:text-ink">
-                      {prompt}
+                      onClick={() => handleAsk(t(promptKey))}
+                      className="rounded-xl border border-stroke bg-white px-4 py-2 text-left text-sm text-muted shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:text-ink">
+                      {t(promptKey)}
                     </button>
                   ))}
                 </div>
@@ -178,7 +237,7 @@ function Chatbot() {
                       {msg.sources && msg.sources.length > 0 && (
                         <div className="mt-3 border-t border-slate-200/80 pt-3">
                           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
-                            Sources
+                            {t("chatbot.sources.label")}
                           </p>
                           <ul className="space-y-2">
                             {msg.sources.map((s) => (
@@ -188,7 +247,9 @@ function Chatbot() {
                                 <span className="font-medium text-ink">
                                   {s.title}
                                 </span>
-                                <p className="mt-1">{s.snippet}</p>
+                                {s.snippet ? (
+                                  <p className="mt-1">{s.snippet}</p>
+                                ) : null}
                               </li>
                             ))}
                           </ul>
@@ -202,10 +263,13 @@ function Chatbot() {
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200">
                       <Bot className="h-4 w-4 text-slate-600" />
                     </div>
-                    <div className="flex items-center gap-1 rounded-2xl bg-slate-100 px-4 py-3">
+                    <div className="flex items-center gap-2 rounded-2xl bg-slate-100 px-4 py-3">
                       <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:0ms]" />
                       <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:150ms]" />
                       <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:300ms]" />
+                      <span className="text-xs font-medium text-slate-500">
+                        {t("chatbot.status.thinking")}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -214,8 +278,7 @@ function Chatbot() {
             )}
           </div>
 
-          {/* Input */}
-          <div className="border-t border-stroke bg-slate-50/80 p-4">
+          <div className="border-t border-stroke bg-slate-50/90 p-4">
             <form
               className="flex gap-2"
               onSubmit={(e) => {
@@ -225,24 +288,24 @@ function Chatbot() {
               <input
                 type="text"
                 className="min-w-0 flex-1 rounded-2xl border border-stroke bg-white px-4 py-3 text-sm text-ink shadow-sm placeholder:text-muted focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
-                placeholder="Ask about onboarding, policies, or benefits…"
+                placeholder={t("chatbot.input.placeholder")}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 disabled={chatbot.isPending}
               />
-              <Button
+              <BaseButton
                 type="submit"
                 disabled={chatbot.isPending || !query.trim()}
                 className="shrink-0 rounded-2xl px-5"
                 icon={<Send className="h-4 w-4" />}>
-                Send
-              </Button>
+                {t("chatbot.input.send")}
+              </BaseButton>
             </form>
           </div>
         </Card>
       </div>
     </div>
   );
-}
+};
 
 export default Chatbot;

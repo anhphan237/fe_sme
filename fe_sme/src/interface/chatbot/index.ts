@@ -18,5 +18,11 @@ export interface ChatbotSource {
 /** com.sme.ai.assistant.ask → response data */
 export interface ChatbotAskResponse {
   answer: string;
+  sourceDocumentNames?: string[];
+}
+
+/** FE-normalized shape used by chatbot page */
+export interface ChatbotAskViewResponse {
+  answer: string;
   sources: ChatbotSource[];
 }

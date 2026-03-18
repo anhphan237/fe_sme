@@ -56,6 +56,11 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: ClipboardCheck,
     children: [
       {
+        titleKey: "nav.onboarding",
+        to: "/onboarding",
+        requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
+      },
+      {
         titleKey: "nav.onboarding.templates",
         to: "/onboarding/templates",
         requiredRoles: ["HR"],
@@ -166,48 +171,8 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: Briefcase,
     children: [
       {
-        titleKey: "nav.platform.tenants",
-        to: "/platform/tenants",
-        requiredRoles: ["ADMIN"],
-      },
-      {
-        titleKey: "nav.platform.plans",
-        to: "/platform/plans",
-        requiredRoles: ["ADMIN"],
-      },
-      {
-        titleKey: "nav.platform.subscriptions",
-        to: "/platform/subscriptions",
-        requiredRoles: ["ADMIN"],
-      },
-      {
-        titleKey: "nav.platform.usage",
-        to: "/platform/usage",
-        requiredRoles: ["ADMIN"],
-      },
-      {
-        titleKey: "nav.platform.finance",
-        to: "/platform/finance",
-        requiredRoles: ["ADMIN"],
-      },
-      {
-        titleKey: "nav.platform.dunning",
-        to: "/platform/dunning",
-        requiredRoles: ["ADMIN"],
-      },
-      {
-        titleKey: "nav.platform.invoices",
-        to: "/platform/invoices",
-        requiredRoles: ["STAFF"],
-      },
-      {
         titleKey: "nav.platform.payments",
         to: "/platform/payments",
-        requiredRoles: ["STAFF"],
-      },
-      {
-        titleKey: "nav.platform.email_logs",
-        to: "/platform/email-logs",
         requiredRoles: ["STAFF"],
       },
     ],

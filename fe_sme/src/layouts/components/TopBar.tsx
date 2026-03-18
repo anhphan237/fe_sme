@@ -1,11 +1,12 @@
-import { useRef, useState, useEffect } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+﻿import { useRef, useState, useEffect } from "react";
+import { NavLink, useNavigate, Link } from "react-router-dom";
+import { Breadcrumb } from "antd";
 import { Bell, LogOut, Menu, Settings, User } from "lucide-react";
 import { useLocale } from "@/i18n";
-import { useAppStore } from "@/store/useAppStore";
+import { useUserStore } from "@/stores/user.store";
 import { apiLogout } from "@/api/identity/identity.api";
-import { RoleTenantSwitcher } from "@/components/common/RoleTenantSwitcher";
-import { Breadcrumbs } from "@/components/ui/Breadcrumb";
+import { RoleTenantSwitcher } from "./RoleTenantSwitcher";
+import { useGlobalStore } from "@/stores/global.store";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 
 type Props = {
@@ -13,11 +14,12 @@ type Props = {
   onMenuClick: () => void;
 };
 
-export function TopBar({ pathname, onMenuClick }: Props) {
+export const TopBar = ({ pathname, onMenuClick }: Props) => {
   const { t } = useLocale();
   const navigate = useNavigate();
-  const logoutStore = useAppStore((s) => s.logout);
-  const currentUser = useAppStore((s) => s.currentUser);
+  const logoutStore = useUserStore((s) => s.logout);
+  const currentUser = useUserStore((s) => s.currentUser);
+  const breadcrumbs = useGlobalStore((s) => s.breadcrumbs);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -60,7 +62,24 @@ export function TopBar({ pathname, onMenuClick }: Props) {
           aria-label="Open sidebar">
           <Menu className="h-5 w-5" />
         </button>
-        <Breadcrumbs pathname={pathname} />
+        <Breadcrumb
+          items={[
+            { title: <Link to="/dashboard">Home</Link> },
+            ...pathname
+              .split("/")
+              .filter(Boolean)
+              .map((part, index, parts) => {
+                const to = "/" + parts.slice(0, index + 1).join("/");
+                const label =
+                  breadcrumbs[part] ??
+                  part
+                    .split("-")
+                    .map((w) => w[0].toUpperCase() + w.slice(1))
+                    .join(" ");
+                return { title: <Link to={to}>{label}</Link> };
+              }),
+          ]}
+        />
       </div>
 
       {/* Right */}
@@ -139,4 +158,4 @@ export function TopBar({ pathname, onMenuClick }: Props) {
       </div>
     </header>
   );
-}
+};

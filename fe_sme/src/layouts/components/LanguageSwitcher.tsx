@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocale } from "@/i18n";
-import { useAppStore } from "@/store/useAppStore";
-import type { Locale } from "@/store/useAppStore";
+import { useUserStore } from "@/stores/user.store";
+import type { Locale } from "@/stores/user.store";
 
 type LangOption = {
   value: Locale;
@@ -17,8 +17,8 @@ const LANGUAGES: LangOption[] = [
 
 export function LanguageSwitcher() {
   const { t } = useLocale();
-  const locale = useAppStore((s) => s.locale);
-  const setLocale = useAppStore((s) => s.setLocale);
+  const locale = useUserStore((s) => s.locale);
+  const setLocale = useUserStore((s) => s.setLocale);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 

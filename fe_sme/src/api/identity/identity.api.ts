@@ -10,6 +10,8 @@ import type {
   CreateUserRequest,
   CreateUserResponse,
   UpdateUserRequest,
+  BulkCreateUsersRequest,
+  BulkCreateUsersResponse,
 } from "@/interface/identity";
 import type { Role } from "@/interface/common";
 
@@ -63,9 +65,10 @@ export const apiUpdateUser = (payload: UpdateUserRequest) =>
 
 /** com.sme.identity.user.disable */
 export const apiDisableUser = (userId: string) =>
-  gatewayRequest<{ userId: string }, void>("com.sme.identity.user.disable", {
-    userId,
-  });
+  gatewayRequest<{ userId: string; disabled: boolean }, void>(
+    "com.sme.identity.user.disable",
+    { userId, disabled: true },
+  );
 
 // ── Role ──────────────────────────────────────────────────
 
@@ -89,10 +92,11 @@ export const apiRevokeRole = (userId: string, roleCode: Role) =>
 export const apiLogout = (): Promise<{ ok: boolean }> =>
   Promise.resolve({ ok: true });
 
-/** com.sme.identity.user.me */
-export const apiGetMe = () =>
-  gatewayRequest<Record<string, never>, LoginResponse>(
-    "com.sme.identity.user.me",
-    {},
-    { tenantId: null },
+// ── Bulk Import ───────────────────────────────────────────
+
+/** com.sme.identity.user.bulkCreate */
+export const apiBulkCreateUsers = (payload: BulkCreateUsersRequest) =>
+  gatewayRequest<BulkCreateUsersRequest, BulkCreateUsersResponse>(
+    "com.sme.identity.user.bulkCreate",
+    payload,
   );

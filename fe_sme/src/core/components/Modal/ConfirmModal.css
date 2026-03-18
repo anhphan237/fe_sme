@@ -1,0 +1,7 @@
+.confirm-modal .ant-modal-content .ant-modal-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #000;
+  text-align: center;
+  text-transform: uppercase;
+}

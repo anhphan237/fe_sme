@@ -7,7 +7,7 @@ type Props = {
   children: ReactNode;
 };
 
-function AppLayout({ children }: Props) {
+const AppLayout = ({ children }: Props) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
 
@@ -16,18 +16,18 @@ function AppLayout({ children }: Props) {
       <div className="flex">
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-        <div className="flex min-h-screen flex-1 flex-col overflow-hidden">
+        <div className="flex h-screen flex-1 flex-col overflow-hidden">
           <TopBar
             pathname={location.pathname}
             onMenuClick={() => setSidebarOpen(true)}
           />
-          <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
+          <main className="flex-1 overflow-y-auto bg-gray-100 p-6">
             {children}
           </main>
         </div>
       </div>
     </div>
   );
-}
+};
 
 export default AppLayout;

@@ -1,6 +1,4 @@
-﻿import { PageHeader } from "../../components/common/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Progress } from "../../components/ui/Progress";
+﻿import { Card, Progress, Skeleton } from "antd";
 import { useQuery } from "@tanstack/react-query";
 import { apiGetUsage } from "@/api/billing/billing.api";
 import { mapUsage } from "@/utils/mappers/billing";
@@ -9,19 +7,20 @@ const useUsageQuery = (month?: string) =>
   useQuery({
     queryKey: ["usage", month],
     queryFn: () => apiGetUsage(month),
-    select: (res: any) => mapUsage(res),
+    select: (res: unknown) => mapUsage(res),
   });
-import { Skeleton } from "../../components/ui/Skeleton";
 
-function BillingUsage() {
+const BillingUsage = () => {
   const { data, isLoading } = useUsageQuery();
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Usage"
-        subtitle="Track consumption against plan limits."
-      />
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-800">Usage</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Track consumption against plan limits.
+        </p>
+      </div>
 
       {isLoading ? (
         <Skeleton className="h-40" />
@@ -35,7 +34,10 @@ function BillingUsage() {
                   {metric.used}/{metric.limit}
                 </p>
                 <div className="mt-3">
-                  <Progress value={(metric.used / metric.limit) * 100} />
+                  <Progress
+                    percent={Math.round((metric.used / metric.limit) * 100)}
+                    showInfo={false}
+                  />
                 </div>
               </Card>
             ))}
@@ -74,6 +76,6 @@ function BillingUsage() {
       )}
     </div>
   );
-}
+};
 
 export default BillingUsage;

@@ -1,14 +1,15 @@
-﻿import { PageHeader } from '../../components/common/PageHeader'
-import { Card } from '../../components/ui/Card'
-import { Button } from '../../components/ui/Button'
+﻿import { Card } from "antd";
+import BaseButton from "@/components/button";
 
-function Notifications() {
+const Notifications = () => {
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Notifications"
-        subtitle="Choose how you receive onboarding updates."
-      />
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-800">Notifications</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Choose how you receive onboarding updates.
+        </p>
+      </div>
       <Card>
         <div className="space-y-4">
           <label className="flex items-center justify-between text-sm">
@@ -25,12 +26,11 @@ function Notifications() {
           </label>
         </div>
         <div className="mt-6">
-          <Button>Save</Button>
+          <BaseButton>Save</BaseButton>
         </div>
       </Card>
     </div>
-  )
-}
+  );
+};
 
-export default Notifications
-
+export default Notifications;

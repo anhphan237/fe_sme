@@ -1,0 +1,29 @@
+import BaseFormItem from "@core/components/Form/BaseFormItem";
+import { ColorPicker, type ColorPickerProps, type FormItemProps } from "antd";
+import type { Color } from "antd/es/color-picker";
+import type { NamePath } from "antd/es/form/interface";
+
+export interface BaseColorPickerProps extends ColorPickerProps {
+  name: NamePath;
+  label?: React.ReactNode;
+  formItemProps?: FormItemProps;
+}
+
+const BaseColorPicker = ({
+  name,
+  label,
+  formItemProps,
+  ...props
+}: BaseColorPickerProps) => {
+  return (
+    <BaseFormItem
+      label={label}
+      name={name}
+      getValueFromEvent={(color: Color) => color.toHexString()}
+      {...formItemProps}>
+      <ColorPicker {...props} />
+    </BaseFormItem>
+  );
+};
+
+export default BaseColorPicker;

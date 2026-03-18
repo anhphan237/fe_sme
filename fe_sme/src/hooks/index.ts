@@ -2,6 +2,7 @@ export { useDebounce } from "./useDebounce";
 export { default as useVisibleModal } from "./useVisibleModal";
 export { usePermission, hasPermission } from "./usePermission";
 export { default as usePrevious } from "./usePrevious";
+export { default as usePromiseHolder } from "./usePromiseHolder";
 export { default as useLogin } from "./useLogin";
 export type { LoginFormData } from "./useLogin";
 export { default as useLogout } from "./useLogout";

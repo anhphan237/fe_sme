@@ -14,7 +14,7 @@ import type {
 
 /** com.sme.content.document.list */
 export const apiGetDocuments = () =>
-  gatewayRequest<Record<string, never>, DocumentListResponse | DocumentItem[]>(
+  gatewayRequest<Record<string, never>, DocumentListResponse>(
     "com.sme.content.document.list",
     {},
   );

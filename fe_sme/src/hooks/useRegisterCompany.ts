@@ -1,17 +1,11 @@
-import { useState, useMemo } from "react";
+﻿import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { z } from "zod";
-import { useForm } from "react-hook-form";
-import type {
-  UseFormRegister,
-  FieldErrors,
-  UseFormGetValues,
-} from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { Form } from "antd";
+import type { FormInstance } from "antd";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { useToast } from "@/components/ui/Toast";
-import { useAppStore } from "@/store/useAppStore";
+import { notify } from "@/utils/notify";
+import { useUserStore } from "@/stores/user.store";
 import { useLocale } from "@/i18n";
 import type { BillingPlan, Tenant } from "@/shared/types";
 import type { Role } from "@/shared/types";
@@ -27,22 +21,20 @@ import {
 import { extractList } from "@/api/core/types";
 import { mapPlan, mapSubscription, mapInvoice } from "@/utils/mappers/billing";
 
-const _staticSchema = z.object({
-  adminUsername: z.string(),
-  companyName: z.string(),
-  taxCode: z.string(),
-  address: z.string(),
-  timezone: z.string(),
-  adminFullName: z.string(),
-  adminPassword: z.string(),
-  adminPhone: z.string().optional(),
-});
-
-export type RegisterFormSchema = z.infer<typeof _staticSchema>;
+export interface RegisterFormValues {
+  adminUsername: string;
+  companyName: string;
+  taxCode: string;
+  address: string;
+  timezone: string;
+  adminFullName: string;
+  adminPassword: string;
+  adminPhone?: string;
+}
 
 const HIDDEN_PLANS = ["Basic Plan", "Premium Plan"];
 
-function getCurrentPeriod() {
+const getCurrentPeriod = () => {
   const now = new Date();
   const y = now.getFullYear();
   const m = now.getMonth();
@@ -50,16 +42,14 @@ function getCurrentPeriod() {
     periodStart: new Date(y, m, 1).toISOString().slice(0, 10),
     periodEnd: new Date(y, m + 1, 1).toISOString().slice(0, 10),
   };
-}
+};
 
 export interface UseRegisterCompanyResult {
   step: number;
   handleNext: () => Promise<void>;
   handleBack: () => void;
 
-  register: UseFormRegister<RegisterFormSchema>;
-  errors: FieldErrors<RegisterFormSchema>;
-  getValues: UseFormGetValues<RegisterFormSchema>;
+  form: FormInstance<RegisterFormValues>;
 
   emailExistsError: string | null;
   checkingEmail: boolean;
@@ -71,6 +61,8 @@ export interface UseRegisterCompanyResult {
   plansLoading: boolean;
   selectedPlanCode: string | null;
   setSelectedPlanCode: Dispatch<SetStateAction<string | null>>;
+  billingCycle: "MONTHLY" | "YEARLY";
+  setBillingCycle: Dispatch<SetStateAction<"MONTHLY" | "YEARLY">>;
 
   isPaying: boolean;
 
@@ -83,11 +75,12 @@ export interface UseRegisterCompanyResult {
   checkoutAmount: string;
 }
 
-export function useRegisterCompany(): UseRegisterCompanyResult {
+export const useRegisterCompany = (): UseRegisterCompanyResult => {
   const { t } = useLocale();
   const navigate = useNavigate();
-  const toast = useToast();
-  const { setTenant, setUser, setToken } = useAppStore();
+  const { setTenant, setUser, setToken } = useUserStore();
+
+  const [form] = Form.useForm<RegisterFormValues>();
 
   const [step, setStep] = useState(0);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -95,38 +88,15 @@ export function useRegisterCompany(): UseRegisterCompanyResult {
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [selectedPlanCode, setSelectedPlanCode] = useState<string | null>(null);
+  const [billingCycle, setBillingCycle] = useState<"MONTHLY" | "YEARLY">(
+    "MONTHLY",
+  );
   const [isPaying, setIsPaying] = useState(false);
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [checkoutInvoiceId, setCheckoutInvoiceId] = useState<string | null>(
-    null,
-  );
-  const [checkoutAmount, setCheckoutAmount] = useState<string>("0 ₫");
-
-  const schema = useMemo(
-    () =>
-      z.object({
-        adminUsername: z.string().email(t("register.zod.email_required")),
-        companyName: z.string().min(2, t("register.zod.company_name_required")),
-        taxCode: z.string().min(1, t("register.zod.tax_code_required")),
-        address: z.string().min(2, t("register.zod.address_required")),
-        timezone: z.string().min(1, t("register.zod.timezone_required")),
-        adminFullName: z.string().min(2, t("register.zod.fullname_required")),
-        adminPassword: z.string().min(6, t("register.zod.password_min")),
-        adminPhone: z.string().optional(),
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t],
-  );
-
-  const {
-    register,
-    formState: { errors },
-    getValues,
-    trigger,
-  } = useForm<RegisterFormSchema>({
-    resolver: zodResolver(schema),
-    defaultValues: { timezone: "Asia/Ho_Chi_Minh" },
-  });
+  const [checkout, setCheckout] = useState<{
+    secret: string | null;
+    invoiceId: string | null;
+    amount: string;
+  }>({ secret: null, invoiceId: null, amount: "0 ₫" });
 
   const { data: planList, isLoading: plansLoading } = useQuery({
     queryKey: ["register_plans"],
@@ -141,9 +111,12 @@ export function useRegisterCompany(): UseRegisterCompanyResult {
 
   const handleContinueFromEmail = async () => {
     setEmailExistsError(null);
-    const ok = await trigger("adminUsername");
-    if (!ok) return;
-    const email = getValues("adminUsername");
+    try {
+      await form.validateFields(["adminUsername"]);
+    } catch {
+      return;
+    }
+    const email = form.getFieldValue("adminUsername") as string;
     setCheckingEmail(true);
     try {
       const { exists } = await apiCheckEmailExists(email);
@@ -167,7 +140,8 @@ export function useRegisterCompany(): UseRegisterCompanyResult {
     setIsPaying(true);
     setSubmitError(null);
     try {
-      const data = getValues();
+      // getFieldsValue(true) returns ALL fields including unmounted steps (company/admin)
+      const data = form.getFieldsValue(true);
       const result = await apiRegisterCompany({
         company: {
           name: data.companyName,
@@ -182,6 +156,7 @@ export function useRegisterCompany(): UseRegisterCompanyResult {
           phone: data.adminPhone || undefined,
         },
         planCode: selectedPlanCode,
+        billingCycle,
       });
 
       if (!result?.accessToken || !result?.adminUserId) {
@@ -196,33 +171,37 @@ export function useRegisterCompany(): UseRegisterCompanyResult {
         roles: ["HR"] as Role[],
         companyId: result.companyId,
         department: "",
+        departmentId: null,
         status: "Active" as const,
         createdAt: new Date().toISOString(),
       };
 
-      setUser(newUser);
-      setToken(result.accessToken);
-      setTenant({
+      const tenantData: Tenant = {
         id: result.companyId ?? "company-new",
         name: data.companyName,
         industry: "",
         size: "",
-        plan: "Pro",
-      } as Tenant);
+        plan: selectedPlanCode ?? "",
+      };
+
+      setUser(newUser);
+      setToken(result.accessToken);
+      setTenant(tenantData);
 
       if (typeof window !== "undefined") {
-        window.localStorage.setItem("auth_token", result.accessToken);
         window.localStorage.setItem("auth_user", JSON.stringify(newUser));
       }
 
       if (selectedPlanCode.toUpperCase() === "FREE") {
-        toast(t("global.save_success"));
+        notify.success(t("global.save_success"));
         navigate("/dashboard", { replace: true });
         return;
       }
 
       const sub = await apiGetSubscription(result.companyId);
       const subData = mapSubscription(sub as any);
+      if (subData.planCode)
+        setTenant({ ...tenantData, plan: subData.planCode });
       let invoiceId: string | undefined = subData?.invoiceId;
       if (!invoiceId && subData?.subscriptionId) {
         const { periodStart, periodEnd } = getCurrentPeriod();
@@ -239,40 +218,36 @@ export function useRegisterCompany(): UseRegisterCompanyResult {
       }
 
       if (invoiceId) {
-        // Fetch the actual invoice to get the real amount (prorateChargeVnd is 0 for new subscriptions)
         let amount = "0 ₫";
-        try {
-          const invoiceData = await apiGetInvoiceById(invoiceId);
-          amount = mapInvoice(invoiceData as any).amount;
-        } catch {
-          /* keep "0 ₫" fallback */
+        let secret: string | undefined;
+        const [invoiceResult, intentResult] = await Promise.allSettled([
+          apiGetInvoiceById(invoiceId),
+          apiCreatePaymentIntent(invoiceId),
+        ]);
+        if (invoiceResult.status === "fulfilled") {
+          amount = mapInvoice(invoiceResult.value as any).amount;
         }
-        try {
-          const intentData = await apiCreatePaymentIntent(invoiceId);
-          const secret = (intentData as any)?.clientSecret as
+        if (intentResult.status === "fulfilled") {
+          secret = (intentResult.value as any)?.clientSecret as
             | string
             | undefined;
-          if (secret) {
-            setClientSecret(secret);
-            setCheckoutInvoiceId(invoiceId);
-            setCheckoutAmount(amount);
-            setStep(4);
-            return;
-          }
-        } catch {
-          /* fallback: navigate to standalone checkout page */
+        }
+        if (secret) {
+          setCheckout({ secret, invoiceId, amount });
+          setStep(4);
+          return;
         }
         navigate(
           `/billing/checkout/${invoiceId}?amount=${encodeURIComponent(amount)}`,
         );
       } else {
-        toast(t("global.save_success"));
+        notify.success(t("global.save_success"));
         navigate("/dashboard", { replace: true });
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : t("register.error.failed");
       setSubmitError(msg);
-      toast(t("register.error.failed"));
+      notify.error(t("register.error.failed"));
     } finally {
       setIsPaying(false);
     }
@@ -282,16 +257,24 @@ export function useRegisterCompany(): UseRegisterCompanyResult {
     if (step === 0) {
       await handleContinueFromEmail();
     } else if (step === 1) {
-      const ok = await trigger([
-        "companyName",
-        "taxCode",
-        "address",
-        "timezone",
-      ]);
-      if (ok) setStep(2);
+      try {
+        await form.validateFields([
+          "companyName",
+          "taxCode",
+          "address",
+          "timezone",
+        ]);
+        setStep(2);
+      } catch {
+        /* validation failed — Ant Form shows inline errors */
+      }
     } else if (step === 2) {
-      const ok = await trigger(["adminFullName", "adminPassword"]);
-      if (ok) setStep(3);
+      try {
+        await form.validateFields(["adminFullName", "adminPassword"]);
+        setStep(3);
+      } catch {
+        /* validation failed */
+      }
     } else if (step === 3) {
       await handlePayment();
     }
@@ -308,9 +291,7 @@ export function useRegisterCompany(): UseRegisterCompanyResult {
     step,
     handleNext,
     handleBack,
-    register,
-    errors,
-    getValues,
+    form,
     emailExistsError,
     checkingEmail,
     showPassword,
@@ -319,11 +300,13 @@ export function useRegisterCompany(): UseRegisterCompanyResult {
     plansLoading,
     selectedPlanCode,
     setSelectedPlanCode,
+    billingCycle,
+    setBillingCycle,
     submitError,
     setSubmitError,
     isPaying,
-    clientSecret,
-    checkoutInvoiceId,
-    checkoutAmount,
+    clientSecret: checkout.secret,
+    checkoutInvoiceId: checkout.invoiceId,
+    checkoutAmount: checkout.amount,
   };
-}
+};

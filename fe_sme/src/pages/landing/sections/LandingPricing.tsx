@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useLocale } from "@/i18n";
@@ -6,12 +6,12 @@ import { PRICING_TIERS } from "../landing.constants";
 import { apiGetPlans } from "@/api/billing/billing.api";
 import type { PlanSummaryResponse } from "@/interface/billing";
 
-function formatVnd(amount: number | null | undefined): string {
+const formatVnd = (amount: number | null | undefined): string => {
   if (!amount) return "";
   return amount.toLocaleString("vi-VN") + " \u20ab";
-}
+};
 
-function PricingCardSkeleton() {
+const PricingCardSkeleton = () => {
   return (
     <div className="rounded-2xl p-6 flex flex-col border border-stroke animate-pulse">
       <div className="mb-4 space-y-2">
@@ -27,9 +27,9 @@ function PricingCardSkeleton() {
       <div className="mt-auto h-10 w-full bg-slate-200 rounded-xl" />
     </div>
   );
-}
+};
 
-export default function LandingPricing() {
+const LandingPricing = () => {
   const { t } = useLocale();
   const [yearly, setYearly] = useState(false);
 
@@ -38,7 +38,7 @@ export default function LandingPricing() {
     queryFn: () => apiGetPlans("ACTIVE"),
     staleTime: 5 * 60_000,
     retry: false,
-    // API requires auth — fail silently and fall back to static PRICING_TIERS
+    // API requires auth â€” fail silently and fall back to static PRICING_TIERS
     throwOnError: false,
   });
 
@@ -191,4 +191,6 @@ export default function LandingPricing() {
       </div>
     </section>
   );
-}
+};
+
+export default LandingPricing;

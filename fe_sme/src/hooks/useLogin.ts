@@ -4,7 +4,8 @@
 import { apiLogin } from "@/api/identity/identity.api";
 import { mapLoginToAppUser } from "@/utils/mappers/identity";
 import { APP_CONFIG, AppRouters } from "@/constants";
-import { useAppStore } from "@/store/useAppStore";
+import { useUserStore } from "@/stores/user.store";
+import { useGlobalStore } from "@/stores/global.store";
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -16,7 +17,8 @@ export interface LoginFormData {
 const useLogin = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { setUser, setToken, setRoles } = useAppStore();
+  const { setUser, setToken } = useUserStore();
+  const { setRoles } = useGlobalStore();
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (form: LoginFormData) => {
