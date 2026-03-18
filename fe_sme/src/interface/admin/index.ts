@@ -21,53 +21,65 @@ export interface PlatformSubscriptionMetricsRequest {
 /** com.sme.analytics.company.onboarding.summary */
 export interface CompanyOnboardingSummaryRequest {
   companyId: string;
-  startDate?: string;
-  endDate?: string;
+  startDate: string;
+  endDate: string;
 }
 
 export interface CompanyOnboardingSummaryResponse {
-  totalOnboardings: number;
-  activeOnboardings: number;
-  completedOnboardings: number;
-  avgCompletionDays: number;
+  companyId: string;
+  totalEmployees: number;
+  completedCount: number;
   [key: string]: unknown;
 }
 
 /** com.sme.analytics.company.onboarding.funnel */
 export interface CompanyOnboardingFunnelRequest {
   companyId: string;
-  startDate?: string;
-  endDate?: string;
+  startDate: string;
+  endDate: string;
 }
 
 export interface CompanyOnboardingFunnelResponse {
-  stages: { stage: string; count: number }[];
+  companyId: string;
+  totalInstances: number;
+  activeCount: number;
+  completedCount: number;
+  cancelledCount: number;
+  otherCount: number;
   [key: string]: unknown;
 }
 
 /** com.sme.analytics.company.onboarding.byDepartment */
 export interface CompanyOnboardingByDepartmentRequest {
   companyId: string;
-  startDate?: string;
-  endDate?: string;
+  startDate: string;
+  endDate: string;
+}
+
+export interface CompanyOnboardingDepartmentStat {
+  departmentId: string;
+  departmentName: string;
+  totalTasks: number;
+  completedTasks: number;
 }
 
 export interface CompanyOnboardingByDepartmentResponse {
-  departments: { department: string; count: number; avgProgress: number }[];
+  companyId: string;
+  departments: CompanyOnboardingDepartmentStat[];
   [key: string]: unknown;
 }
 
 /** com.sme.analytics.company.task.completion */
 export interface CompanyTaskCompletionRequest {
   companyId: string;
-  startDate?: string;
-  endDate?: string;
+  startDate: string;
+  endDate: string;
 }
 
 export interface CompanyTaskCompletionResponse {
-  completed: number;
-  pending: number;
-  overdue: number;
+  companyId: string;
+  totalTasks: number;
+  completedTasks: number;
   completionRate: number;
   [key: string]: unknown;
 }

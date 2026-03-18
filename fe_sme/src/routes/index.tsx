@@ -17,6 +17,16 @@ const AdminKnowledgeBase = lazy(() => import("@/pages/knowledge-base"));
 const AdminDepartments = lazy(() => import("@/pages/departments"));
 const Profile = lazy(() => import("@/pages/profile/Profile"));
 const Notifications = lazy(() => import("@/pages/settings/Notifications"));
+const OnboardingRoleHome = lazy(() => import("@/pages/onboarding/role-home"));
+const OnboardingEmployeeHome = lazy(
+  () => import("@/pages/onboarding/role-home/EmployeeHome"),
+);
+const OnboardingManagerHome = lazy(
+  () => import("@/pages/onboarding/role-home/ManagerHome"),
+);
+const OnboardingHrHome = lazy(
+  () => import("@/pages/onboarding/role-home/HrHome"),
+);
 const Templates = lazy(() => import("@/pages/onboarding/templates"));
 const TemplateEditor = lazy(
   () => import("@/pages/onboarding/templates/editor"),
@@ -39,7 +49,6 @@ const SurveyTemplates = lazy(() => import("@/pages/surveys/SurveyTemplates"));
 const SurveyTemplateEditor = lazy(
   () => import("@/pages/surveys/SurveyTemplateEditor"),
 );
-const SurveySend = lazy(() => import("@/pages/surveys/SurveySend"));
 const SurveyInbox = lazy(() => import("@/pages/surveys/SurveyInbox"));
 const SurveyDetail = lazy(() => import("@/pages/surveys/SurveyDetail"));
 const SurveyReports = lazy(() => import("@/pages/surveys/SurveyReports"));
@@ -118,6 +127,24 @@ export const router = createBrowserRouter([
       { path: "/profile", element: suspense(<Profile />) },
       { path: "/settings/notifications", element: suspense(<Notifications />) },
       {
+        path: "/onboarding",
+        element: suspense(
+          withRoles(<OnboardingRoleHome />, ["HR", "MANAGER", "EMPLOYEE"]),
+        ),
+      },
+      {
+        path: "/onboarding/home/employee",
+        element: suspense(withRoles(<OnboardingEmployeeHome />, ["EMPLOYEE"])),
+      },
+      {
+        path: "/onboarding/home/manager",
+        element: suspense(withRoles(<OnboardingManagerHome />, ["MANAGER"])),
+      },
+      {
+        path: "/onboarding/home/hr",
+        element: suspense(withRoles(<OnboardingHrHome />, ["HR"])),
+      },
+      {
         path: "/onboarding/templates",
         element: suspense(withRoles(<Templates />, ["HR"])),
       },
@@ -184,10 +211,6 @@ export const router = createBrowserRouter([
       {
         path: "/surveys/templates/:templateId",
         element: suspense(withRoles(<SurveyTemplateEditor />, ["HR"])),
-      },
-      {
-        path: "/surveys/send",
-        element: suspense(withRoles(<SurveySend />, ["HR"])),
       },
       {
         path: "/surveys/inbox",

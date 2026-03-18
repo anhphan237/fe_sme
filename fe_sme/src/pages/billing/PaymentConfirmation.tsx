@@ -1,10 +1,8 @@
 ﻿import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { PageHeader } from "@core/components/PageHeader";
-import { Card } from "@core/components/ui/Card";
-import { Button } from "@core/components/ui/Button";
-import { Skeleton } from "@core/components/ui/Skeleton";
+import { Card, Skeleton } from "antd";
+import BaseButton from "@/components/button";
 import { stripePromise } from "@/lib/stripe";
 import { apiGetPaymentStatus } from "@/api/billing/billing.api";
 
@@ -14,14 +12,14 @@ const PaymentConfirmation = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [status, setStatus] = useState<Status>("loading");
-
   const clientSecret = searchParams.get("payment_intent_client_secret");
   const paymentIntentId = searchParams.get("payment_intent");
+  const [status, setStatus] = useState<Status>(
+    clientSecret ? "loading" : "failed",
+  );
 
   useEffect(() => {
     if (!clientSecret) {
-      setStatus("failed");
       return;
     }
 
@@ -61,7 +59,9 @@ const PaymentConfirmation = () => {
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
-      <PageHeader title="Payment Result" subtitle="" />
+      <h1 className="text-center text-2xl font-semibold text-slate-800">
+        Payment Result
+      </h1>
 
       <Card className="text-center">
         {status === "loading" && (
@@ -151,13 +151,13 @@ const PaymentConfirmation = () => {
         )}
 
         <div className="mt-6 flex justify-center gap-3">
-          <Button
-            variant="secondary"
-            onClick={() => navigate("/billing/invoices")}>
+          <BaseButton onClick={() => navigate("/billing/invoices")}>
             Back to Invoices
-          </Button>
+          </BaseButton>
           {status === "failed" && (
-            <Button onClick={() => navigate(-1)}>Try Again</Button>
+            <BaseButton type="primary" onClick={() => navigate(-1)}>
+              Try Again
+            </BaseButton>
           )}
         </div>
       </Card>

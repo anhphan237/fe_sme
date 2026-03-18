@@ -1,22 +1,24 @@
 ﻿import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, Mail, RefreshCw, Zap } from "lucide-react";
 import {
-  AlertTriangle,
-  RefreshCw,
-  Mail,
-  Zap,
-  ToggleLeft,
-  ToggleRight,
-  Info,
-} from "lucide-react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { PageHeader } from "@core/components/PageHeader";
-import { Card } from "@core/components/ui/Card";
-import { Tabs } from "@core/components/ui/Tabs";
-import { Skeleton } from "@core/components/ui/Skeleton";
-import { EmptyState } from "@core/components/ui/EmptyState";
-import { Button } from "@core/components/ui/Button";
-import { Pill } from "@core/components/ui/Pill";
-import { useToast } from "@core/components/ui/Toast";
+  apiListAutomationRules,
+  apiListEmailLogs,
+  apiToggleAutomationRule,
+} from "@/api/onboarding/automation.api";
+import {
+  Alert,
+  Button,
+  Card,
+  Empty,
+  message,
+  Skeleton,
+  Space,
+  Switch,
+  Tabs,
+  Tag,
+  Typography,
+} from "antd";
 import { useLocale } from "@/i18n";
 import type {
   AutomationRuleResponse,
@@ -45,32 +47,10 @@ const CHANNEL_LABELS: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// TODO stubs â€” backend not yet implemented
-// ---------------------------------------------------------------------------
-const useAutomationRulesQuery = () =>
-  useQuery<AutomationRuleResponse[]>({
-    queryKey: ["automation-rules"],
-    queryFn: () => Promise.resolve([]),
-    initialData: [],
-  });
-
-const useEmailLogsQuery = () =>
-  useQuery<EmailLogResponse[]>({
-    queryKey: ["email-logs"],
-    queryFn: () => Promise.resolve([]),
-    initialData: [],
-  });
-
-const useToggleAutomationRule = () =>
-  useMutation({
-    mutationFn: (_: { ruleId: string; enabled: boolean }) => Promise.resolve(),
-  });
-
-// ---------------------------------------------------------------------------
-// Inline sub-components
+// Sub-components
 // ---------------------------------------------------------------------------
 const InlineError = ({
-  message,
+  message: msg,
   onRetry,
 }: {
   message: string;
@@ -78,16 +58,14 @@ const InlineError = ({
 }) => {
   const { t } = useLocale();
   return (
-    <div className="flex flex-col items-center gap-3 py-10 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-50">
-        <AlertTriangle className="h-6 w-6 text-red-400" />
-      </div>
-      <p className="text-sm font-medium text-ink">{message}</p>
-      <Button variant="secondary" onClick={onRetry}>
+    <Empty
+      image={<AlertTriangle className="mx-auto h-10 w-10 text-red-400" />}
+      description={<span className="text-sm text-ink">{msg}</span>}>
+      <Button onClick={onRetry}>
         <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
         {t("onboarding.template.error.retry")}
       </Button>
-    </div>
+    </Empty>
   );
 };
 
@@ -101,70 +79,58 @@ const RuleRow = ({
   isToggling: boolean;
 }) => {
   const { t } = useLocale();
-  const channelCls =
-    rule.channel === "email"
-      ? "bg-blue-100 text-blue-700"
-      : "bg-purple-100 text-purple-700";
   const triggerLabel = TRIGGER_LABELS[rule.trigger] ?? rule.trigger;
   const channelLabel = CHANNEL_LABELS[rule.channel] ?? rule.channel;
+  const channelColor = rule.channel === "email" ? "blue" : "purple";
 
   return (
     <div className="flex items-center gap-4 rounded-xl border border-stroke bg-white px-5 py-4 transition hover:shadow-sm">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100">
         {rule.channel === "email" ? (
           <Mail className="h-4 w-4 text-slate-500" />
         ) : (
           <Zap className="h-4 w-4 text-slate-500" />
         )}
-      </div>
+      </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold text-ink">{rule.name}</p>
-        <p className="mt-0.5 truncate text-xs text-muted">
+        <Typography.Text strong className="block truncate">
+          {rule.name}
+        </Typography.Text>
+        <Typography.Text type="secondary" className="block truncate text-xs">
           {t("onboarding.automation.rule.trigger_label")}: {triggerLabel}
-        </p>
+        </Typography.Text>
       </div>
-      <Pill className={channelCls}>{channelLabel}</Pill>
-      <button
-        type="button"
-        onClick={() => onToggle(rule.ruleId, rule.enabled)}
-        disabled={isToggling}
+      <Tag color={channelColor}>{channelLabel}</Tag>
+      <Switch
+        checked={rule.enabled}
+        loading={isToggling}
+        onChange={() => onToggle(rule.ruleId, rule.enabled)}
         aria-label={
           rule.enabled
             ? t("onboarding.automation.rule.disable")
             : t("onboarding.automation.rule.enable")
         }
-        className="shrink-0 text-muted transition hover:text-brand disabled:opacity-50">
-        {rule.enabled ? (
-          <ToggleRight className="h-7 w-7 text-emerald-500" />
-        ) : (
-          <ToggleLeft className="h-7 w-7" />
-        )}
-      </button>
+      />
     </div>
   );
 };
 
 const EmailLogRow = ({ log }: { log: EmailLogResponse }) => {
   const { t } = useLocale();
-  const statusCls =
-    log.status === "Sent"
-      ? "bg-emerald-50 text-emerald-700"
-      : "bg-red-50 text-red-600";
 
   return (
     <tr className="border-b border-stroke last:border-0 hover:bg-slate-50/60">
       <td className="py-3 pr-4 text-sm text-ink">{log.subject}</td>
       <td className="py-3 pr-4 text-sm text-muted">
-        {log.recipientEmail ?? "â€”"}
+        {log.recipientEmail ?? "-"}
       </td>
       <td className="py-3 pr-4 text-sm text-muted">
-        {log.sentAt ? log.sentAt.slice(0, 16).replace("T", " ") : "â€”"}
+        {log.sentAt ? log.sentAt.slice(0, 16).replace("T", " ") : "-"}
       </td>
       <td className="py-3">
-        <span
-          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusCls}`}>
+        <Tag color={log.status === "Sent" ? "success" : "error"}>
           {t(`onboarding.automation.log.status.${log.status.toLowerCase()}`)}
-        </span>
+        </Tag>
       </td>
     </tr>
   );
@@ -175,77 +141,67 @@ const EmailLogRow = ({ log }: { log: EmailLogResponse }) => {
 // ---------------------------------------------------------------------------
 const Automation = () => {
   const { t } = useLocale();
-  const toast = useToast();
-  const [tab, setTab] = useState("rules");
   const [pendingRuleId, setPendingRuleId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const {
     data: rules = [],
     isLoading: rulesLoading,
     isError: rulesError,
     refetch: refetchRules,
-  } = useAutomationRulesQuery();
+  } = useQuery({
+    queryKey: ["automation-rules"],
+    queryFn: apiListAutomationRules,
+  });
 
   const {
     data: logs = [],
     isLoading: logsLoading,
     isError: logsError,
     refetch: refetchLogs,
-  } = useEmailLogsQuery();
+  } = useQuery({
+    queryKey: ["automation-email-logs"],
+    queryFn: apiListEmailLogs,
+  });
 
-  const toggleRule = useToggleAutomationRule();
+  const toggleMutation = useMutation({
+    mutationFn: apiToggleAutomationRule,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["automation-rules"] });
+    },
+  });
 
   const handleToggle = async (ruleId: string, currentEnabled: boolean) => {
     setPendingRuleId(ruleId);
     try {
-      await toggleRule.mutateAsync({ ruleId, enabled: !currentEnabled });
-      toast(t("onboarding.automation.rule.toast.toggled"));
+      await toggleMutation.mutateAsync({ ruleId, enabled: !currentEnabled });
+      message.success(t("onboarding.automation.rule.toast.toggled"));
     } catch {
-      toast(t("onboarding.automation.rule.toast.failed"));
+      message.error(t("onboarding.automation.rule.toast.failed"));
     } finally {
       setPendingRuleId(null);
     }
   };
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title={t("onboarding.automation.page.title")}
-        subtitle={t("onboarding.automation.page.subtitle")}
-      />
-
-      {/* Coming-soon notice */}
-      <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-        <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-        <p className="text-sm text-amber-700">
-          {t("onboarding.automation.notice.coming_soon")}
-        </p>
-      </div>
-
-      <Tabs
-        items={[
-          { label: t("onboarding.automation.tab.rules"), value: "rules" },
-          { label: t("onboarding.automation.tab.logs"), value: "logs" },
-        ]}
-        value={tab}
-        onChange={setTab}
-      />
-
-      {tab === "rules" && (
+  const tabItems = [
+    {
+      key: "rules",
+      label: t("onboarding.automation.tab.rules"),
+      children: (
         <Card>
           {rulesLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-16" />
-              <Skeleton className="h-16" />
-              <Skeleton className="h-16" />
-            </div>
+            <Space direction="vertical" size={12} className="w-full">
+              <Skeleton active paragraph={{ rows: 1 }} />
+              <Skeleton active paragraph={{ rows: 1 }} />
+              <Skeleton active paragraph={{ rows: 1 }} />
+            </Space>
           ) : rulesError ? (
             <InlineError
               message={t("onboarding.automation.rule.error")}
-              onRetry={() => refetchRules()}
+              onRetry={refetchRules}
             />
           ) : rules.length > 0 ? (
-            <div className="space-y-3">
+            <Space direction="vertical" size={12} className="w-full">
               {rules.map((rule) => (
                 <RuleRow
                   key={rule.ruleId}
@@ -254,28 +210,28 @@ const Automation = () => {
                   isToggling={pendingRuleId === rule.ruleId}
                 />
               ))}
-            </div>
+            </Space>
           ) : (
-            <EmptyState
-              title={t("onboarding.automation.rule.empty_title")}
-              description={t("onboarding.automation.rule.empty")}
-            />
+            <Empty description={t("onboarding.automation.rule.empty")} />
           )}
         </Card>
-      )}
-
-      {tab === "logs" && (
+      ),
+    },
+    {
+      key: "logs",
+      label: t("onboarding.automation.tab.logs"),
+      children: (
         <Card>
           {logsLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-10" />
-              <Skeleton className="h-10" />
-              <Skeleton className="h-10" />
-            </div>
+            <Space direction="vertical" size={12} className="w-full">
+              <Skeleton active paragraph={{ rows: 1 }} />
+              <Skeleton active paragraph={{ rows: 1 }} />
+              <Skeleton active paragraph={{ rows: 1 }} />
+            </Space>
           ) : logsError ? (
             <InlineError
               message={t("onboarding.automation.log.error")}
-              onRetry={() => refetchLogs()}
+              onRetry={refetchLogs}
             />
           ) : logs.length > 0 ? (
             <div className="overflow-x-auto">
@@ -304,14 +260,32 @@ const Automation = () => {
               </table>
             </div>
           ) : (
-            <EmptyState
-              title={t("onboarding.automation.log.empty_title")}
-              description={t("onboarding.automation.log.empty")}
-            />
+            <Empty description={t("onboarding.automation.log.empty")} />
           )}
         </Card>
-      )}
-    </div>
+      ),
+    },
+  ];
+
+  return (
+    <Space direction="vertical" size={24} className="w-full">
+      <Space direction="vertical" size={4}>
+        <Typography.Title level={4} className="!mb-0">
+          {t("onboarding.automation.page.title")}
+        </Typography.Title>
+        <Typography.Text type="secondary">
+          {t("onboarding.automation.page.subtitle")}
+        </Typography.Text>
+      </Space>
+
+      <Alert
+        type="warning"
+        showIcon
+        message={t("onboarding.automation.notice.coming_soon")}
+      />
+
+      <Tabs defaultActiveKey="rules" items={tabItems} />
+    </Space>
   );
 };
 

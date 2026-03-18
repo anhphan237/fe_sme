@@ -1,14 +1,15 @@
-﻿import { PageHeader } from "@core/components/PageHeader";
-import { Card } from "@core/components/ui/Card";
-import { Button } from "@core/components/ui/Button";
+﻿import { Card } from "antd";
+import BaseButton from "@/components/button";
 
 const Notifications = () => {
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Notifications"
-        subtitle="Choose how you receive onboarding updates."
-      />
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-800">Notifications</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Choose how you receive onboarding updates.
+        </p>
+      </div>
       <Card>
         <div className="space-y-4">
           <label className="flex items-center justify-between text-sm">
@@ -25,7 +26,7 @@ const Notifications = () => {
           </label>
         </div>
         <div className="mt-6">
-          <Button>Save</Button>
+          <BaseButton>Save</BaseButton>
         </div>
       </Card>
     </div>

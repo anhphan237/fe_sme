@@ -1,9 +1,5 @@
 ﻿import { useState } from "react";
-import { PageHeader } from "@core/components/PageHeader";
-import { Card } from "@core/components/ui/Card";
-import { Table } from "@core/components/ui/Table";
-import { EmptyState } from "@core/components/ui/EmptyState";
-import { Skeleton } from "@core/components/ui/Skeleton";
+import { Card, Empty, Skeleton } from "antd";
 import { useQuery } from "@tanstack/react-query";
 import { apiGetPaymentTransactions } from "@/api/billing/billing.api";
 import { extractList } from "@/api/core/types";
@@ -14,7 +10,7 @@ const usePaymentTransactionsQuery = () =>
   useQuery({
     queryKey: ["payment-transactions"],
     queryFn: apiGetPaymentTransactions,
-    select: (res: any) =>
+    select: (res: unknown) =>
       extractList(res, "transactions", "items").map(
         mapTransaction,
       ) as PaymentTransaction[],
@@ -39,10 +35,14 @@ const PlatformPayments = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Payment Lookup"
-        subtitle="Review and troubleshoot payment transactions."
-      />
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-800">
+          Payment Lookup
+        </h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Review and troubleshoot payment transactions.
+        </p>
+      </div>
 
       <div className="flex items-center gap-3">
         <label className="text-sm font-medium text-muted">
@@ -77,13 +77,10 @@ const PlatformPayments = () => {
           </div>
         ) : filtered && filtered.length === 0 ? (
           <div className="p-6">
-            <EmptyState
-              title="No transactions found"
-              description="Payment transactions will appear here once payments are processed."
-            />
+            <Empty description="No transactions found" />
           </div>
         ) : (
-          <Table>
+          <table className="w-full">
             <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase text-muted">
               <tr>
                 <th className="px-4 py-3">Transaction ID</th>
@@ -117,7 +114,7 @@ const PlatformPayments = () => {
                 </tr>
               ))}
             </tbody>
-          </Table>
+          </table>
         )}
       </Card>
     </div>

@@ -1,21 +1,19 @@
-﻿import { useState, useEffect } from "react";
-import { PageHeader } from "@core/components/PageHeader";
-import { Card } from "@core/components/ui/Card";
-import { Button } from "@core/components/ui/Button";
-import { Badge } from "@core/components/ui/Badge";
-import { Skeleton } from "@core/components/ui/Skeleton";
-import { useToast } from "@core/components/ui/Toast";
+﻿import { useMemo, useState } from "react";
+import { Badge, Card, Skeleton } from "antd";
+import BaseButton from "@/components/button";
 import { useUserStore } from "@/stores/user.store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGetUserById, apiUpdateUser } from "@/api/identity/identity.api";
 import { mapUserDetail } from "@/utils/mappers/identity";
+import { notify } from "@/utils/notify";
+import type { GetUserResponse } from "@/interface/identity";
 
 const useUserDetailQuery = (userId: string | undefined) =>
   useQuery({
     queryKey: ["user-detail", userId],
     queryFn: () => apiGetUserById(userId!),
     enabled: Boolean(userId),
-    select: (res: any) => mapUserDetail(res),
+    select: (res: unknown) => mapUserDetail(res as GetUserResponse),
   });
 const useUpdateUser = () =>
   useMutation({
@@ -23,31 +21,33 @@ const useUpdateUser = () =>
       apiUpdateUser({ userId: v.id, fullName: v.name, phone: v.phone }),
   });
 import { ROLE_LABELS } from "../../shared/rbac";
-import { User, Mail, Phone, Briefcase, MapPin, Calendar } from "lucide-react";
+import { User, Mail, Briefcase, MapPin, Calendar } from "lucide-react";
 
 const Profile = () => {
   const currentUser = useUserStore((s) => s.currentUser);
   const setUser = useUserStore((s) => s.setUser);
   const queryClient = useQueryClient();
-  const toast = useToast();
 
   const { data: detail, isLoading: detailLoading } = useUserDetailQuery(
     currentUser?.id,
   );
   const updateUser = useUpdateUser();
 
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [draft, setDraft] = useState<{
+    fullName: string;
+    phone: string;
+  } | null>(null);
 
-  useEffect(() => {
-    if (detail && "fullName" in detail) {
-      setFullName(detail.fullName ?? "");
-      setPhone(detail.phone ?? "");
-    } else if (currentUser) {
-      setFullName(currentUser.name ?? "");
-      setPhone("");
-    }
-  }, [currentUser, detail]);
+  const seed = useMemo(
+    () => ({
+      fullName: detail?.fullName ?? currentUser?.name ?? "",
+      phone: detail?.phone ?? "",
+    }),
+    [detail?.fullName, detail?.phone, currentUser?.name],
+  );
+
+  const fullName = draft?.fullName ?? seed.fullName;
+  const phone = draft?.phone ?? seed.phone;
 
   const handleSave = async () => {
     if (!currentUser?.id) return;
@@ -58,16 +58,17 @@ const Profile = () => {
         phone,
       });
       setUser(updated);
+      setDraft(null);
       queryClient.invalidateQueries({
         queryKey: ["user-detail", currentUser.id],
       });
-      toast("Profile updated.");
+      notify.success("Profile updated.");
     } catch {
-      toast("Failed to update profile.");
+      notify.error("Failed to update profile.");
     }
   };
 
-  const isDetail = detail && "userId" in detail;
+  const isDetail = Boolean(detail?.userId);
   const primaryRole = currentUser?.roles?.length ? currentUser.roles[0] : null;
   const roleLabel = primaryRole ? ROLE_LABELS[primaryRole] : null;
   const initial = (currentUser?.name ?? currentUser?.email ?? "?")
@@ -76,10 +77,12 @@ const Profile = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Profile"
-        subtitle="Your personal details and work information."
-      />
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-800">Profile</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Your personal details and work information.
+        </p>
+      </div>
 
       {/* Hero card: avatar + name + role */}
       <Card className="overflow-hidden">
@@ -128,7 +131,12 @@ const Profile = () => {
               <input
                 className="mt-1 w-full rounded-xl border border-stroke bg-white px-4 py-2.5 text-sm text-ink focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
                 value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
+                onChange={(e) =>
+                  setDraft((prev) => ({
+                    fullName: e.target.value,
+                    phone: prev?.phone ?? seed.phone,
+                  }))
+                }
                 placeholder="Your name"
               />
             </label>
@@ -137,17 +145,22 @@ const Profile = () => {
               <input
                 className="mt-1 w-full rounded-xl border border-stroke bg-white px-4 py-2.5 text-sm text-ink focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) =>
+                  setDraft((prev) => ({
+                    fullName: prev?.fullName ?? seed.fullName,
+                    phone: e.target.value,
+                  }))
+                }
                 placeholder="Phone number"
               />
             </label>
           </div>
           <div className="mt-6">
-            <Button
+            <BaseButton
               onClick={handleSave}
               disabled={updateUser.isPending || !currentUser?.id}>
               {updateUser.isPending ? "Saving…" : "Save changes"}
-            </Button>
+            </BaseButton>
           </div>
         </Card>
 
@@ -166,37 +179,37 @@ const Profile = () => {
             </div>
           ) : isDetail ? (
             <dl className="mt-4 space-y-4">
-              {(detail as any).jobTitle && (
+              {detail?.jobTitle && (
                 <div>
                   <dt className="text-xs font-medium uppercase tracking-wide text-muted">
                     Job title
                   </dt>
                   <dd className="mt-1 text-sm font-medium text-ink">
-                    {(detail as any).jobTitle}
+                    {detail.jobTitle}
                   </dd>
                 </div>
               )}
-              {(detail as any).departmentId && (
+              {detail?.departmentId && (
                 <div>
                   <dt className="text-xs font-medium uppercase tracking-wide text-muted">
                     Department ID
                   </dt>
                   <dd className="mt-1 text-sm font-medium text-ink">
-                    {(detail as any).departmentId}
+                    {detail.departmentId}
                   </dd>
                 </div>
               )}
-              {(detail as any).employeeId && (
+              {detail?.employeeId && (
                 <div>
                   <dt className="text-xs font-medium uppercase tracking-wide text-muted">
                     Employee ID
                   </dt>
                   <dd className="mt-1 text-sm font-medium text-ink">
-                    {(detail as any).employeeId}
+                    {detail.employeeId}
                   </dd>
                 </div>
               )}
-              {(detail as any).startDate && (
+              {detail?.startDate && (
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted" />
                   <div>
@@ -204,12 +217,12 @@ const Profile = () => {
                       Start date
                     </dt>
                     <dd className="mt-1 text-sm font-medium text-ink">
-                      {(detail as any).startDate}
+                      {detail.startDate}
                     </dd>
                   </div>
                 </div>
               )}
-              {(detail as any).workLocation && (
+              {detail?.workLocation && (
                 <div className="flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-muted" />
                   <div>
@@ -217,27 +230,27 @@ const Profile = () => {
                       Work location
                     </dt>
                     <dd className="mt-1 text-sm font-medium text-ink">
-                      {(detail as any).workLocation}
+                      {detail.workLocation}
                     </dd>
                   </div>
                 </div>
               )}
-              {(detail as any).managerUserId && (
+              {detail?.managerUserId && (
                 <div>
                   <dt className="text-xs font-medium uppercase tracking-wide text-muted">
                     Manager user ID
                   </dt>
                   <dd className="mt-1 text-sm font-medium text-ink">
-                    {(detail as any).managerUserId}
+                    {detail.managerUserId}
                   </dd>
                 </div>
               )}
               {![
-                (detail as any).jobTitle,
-                (detail as any).departmentId,
-                (detail as any).employeeId,
-                (detail as any).startDate,
-                (detail as any).workLocation,
+                detail?.jobTitle,
+                detail?.departmentId,
+                detail?.employeeId,
+                detail?.startDate,
+                detail?.workLocation,
               ].some(Boolean) && (
                 <p className="text-sm text-muted">
                   No work details on file yet.

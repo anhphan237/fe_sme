@@ -8,14 +8,13 @@
 // Document
 // ---------------------------
 
+/** Maps to BE: DocumentListResponse.DocumentItem */
 export interface DocumentItem {
   documentId: string;
   name: string;
-  tags: string[];
-  required: boolean;
-  updatedAt: string;
-  folder: string;
-  companyId: string | null;
+  fileUrl: string;
+  description: string;
+  status: string;
 }
 
 /** com.sme.content.document.list → response data */
@@ -28,12 +27,15 @@ export interface UploadDocumentRequest {
   name: string;
   fileUrl: string;
   description?: string;
+  documentCategoryId?: string;
 }
 
 /** com.sme.content.document.upload → response data */
 export interface UploadDocumentResponse {
   documentId: string;
   name: string;
+  fileUrl: string;
+  description: string;
 }
 
 // ---------------------------
@@ -44,9 +46,13 @@ export interface UploadDocumentResponse {
 export interface AcknowledgeDocumentRequest {
   documentId: string;
   onboardingId?: string;
+  taskId?: string;
 }
 
 /** com.sme.content.document.acknowledge → response data */
 export interface AcknowledgeDocumentResponse {
-  acknowledged: boolean;
+  documentAcknowledgementId: string;
+  documentId: string;
+  onboardingId?: string;
+  taskMarkedDone: boolean;
 }

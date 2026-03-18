@@ -56,6 +56,11 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: ClipboardCheck,
     children: [
       {
+        titleKey: "nav.onboarding",
+        to: "/onboarding",
+        requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
+      },
+      {
         titleKey: "nav.onboarding.templates",
         to: "/onboarding/templates",
         requiredRoles: ["HR"],

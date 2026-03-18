@@ -1,90 +1,67 @@
 ﻿import { useState } from "react";
-import { FileAddOutlined } from "@ant-design/icons";
+import {
+  FileAddOutlined,
+  EditOutlined,
+  DeleteOutlined,
+} from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Pencil, Trash2 } from "lucide-react";
-import { Card } from "@core/components/ui/Card";
-import { Tabs } from "@core/components/ui/Tabs";
-import { Button } from "@core/components/ui/Button";
-import { Skeleton } from "@core/components/ui/Skeleton";
+import { Card, Form, Skeleton, Tabs, Typography } from "antd";
 import BaseModal from "@core/components/Modal/BaseModal";
 import BaseButton from "@/components/button";
+import InputWithLabel from "@core/components/Input/InputWithLabel";
+import BaseTextArea from "@core/components/TextArea/BaseTextArea";
 import { apiGetDocuments } from "@/api/document/document.api";
+import { useLocale } from "@/i18n";
 
-interface Article {
+const { Text } = Typography;
+
+interface KbArticle {
   id: string;
   title: string;
   content: string;
-  tags: string;
 }
 
-const INITIAL_ARTICLES: Article[] = [
-  {
-    id: "1",
-    title: "New hire checklist",
-    content: "Structured onboarding checklist with milestones.",
-    tags: "onboarding, checklist",
-  },
-  {
-    id: "2",
-    title: "Security & access policy",
-    content: "Badge, device, and data access guidelines.",
-    tags: "security, policy",
-  },
-  {
-    id: "3",
-    title: "Manager readiness",
-    content: "Ensure managers are prepped for day one.",
-    tags: "manager, onboarding",
-  },
-];
-
-const BLANK_FORM = { title: "", content: "", tags: "" };
-
-const useDocumentsQuery = () =>
-  useQuery({ queryKey: ["documents"], queryFn: apiGetDocuments });
+type ArticleFormValues = Pick<KbArticle, "title" | "content">;
 
 const KnowledgeBase = () => {
+  const { t } = useLocale();
   const [tab, setTab] = useState("articles");
-  const [articles, setArticles] = useState<Article[]>(INITIAL_ARTICLES);
+  const [articles, setArticles] = useState<KbArticle[]>([]);
   const [open, setOpen] = useState(false);
-  const [editingArticle, setEditingArticle] = useState<Article | null>(null);
-  const [form, setForm] = useState(BLANK_FORM);
-  const { data, isLoading } = useDocumentsQuery();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form] = Form.useForm<ArticleFormValues>();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["documents"],
+    queryFn: apiGetDocuments,
+  });
 
   const openCreate = () => {
-    setEditingArticle(null);
-    setForm(BLANK_FORM);
+    setEditingId(null);
+    form.resetFields();
     setOpen(true);
   };
 
-  const openEdit = (article: Article) => {
-    setEditingArticle(article);
-    setForm({
-      title: article.title,
-      content: article.content,
-      tags: article.tags,
-    });
+  const openEdit = (article: KbArticle) => {
+    setEditingId(article.id);
+    form.setFieldsValue({ title: article.title, content: article.content });
     setOpen(true);
   };
 
   const handleClose = () => {
     setOpen(false);
-    setEditingArticle(null);
-    setForm(BLANK_FORM);
+    setEditingId(null);
+    form.resetFields();
   };
 
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.title.trim()) return;
-
-    if (editingArticle) {
+  const handleSave = async () => {
+    const values = await form.validateFields();
+    if (editingId) {
       setArticles((prev) =>
-        prev.map((a) =>
-          a.id === editingArticle.id ? { ...editingArticle, ...form } : a,
-        ),
+        prev.map((a) => (a.id === editingId ? { ...a, ...values } : a)),
       );
     } else {
-      setArticles((prev) => [...prev, { id: String(Date.now()), ...form }]);
+      setArticles((prev) => [...prev, { id: String(Date.now()), ...values }]);
     }
     handleClose();
   };
@@ -94,81 +71,79 @@ const KnowledgeBase = () => {
   };
 
   return (
-    <div className="h-full flex flex-col p-4">
-      <div className="flex justify-between mb-4">
+    <div className="flex flex-col gap-3 p-4">
+      <div className="flex justify-end">
         <BaseButton
+          type="primary"
           icon={<FileAddOutlined />}
-          label="New article"
+          label="kb.btn.new_article"
           onClick={openCreate}
         />
       </div>
 
       <Tabs
-        items={[
-          { label: "Articles", value: "articles" },
-          { label: "Sources", value: "sources" },
-        ]}
-        value={tab}
+        activeKey={tab}
         onChange={setTab}
+        items={[
+          { key: "articles", label: t("kb.tab.articles") },
+          { key: "sources", label: t("kb.tab.sources") },
+        ]}
       />
 
       {tab === "articles" ? (
         articles.length === 0 ? (
-          <Card className="py-12 text-center">
-            <p className="text-sm text-slate-400">No articles yet.</p>
-            <Button className="mt-4" onClick={openCreate}>
-              New article
-            </Button>
+          <Card className="py-6 text-center">
+            <Text type="secondary" className="block text-sm">
+              {t("kb.empty.title")}
+            </Text>
+            <div className="mt-3">
+              <BaseButton label="kb.btn.new_article" onClick={openCreate} />
+            </div>
           </Card>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid gap-3 lg:grid-cols-3">
             {articles.map((article) => (
-              <Card key={article.id}>
-                <h3 className="text-lg font-semibold text-slate-900">
+              <Card key={article.id} size="small">
+                <h3 className="text-base font-semibold text-slate-900">
                   {article.title}
                 </h3>
-                <p className="mt-2 text-sm text-muted">{article.content}</p>
-                {article.tags && (
-                  <p className="mt-1 text-xs text-slate-400">{article.tags}</p>
-                )}
-                <div className="mt-4 flex gap-2">
-                  <Button
-                    variant="ghost"
+                <p className="mt-1 text-sm text-muted">{article.content}</p>
+                <div className="mt-3 flex gap-2">
+                  <BaseButton
+                    type="text"
+                    icon={<EditOutlined />}
+                    label="global.edit"
                     onClick={() => openEdit(article)}
-                    className="gap-1.5">
-                    <Pencil className="h-3.5 w-3.5" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="ghost"
+                  />
+                  <BaseButton
+                    type="text"
+                    danger
+                    icon={<DeleteOutlined />}
+                    label="global.delete"
                     onClick={() => handleDelete(article.id)}
-                    className="gap-1.5 text-red-500 hover:bg-red-50 hover:text-red-700">
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete
-                  </Button>
+                  />
                 </div>
               </Card>
             ))}
           </div>
         )
       ) : (
-        <Card>
-          <h3 className="text-lg font-semibold">Searchable sources</h3>
-          <p className="text-sm text-muted">
-            Toggle which documents are used for AI answers.
-          </p>
+        <Card title={t("kb.sources.title")}>
+          <Text type="secondary" className="text-sm">
+            {t("kb.sources.subtitle")}
+          </Text>
           {isLoading ? (
-            <div className="mt-4 space-y-2">
-              <Skeleton className="h-5" />
-              <Skeleton className="h-5" />
-              <Skeleton className="h-5" />
+            <div className="mt-3 space-y-2">
+              <Skeleton.Input active block />
+              <Skeleton.Input active block />
+              <Skeleton.Input active block />
             </div>
           ) : (
-            <div className="mt-4 space-y-3">
+            <div className="mt-3 space-y-2">
               {data?.items?.map((doc) => (
                 <label
                   key={doc.documentId}
-                  className="flex cursor-pointer items-center justify-between rounded-2xl border border-stroke bg-slate-50 px-4 py-3 text-sm transition-colors hover:bg-slate-100">
+                  className="flex cursor-pointer items-center justify-between rounded-xl border border-stroke bg-slate-50 px-4 py-2.5 text-sm transition-colors hover:bg-slate-100">
                   {doc.name}
                   <input
                     type="checkbox"
@@ -184,43 +159,24 @@ const KnowledgeBase = () => {
 
       <BaseModal
         open={open}
-        title={editingArticle ? "Edit article" : "New article"}
+        title={t(editingId ? "kb.modal.edit_title" : "kb.modal.create_title")}
         onCancel={handleClose}
         footer={null}>
-        <form onSubmit={handleSave} className="grid gap-3 text-sm">
-          <label className="grid gap-2">
-            Title <span className="text-red-400">*</span>
-            <input
-              autoFocus
-              required
-              value={form.title}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, title: e.target.value }))
-              }
-              className="rounded-2xl border border-stroke px-4 py-2 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-            />
-          </label>
-          <label className="grid gap-2">
-            Content
-            <textarea
-              value={form.content}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, content: e.target.value }))
-              }
-              className="rounded-2xl border border-stroke px-4 py-2 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-              rows={4}
-            />
-          </label>
-          <label className="grid gap-2">
-            Tags
-            <input
-              value={form.tags}
-              onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))}
-              placeholder="e.g. onboarding, hr"
-              className="rounded-2xl border border-stroke px-4 py-2 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-            />
-          </label>
-          <div className="flex justify-end gap-2 pt-1">
+        <Form form={form} layout="vertical" className="mt-2">
+          <InputWithLabel
+            name="title"
+            label={t("kb.form.title_label")}
+            formItemProps={{
+              rules: [{ required: true, message: t("kb.form.title_required") }],
+            }}
+            autoFocus
+          />
+          <BaseTextArea
+            name="content"
+            label={t("kb.form.content_label")}
+            rows={4}
+          />
+          <div className="flex justify-end gap-2 pt-2">
             <BaseButton
               htmlType="button"
               onClick={handleClose}
@@ -228,11 +184,12 @@ const KnowledgeBase = () => {
             />
             <BaseButton
               type="primary"
-              htmlType="submit"
-              label={editingArticle ? "global.save_changes" : "global.create"}
+              htmlType="button"
+              onClick={handleSave}
+              label={editingId ? "global.save_changes" : "global.create"}
             />
           </div>
-        </form>
+        </Form>
       </BaseModal>
     </div>
   );

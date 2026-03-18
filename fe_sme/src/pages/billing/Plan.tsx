@@ -1,8 +1,9 @@
 ﻿import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { clsx } from "clsx";
-import { Button } from "@core/components/ui/Button";
-import { Modal } from "@core/components/ui/Modal";
+import { Skeleton } from "antd";
+import BaseButton from "@/components/button";
+import BaseModal from "@core/components/Modal/BaseModal";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   apiGetPlans,
@@ -14,22 +15,21 @@ import {
 import { extractList } from "@/api/core/types";
 import { mapPlan, mapSubscription } from "@/utils/mappers/billing";
 import { useUserStore } from "@/stores/user.store";
-import { Skeleton } from "@core/components/ui/Skeleton";
-import { useToast } from "@core/components/ui/Toast";
+import { notify } from "@/utils/notify";
 import type { Subscription, BillingPlan } from "../../shared/types";
 
 const usePlansQuery = () =>
   useQuery({
     queryKey: ["plans"],
     queryFn: () => apiGetPlans(),
-    select: (res: any) =>
+    select: (res: unknown) =>
       extractList(res, "plans", "items").map(mapPlan) as BillingPlan[],
   });
 const useSubscriptionQuery = () =>
   useQuery({
     queryKey: ["subscription"],
     queryFn: () => apiGetSubscription(),
-    select: (res: any) => mapSubscription(res),
+    select: (res: unknown) => mapSubscription(res),
   });
 const useCreateSubscription = () =>
   useMutation({
@@ -62,7 +62,7 @@ const handleSuccess = async (
   res: Subscription | undefined,
   navigate: (path: string) => void,
   addToast: (msg: string) => void,
-  queryClient: any,
+  queryClient: ReturnType<typeof useQueryClient>,
   setSelected: (v: string | null) => void,
 ) => {
   queryClient.invalidateQueries({ queryKey: ["subscription"] });
@@ -114,13 +114,12 @@ const BillingPlan = () => {
   const { data: subscription } = useSubscriptionQuery();
   const createSub = useCreateSubscription();
   const updateSub = useUpdateSubscription();
-  const addToast = useToast();
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<string | null>(null);
 
   const HIDDEN_PLANS = ["Basic Plan", "Premium Plan"];
   const plans = data?.filter((p) => !HIDDEN_PLANS.includes(p.name)) ?? [];
-  const currentPlanCode = (subscription as any)?.planCode ?? "";
+  const currentPlanCode = subscription?.planCode ?? "";
   const companyId = currentUser?.companyId ?? currentTenant?.id ?? "";
 
   const handleConfirm = () => {
@@ -139,11 +138,11 @@ const BillingPlan = () => {
             handleSuccess(
               res as Subscription,
               navigate,
-              addToast,
+              notify.info,
               queryClient,
               setSelected,
             ),
-          onError: (err) => addToast(`Failed: ${err.message}`),
+          onError: (err) => notify.error(`Failed: ${err.message}`),
         },
       );
     } else if (companyId) {
@@ -154,15 +153,17 @@ const BillingPlan = () => {
             handleSuccess(
               res as Subscription,
               navigate,
-              addToast,
+              notify.info,
               queryClient,
               setSelected,
             ),
-          onError: (err) => addToast(`Failed: ${err.message}`),
+          onError: (err) => notify.error(`Failed: ${err.message}`),
         },
       );
     } else {
-      addToast("No company selected. Please switch tenant or contact support.");
+      notify.warning(
+        "No company selected. Please switch tenant or contact support.",
+      );
     }
   };
 
@@ -217,13 +218,13 @@ const BillingPlan = () => {
                     Your current plan
                   </button>
                 ) : (
-                  <Button
+                  <BaseButton
                     className="mt-6 w-full"
                     onClick={() => setSelected(plan.code)}>
                     {plan.name.toLowerCase() === "free"
                       ? plan.name
                       : `Upgrade to ${plan.name}`}
-                  </Button>
+                  </BaseButton>
                 )}
               </div>
             );
@@ -241,10 +242,11 @@ const BillingPlan = () => {
         </button>
       </p>
 
-      <Modal
+      <BaseModal
         open={!!selected}
         title="Plan change"
-        onClose={() => setSelected(null)}>
+        onCancel={() => setSelected(null)}
+        footer={null}>
         <div className="space-y-6">
           <div>
             <p className="text-ink">
@@ -255,23 +257,22 @@ const BillingPlan = () => {
             </p>
           </div>
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-center">
-            <Button
+            <BaseButton
               type="button"
-              variant="secondary"
               onClick={() => setSelected(null)}
               disabled={isPending}>
               Close
-            </Button>
-            <Button
-              type="button"
+            </BaseButton>
+            <BaseButton
+              type="primary"
               disabled={isPending}
               onClick={handleConfirm}
               className="sm:min-w-[140px]">
               {isPending ? "Processing..." : "Confirm change"}
-            </Button>
+            </BaseButton>
           </div>
         </div>
-      </Modal>
+      </BaseModal>
     </div>
   );
 };

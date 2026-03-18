@@ -1,5 +1,5 @@
 ﻿import { Link } from "react-router-dom";
-import { Card } from "@core/components/ui/Card";
+import { Card } from "antd";
 
 const Forbidden = () => {
   return (
