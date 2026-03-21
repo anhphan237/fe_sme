@@ -60,11 +60,15 @@ export interface SurveyTemplateSummary {
 /** com.sme.survey.question.create */
 export interface SurveyQuestionCreateRequest {
   templateId: string;
-  text: string;
-  type: "RATING" | "TEXT" | "MULTIPLE_CHOICE" | "SINGLE_CHOICE";
+  content: string;
+  type: "RATING" | "TEXT" | "SINGLE_CHOICE" | "MULTIPLE_CHOICE";
+  required: boolean;
+  sortOrder?: number;
+  dimensionCode?: string;
+  measurable?: boolean;
   options?: string[];
-  required?: boolean;
-  order?: number;
+  scaleMin?: number;
+  scaleMax?: number;
 }
 
 /** com.sme.survey.question.update */
@@ -207,4 +211,24 @@ export interface SurveyAnalyticsReport {
     text: string;
     averageRating: number;
   }[];
+}
+
+// ============================================================
+
+export interface SurveyQuestionUpdateRequest {
+  questionId: string;
+  templateId: string;
+  content: string;
+  type: "RATING" | "TEXT" | "SINGLE_CHOICE" | "MULTIPLE_CHOICE";
+  required: boolean;
+  sortOrder: number;
+  dimensionCode?: string;
+  measurable?: boolean;
+  options?: string[];
+  scaleMin?: number;
+  scaleMax?: number;
+}
+
+export interface SurveyQuestionDeleteRequest {
+  questionId: string;
 }
