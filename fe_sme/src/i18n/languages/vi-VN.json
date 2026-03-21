@@ -1373,7 +1373,23 @@
 
   "survey.question.meta.sort_order": "thứ tự",
   "survey.question.meta.id": "mã",
-  "survey.question.meta.new": "mới"
+  "survey.question.meta.new": "mới",
 
+  "survey.send.page_title": "Gửi khảo sát",
+  "survey.send.page_subtitle": "Lên lịch và theo dõi khảo sát onboarding cho nhân viên",
 
+  "survey.send.filter.template": "Mẫu khảo sát",
+  "survey.send.filter.status": "Trạng thái",
+  "survey.send.filter.date_range": "Khoảng ngày",
+
+  "survey.send.empty_title": "Chưa có khảo sát nào",
+  "survey.send.empty_desc": "Tạo khảo sát để gửi ngay hoặc lên lịch sau",
+  "survey.send.empty_count": "Chưa có dữ liệu",
+
+  "survey.send.schedule": "Lên lịch khảo sát",
+
+  "survey.send.table.template": "Mẫu khảo sát",
+  "survey.send.table.scheduled_at": "Thời gian gửi",
+  "survey.send.table.status": "Trạng thái",
+  "survey.send.table.created_at": "Ngày tạo"
 }

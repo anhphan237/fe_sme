@@ -4,6 +4,8 @@
 // Operations: com.sme.survey.*
 // ============================================================
 
+import type { off } from "process";
+
 // ---------------------------
 // Template
 // ---------------------------
@@ -111,6 +113,10 @@ export interface SurveyInstanceListRequest {
   templateId?: string;
   status?: string;
   employeeId?: string;
+  startDate?: string;
+  endDate?: string;
+  offset?: number;
+  limit?: number;
 }
 
 /** com.sme.survey.instance.schedule */

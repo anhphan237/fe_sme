@@ -1349,5 +1349,22 @@
   "survey.question.meta.sort_order": "sortOrder",
   "survey.question.meta.id": "id",
   "survey.question.meta.new": "new",
-  "global.loading": "Loading..."
+  "global.loading": "Loading...",
+  "survey.send.page_title": "Send Surveys",
+  "survey.send.page_subtitle": "Schedule onboarding surveys and track outgoing survey sends",
+
+  "survey.send.filter.template": "Survey template",
+  "survey.send.filter.status": "Status",
+  "survey.send.filter.date_range": "Date range",
+
+  "survey.send.empty_title": "No scheduled surveys yet",
+  "survey.send.empty_desc": "Create a survey to send now or schedule it for later",
+  "survey.send.empty_count": "No data",
+
+  "survey.send.schedule": "Schedule survey",
+
+  "survey.send.table.template": "Survey template",
+  "survey.send.table.scheduled_at": "Scheduled at",
+  "survey.send.table.status": "Status",
+  "survey.send.table.created_at": "Created at"
 }
