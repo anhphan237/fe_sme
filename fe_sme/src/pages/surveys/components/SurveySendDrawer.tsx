@@ -1,39 +1,47 @@
-import { Drawer, Form } from "antd";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Dayjs } from "dayjs";
-import { useLocale } from "@/i18n";
-import { notify } from "@/utils/notify";
+import { Drawer, Form, DatePicker } from "antd";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import dayjs, { type Dayjs } from "dayjs";
+import { useState } from "react";
+
 import BaseButton from "@/components/button";
 import BaseSelect from "@core/components/Select/BaseSelect";
-import BaseDatePicker from "@core/components/DatePicker";
-import InfiniteScrollSelect from "@core/components/Select/InfinitieScroll";
-import { apiSearchUsers } from "@/api/identity/identity.api";
+import { extractList } from "@/api/core/types";
 import {
   apiListSurveyTemplates,
   apiScheduleSurvey,
 } from "@/api/survey/survey.api";
-import { extractList } from "@/api/core/types";
-import type { UserListItem } from "@/interface/identity";
 import type {
-  SurveyTemplateSummary,
   SurveyScheduleRequest,
+  SurveyTemplateSummary,
 } from "@/interface/survey";
+import { useLocale } from "@/i18n";
+import { notify } from "@/utils/notify";
+import SelectOnboardingModal, {
+  type SelectedOnboardingItem,
+} from "./SelectOnboardingModal";
 
 interface Props {
   open: boolean;
   onClose: () => void;
 }
 
+type FormValues = {
+  onboardingIds: string[];
+  templateId: string;
+  scheduledAt?: Dayjs;
+};
+
 const SurveySendDrawer = ({ open, onClose }: Props) => {
   const { t } = useLocale();
   const queryClient = useQueryClient();
-  const [form] = Form.useForm<{
-    employeeId: string;
-    templateId: string;
-    scheduledAt?: Dayjs;
-  }>();
+  const [form] = Form.useForm<FormValues>();
 
-  const { data: templatesRaw } = useQuery({
+  const [selectModalOpen, setSelectModalOpen] = useState(false);
+  const [selectedOnboardings, setSelectedOnboardings] = useState<
+    SelectedOnboardingItem[]
+  >([]);
+
+  const { data: templatesRaw, isLoading: isTemplatesLoading } = useQuery({
     queryKey: ["survey-templates-for-send"],
     queryFn: () => apiListSurveyTemplates(),
     enabled: open,
@@ -45,108 +53,279 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
     "templates",
   );
 
-  type UserListItemRaw = UserListItem & Record<string, unknown>;
-
-  const fetchEmployees = async (params: {
-    pageNumber: number;
-    pageSize: number;
-    search?: string;
-  }) => {
-    const res = await apiSearchUsers({ keyword: params.search });
-    return extractList<UserListItem>(
-      res,
-      "users",
-      "items",
-    ) as UserListItemRaw[];
-  };
-  const mapEmployees = (data: UserListItemRaw[]) =>
-    data
-      .filter((u) => Boolean(u["employeeId"]))
-      .map((u) => ({
-        label: u.fullName || u.email,
-        value: u["employeeId"] as string,
-      }));
-
-  const templateOptions = templates.map((tmpl) => ({
-    value: tmpl.templateId,
-    label: tmpl.name,
+  const templateOptions = templates.map((template) => ({
+    value: template.templateId,
+    label: template.name,
   }));
 
-  const { mutateAsync, isPending } = useMutation({
-    mutationFn: (payload: SurveyScheduleRequest) => apiScheduleSurvey(payload),
-    onSuccess: () => {
-      notify.success(t("survey.send.success"));
+  const latestStartDate =
+    selectedOnboardings.length > 0
+      ? selectedOnboardings
+          .map((item) => item.startDate)
+          .filter(Boolean)
+          .map((date) => dayjs(date as string))
+          .filter((date) => date.isValid())
+          .reduce((latest, current) =>
+            current.isAfter(latest, "day") ? current : latest,
+          )
+      : null;
+
+  const selectedTemplateId = Form.useWatch("templateId", form);
+  const selectedTemplate = templates.find(
+    (item) => item.templateId === selectedTemplateId,
+  );
+
+  const scheduleMutation = useMutation({
+    mutationFn: async (values: FormValues) => {
+      let successCount = 0;
+      let failedCount = 0;
+
+      for (const item of selectedOnboardings) {
+      try {
+        await apiScheduleSurvey({
+          onboardingId: item.onboardingId,
+          templateId: values.templateId,
+          scheduledAt: values.scheduledAt?.toISOString(),
+          responderUserId: item.userId, 
+        } as SurveyScheduleRequest);
+
+    successCount += 1;
+  } catch {
+    failedCount += 1;
+  }
+}
+
+      return { successCount, failedCount };
+    },
+    onSuccess: async ({ successCount, failedCount }) => {
+      if (successCount > 0 && failedCount === 0) {
+        notify.success(
+          successCount === 1
+            ? t("survey.send.success")
+            : `${successCount} ${t("survey.send.success_many")}`,
+        );
+      } else if (successCount > 0 && failedCount > 0) {
+        notify.success(
+          `${successCount} ${t("survey.send.success_partial")}, ${failedCount} ${t("survey.send.failed_partial")}`,
+        );
+      } else {
+        notify.error(t("survey.send.error"));
+        return;
+      }
+
       form.resetFields();
-      queryClient.invalidateQueries({ queryKey: ["survey-instances"] });
+      setSelectedOnboardings([]);
+
+      await queryClient.invalidateQueries({
+        queryKey: ["survey-instances"],
+      });
+
       onClose();
     },
-    onError: () => notify.error(t("survey.send.error")),
+    onError: (error: unknown) => {
+      const message =
+        error instanceof Error ? error.message : t("survey.send.error");
+      notify.error(message);
+    },
   });
 
-  const onFinish = async (values: {
-    employeeId: string;
-    templateId: string;
-    scheduledAt?: Dayjs;
-  }) => {
-    await mutateAsync({
-      templateId: values.templateId,
-      employeeId: values.employeeId,
-      scheduledAt: values.scheduledAt?.toISOString(),
-    });
+  const handleReset = () => {
+    form.resetFields();
+    setSelectedOnboardings([]);
+    setSelectModalOpen(false);
   };
 
   const handleClose = () => {
-    form.resetFields();
+    handleReset();
     onClose();
   };
 
+  const handleConfirmEmployees = (items: SelectedOnboardingItem[]) => {
+    setSelectedOnboardings(items);
+    form.setFieldValue(
+      "onboardingIds",
+      items.map((item) => item.instanceId),
+    );
+
+    const currentScheduledAt = form.getFieldValue("scheduledAt");
+    if (
+      currentScheduledAt &&
+      latestStartDate &&
+      dayjs(currentScheduledAt).isBefore(latestStartDate, "day")
+    ) {
+      form.setFieldValue("scheduledAt", undefined);
+    }
+
+    setSelectModalOpen(false);
+  };
+
+  const handleFinish = async (values: FormValues) => {
+    if (!selectedOnboardings.length) {
+      notify.error(t("survey.send.validation.onboarding_required"));
+      return;
+    }
+
+    await scheduleMutation.mutateAsync({
+      ...values,
+      onboardingIds: selectedOnboardings.map((item) => item.instanceId),
+    });
+  };
+
   return (
-    <Drawer
-      title={t("survey.send.title")}
-      open={open}
-      onClose={handleClose}
-      width={420}
-      destroyOnClose
-      footer={
-        <div className="flex justify-end gap-2">
-          <BaseButton label="global.cancel" onClick={handleClose} />
-          <BaseButton
-            type="primary"
-            htmlType="submit"
-            loading={isPending}
-            label="survey.send.schedule"
-            onClick={() => form.submit()}
-          />
-        </div>
-      }>
-      <Form form={form} layout="vertical" onFinish={onFinish}>
-        <InfiniteScrollSelect
-          name="employeeId"
-          label={t("survey.send.employee_label")}
-          fetchData={fetchEmployees}
-          mapData={mapEmployees}
-          queryKey={["users-for-survey-send"]}
-          placeholder={t("global.select")}
-          formItemProps={{ rules: [{ required: true }] }}
-        />
-        <div className="mt-4">
-          <BaseSelect
-            name="templateId"
-            label={t("survey.send.template_label")}
-            options={templateOptions}
-            placeholder={t("global.select")}
-            formItemProps={{ rules: [{ required: true }] }}
-          />
-        </div>
-        <div className="mt-4">
-          <BaseDatePicker
-            name="scheduledAt"
-            label={t("survey.send.scheduled_at_label")}
-            className="w-full"
-          />
-        </div>
-      </Form>
-    </Drawer>
+    <>
+      <Drawer
+        title={t("survey.send.title")}
+        open={open}
+        onClose={handleClose}
+        width={520}
+        destroyOnClose
+        footer={
+          <div className="flex justify-end gap-2">
+            <BaseButton label="global.cancel" onClick={handleClose} />
+            <BaseButton
+              type="primary"
+              htmlType="submit"
+              loading={scheduleMutation.isPending}
+              label="survey.send.schedule"
+              onClick={() => form.submit()}
+            />
+          </div>
+        }
+      >
+        <Form<FormValues> form={form} layout="vertical" onFinish={handleFinish}>
+          <Form.Item name="onboardingIds" hidden>
+            <input />
+          </Form.Item>
+
+          <div className="rounded-xl border border-slate-200 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold text-slate-800">
+                  {t("survey.send.employee_label")}
+                </div>
+                <div className="text-xs text-slate-500">
+                  {t("survey.send.employee_selection_hint")}
+                </div>
+              </div>
+
+              <BaseButton
+                type="primary"
+                label="survey.send.select_employees"
+                onClick={() => setSelectModalOpen(true)}
+              />
+            </div>
+
+            {selectedOnboardings.length === 0 ? (
+              <div className="rounded-lg bg-slate-50 px-3 py-4 text-sm text-slate-500">
+                {t("survey.send.no_employee_selected")}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-slate-700">
+                  {t("survey.send.selected_count")}: {selectedOnboardings.length}
+                </div>
+
+                <div className="max-h-52 space-y-2 overflow-auto">
+                  {selectedOnboardings.map((item) => (
+                    <div
+                      key={item.instanceId}
+                      className="rounded-lg border border-slate-200 px-3 py-2"
+                    >
+                      <div className="font-medium text-slate-800">
+                        {item.employeeName}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {item.email || "-"}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {t("survey.send.start_date_column")}:{" "}
+                        {item.startDate
+                          ? dayjs(item.startDate).format("DD-MM-YYYY")
+                          : "-"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4">
+            <BaseSelect
+              name="templateId"
+              label={t("survey.send.template_label")}
+              options={templateOptions}
+              loading={isTemplatesLoading}
+              placeholder={t("global.select")}
+              formItemProps={{
+                rules: [
+                  {
+                    required: true,
+                    message: t("survey.send.validation.template_required"),
+                  },
+                ],
+              }}
+            />
+          </div>
+
+          <div className="mt-4">
+            <Form.Item<FormValues>
+              name="scheduledAt"
+              label={t("survey.send.scheduled_at_label")}
+            >
+              <DatePicker
+                className="w-full"
+                format="DD-MM-YYYY"
+                placeholder={t("survey.send.scheduled_at_placeholder")}
+                disabledDate={(current) => {
+                  if (!latestStartDate) return false;
+                  return current.isBefore(latestStartDate.startOf("day"), "day");
+                }}
+              />
+            </Form.Item>
+
+            {latestStartDate && (
+              <div className="text-xs text-slate-500">
+                {t("survey.send.min_schedule_hint")}{" "}
+                <span className="font-medium">
+                  {latestStartDate.format("DD-MM-YYYY")}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 rounded-xl border border-dashed border-slate-200 p-4">
+            <div className="mb-2 text-sm font-semibold text-slate-800">
+              {t("survey.send.summary_title")}
+            </div>
+
+            <div className="space-y-2 text-sm text-slate-600">
+              <div>
+                <span className="font-medium">{t("survey.send.employee_label")}:</span>{" "}
+                {selectedOnboardings.length}
+              </div>
+              <div>
+                <span className="font-medium">{t("survey.send.template_label")}:</span>{" "}
+                {selectedTemplate?.name || "-"}
+              </div>
+              <div>
+                <span className="font-medium">{t("survey.send.scheduled_at_label")}:</span>{" "}
+                {form.getFieldValue("scheduledAt")
+                  ? dayjs(form.getFieldValue("scheduledAt")).format("DD-MM-YYYY")
+                  : "-"}
+              </div>
+            </div>
+          </div>
+        </Form>
+      </Drawer>
+
+      <SelectOnboardingModal
+        open={selectModalOpen}
+        selectedIds={selectedOnboardings.map((item) => item.instanceId)}
+        onClose={() => setSelectModalOpen(false)}
+        onConfirm={handleConfirmEmployees}
+      />
+    </>
   );
 };
 

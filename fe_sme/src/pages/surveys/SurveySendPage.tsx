@@ -9,10 +9,15 @@ import SurveySendDrawer from "./components/SurveySendDrawer";
 import { InstanceStatusTag } from "./components/SurveyStatusTag";
 import { useSurveySendPage } from "./hooks/useSurveySendPage";
 import type { SurveyInstanceItem } from "./types/survey-send.types";
-import {
-  formatDateTime,
-  getSurveySendStatusOptions,
-} from "./utils/survey-send.utils";
+import { formatDateTime } from "./utils/survey-send.utils";
+
+const statusOptions = [
+  { value: "SCHEDULED", label: "Scheduled" },
+  { value: "PENDING", label: "Pending" },
+  { value: "SENT", label: "Sent" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "EXPIRED", label: "Expired" },
+];
 
 const SurveySendPage = () => {
   const { t } = useLocale();
@@ -31,33 +36,55 @@ const SurveySendPage = () => {
     clearFilters,
   } = useSurveySendPage();
 
-  const statusOptions = getSurveySendStatusOptions();
+  const tt = (key: string, fallback: string) => {
+    const value = t(key);
+    return value === key ? fallback : value;
+  };
 
   const columns: ColumnsType<SurveyInstanceItem> = [
     {
-      title: t("survey.send.table.template") || "Survey template",
+      title: tt("survey.send.table.employee", "Employee"),
+      dataIndex: "employeeName",
+      key: "employeeName",
+      width: 260,
+      render: (_: unknown, record) => (
+        <div>
+          <div className="font-medium text-slate-800">
+            {record.employeeName || (
+              <span className="text-xs italic text-slate-400">
+                Chưa có thông tin
+              </span>
+            )}
+          </div>
+          <div className="text-xs text-slate-500">{record.email || "—"}</div>
+        </div>
+      ),
+    },
+    {
+      title: tt("survey.send.table.template", "Survey template"),
       dataIndex: "templateName",
       key: "templateName",
-      render: (value: string) => value || "—",
+      render: (value: string | null | undefined) => value || "—",
     },
     {
-      title: t("survey.send.table.scheduled_at") || "Scheduled at",
+      title: tt("survey.send.table.scheduled_at", "Scheduled at"),
       dataIndex: "scheduledAt",
       key: "scheduledAt",
-      render: (value) => formatDateTime(value),
+      render: (value: string | null | undefined) => formatDateTime(value),
     },
     {
-      title: t("survey.send.table.status") || "Status",
+      title: tt("survey.send.table.status", "Status"),
       dataIndex: "status",
       key: "status",
       width: 160,
-      render: (value: string) => <InstanceStatusTag status={value} />,
+      render: (value: string | null | undefined) =>
+        value ? <InstanceStatusTag status={value} /> : "—",
     },
     {
-      title: t("survey.send.table.created_at") || "Created at",
+      title: tt("survey.send.table.created_at", "Created at"),
       dataIndex: "createdAt",
       key: "createdAt",
-      render: (value) => formatDateTime(value),
+      render: (value: string | null | undefined) => formatDateTime(value),
     },
   ];
 
@@ -77,11 +104,13 @@ const SurveySendPage = () => {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-lg font-semibold text-[#223A59]">
-            {t("survey.send.page_title") || "Send Surveys"}
+            {tt("survey.send.page_title", "Send Surveys")}
           </h1>
           <p className="mt-0.5 text-sm text-slate-500">
-            {t("survey.send.page_subtitle") ||
-              "Schedule onboarding surveys for employees and track outgoing survey sends."}
+            {tt(
+              "survey.send.page_subtitle",
+              "Schedule onboarding surveys for employees and track outgoing survey sends.",
+            )}
           </p>
         </div>
 
@@ -97,38 +126,39 @@ const SurveySendPage = () => {
         <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
-              {t("survey.send.filter.template") || "Survey template"}
+              {tt("survey.send.filter.template", "Survey template")}
             </label>
             <Select
               className="w-full"
               allowClear
               value={filters.templateId}
               options={templateOptions}
-              placeholder={t("global.select") || "Select"}
-              onChange={setTemplateId}
+              placeholder={tt("global.select", "Chọn...")}
+              onChange={(value) => setTemplateId(value)}
             />
           </div>
 
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
-              {t("survey.send.filter.status") || "Status"}
+              {tt("survey.send.filter.status", "Status")}
             </label>
             <Select
               className="w-full"
               allowClear
               value={filters.status}
               options={statusOptions}
-              placeholder={t("global.select") || "Select"}
-              onChange={setStatus}
+              placeholder={tt("global.select", "Chọn...")}
+              onChange={(value) => setStatus(value)}
             />
           </div>
 
           <div className="lg:col-span-2">
             <label className="mb-1 block text-sm font-medium text-slate-700">
-              {t("survey.send.filter.date_range") || "Scheduled date range"}
+              {tt("survey.send.filter.date_range", "Scheduled date range")}
             </label>
             <DatePicker.RangePicker
               className="w-full"
+              format="DD-MM-YYYY"
               onChange={handleDateRangeChange}
             />
           </div>
@@ -137,30 +167,29 @@ const SurveySendPage = () => {
         <div className="mb-4 flex items-center justify-between gap-3">
           <div className="text-sm text-slate-500">
             {totalCount > 0
-              ? `${totalCount} ${
-                  t("survey.send.total_items") || "scheduled survey(s)"
-                }`
-              : t("survey.send.empty_count") || "No outgoing surveys yet"}
+              ? `${totalCount} ${tt("survey.send.total_items", "Total items")}`
+              : tt("survey.send.empty_count", "Chưa có dữ liệu")}
           </div>
 
-          <BaseButton
-            label="global.clear_filter"
-            onClick={clearFilters}
-          />
+          <BaseButton label="global.clear_filter" onClick={clearFilters} />
         </div>
 
         {rows.length === 0 && !isLoading ? (
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-6 py-14">
             <Empty
-              image={<CalendarClock className="mx-auto h-10 w-10 text-slate-300" />}
+              image={
+                <CalendarClock className="mx-auto h-10 w-10 text-slate-300" />
+              }
               description={
                 <div className="space-y-1">
                   <div className="text-sm font-medium text-slate-700">
-                    {t("survey.send.empty_title") || "No scheduled surveys yet"}
+                    {tt("survey.send.empty_title", "No scheduled surveys yet")}
                   </div>
                   <div className="text-sm text-slate-500">
-                    {t("survey.send.empty_desc") ||
-                      "Create a new survey send to assign a survey template to an employee immediately or schedule it for later."}
+                    {tt(
+                      "survey.send.empty_desc",
+                      "Create a new survey send to assign a survey template to an employee immediately or schedule it for later.",
+                    )}
                   </div>
                 </div>
               }
@@ -175,7 +204,7 @@ const SurveySendPage = () => {
           </div>
         ) : (
           <Table<SurveyInstanceItem>
-            rowKey="id"
+            rowKey={(record) => record.id || record.instanceId || ""}
             loading={isLoading}
             columns={columns}
             dataSource={rows}

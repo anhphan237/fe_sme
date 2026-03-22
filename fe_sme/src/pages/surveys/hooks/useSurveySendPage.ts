@@ -1,12 +1,18 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+
 import {
   apiGetSurveyInstances,
   apiListSurveyTemplates,
 } from "@/api/survey/survey.api";
 import { extractList } from "@/api/core/types";
+
 import type { SurveyTemplateSummary } from "@/interface/survey";
-import type { SurveySendFilter } from "../types/survey-send.types";
+import type {
+  SurveySendFilter,
+  SurveyInstanceItem,
+} from "../types/survey-send.types";
+
 import {
   mapSurveyInstanceListResponse,
   mapTemplateOptions,
@@ -60,37 +66,30 @@ export const useSurveySendPage = () => {
     select: mapSurveyInstanceListResponse,
   });
 
-  const setTemplateId = (value?: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      templateId: value,
-      page: 1,
+  const rows: SurveyInstanceItem[] = useMemo(() => {
+    return (data?.items ?? []).map((item) => ({
+      ...item,
+      employeeName: item.employeeName || "Chưa có thông tin",
+      email: item.email || "—",
     }));
+  }, [data]);
+
+  const totalCount = data?.totalCount ?? 0;
+
+  const setTemplateId = (value?: string) => {
+    setFilters((prev) => ({ ...prev, templateId: value, page: 1 }));
   };
 
   const setStatus = (value?: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      status: value,
-      page: 1,
-    }));
+    setFilters((prev) => ({ ...prev, status: value, page: 1 }));
   };
 
   const setDateRange = (startDate?: string, endDate?: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      startDate,
-      endDate,
-      page: 1,
-    }));
+    setFilters((prev) => ({ ...prev, startDate, endDate, page: 1 }));
   };
 
   const setPagination = (page: number, pageSize: number) => {
-    setFilters((prev) => ({
-      ...prev,
-      page,
-      pageSize,
-    }));
+    setFilters((prev) => ({ ...prev, page, pageSize }));
   };
 
   const clearFilters = () => {
@@ -106,8 +105,8 @@ export const useSurveySendPage = () => {
 
   return {
     filters,
-    rows: data?.items ?? [],
-    totalCount: data?.totalCount ?? 0,
+    rows,
+    totalCount,
     isLoading,
     templateOptions,
     setTemplateId,
