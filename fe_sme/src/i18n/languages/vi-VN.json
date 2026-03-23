@@ -1376,7 +1376,58 @@
 
   "survey.question.meta.sort_order": "thứ tự",
   "survey.question.meta.id": "mã",
-  "survey.question.meta.new": "mới"
+  "survey.question.meta.new": "mới",
+
+  "survey.send.page_title": "Gửi khảo sát",
+  "survey.send.page_subtitle": "Lên lịch và theo dõi khảo sát onboarding cho nhân viên",
+
+  "survey.send.filter.template": "Mẫu khảo sát",
+  "survey.send.filter.status": "Trạng thái",
+  "survey.send.filter.date_range": "Khoảng ngày",
+
+  "survey.send.empty_title": "Chưa có khảo sát nào",
+  "survey.send.empty_desc": "Tạo khảo sát để gửi ngay hoặc lên lịch sau",
+  "survey.send.empty_count": "Chưa có dữ liệu",
+
+  "survey.send.table.template": "Mẫu khảo sát",
+  "survey.send.table.scheduled_at": "Thời gian gửi",
+  "survey.send.table.status": "Trạng thái",
+  "survey.send.table.created_at": "Ngày tạo",
+  "global.clear_filter": "Xóa bộ lọc",
+
+  "survey.send.validation.onboarding_required": "Vui lòng chọn onboarding",
+  "survey.send.validation.template_required": "Vui lòng chọn mẫu khảo sát",
+
+  "survey.send.employee_multi_placeholder": "Chọn một hoặc nhiều nhân viên",
+  "survey.send.scheduled_at_placeholder": "Chọn thời điểm",
+  "survey.send.min_schedule_hint": "Ngày gửi phải từ",
+
+  "survey.send.success_many": "khảo sát đã được lên lịch thành công",
+  "survey.send.success_partial": "thành công",
+  "survey.send.failed_partial": "thất bại",
+  "survey.send.employee_selection_hint": "Chọn nhân viên từ danh sách onboarding",
+  "survey.send.select_employees": "Chọn nhân viên",
+  "survey.send.confirm_selected_employees": "Xác nhận chọn",
+  "survey.send.no_employee_selected": "Chưa có nhân viên nào được chọn",
+  "survey.send.selected_count": "Đã chọn",
+
+
+  "survey.send.summary_title": "Tóm tắt gửi khảo sát",
+  "survey.send.summary_employee_count": "Số nhân viên",
+  "survey.send.summary_template": "Mẫu khảo sát",
+  "survey.send.summary_date": "Ngày dự kiến gửi",
+
+  "survey.send.select_employee_modal_title": "Chọn nhân viên onboarding",
+  "survey.send.search_employee_placeholder": "Tìm theo tên, email, quản lý hoặc trạng thái",
+  "survey.send.employee_name_column": "Tên nhân viên",
+  "survey.send.email_column": "Email",
+  "survey.send.manager_column": "Quản lý",
+  "survey.send.start_date_column": "Ngày bắt đầu",
+  "survey.send.status_column": "Trạng thái",
+  "survey.send.selected_employees_title": "Danh sách đã chọn",
+  "survey.send.empty_selected_employees": "Chưa chọn nhân viên nào",
+  "survey.send.total_items": "Tổng số mục",
+  "survey.send.table.employee": "Nhân viên"
 
 
 }

@@ -63,7 +63,7 @@ const PaymentConfirmation = lazy(
 );
 const PlatformPayments = lazy(() => import("@/pages/platform/Payments"));
 const Forbidden = lazy(() => import("@/pages/Forbidden"));
-
+const SurveySend = lazy(() => import("@/pages/surveys/SurveySendPage"));
 const PageSkeleton = () => (
   <div className="space-y-4 p-6">
     <Skeleton active paragraph={{ rows: 1 }} title={{ width: "33%" }} />
@@ -263,6 +263,11 @@ export const router = createBrowserRouter([
         element: suspense(withRoles(<PlatformPayments />, ["STAFF"])),
       },
       { path: "/403", element: suspense(<Forbidden />) },
+      {
+        path: "/surveys/send",
+        element: suspense(
+          withRoles(<SurveySend />, ["HR"])),
+      },
     ],
   },
   {

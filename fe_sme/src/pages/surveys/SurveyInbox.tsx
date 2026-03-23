@@ -49,8 +49,9 @@ const SurveyInbox = () => {
     ],
     queryFn: () =>
       apiGetSurveyInstances({
-        status: statusFilter || undefined,
-        employeeId: employeeOnlyView ? currentUser?.id : undefined,
+           status: statusFilter || undefined,
+          limit: 20,
+          offset: 0,
       }),
   });
   const instances = extractList<SurveyInstanceSummary>(
@@ -61,71 +62,84 @@ const SurveyInbox = () => {
 
   const filtered = useMemo(() => instances, [instances]);
 
-  const columns: ColumnsType<SurveyInstanceSummary> = [
-    {
-      title: t("survey.inbox.col.survey"),
-      dataIndex: "templateName",
-      key: "templateName",
-      render: (name: string, row) => (
-        <button
-          type="button"
-          className="text-left font-medium text-[#223A59] hover:text-[#3684DB] hover:underline"
-          onClick={() => navigate(`/surveys/inbox/${row.instanceId}`)}>
-          {name}
-        </button>
-      ),
-    },
-    {
-      title: t("survey.inbox.col.employee"),
-      dataIndex: "employeeId",
-      key: "employeeId",
-      render: (id: string) => (
-        <span className="font-mono text-xs text-slate-500">{id}</span>
-      ),
-    },
-    {
-      title: t("survey.inbox.col.scheduled"),
-      dataIndex: "scheduledAt",
-      key: "scheduledAt",
-      width: 140,
-      render: (date: string | null) =>
-        date ? (
-          <span className="inline-flex items-center rounded-full bg-slate-50 px-2.5 py-0.5 text-xs text-slate-500 ring-1 ring-inset ring-slate-200">
-            {new Date(date).toLocaleDateString()}
-          </span>
-        ) : (
-          <span className="text-slate-300">—</span>
-        ),
-    },
-    {
-      title: t("survey.inbox.col.status"),
-      dataIndex: "status",
-      key: "status",
-      width: 130,
-      render: (status: string) => <InstanceStatusTag status={status} />,
-    },
-    {
-      title: t("global.action"),
-      key: "actions",
-      width: 140,
-      render: (_, row) =>
-        row.status === "PENDING" ? (
-          <BaseButton
-            size="small"
-            type="primary"
-            label="survey.inbox.take"
-            onClick={() => navigate(`/surveys/inbox/${row.instanceId}`)}
-          />
-        ) : (
-          <BaseButton
-            size="small"
-            label="survey.inbox.open"
-            onClick={() => navigate(`/surveys/inbox/${row.instanceId}`)}
-          />
-        ),
-    },
-  ];
+const columns: ColumnsType<SurveyInstanceSummary> = [
+  {
+    title: t("survey.inbox.col.survey"),
+    dataIndex: "templateName",
+    key: "templateName",
+    render: (name: string, row) => (
+      <button
+        type="button"
+        className="text-left font-medium text-[#223A59] hover:text-[#3684DB] hover:underline"
+        onClick={() => navigate(`/surveys/inbox/${row.instanceId}`)}
+      >
+        {name}
+      </button>
+    ),
+  },
 
+  ...(!employeeOnlyView
+    ? [
+        {
+          title: t("survey.inbox.col.employee"),
+          dataIndex: "employeeName",
+          key: "employeeName",
+          render: (_: string, row: SurveyInstanceSummary) => (
+            <div className="leading-tight">
+              <div className="font-medium text-slate-700">
+                {row.employeeName || "—"}
+              </div>
+              <div className="text-xs text-slate-400">
+                {row.email || row.responderUserId || "—"}
+              </div>
+            </div>
+          ),
+        },
+      ]
+    : []),
+
+  {
+    title: t("survey.inbox.col.scheduled"),
+    dataIndex: "scheduledAt",
+    key: "scheduledAt",
+    width: 140,
+    render: (date: string | null) =>
+      date ? (
+        <span className="inline-flex items-center rounded-full bg-slate-50 px-2.5 py-0.5 text-xs text-slate-500 ring-1 ring-inset ring-slate-200">
+          {new Date(date).toLocaleDateString()}
+        </span>
+      ) : (
+        <span className="text-slate-300">—</span>
+      ),
+  },
+  {
+    title: t("survey.inbox.col.status"),
+    dataIndex: "status",
+    key: "status",
+    width: 130,
+    render: (status: string) => <InstanceStatusTag status={status} />,
+  },
+  {
+    title: t("global.action"),
+    key: "actions",
+    width: 140,
+    render: (_, row) =>
+      row.status === "PENDING" ? (
+        <BaseButton
+          size="small"
+          type="primary"
+          label="survey.inbox.take"
+          onClick={() => navigate(`/surveys/inbox/${row.instanceId}`)}
+        />
+      ) : (
+        <BaseButton
+          size="small"
+          label="survey.inbox.open"
+          onClick={() => navigate(`/surveys/inbox/${row.instanceId}`)}
+        />
+      ),
+  },
+];
   return (
     <div className="space-y-5">
       {/* ── Page header ── */}

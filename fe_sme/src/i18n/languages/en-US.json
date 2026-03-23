@@ -1352,5 +1352,55 @@
   "survey.question.meta.sort_order": "sortOrder",
   "survey.question.meta.id": "id",
   "survey.question.meta.new": "new",
-  "global.loading": "Loading..."
+  "global.loading": "Loading...",
+  "survey.send.page_title": "Send Surveys",
+  "survey.send.page_subtitle": "Schedule onboarding surveys and track outgoing survey sends",
+
+  "survey.send.filter.template": "Survey template",
+  "survey.send.filter.status": "Status",
+  "survey.send.filter.date_range": "Date range",
+
+  "survey.send.empty_title": "No scheduled surveys yet",
+  "survey.send.empty_desc": "Create a survey to send now or schedule it for later",
+  "survey.send.empty_count": "No data",
+
+  "survey.send.table.template": "Survey template",
+  "survey.send.table.scheduled_at": "Scheduled at",
+  "survey.send.table.status": "Status",
+  "survey.send.table.created_at": "Created at",
+  "global.clear_filter": "Clear filters",
+
+  "survey.send.success_many": "surveys scheduled successfully",
+  "survey.send.success_partial": "successful",
+  "survey.send.failed_partial": "failed",
+
+  "survey.send.employee_selection_hint": "Select employees from onboarding list",
+  "survey.send.select_employees": "Select employees",
+  "survey.send.confirm_selected_employees": "Confirm selection",
+  "survey.send.no_employee_selected": "No employees selected",
+  "survey.send.selected_count": "Selected",
+
+  "survey.send.scheduled_at_placeholder": "Select date",
+  "survey.send.min_schedule_hint": "Send date must be from",
+
+  "survey.send.summary_title": "Survey sending summary",
+  "survey.send.summary_employee_count": "Employee count",
+  "survey.send.summary_template": "Survey template",
+  "survey.send.summary_date": "Scheduled date",
+
+  "survey.send.select_employee_modal_title": "Select onboarding employees",
+  "survey.send.search_employee_placeholder": "Search by name, email, manager or status",
+  "survey.send.employee_name_column": "Employee name",
+  "survey.send.email_column": "Email",
+  "survey.send.manager_column": "Manager",
+  "survey.send.start_date_column": "Start date",
+  "survey.send.status_column": "Status",
+  "survey.send.selected_employees_title": "Selected employees",
+  "survey.send.empty_selected_employees": "No employees selected yet",
+
+  "survey.send.validation.onboarding_required": "Please select at least one onboarding employee",
+  "survey.send.validation.template_required": "Please select a survey template",
+  "survey.send.total_items": "Total items",
+  "survey.send.table.employee": "Employee"
+  
 }
