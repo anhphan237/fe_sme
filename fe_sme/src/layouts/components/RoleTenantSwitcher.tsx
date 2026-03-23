@@ -1,16 +1,18 @@
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 import { useUserStore } from "@/stores/user.store";
 import { ROLE_LABELS, getPrimaryRole } from "@/shared/rbac";
+import { useLocale } from "@/i18n";
 
-function Badge({ children }: { children: React.ReactNode }) {
+function Badge({ children }: { children: ReactNode }) {
   return (
-    <span className="rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-600">
       {children}
     </span>
   );
 }
 
 export function RoleTenantSwitcher() {
+  const { t } = useLocale();
   const currentUser = useUserStore((s) => s.currentUser);
   const currentTenant = useUserStore((s) => s.currentTenant);
 
@@ -29,12 +31,14 @@ export function RoleTenantSwitcher() {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="rounded-full border border-stroke bg-white px-3 py-2 text-sm">
-        {currentUser?.name ?? "Guest"}
+      <div className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700">
+        {currentUser?.name ?? t("layout.user.guest")}
       </div>
       <Badge>{roleLabel}</Badge>
       {currentUser?.roles && currentUser.roles.length > 1 && (
-        <Badge>+{currentUser.roles.length - 1} roles</Badge>
+        <Badge>
+          +{currentUser.roles.length - 1} {t("layout.user.roles_more")}
+        </Badge>
       )}
       {currentTenant && <Badge>{currentTenant.name}</Badge>}
     </div>

@@ -56,9 +56,19 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: ClipboardCheck,
     children: [
       {
-        titleKey: "nav.onboarding",
-        to: "/onboarding",
-        requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
+        titleKey: "nav.onboarding.hr_workspace",
+        to: "/onboarding/hr",
+        requiredRoles: ["HR"],
+      },
+      {
+        titleKey: "nav.onboarding.manager_workspace",
+        to: "/onboarding/home/manager",
+        requiredRoles: ["MANAGER"],
+      },
+      {
+        titleKey: "nav.onboarding.my_workspace",
+        to: "/onboarding/home/employee",
+        requiredRoles: ["EMPLOYEE"],
       },
       {
         titleKey: "nav.onboarding.templates",
@@ -68,7 +78,7 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         titleKey: "nav.onboarding.employees",
         to: "/onboarding/employees",
-        requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
+        requiredRoles: ["HR", "MANAGER"],
       },
       {
         titleKey: "nav.onboarding.new_employee",

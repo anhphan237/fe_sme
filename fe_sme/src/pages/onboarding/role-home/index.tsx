@@ -11,7 +11,7 @@ const OnboardingRoleHome = () => {
   }
 
   if (roles.includes("HR")) {
-    return <Navigate to="/onboarding/home/hr" replace />;
+    return <Navigate to="/onboarding/hr" replace />;
   }
 
   if (canManageOnboarding(roles)) {

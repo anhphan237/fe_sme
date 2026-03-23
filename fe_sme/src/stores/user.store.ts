@@ -5,6 +5,13 @@ export type Locale = "vi_VN" | "en_US";
 
 const AUTH_TOKEN_KEY = "auth_token";
 
+const normalizeLocale = (value: string | null): Locale => {
+  if (!value) return "vi_VN";
+  if (value === "vi_VN" || value === "vi-VN") return "vi_VN";
+  if (value === "en_US" || value === "en-US") return "en_US";
+  return "vi_VN";
+};
+
 interface UserState {
   currentTenant: Tenant | null;
   currentUser: User | null;
@@ -24,9 +31,9 @@ export const useUserStore = create<UserState>((set) => ({
   currentUser: null,
   token:
     typeof window !== "undefined" ? localStorage.getItem(AUTH_TOKEN_KEY) : null,
-  locale: ((typeof window !== "undefined"
-    ? localStorage.getItem("locale")
-    : null) || "vi_VN") as Locale,
+  locale: normalizeLocale(
+    typeof window !== "undefined" ? localStorage.getItem("locale") : null,
+  ),
   logged:
     typeof window !== "undefined"
       ? !!localStorage.getItem(AUTH_TOKEN_KEY)
@@ -43,9 +50,9 @@ export const useUserStore = create<UserState>((set) => ({
   },
   setLocale: (locale) => {
     if (typeof window !== "undefined") {
-      localStorage.setItem("locale", locale);
+      localStorage.setItem("locale", normalizeLocale(locale));
     }
-    set({ locale });
+    set({ locale: normalizeLocale(locale) });
   },
   logout: () => {
     if (typeof window !== "undefined") {

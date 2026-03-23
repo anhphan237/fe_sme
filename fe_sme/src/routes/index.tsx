@@ -145,6 +145,10 @@ export const router = createBrowserRouter([
         element: suspense(withRoles(<OnboardingHrHome />, ["HR"])),
       },
       {
+        path: "/onboarding/hr",
+        element: suspense(withRoles(<OnboardingHrHome />, ["HR"])),
+      },
+      {
         path: "/onboarding/templates",
         element: suspense(withRoles(<Templates />, ["HR"])),
       },
@@ -158,9 +162,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "/onboarding/employees",
-        element: suspense(
-          withRoles(<Employees />, ["HR", "MANAGER", "EMPLOYEE"]),
-        ),
+        element: suspense(withRoles(<Employees />, ["HR", "MANAGER"])),
       },
       {
         path: "/onboarding/employees/new",
@@ -168,9 +170,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "/onboarding/employees/:employeeId",
-        element: suspense(
-          withRoles(<EmployeeDetail />, ["HR", "MANAGER", "EMPLOYEE"]),
-        ),
+        element: suspense(withRoles(<EmployeeDetail />, ["HR", "MANAGER"])),
       },
       {
         path: "/onboarding/tasks",

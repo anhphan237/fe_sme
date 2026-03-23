@@ -1,14 +1,26 @@
-﻿import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, Clock } from "lucide-react";
-import { Button, Card, Empty, Progress, Skeleton } from "antd";
+import {
+  Button,
+  Card,
+  Drawer,
+  Empty,
+  Input,
+  Progress,
+  Segmented,
+  Skeleton,
+  Tag,
+  Typography,
+} from "antd";
 
 import { notify } from "@/utils/notify";
 import { useUserStore } from "@/stores/user.store";
 import { useLocale } from "@/i18n";
 import { isOnboardingEmployee } from "@/shared/rbac";
 import {
+  apiGetTaskDetail,
   apiListInstances,
   apiListTasks,
   apiUpdateTaskStatus,
@@ -21,6 +33,8 @@ import type { OnboardingInstance, OnboardingTask } from "@/shared/types";
 
 const STATUS_DONE = "Done";
 const STATUS_DONE_API = "DONE";
+
+type StatusFilter = "all" | "pending" | "done";
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
@@ -66,6 +80,21 @@ const useTasksQuery = (onboardingId?: string) =>
       ).map(mapTask) as OnboardingTask[],
   });
 
+const useTaskDetailQuery = (taskId?: string) =>
+  useQuery({
+    queryKey: ["onboarding-task-detail", taskId ?? ""],
+    queryFn: () => apiGetTaskDetail(taskId!),
+    enabled: Boolean(taskId),
+    select: (res: unknown) => {
+      const record = res as Record<string, unknown>;
+      return (record?.task ??
+        record?.data ??
+        record?.result ??
+        record?.payload ??
+        res) as Record<string, unknown>;
+    },
+  });
+
 const useUpdateTaskStatus = () =>
   useMutation({
     mutationFn: ({ taskId, status }: { taskId: string; status: string }) =>
@@ -100,10 +129,12 @@ const TaskItem = ({
   task,
   isUpdating,
   onChange,
+  onInspect,
 }: {
   task: OnboardingTask;
   isUpdating: boolean;
   onChange: (task: OnboardingTask) => void;
+  onInspect: (task: OnboardingTask) => void;
 }) => {
   const { t } = useLocale();
   const isDone = task.status === STATUS_DONE;
@@ -111,7 +142,7 @@ const TaskItem = ({
     task.dueDate && !isDone && new Date(task.dueDate) < new Date();
 
   return (
-    <li className="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-slate-50">
+    <li className="flex flex-col gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50 sm:flex-row sm:items-center sm:gap-4">
       <label className="flex flex-1 cursor-pointer items-center gap-3">
         <input
           type="checkbox"
@@ -129,15 +160,26 @@ const TaskItem = ({
           {task.title}
         </span>
       </label>
-      {task.dueDate && (
-        <span
-          className={`flex items-center gap-1 text-xs ${
-            isOverdue ? "font-medium text-amber-600" : "text-gray-400"
-          }`}>
-          <Clock className="h-3 w-3" />
-          {t("onboarding.task.due", { date: task.dueDate })}
-        </span>
-      )}
+
+      <div className="flex items-center justify-between gap-2 sm:justify-end">
+        {task.dueDate ? (
+          <span
+            className={`flex items-center gap-1 text-xs ${
+              isOverdue ? "font-medium text-amber-600" : "text-gray-400"
+            }`}>
+            <Clock className="h-3 w-3" />
+            {t("onboarding.task.due", { date: task.dueDate })}
+          </span>
+        ) : (
+          <span className="text-xs text-gray-400">
+            {t("onboarding.task.no_due_date")}
+          </span>
+        )}
+
+        <Button size="small" onClick={() => onInspect(task)}>
+          {t("onboarding.task.api.inspect")}
+        </Button>
+      </div>
     </li>
   );
 };
@@ -147,11 +189,13 @@ const StageSection = ({
   tasks,
   isUpdating,
   onToggle,
+  onInspect,
 }: {
   title: string;
   tasks: OnboardingTask[];
   isUpdating: boolean;
   onToggle: (task: OnboardingTask) => void;
+  onInspect: (task: OnboardingTask) => void;
 }) => {
   const done = tasks.filter((t) => t.status === STATUS_DONE).length;
   const total = tasks.length;
@@ -188,6 +232,7 @@ const StageSection = ({
             task={task}
             isUpdating={isUpdating}
             onChange={onToggle}
+            onInspect={onInspect}
           />
         ))}
       </ul>
@@ -246,20 +291,43 @@ const Tasks = () => {
     refetch,
   } = useTasksQuery(onboardingId);
   const updateStatus = useUpdateTaskStatus();
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [keyword, setKeyword] = useState("");
+
+  const {
+    data: taskDetail,
+    isLoading: taskDetailLoading,
+    isError: taskDetailError,
+  } = useTaskDetailQuery(selectedTaskId ?? undefined);
 
   const completedCount = tasks.filter(
     (task) => task.status === STATUS_DONE,
   ).length;
   const totalCount = tasks.length;
 
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      const matchKeyword = task.title
+        .toLowerCase()
+        .includes(keyword.trim().toLowerCase());
+
+      if (!matchKeyword) return false;
+
+      if (statusFilter === "all") return true;
+      if (statusFilter === "done") return task.status === STATUS_DONE;
+      return task.status !== STATUS_DONE;
+    });
+  }, [tasks, keyword, statusFilter]);
+
   const grouped = useMemo(() => {
     const map = new Map<string, OnboardingTask[]>();
-    for (const task of tasks) {
+    for (const task of filteredTasks) {
       const key = task.checklistName ?? "Other";
       map.set(key, [...(map.get(key) ?? []), task]);
     }
     return Array.from(map.entries());
-  }, [tasks]);
+  }, [filteredTasks]);
 
   const handleToggleTask = async (task: OnboardingTask) => {
     const isDone = task.status === STATUS_DONE;
@@ -279,16 +347,99 @@ const Tasks = () => {
     }
   };
 
+  const apiCapabilities = [
+    {
+      key: "listByOnboarding",
+      operation: "com.sme.onboarding.task.listByOnboarding",
+      ready: Boolean(onboardingId) && !isError,
+      note: onboardingId
+        ? t("onboarding.task.api.ready")
+        : t("onboarding.task.api.missing_instance"),
+    },
+    {
+      key: "detail",
+      operation: "com.sme.onboarding.task.detail",
+      ready: Boolean(selectedTaskId),
+      note: selectedTaskId
+        ? t("onboarding.task.api.selected_task")
+        : t("onboarding.task.api.select_task_to_check"),
+    },
+    {
+      key: "updateStatus",
+      operation: "com.sme.onboarding.task.updateStatus",
+      ready: true,
+      note: t("onboarding.task.api.update_ready"),
+    },
+  ];
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-800">
-          {t("onboarding.task.title")}
-        </h1>
-        <p className="mt-0.5 text-sm text-gray-500">
-          {t("onboarding.task.subtitle")}
-        </p>
-      </div>
+      <Card>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <p className="mb-2 text-sm font-semibold text-gray-800">
+              {t("onboarding.task.quickview.title")}
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input
+                allowClear
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder={t("onboarding.task.quickview.search_placeholder")}
+              />
+              <Segmented
+                value={statusFilter}
+                onChange={(value) => setStatusFilter(value as StatusFilter)}
+                options={[
+                  {
+                    label: t("onboarding.task.quickview.filter_all"),
+                    value: "all",
+                  },
+                  {
+                    label: t("onboarding.task.quickview.filter_pending"),
+                    value: "pending",
+                  },
+                  {
+                    label: t("onboarding.task.quickview.filter_done"),
+                    value: "done",
+                  },
+                ]}
+              />
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              {t("onboarding.task.quickview.result", {
+                visible: filteredTasks.length,
+                total: totalCount,
+              })}
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-gray-200 p-3">
+            <p className="mb-2 text-sm font-semibold text-gray-800">
+              {t("onboarding.task.api.title")}
+            </p>
+            <div className="space-y-2">
+              {apiCapabilities.map((api) => (
+                <div
+                  key={api.key}
+                  className="rounded-md border border-gray-100 p-2">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <code className="text-[11px] text-slate-600">
+                      {api.operation}
+                    </code>
+                    <Tag color={api.ready ? "success" : "default"}>
+                      {api.ready
+                        ? t("onboarding.task.api.available")
+                        : t("onboarding.task.api.waiting")}
+                    </Tag>
+                  </div>
+                  <p className="text-xs text-gray-500">{api.note}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Card>
 
       {totalCount > 0 && (
         <ProgressSummary completed={completedCount} total={totalCount} />
@@ -321,6 +472,7 @@ const Tasks = () => {
               tasks={stageTasks}
               isUpdating={updateStatus.isPending}
               onToggle={handleToggleTask}
+              onInspect={(task) => setSelectedTaskId(task.id)}
             />
           ))}
         </div>
@@ -337,8 +489,8 @@ const Tasks = () => {
                 type={myInstances.length > 0 ? "primary" : "default"}
                 onClick={() =>
                   myInstances.length > 0
-                    ? navigate(`/onboarding/employees/${myInstances[0].id}`)
-                    : navigate("/onboarding/employees")
+                    ? navigate("/onboarding/tasks")
+                    : navigate("/onboarding/home/employee")
                 }>
                 {myInstances.length > 0
                   ? t("onboarding.task.empty.action")
@@ -348,6 +500,44 @@ const Tasks = () => {
           </div>
         </Card>
       )}
+
+      <Drawer
+        title={t("onboarding.task.api.drawer_title")}
+        width={620}
+        open={Boolean(selectedTaskId)}
+        onClose={() => setSelectedTaskId(null)}>
+        {taskDetailLoading ? (
+          <Skeleton active paragraph={{ rows: 8 }} />
+        ) : taskDetailError ? (
+          <Empty description={t("onboarding.task.api.detail_error")} />
+        ) : taskDetail ? (
+          <div className="space-y-3">
+            <div className="rounded-lg border border-gray-200 p-3">
+              <Typography.Text type="secondary">
+                {t("onboarding.task.api.operation")}
+              </Typography.Text>
+              <div className="mt-1">
+                <code>com.sme.onboarding.task.detail</code>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-gray-200 p-3">
+              <Typography.Text type="secondary">
+                {t("onboarding.task.api.response_preview")}
+              </Typography.Text>
+              <pre className="mt-2 max-h-72 overflow-auto rounded bg-slate-50 p-3 text-xs">
+                {JSON.stringify(taskDetail, null, 2)}
+              </pre>
+            </div>
+
+            <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs text-blue-700">
+              {t("onboarding.task.api.execution_hint")}
+            </div>
+          </div>
+        ) : (
+          <Empty description={t("onboarding.task.api.select_task_to_check")} />
+        )}
+      </Drawer>
     </div>
   );
 };

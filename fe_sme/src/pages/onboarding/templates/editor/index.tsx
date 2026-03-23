@@ -88,6 +88,58 @@ const initialForm = (): EditorForm => ({
   checklists: [emptyChecklist()],
 });
 
+const aiTextToForm = (aiText: string): EditorForm => {
+  const lines = aiText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const titleLine = lines.find(
+    (line) =>
+      /^template\s*[:\-]/i.test(line) ||
+      /^title\s*[:\-]/i.test(line) ||
+      /^name\s*[:\-]/i.test(line),
+  );
+  const suggestedName =
+    titleLine?.split(/[:\-]/).slice(1).join(":").trim() ||
+    "AI Suggested Onboarding";
+
+  const bulletTasks = lines
+    .map((line) => line.replace(/^([\-\*•]|\d+[\.)])\s*/, "").trim())
+    .filter((line) => line.length > 0)
+    .filter((line) => !/^template\s*[:\-]/i.test(line))
+    .slice(0, 10);
+
+  const tasks = (
+    bulletTasks.length > 0
+      ? bulletTasks
+      : [
+          "Introduce company handbook",
+          "Setup core work tools",
+          "Assign onboarding buddy",
+        ]
+  ).map((taskName, index) => ({
+    id: crypto.randomUUID(),
+    name: taskName,
+    description: "",
+    dueDaysOffset: index === 0 ? 0 : Math.min(index * 2, 7),
+    requireAck: index === 0,
+  }));
+
+  return {
+    name: suggestedName,
+    description: aiText.slice(0, 500),
+    checklists: [
+      {
+        id: crypto.randomUUID(),
+        name: "AI Suggested Stage",
+        stageType: "DAY_1",
+        tasks,
+      },
+    ],
+  };
+};
+
 const templateToForm = (tmpl: OnboardingTemplate): EditorForm => ({
   name: tmpl.name ?? "",
   description: tmpl.description ?? "",
@@ -218,6 +270,8 @@ const TemplateEditor = () => {
   const duplicateFrom = (
     location.state as { duplicateFrom?: OnboardingTemplate } | null
   )?.duplicateFrom;
+  const aiSuggestion = (location.state as { aiSuggestion?: string } | null)
+    ?.aiSuggestion;
 
   const { data, isLoading } = useTemplateQuery(
     !isCreate ? templateId : undefined,
@@ -245,7 +299,14 @@ const TemplateEditor = () => {
   // Single effect for all form-init paths: create/duplicate, or edit with loaded data
   useEffect(() => {
     if (isCreate) {
-      if (duplicateFrom) setForm(templateToForm(duplicateFrom));
+      if (duplicateFrom) {
+        setForm(templateToForm(duplicateFrom));
+        return;
+      }
+
+      if (aiSuggestion?.trim()) {
+        setForm(aiTextToForm(aiSuggestion));
+      }
       return;
     }
     if (!data) return;
@@ -254,7 +315,7 @@ const TemplateEditor = () => {
     syncedIdRef.current = id;
     setForm(templateToForm(data));
     if (id && data.name) setBreadcrumbs({ [id]: data.name });
-  }, [isCreate, duplicateFrom, data, templateId, setBreadcrumbs]);
+  }, [isCreate, duplicateFrom, aiSuggestion, data, templateId, setBreadcrumbs]);
 
   useEffect(() => {
     setActiveStageIndex((s) =>

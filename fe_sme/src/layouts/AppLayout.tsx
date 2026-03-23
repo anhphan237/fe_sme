@@ -12,7 +12,7 @@ const AppLayout = ({ children }: Props) => {
   const location = useLocation();
 
   return (
-    <div className="min-h-screen bg-slate-50 text-ink">
+    <div className="min-h-screen bg-slate-100 text-ink">
       <div className="flex">
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
@@ -21,8 +21,8 @@ const AppLayout = ({ children }: Props) => {
             pathname={location.pathname}
             onMenuClick={() => setSidebarOpen(true)}
           />
-          <main className="flex-1 overflow-y-auto bg-gray-100 p-6">
-            {children}
+          <main className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-100 via-slate-100 to-white/80 px-4 py-4 md:px-6 md:py-5">
+            <div className="mx-auto w-full max-w-[1400px]">{children}</div>
           </main>
         </div>
       </div>

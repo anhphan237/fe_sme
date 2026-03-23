@@ -6,13 +6,13 @@ import type { Locale } from "@/stores/user.store";
 type LangOption = {
   value: Locale;
   flag: string;
-  label: string;
+  labelKey: string;
   native: string;
 };
 
 const LANGUAGES: LangOption[] = [
-  { value: "vi_VN", flag: "🇻🇳", label: "Tiếng Việt", native: "VI" },
-  { value: "en_US", flag: "🇺🇸", label: "English", native: "EN" },
+  { value: "vi_VN", flag: "🇻🇳", labelKey: "lang.vi_VN", native: "VI" },
+  { value: "en_US", flag: "🇺🇸", labelKey: "lang.en_US", native: "EN" },
 ];
 
 export function LanguageSwitcher() {
@@ -61,7 +61,7 @@ export function LanguageSwitcher() {
                   : "text-gray-600"
               }`}>
               <span className="text-base">{lang.flag}</span>
-              <span>{lang.label}</span>
+              <span>{t(lang.labelKey)}</span>
               {locale === lang.value && (
                 <span className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-500" />
               )}
