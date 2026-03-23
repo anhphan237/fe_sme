@@ -4,6 +4,9 @@ import { fileURLToPath, URL } from "node:url";
 
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    global: "globalThis",
+  },
   plugins: [react()],
   server: {
     proxy: {
@@ -11,6 +14,13 @@ export default defineConfig({
         target: "https://sme-7aido.ondigitalocean.app",
         changeOrigin: true,
       },
+      // WebSocket proxy — only active when running against a local backend.
+      // Production uses VITE_API_BASE_URL directly (SockJS connects over HTTPS).
+      // "/ws": {
+      //   target: "http://localhost:8080",
+      //   ws: true,
+      //   changeOrigin: true,
+      // },
     },
   },
   resolve: {
@@ -19,9 +29,9 @@ export default defineConfig({
       "@core": fileURLToPath(new URL("./src/core", import.meta.url)),
     },
   },
-  test: {
-    environment: "jsdom",
-    setupFiles: ["./src/test/setup.ts"],
-    globals: true,
-  },
+  // test: {
+  //   environment: "jsdom",
+  //   setupFiles: ["./src/test/setup.ts"],
+  //   globals: true,
+  // },
 });

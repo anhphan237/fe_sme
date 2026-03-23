@@ -1,136 +1,107 @@
-.custom-breadcrumbs {
-  position: relative;
-  width: 100%;
-  float: left;
-  height: 35px;
-  box-sizing: border-box;
+/* ============================================================
+   Ant Design Breadcrumb — animated (fade-in + slide per item)
+   ============================================================ */
+
+/* Entire breadcrumb row fades in on mount / route change */
+@keyframes breadcrumbFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
-.custom-breadcrumbs > ul {
-  min-width: max-content;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+/* Each crumb item slides in from the left */
+@keyframes breadcrumbSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
-.custom-breadcrumbs > ul::after {
-  content: "";
-  display: block;
-  clear: both;
+/* Wrapper — triggers breadcrumbFadeIn when the key prop changes */
+.antd-breadcrumb-animated {
+  animation: breadcrumbFadeIn 0.25s ease both;
 }
 
-.breadcrumbs__item {
-  max-height: 35px;
-  white-space: nowrap;
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* Stagger each .ant-breadcrumb-link and separator */
+.antd-breadcrumb-animated .ant-breadcrumb ol > li {
+  animation: breadcrumbSlideIn 0.3s ease both;
 }
 
-.custom-breadcrumbs > ul > .breadcrumbs__item {
-  position: relative;
-  float: left;
-  display: flex;
+/* Delay each item so they cascade left→right */
+.antd-breadcrumb-animated .ant-breadcrumb ol > li:nth-child(1) {
+  animation-delay: 0s;
+}
+.antd-breadcrumb-animated .ant-breadcrumb ol > li:nth-child(2) {
+  animation-delay: 0.06s;
+}
+.antd-breadcrumb-animated .ant-breadcrumb ol > li:nth-child(3) {
+  animation-delay: 0.12s;
+}
+.antd-breadcrumb-animated .ant-breadcrumb ol > li:nth-child(4) {
+  animation-delay: 0.18s;
+}
+.antd-breadcrumb-animated .ant-breadcrumb ol > li:nth-child(5) {
+  animation-delay: 0.24s;
+}
+.antd-breadcrumb-animated .ant-breadcrumb ol > li:nth-child(6) {
+  animation-delay: 0.3s;
+}
+
+/* Home link icon alignment */
+.antd-breadcrumb-animated .ant-breadcrumb-home-link {
+  display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
-  transform: skewX(-15deg);
-  background-color: #ffffff;
-  box-shadow: -6px 0 18px -6px rgba(0, 0, 0, 0.5);
-  z-index: 1;
-  width: 70px;
-  margin-left: -45px;
-  padding: 0 15px;
-  min-width: fit-content;
-  transition: all 0.5s;
+  gap: 4px;
 }
 
-.custom-breadcrumbs > ul > .breadcrumbs__item:first-child {
-  margin-left: 0;
+/* Intermediate crumb links — visible on dark header */
+.antd-breadcrumb-animated .ant-breadcrumb-link a {
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 400;
+  transition:
+    color 0.18s ease,
+    background 0.18s ease;
+  border-radius: 5px;
+  padding: 2px 6px;
 }
 
-.custom-breadcrumbs > ul > .breadcrumbs__home {
-  width: 80px;
-  transform: none;
-  border-radius: 5px 0 0 5px;
-  box-sizing: border-box;
-  padding: 0 10px;
+.antd-breadcrumb-animated .ant-breadcrumb-link a:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
 }
 
-.breadcrumbs__home-link {
-  display: flex;
-  align-items: center;
-  height: 100%;
-  font-size: 1rem;
-  font-weight: 300;
-  color: #334155;
-  text-decoration: none;
+/* Separator — muted on dark */
+.antd-breadcrumb-animated .ant-breadcrumb-separator {
+  color: #475569 !important;
 }
 
-.breadcrumbs__link {
-  display: inline-block;
-  transform: skewX(15deg);
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: #334155;
-  text-decoration: none !important;
-  font-size: 1rem;
-  font-weight: 300;
+/* Home icon link on dark */
+.antd-breadcrumb-animated .antd-breadcrumb-home-link {
+  color: #94a3b8;
+  transition: color 0.18s ease;
 }
-
-.custom-breadcrumbs
-  > ul
-  > .breadcrumbs__item:not(.breadcrumbs__home):not(:last-child):hover {
-  background-color: #2563eb;
-  border: 1px solid #dbeafe;
-  z-index: 4;
-}
-
-.custom-breadcrumbs
-  > ul
-  > .breadcrumbs__item:not(.breadcrumbs__home):not(:last-child):hover
-  .breadcrumbs__link {
+.antd-breadcrumb-animated .antd-breadcrumb-home-link:hover {
   color: #ffffff;
 }
 
-.custom-breadcrumbs > ul > .breadcrumbs__item:last-child {
-  background-color: #0078ff;
-  border-radius: 0 24px 12px 0;
-  cursor: default;
-  z-index: 5;
-}
-
-.custom-breadcrumbs > ul > .breadcrumbs__item:last-child .breadcrumbs__link {
+/* Current (last) crumb — white on dark */
+.antd-breadcrumb-animated .ant-breadcrumb-link:last-child span,
+.antd-breadcrumb-animated .ant-breadcrumb-link:last-child {
   color: #ffffff;
   font-weight: 600;
-  cursor: default;
+  font-size: 13px;
 }
 
-.custom-breadcrumbs > ul:hover > .breadcrumbs__item {
-  margin-left: 0;
-}
-
-@media (max-width: 768px) {
-  .custom-breadcrumbs {
-    height: 33px;
-  }
-
-  .breadcrumbs__item {
-    max-height: 33px;
-  }
-
-  .custom-breadcrumbs > ul > .breadcrumbs__item {
-    margin-left: -28px;
-    padding: 0 12px;
-    max-width: 180px;
-  }
-
-  .custom-breadcrumbs > ul > .breadcrumbs__home {
-    padding: 0 10px;
-  }
-
-  .breadcrumbs__home-link,
-  .breadcrumbs__link {
-    font-size: 0.9rem;
-  }
+/* Separator color */
+.antd-breadcrumb-animated .ant-breadcrumb-separator {
+  color: #cbd5e1;
+  font-size: 12px;
 }

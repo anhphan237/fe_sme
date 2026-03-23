@@ -477,7 +477,7 @@ const TemplateEditor = () => {
         queryClient.invalidateQueries({ queryKey: ["templates"] });
         message.success(t("onboarding.template.editor.toast.created"));
       }
-      navigate("/onboarding/templates");
+      navigate("/onboarding/hr/templates");
     } catch {
       message.error(
         t(
@@ -497,7 +497,7 @@ const TemplateEditor = () => {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => navigate("/onboarding/templates")}
+            onClick={() => navigate("/onboarding/hr/templates")}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition hover:bg-slate-100 hover:text-ink">
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -519,7 +519,7 @@ const TemplateEditor = () => {
       <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={() => navigate("/onboarding/templates")}
+          onClick={() => navigate("/onboarding/hr/templates")}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition hover:bg-slate-100 hover:text-ink">
           <ChevronLeft className="h-4 w-4" />
         </button>
@@ -834,7 +834,7 @@ const TemplateEditor = () => {
               ) : (
                 <button
                   type="button"
-                  onClick={() => navigate("/onboarding/templates")}
+                  onClick={() => navigate("/onboarding/hr/templates")}
                   className="rounded-lg px-3 py-2 text-sm font-medium text-muted transition hover:bg-slate-100 hover:text-ink">
                   {t("onboarding.template.editor.btn.cancel")}
                 </button>

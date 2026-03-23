@@ -21,7 +21,7 @@ const ManagerHome = () => {
               Theo doi danh sach thanh vien team, tien do onboarding va trang
               thai instance.
             </Typography.Paragraph>
-            <Link to="/onboarding/employees">
+            <Link to="/onboarding/manager/employees">
               <Button type="primary" block>
                 Mo danh sach onboarding
               </Button>
@@ -35,7 +35,7 @@ const ManagerHome = () => {
               Kiem tra task qua han/chua hoan thanh de nhac nho hoac ho tro kip
               thoi.
             </Typography.Paragraph>
-            <Link to="/onboarding/tasks">
+            <Link to="/onboarding/manager/tasks">
               <Button block>Mo bang task</Button>
             </Link>
           </Card>

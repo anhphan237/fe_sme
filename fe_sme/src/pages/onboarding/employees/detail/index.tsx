@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft } from "lucide-react";
 import { Button, Card, Drawer, Progress, Skeleton, Tabs, Tag } from "antd";
@@ -158,11 +158,17 @@ const useTemplatesQuery = (status?: string) =>
 const EmployeeDetail = () => {
   const { employeeId: instanceId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { t } = useLocale();
   const currentUser = useUserStore((state) => state.currentUser);
   const setBreadcrumbs = useGlobalStore((state) => state.setBreadcrumbs);
   const isEmployee = isOnboardingEmployee(currentUser?.roles ?? []);
+  const backToEmployees = location.pathname.startsWith("/onboarding/manager")
+    ? "/onboarding/manager/employees"
+    : isEmployee
+      ? "/onboarding/employee"
+      : "/onboarding/hr/employees";
   const canManage = canManageOnboarding(currentUser?.roles ?? []);
 
   // ── Queries ──────────────────────────────────────────────────────────────────
@@ -393,9 +399,7 @@ const EmployeeDetail = () => {
           <p className="text-sm text-muted">
             {t("onboarding.detail.not_found")}
           </p>
-          <Button
-            className="mt-4"
-            onClick={() => navigate("/onboarding/employees")}>
+          <Button className="mt-4" onClick={() => navigate(backToEmployees)}>
             {t("onboarding.detail.back_to_list")}
           </Button>
         </Card>
@@ -419,8 +423,7 @@ const EmployeeDetail = () => {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Button onClick={() => navigate("/onboarding/employees")}>
-            <ChevronLeft className="mr-1 h-4 w-4" />
+          <Button onClick={() => navigate(backToEmployees)}>
             {t("global.back")}
           </Button>
           {canManage && instanceStatus === "DRAFT" && (

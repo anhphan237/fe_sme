@@ -13,13 +13,20 @@ export const AppRouters = {
   ADMIN_KNOWLEDGE_BASE: "/admin/knowledge-base",
   // Settings
   SETTINGS_NOTIFICATIONS: "/settings/notifications",
-  // Onboarding
-  ONBOARDING_TEMPLATES: "/onboarding/templates",
-  ONBOARDING_TEMPLATES_NEW: "/onboarding/templates/new",
-  ONBOARDING_EMPLOYEES: "/onboarding/employees",
-  ONBOARDING_EMPLOYEES_NEW: "/onboarding/employees/new",
-  ONBOARDING_TASKS: "/onboarding/tasks",
-  ONBOARDING_AUTOMATION: "/onboarding/automation",
+  // Onboarding - HR
+  ONBOARDING_HR: "/onboarding/hr",
+  ONBOARDING_HR_EMPLOYEES: "/onboarding/hr/employees",
+  ONBOARDING_HR_EMPLOYEES_NEW: "/onboarding/hr/employees/new",
+  ONBOARDING_HR_TEMPLATES: "/onboarding/hr/templates",
+  ONBOARDING_HR_TEMPLATES_NEW: "/onboarding/hr/templates/new",
+  ONBOARDING_HR_TASKS: "/onboarding/hr/tasks",
+  ONBOARDING_HR_AUTOMATION: "/onboarding/hr/automation",
+  // Onboarding - Manager
+  ONBOARDING_MANAGER: "/onboarding/manager",
+  ONBOARDING_MANAGER_EMPLOYEES: "/onboarding/manager/employees",
+  ONBOARDING_MANAGER_TASKS: "/onboarding/manager/tasks",
+  // Onboarding - Employee
+  ONBOARDING_EMPLOYEE: "/onboarding/employee",
   // Documents
   DOCUMENTS: "/documents",
   DOCUMENTS_ACKNOWLEDGMENTS: "/documents/acknowledgments",

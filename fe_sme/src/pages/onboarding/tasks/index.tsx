@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 import {
@@ -268,6 +268,7 @@ const LoadingState = () => (
 
 const Tasks = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { t } = useLocale();
   const currentUser = useUserStore((s) => s.currentUser);
@@ -489,8 +490,12 @@ const Tasks = () => {
                 type={myInstances.length > 0 ? "primary" : "default"}
                 onClick={() =>
                   myInstances.length > 0
-                    ? navigate("/onboarding/tasks")
-                    : navigate("/onboarding/home/employee")
+                    ? navigate(
+                        location.pathname.startsWith("/onboarding/hr")
+                          ? "/onboarding/hr/tasks"
+                          : "/onboarding/manager/tasks",
+                      )
+                    : navigate("/onboarding/employee")
                 }>
                 {myInstances.length > 0
                   ? t("onboarding.task.empty.action")

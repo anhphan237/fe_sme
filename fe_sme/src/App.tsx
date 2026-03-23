@@ -10,6 +10,7 @@ import { AuthRehydrate } from "./components/auth/AuthRehydrate";
 import { useUserStore } from "./stores/user.store";
 import { useGlobalStore } from "./stores/global.store";
 import { localeConfig } from "./i18n";
+// import { WebSocketProvider } from "./contexts/WebSocketContext";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -60,6 +61,7 @@ const AppProviders = () => {
           },
         }}>
         <AntdApp>
+          {/* <WebSocketProvider> */}
           <ToastMessage />
           <Spin
             spinning={loading}
@@ -70,6 +72,7 @@ const AppProviders = () => {
               <RouterProvider router={router} />
             </AuthRehydrate>
           </Spin>
+          {/* </WebSocketProvider> */}
         </AntdApp>
       </ConfigProvider>
     </IntlProvider>

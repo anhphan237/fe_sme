@@ -7,7 +7,7 @@ const OnboardingRoleHome = () => {
   const roles = currentUser?.roles ?? [];
 
   if (isOnboardingEmployee(roles)) {
-    return <Navigate to="/onboarding/home/employee" replace />;
+    return <Navigate to="/onboarding/employee" replace />;
   }
 
   if (roles.includes("HR")) {
@@ -15,10 +15,10 @@ const OnboardingRoleHome = () => {
   }
 
   if (canManageOnboarding(roles)) {
-    return <Navigate to="/onboarding/home/manager" replace />;
+    return <Navigate to="/onboarding/manager" replace />;
   }
 
-  return <Navigate to="/onboarding/tasks" replace />;
+  return <Navigate to="/onboarding/hr" replace />;
 };
 
 export default OnboardingRoleHome;

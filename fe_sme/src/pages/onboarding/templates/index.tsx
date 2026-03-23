@@ -71,19 +71,19 @@ const Templates = () => {
   const handleEdit = useCallback(
     (tmpl: OnboardingTemplate) => {
       setBreadcrumbs({ [tmpl.id]: tmpl.name });
-      navigate(`/onboarding/templates/${tmpl.id}`);
+      navigate(`/onboarding/hr/templates/${tmpl.id}`);
     },
     [navigate, setBreadcrumbs],
   );
 
   const handleNewTemplate = useCallback(
-    () => navigate("/onboarding/templates/new"),
+    () => navigate("/onboarding/hr/templates/new"),
     [navigate],
   );
 
   const handleDuplicate = useCallback(
     (tmpl: OnboardingTemplate) => {
-      navigate("/onboarding/templates/new", {
+      navigate("/onboarding/hr/templates/new", {
         state: { duplicateFrom: tmpl },
       });
     },
@@ -132,7 +132,7 @@ const Templates = () => {
       message.warning(t("onboarding.template.ai.no_result"));
       return;
     }
-    navigate("/onboarding/templates/new", {
+    navigate("/onboarding/hr/templates/new", {
       state: {
         aiSuggestion: aiDraft,
       },

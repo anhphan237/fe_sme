@@ -120,7 +120,11 @@ const EmployeeHome = () => {
     select: (res: unknown) => {
       const record = res as Record<string, unknown>;
       const raw =
-        record?.task ?? record?.data ?? record?.result ?? record?.payload ?? res;
+        record?.task ??
+        record?.data ??
+        record?.result ??
+        record?.payload ??
+        res;
       if (!raw || typeof raw !== "object") return null;
       return raw as Record<string, unknown>;
     },
@@ -131,7 +135,9 @@ const EmployeeHome = () => {
       apiUpdateTaskStatus(taskId, status),
   });
 
-  const completedCount = tasks.filter((task) => task.status === STATUS_DONE).length;
+  const completedCount = tasks.filter(
+    (task) => task.status === STATUS_DONE,
+  ).length;
   const totalCount = tasks.length;
   const progressPercent =
     totalCount > 0
@@ -163,7 +169,9 @@ const EmployeeHome = () => {
       return overduePenalty + due;
     };
 
-    return [...pendingTasks].sort((a, b) => scoreTask(a) - scoreTask(b)).slice(0, 5);
+    return [...pendingTasks]
+      .sort((a, b) => scoreTask(a) - scoreTask(b))
+      .slice(0, 5);
   }, [pendingTasks]);
 
   const milestoneTimeline = useMemo(() => {
@@ -203,7 +211,9 @@ const EmployeeHome = () => {
       return <Tag color="success">{t("onboarding.status.completed")}</Tag>;
     }
     if (normalized === "DRAFT") {
-      return <Tag color="gold">{t("onboarding.employee.home.status.draft")}</Tag>;
+      return (
+        <Tag color="gold">{t("onboarding.employee.home.status.draft")}</Tag>
+      );
     }
     if (normalized === "PENDING") {
       return <Tag color="gold">{t("onboarding.status.pending")}</Tag>;
@@ -256,8 +266,8 @@ const EmployeeHome = () => {
         </div>
 
         <Card>
-          <Empty description={t("onboarding.employee.home.empty_description")}> 
-            <Link to="/onboarding/employees">
+          <Empty description={t("onboarding.employee.home.empty_description")}>
+            <Link to="/onboarding/employee">
               <BaseButton type="primary">
                 {t("onboarding.employee.home.empty_action")}
               </BaseButton>
@@ -375,13 +385,20 @@ const EmployeeHome = () => {
                   </Typography.Text>
                   <Typography.Text>{autoAssignmentRate}%</Typography.Text>
                 </div>
-                <Progress percent={autoAssignmentRate} showInfo={false} size="small" />
+                <Progress
+                  percent={autoAssignmentRate}
+                  showInfo={false}
+                  size="small"
+                />
                 <Typography.Text type="secondary">
                   {unassignedTasks.length === 0
                     ? t("onboarding.employee.home.automation.assignment_ok")
-                    : t("onboarding.employee.home.automation.assignment_missing", {
-                        total: unassignedTasks.length,
-                      })}
+                    : t(
+                        "onboarding.employee.home.automation.assignment_missing",
+                        {
+                          total: unassignedTasks.length,
+                        },
+                      )}
                 </Typography.Text>
               </div>
 
@@ -411,7 +428,7 @@ const EmployeeHome = () => {
               <Typography.Title level={5} className="!mb-0">
                 {t("onboarding.employee.home.today_actions.title")}
               </Typography.Title>
-              <Link to="/onboarding/tasks">
+              <Link to="/onboarding/employee">
                 <BaseButton type="link">
                   {t("onboarding.employee.home.today_actions.view_all")}
                 </BaseButton>
@@ -425,7 +442,8 @@ const EmployeeHome = () => {
                 {urgentTasks.map((task) => {
                   const isDone = task.status === STATUS_DONE;
                   const isOverdue =
-                    task.dueDate && new Date(task.dueDate).getTime() < Date.now();
+                    task.dueDate &&
+                    new Date(task.dueDate).getTime() < Date.now();
 
                   return (
                     <div
@@ -440,13 +458,18 @@ const EmployeeHome = () => {
                                 ? t("onboarding.task.due", {
                                     date: formatDate(task.dueDate),
                                   })
-                                : t("onboarding.employee.home.today_actions.no_due_date")}
+                                : t(
+                                    "onboarding.employee.home.today_actions.no_due_date",
+                                  )}
                             </Tag>
-                            {task.checklistName && <Tag>{task.checklistName}</Tag>}
+                            {task.checklistName && (
+                              <Tag>{task.checklistName}</Tag>
+                            )}
                           </div>
                         </div>
                         <Tag color={isDone ? "success" : "processing"}>
-                          {task.status ?? t("onboarding.detail.task.status.pending")}
+                          {task.status ??
+                            t("onboarding.detail.task.status.pending")}
                         </Tag>
                       </div>
 
@@ -457,13 +480,19 @@ const EmployeeHome = () => {
                           loading={updateTaskStatus.isPending}
                           onClick={() => handleToggleTask(task)}>
                           {isDone
-                            ? t("onboarding.employee.home.today_actions.mark_undone")
-                            : t("onboarding.employee.home.today_actions.mark_done")}
+                            ? t(
+                                "onboarding.employee.home.today_actions.mark_undone",
+                              )
+                            : t(
+                                "onboarding.employee.home.today_actions.mark_done",
+                              )}
                         </BaseButton>
                         <BaseButton
                           size="small"
                           onClick={() => setSelectedTaskId(task.id)}>
-                          {t("onboarding.employee.home.today_actions.view_detail")}
+                          {t(
+                            "onboarding.employee.home.today_actions.view_detail",
+                          )}
                         </BaseButton>
                       </div>
                     </div>
@@ -471,7 +500,9 @@ const EmployeeHome = () => {
                 })}
               </div>
             ) : (
-              <Empty description={t("onboarding.employee.home.today_actions.empty")} />
+              <Empty
+                description={t("onboarding.employee.home.today_actions.empty")}
+              />
             )}
 
             <Alert
@@ -519,7 +550,9 @@ const EmployeeHome = () => {
                         </Tag>
                       )}
                     </div>
-                    <Typography.Text type="secondary">{item.label}</Typography.Text>
+                    <Typography.Text type="secondary">
+                      {item.label}
+                    </Typography.Text>
                   </div>
                 );
               })}
@@ -564,7 +597,9 @@ const EmployeeHome = () => {
                       <AlertTriangle className="h-4 w-4 text-red-500" />
                       <Typography.Text>{task.title}</Typography.Text>
                     </div>
-                    <Tag color="error">{t("onboarding.employee.home.reminder.overdue")}</Tag>
+                    <Tag color="error">
+                      {t("onboarding.employee.home.reminder.overdue")}
+                    </Tag>
                   </div>
                 ))}
 
@@ -576,7 +611,9 @@ const EmployeeHome = () => {
                       <CircleDashed className="h-4 w-4 text-amber-500" />
                       <Typography.Text>{task.title}</Typography.Text>
                     </div>
-                    <Tag color="warning">{t("onboarding.employee.home.reminder.due_soon")}</Tag>
+                    <Tag color="warning">
+                      {t("onboarding.employee.home.reminder.due_soon")}
+                    </Tag>
                   </div>
                 ))}
 
@@ -588,7 +625,9 @@ const EmployeeHome = () => {
                       <UserCheck className="h-4 w-4 text-sky-500" />
                       <Typography.Text>{task.title}</Typography.Text>
                     </div>
-                    <Tag color="processing">{t("onboarding.employee.home.reminder.need_assign")}</Tag>
+                    <Tag color="processing">
+                      {t("onboarding.employee.home.reminder.need_assign")}
+                    </Tag>
                   </div>
                 ))}
               </div>
@@ -630,7 +669,9 @@ const EmployeeHome = () => {
                   <Typography.Text type="secondary">
                     {t("onboarding.employee.home.task_detail.field_status")}
                   </Typography.Text>
-                  <div className="mt-1">{String(selectedTaskDetail.status ?? "-")}</div>
+                  <div className="mt-1">
+                    {String(selectedTaskDetail.status ?? "-")}
+                  </div>
                 </div>
               </Col>
               <Col span={12}>
@@ -638,7 +679,9 @@ const EmployeeHome = () => {
                   <Typography.Text type="secondary">
                     {t("onboarding.employee.home.task_detail.field_due_date")}
                   </Typography.Text>
-                  <div className="mt-1">{formatDate(String(selectedTaskDetail.dueDate ?? ""))}</div>
+                  <div className="mt-1">
+                    {formatDate(String(selectedTaskDetail.dueDate ?? ""))}
+                  </div>
                 </div>
               </Col>
             </Row>
@@ -659,7 +702,9 @@ const EmployeeHome = () => {
               <Col span={8}>
                 <div className="rounded-lg border border-gray-200 p-3 text-center">
                   <Typography.Text type="secondary">
-                    {t("onboarding.employee.home.task_detail.field_attachments")}
+                    {t(
+                      "onboarding.employee.home.task_detail.field_attachments",
+                    )}
                   </Typography.Text>
                   <p className="!mb-0 mt-1 text-lg font-semibold">
                     {Array.isArray(selectedTaskDetail.attachments)
@@ -671,7 +716,9 @@ const EmployeeHome = () => {
               <Col span={8}>
                 <div className="rounded-lg border border-gray-200 p-3 text-center">
                   <Typography.Text type="secondary">
-                    {t("onboarding.employee.home.task_detail.field_activity_logs")}
+                    {t(
+                      "onboarding.employee.home.task_detail.field_activity_logs",
+                    )}
                   </Typography.Text>
                   <p className="!mb-0 mt-1 text-lg font-semibold">
                     {Array.isArray(selectedTaskDetail.activityLogs)
@@ -682,14 +729,16 @@ const EmployeeHome = () => {
               </Col>
             </Row>
 
-            <Link to="/onboarding/tasks">
+            <Link to="/onboarding/employee">
               <BaseButton type="primary" block>
                 {t("onboarding.employee.home.task_detail.open_board")}
               </BaseButton>
             </Link>
           </div>
         ) : (
-          <Empty description={t("onboarding.employee.home.error_task_detail")} />
+          <Empty
+            description={t("onboarding.employee.home.error_task_detail")}
+          />
         )}
       </Drawer>
     </div>

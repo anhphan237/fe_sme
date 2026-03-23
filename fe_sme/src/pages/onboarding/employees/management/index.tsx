@@ -413,7 +413,7 @@ const EmployeeManagement = () => {
         onClose={() => setSelectedUserId(undefined)}
         onCreated={(newUserId) => {
           setSelectedUserId(undefined);
-          navigate("/onboarding/employees", {
+          navigate("/onboarding/hr/employees", {
             state: { newEmployeeId: newUserId },
           });
         }}

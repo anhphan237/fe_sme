@@ -126,61 +126,75 @@ export const router = createBrowserRouter([
       },
       { path: "/profile", element: suspense(<Profile />) },
       { path: "/settings/notifications", element: suspense(<Notifications />) },
+      // Onboarding entry point - redirects by role
       {
         path: "/onboarding",
         element: suspense(
           withRoles(<OnboardingRoleHome />, ["HR", "MANAGER", "EMPLOYEE"]),
         ),
       },
-      {
-        path: "/onboarding/home/employee",
-        element: suspense(withRoles(<OnboardingEmployeeHome />, ["EMPLOYEE"])),
-      },
-      {
-        path: "/onboarding/home/manager",
-        element: suspense(withRoles(<OnboardingManagerHome />, ["MANAGER"])),
-      },
-      {
-        path: "/onboarding/home/hr",
-        element: suspense(withRoles(<OnboardingHrHome />, ["HR"])),
-      },
+      // HR namespace
       {
         path: "/onboarding/hr",
         element: suspense(withRoles(<OnboardingHrHome />, ["HR"])),
       },
       {
-        path: "/onboarding/templates",
-        element: suspense(withRoles(<Templates />, ["HR"])),
+        path: "/onboarding/hr/employees",
+        element: suspense(withRoles(<Employees />, ["HR"])),
       },
       {
-        path: "/onboarding/templates/new",
-        element: suspense(withRoles(<TemplateEditor />, ["HR"])),
-      },
-      {
-        path: "/onboarding/templates/:templateId",
-        element: suspense(withRoles(<TemplateEditor />, ["HR"])),
-      },
-      {
-        path: "/onboarding/employees",
-        element: suspense(withRoles(<Employees />, ["HR", "MANAGER"])),
-      },
-      {
-        path: "/onboarding/employees/new",
+        path: "/onboarding/hr/employees/new",
         element: suspense(withRoles(<EmployeeManagement />, ["HR"])),
       },
       {
-        path: "/onboarding/employees/:employeeId",
-        element: suspense(withRoles(<EmployeeDetail />, ["HR", "MANAGER"])),
+        path: "/onboarding/hr/employees/:employeeId",
+        element: suspense(withRoles(<EmployeeDetail />, ["HR"])),
       },
       {
-        path: "/onboarding/tasks",
-        element: suspense(
-          withRoles(<OnboardingTasks />, ["HR", "MANAGER", "EMPLOYEE"]),
-        ),
+        path: "/onboarding/hr/templates",
+        element: suspense(withRoles(<Templates />, ["HR"])),
       },
       {
-        path: "/onboarding/automation",
+        path: "/onboarding/hr/templates/new",
+        element: suspense(withRoles(<TemplateEditor />, ["HR"])),
+      },
+      {
+        path: "/onboarding/hr/templates/:templateId",
+        element: suspense(withRoles(<TemplateEditor />, ["HR"])),
+      },
+      {
+        path: "/onboarding/hr/tasks",
+        element: suspense(withRoles(<OnboardingTasks />, ["HR"])),
+      },
+      {
+        path: "/onboarding/hr/automation",
         element: suspense(withRoles(<OnboardingAutomation />, ["HR"])),
+      },
+      // Manager namespace
+      {
+        path: "/onboarding/manager",
+        element: suspense(withRoles(<OnboardingManagerHome />, ["MANAGER"])),
+      },
+      {
+        path: "/onboarding/manager/employees",
+        element: suspense(withRoles(<Employees />, ["MANAGER"])),
+      },
+      {
+        path: "/onboarding/manager/employees/:employeeId",
+        element: suspense(withRoles(<EmployeeDetail />, ["MANAGER"])),
+      },
+      {
+        path: "/onboarding/manager/tasks",
+        element: suspense(withRoles(<OnboardingTasks />, ["MANAGER"])),
+      },
+      // Employee namespace
+      {
+        path: "/onboarding/employee",
+        element: suspense(withRoles(<OnboardingEmployeeHome />, ["EMPLOYEE"])),
+      },
+      {
+        path: "/onboarding/employee/instances/:employeeId",
+        element: suspense(withRoles(<EmployeeDetail />, ["EMPLOYEE"])),
       },
       {
         path: "/documents",

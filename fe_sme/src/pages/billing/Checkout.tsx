@@ -1,21 +1,20 @@
-﻿import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+﻿import { useEffect, useState } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Card, Skeleton } from "antd";
 import BaseButton from "@/components/button";
 import { StripeProvider } from "../../components/payment/StripeProvider";
 import { CheckoutForm } from "../../components/payment/CheckoutForm";
 import { useMutation } from "@tanstack/react-query";
 import { apiCreatePaymentIntent } from "@/api/billing/billing.api";
-
-const useCreatePaymentIntent = () =>
-  useMutation({ mutationFn: apiCreatePaymentIntent });
-import { useEffect, useState } from "react";
 import { notify } from "@/utils/notify";
+import { useLocale } from "@/i18n";
 
 const BillingCheckout = () => {
+  const { t } = useLocale();
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const createIntent = useCreatePaymentIntent();
+  const createIntent = useMutation({ mutationFn: apiCreatePaymentIntent });
   const [clientSecret, setClientSecret] = useState<string | null>(null);
 
   const amount = searchParams.get("amount") ?? "$0.00";
@@ -33,7 +32,7 @@ const BillingCheckout = () => {
         setClientSecret(data.clientSecret);
       },
       onError: (err) => {
-        notify.error(`Failed to initialize payment: ${err.message}`);
+        notify.error(t("billing.checkout.no_session") + ` (${err.message})`);
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -44,9 +43,11 @@ const BillingCheckout = () => {
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <div className="text-center">
-        <h1 className="text-2xl font-semibold text-slate-800">Checkout</h1>
+        <h1 className="text-2xl font-semibold text-slate-800">
+          {t("billing.checkout.title")}
+        </h1>
         <p className="mt-1 text-sm text-slate-600">
-          Complete payment for Invoice #{invoiceId}
+          {t("billing.checkout.complete").replace("{id}", invoiceId ?? "")}
         </p>
       </div>
 
@@ -60,10 +61,10 @@ const BillingCheckout = () => {
         ) : createIntent.isError ? (
           <div className="space-y-4 text-center">
             <p className="text-sm text-red-600">
-              Could not create payment session. Please try again.
+              {t("billing.checkout.no_session")}
             </p>
             <BaseButton onClick={() => navigate("/billing/invoices")}>
-              Back to Invoices
+              {t("billing.checkout.back")}
             </BaseButton>
           </div>
         ) : clientSecret && isValidStripeSecret(clientSecret) ? (
@@ -78,11 +79,10 @@ const BillingCheckout = () => {
         ) : clientSecret ? (
           <div className="space-y-4 text-center">
             <p className="text-sm text-amber-600">
-              Payment is not configured for this invoice. Contact support or try
-              again later.
+              {t("billing.checkout.not_configured")}
             </p>
             <BaseButton onClick={() => navigate("/billing/invoices")}>
-              Back to Invoices
+              {t("billing.checkout.back")}
             </BaseButton>
           </div>
         ) : null}
@@ -90,7 +90,7 @@ const BillingCheckout = () => {
 
       <div className="text-center">
         <BaseButton type="text" onClick={() => navigate("/billing/invoices")}>
-          Cancel and return to Invoices
+          {t("billing.checkout.cancel")}
         </BaseButton>
       </div>
     </div>

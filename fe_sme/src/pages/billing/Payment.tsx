@@ -9,20 +9,8 @@ import {
 } from "@/api/billing/billing.api";
 import { extractList } from "@/api/core/types";
 import { mapProvider } from "@/utils/mappers/billing";
+import { useLocale } from "@/i18n";
 import type { PaymentProvider } from "@/shared/types";
-
-const usePaymentProvidersQuery = () =>
-  useQuery({
-    queryKey: ["payment-providers"],
-    queryFn: apiGetPaymentProviders,
-    select: (res: unknown) =>
-      extractList(res, "providers", "items").map(
-        mapProvider,
-      ) as PaymentProvider[],
-  });
-const useConnectPayment = () => useMutation({ mutationFn: apiConnectPayment });
-const useCreatePaymentIntent = () =>
-  useMutation({ mutationFn: apiCreatePaymentIntent });
 
 const PROVIDER_ICONS: Record<string, string> = {
   Stripe: "S",
@@ -32,14 +20,22 @@ const PROVIDER_ICONS: Record<string, string> = {
 };
 
 const BillingPayment = () => {
+  const { t } = useLocale();
   const {
     data: providers,
     isLoading,
     isError,
     refetch,
-  } = usePaymentProvidersQuery();
-  const connectPayment = useConnectPayment();
-  const testCharge = useCreatePaymentIntent();
+  } = useQuery({
+    queryKey: ["payment-providers"],
+    queryFn: apiGetPaymentProviders,
+    select: (res: unknown) =>
+      extractList(res, "providers", "items").map(
+        mapProvider,
+      ) as PaymentProvider[],
+  });
+  const connectPayment = useMutation({ mutationFn: apiConnectPayment });
+  const testCharge = useMutation({ mutationFn: apiCreatePaymentIntent });
   const queryClient = useQueryClient();
 
   const handleToggle = (providerName: string) => {
@@ -47,11 +43,20 @@ const BillingPayment = () => {
       { provider: providerName },
       {
         onSuccess: () => {
-          notify.success(`${providerName} connection updated.`);
+          notify.success(
+            t("billing.payment.connect_success").replace(
+              "{name}",
+              providerName,
+            ),
+          );
           queryClient.invalidateQueries({ queryKey: ["payment-providers"] });
         },
         onError: (err) => {
-          notify.error(`Failed to update ${providerName}: ${err.message}`);
+          notify.error(
+            t("billing.payment.connect_error")
+              .replace("{name}", providerName)
+              .replace("{msg}", err.message),
+          );
         },
       },
     );
@@ -60,9 +65,15 @@ const BillingPayment = () => {
   const handleTestCharge = (providerName: string) => {
     testCharge.mutate("test-charge", {
       onSuccess: () =>
-        notify.success(`${providerName} test charge created successfully.`),
+        notify.success(
+          t("billing.payment.test_success").replace("{name}", providerName),
+        ),
       onError: (err) =>
-        notify.error(`${providerName} test charge failed: ${err.message}`),
+        notify.error(
+          t("billing.payment.test_error")
+            .replace("{name}", providerName)
+            .replace("{msg}", err.message),
+        ),
     });
   };
 
@@ -70,10 +81,10 @@ const BillingPayment = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-800">
-          Payment Providers
+          {t("billing.payment.title")}
         </h1>
         <p className="mt-1 text-sm text-slate-600">
-          Connect and manage payment providers for billing.
+          {t("billing.payment.subtitle")}
         </p>
       </div>
 
@@ -91,9 +102,9 @@ const BillingPayment = () => {
       ) : isError ? (
         <Card>
           <p className="text-sm">
-            Failed to load payment providers.{" "}
+            {t("billing.payment.load_error")}{" "}
             <button className="font-semibold" onClick={() => refetch()}>
-              Retry
+              {t("billing.invoices.retry")}
             </button>
           </p>
         </Card>
@@ -121,12 +132,12 @@ const BillingPayment = () => {
                   </div>
                   {provider.lastSync && provider.lastSync !== "—" && (
                     <p className="mt-0.5 text-xs text-muted">
-                      Last sync: {provider.lastSync}
+                      {t("billing.payment.last_sync")}: {provider.lastSync}
                     </p>
                   )}
                   {provider.accountId && (
                     <p className="mt-0.5 text-xs text-muted">
-                      Account: {provider.accountId}
+                      {t("billing.payment.account")}: {provider.accountId}
                     </p>
                   )}
                 </div>
@@ -137,14 +148,18 @@ const BillingPayment = () => {
                   danger={provider.status === "Connected"}
                   disabled={connectPayment.isPending}
                   onClick={() => handleToggle(provider.name)}>
-                  {provider.status === "Connected" ? "Disconnect" : "Connect"}
+                  {provider.status === "Connected"
+                    ? t("billing.payment.disconnect")
+                    : t("billing.payment.connect")}
                 </BaseButton>
                 {provider.status === "Connected" && (
                   <BaseButton
                     type="text"
                     disabled={testCharge.isPending}
                     onClick={() => handleTestCharge(provider.name)}>
-                    {testCharge.isPending ? "Testing..." : "Test charge"}
+                    {testCharge.isPending
+                      ? t("billing.payment.testing")
+                      : t("billing.payment.test_charge")}
                   </BaseButton>
                 )}
               </div>

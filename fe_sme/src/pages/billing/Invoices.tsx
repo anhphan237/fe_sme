@@ -6,31 +6,38 @@ import { useQuery } from "@tanstack/react-query";
 import { apiGetInvoices, apiGetInvoiceById } from "@/api/billing/billing.api";
 import { extractList } from "@/api/core/types";
 import { mapInvoice } from "@/utils/mappers/billing";
+import { useLocale } from "@/i18n";
 import type { Invoice } from "@/shared/types";
 
-const useInvoicesQuery = () =>
-  useQuery({
+const statusBadge = (status: string) => {
+  if (status === "Paid")
+    return "inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700";
+  if (status === "Overdue" || status === "Void")
+    return "inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700";
+  if (status === "Draft")
+    return "inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600";
+  return "inline-block rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700";
+};
+
+const BillingInvoices = () => {
+  const { t } = useLocale();
+  const navigate = useNavigate();
+  const [detailId, setDetailId] = useState<string | null>(null);
+
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["invoices"],
     queryFn: () => apiGetInvoices(),
     select: (res: unknown) =>
       extractList(res, "invoices", "items").map(mapInvoice) as Invoice[],
     refetchOnMount: "always",
   });
-const useInvoiceQuery = (invoiceId?: string) =>
-  useQuery({
-    queryKey: ["invoice", invoiceId],
-    queryFn: () => apiGetInvoiceById(invoiceId!),
-    enabled: Boolean(invoiceId),
+
+  const { data: detail, isLoading: detailLoading } = useQuery({
+    queryKey: ["invoice", detailId],
+    queryFn: () => apiGetInvoiceById(detailId!),
+    enabled: Boolean(detailId),
     select: (res: unknown) => mapInvoice(res),
   });
-
-const BillingInvoices = () => {
-  const navigate = useNavigate();
-  const [detailId, setDetailId] = useState<string | null>(null);
-  const { data, isLoading, isError, refetch } = useInvoicesQuery();
-  const { data: detail, isLoading: detailLoading } = useInvoiceQuery(
-    detailId ?? undefined,
-  );
 
   const handleDownload = (id: string) => {
     const blob = new Blob([`Invoice ${id}`], { type: "application/pdf" });
@@ -45,9 +52,11 @@ const BillingInvoices = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-800">Invoices</h1>
+        <h1 className="text-2xl font-semibold text-slate-800">
+          {t("billing.invoices.title")}
+        </h1>
         <p className="mt-1 text-sm text-slate-600">
-          Track billing history and download invoices.
+          {t("billing.invoices.subtitle")}
         </p>
       </div>
 
@@ -59,17 +68,17 @@ const BillingInvoices = () => {
           </div>
         ) : isError ? (
           <div className="p-6 text-sm">
-            Something went wrong.{" "}
+            {t("billing.invoices.error")}{" "}
             <button className="font-semibold" onClick={() => refetch()}>
-              Retry
+              {t("billing.invoices.retry")}
             </button>
           </div>
         ) : data && data.length === 0 ? (
           <div className="p-6">
-            <Empty description="No invoices available" />
+            <Empty description={t("billing.invoices.empty")} />
             <div className="mt-4 text-center">
               <BaseButton onClick={() => navigate("/billing/plan")}>
-                View plan
+                {t("billing.invoices.view_plan")}
               </BaseButton>
             </div>
           </div>
@@ -77,11 +86,11 @@ const BillingInvoices = () => {
           <table className="w-full">
             <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase text-muted">
               <tr>
-                <th className="px-4 py-3">Invoice #</th>
-                <th className="px-4 py-3">Amount</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Actions</th>
+                <th className="px-4 py-3">{t("billing.invoice")}</th>
+                <th className="px-4 py-3">{t("billing.amount")}</th>
+                <th className="px-4 py-3">{t("billing.status")}</th>
+                <th className="px-4 py-3">{t("billing.issued_date")}</th>
+                <th className="px-4 py-3">{t("billing.action")}</th>
               </tr>
             </thead>
             <tbody>
@@ -99,17 +108,7 @@ const BillingInvoices = () => {
                   </td>
                   <td className="px-4 py-3 text-muted">{invoice.amount}</td>
                   <td className="px-4 py-3">
-                    <span
-                      className={
-                        invoice.status === "Paid"
-                          ? "inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700"
-                          : invoice.status === "Overdue" ||
-                              invoice.status === "Void"
-                            ? "inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700"
-                            : invoice.status === "Draft"
-                              ? "inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600"
-                              : "inline-block rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700"
-                      }>
+                    <span className={statusBadge(invoice.status)}>
                       {invoice.status}
                     </span>
                   </td>
@@ -119,7 +118,7 @@ const BillingInvoices = () => {
                       <BaseButton
                         type="text"
                         onClick={() => setDetailId(invoice.id)}>
-                        View
+                        {t("billing.view")}
                       </BaseButton>
                       {(invoice.status === "Open" ||
                         invoice.status === "Overdue") && (
@@ -130,13 +129,13 @@ const BillingInvoices = () => {
                               `/billing/checkout/${invoice.id}?amount=${encodeURIComponent(invoice.amount)}`,
                             )
                           }>
-                          Pay Now
+                          {t("billing.pay_now")}
                         </BaseButton>
                       )}
                       <BaseButton
                         type="text"
                         onClick={() => handleDownload(invoice.id)}>
-                        Download
+                        {t("billing.download")}
                       </BaseButton>
                     </div>
                   </td>
@@ -149,7 +148,7 @@ const BillingInvoices = () => {
 
       <Modal
         open={!!detailId}
-        title="Invoice detail"
+        title={t("billing.invoice_detail")}
         onCancel={() => setDetailId(null)}
         footer={null}>
         {detailLoading ? (
@@ -161,53 +160,43 @@ const BillingInvoices = () => {
           <div className="space-y-4">
             <dl className="grid gap-3 text-sm">
               <div>
-                <dt className="text-muted">Invoice #</dt>
+                <dt className="text-muted">{t("billing.invoice_no")}</dt>
                 <dd className="font-medium">{detail.invoiceNo || detail.id}</dd>
               </div>
               <div>
-                <dt className="text-muted">Amount</dt>
+                <dt className="text-muted">{t("billing.amount")}</dt>
                 <dd className="font-medium">
                   {detail.amount} {detail.currency}
                 </dd>
               </div>
               <div>
-                <dt className="text-muted">Status</dt>
+                <dt className="text-muted">{t("billing.status")}</dt>
                 <dd>
-                  <span
-                    className={
-                      detail.status === "Paid"
-                        ? "inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700"
-                        : detail.status === "Overdue" ||
-                            detail.status === "Void"
-                          ? "inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700"
-                          : detail.status === "Draft"
-                            ? "inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600"
-                            : "inline-block rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700"
-                    }>
+                  <span className={statusBadge(detail.status)}>
                     {detail.status}
                   </span>
                 </dd>
               </div>
               <div>
-                <dt className="text-muted">Issued date</dt>
+                <dt className="text-muted">{t("billing.issued_date")}</dt>
                 <dd>{detail.date}</dd>
               </div>
               {detail.dueDate && (
                 <div>
-                  <dt className="text-muted">Due date</dt>
+                  <dt className="text-muted">{t("billing.due_date")}</dt>
                   <dd>{detail.dueDate}</dd>
                 </div>
               )}
               {detail.eInvoiceUrl && (
                 <div>
-                  <dt className="text-muted">E-Invoice</dt>
+                  <dt className="text-muted">{t("billing.e_invoice")}</dt>
                   <dd>
                     <a
                       href={detail.eInvoiceUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-ink underline hover:no-underline">
-                      View e-invoice
+                      {t("billing.e_invoice")}
                     </a>
                   </dd>
                 </div>
@@ -223,15 +212,17 @@ const BillingInvoices = () => {
                       `/billing/checkout/${detail.id}?amount=${encodeURIComponent(detail.amount)}`,
                     );
                   }}>
-                  Pay Now
+                  {t("billing.pay_now")}
                 </BaseButton>
               )}
-              <BaseButton onClick={() => setDetailId(null)}>Close</BaseButton>
+              <BaseButton onClick={() => setDetailId(null)}>
+                {t("billing.close")}
+              </BaseButton>
             </div>
           </div>
         ) : (
           <p className="py-4 text-sm text-muted">
-            Could not load invoice details.
+            {t("billing.invoices.detail_error")}
           </p>
         )}
       </Modal>

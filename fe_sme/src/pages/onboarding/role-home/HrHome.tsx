@@ -28,7 +28,7 @@ const HrHome = () => {
               Tao dot onboarding moi, theo doi tien do va xu ly cac instance
               dang active.
             </Typography.Paragraph>
-            <Link to="/onboarding/employees">
+            <Link to="/onboarding/hr/employees">
               <Button type="primary" block>
                 Mo danh sach nhan vien
               </Button>
@@ -42,7 +42,7 @@ const HrHome = () => {
               Quan ly bo template theo phong ban/vi tri de tai su dung cho cac
               dot onboarding.
             </Typography.Paragraph>
-            <Link to="/onboarding/templates">
+            <Link to="/onboarding/hr/templates">
               <Button block>Mo thu vien template</Button>
             </Link>
           </Card>
@@ -54,7 +54,7 @@ const HrHome = () => {
               Bat/tat rule gui email-thong bao va theo doi nhat ky gui theo
               trigger onboarding.
             </Typography.Paragraph>
-            <Link to="/onboarding/automation">
+            <Link to="/onboarding/hr/automation">
               <Button block>Mo automation</Button>
             </Link>
           </Card>

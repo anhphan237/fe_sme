@@ -1,6 +1,6 @@
 ﻿import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Users, UserCheck, UserX, Mail, Upload } from "lucide-react";
 import { Button, Empty, Progress, Select, Tabs, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -86,6 +86,10 @@ const StatCard = ({
 
 const Employees = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const employeesBasePath = location.pathname.startsWith("/onboarding/manager")
+    ? "/onboarding/manager"
+    : "/onboarding/hr";
   const { t } = useLocale();
   const currentUser = useUserStore((s) => s.currentUser);
   const canStart = canManageOnboarding(currentUser?.roles ?? []);
@@ -219,7 +223,9 @@ const Employees = () => {
               <button
                 type="button"
                 className="cursor-pointer font-medium text-blue-600 hover:underline"
-                onClick={() => navigate(`/onboarding/employees/${inst.id}`)}>
+                onClick={() =>
+                  navigate(`${employeesBasePath}/employees/${inst.id}`)
+                }>
                 {name}
               </button>
             </span>
@@ -602,7 +608,7 @@ const Employees = () => {
       <StartOnboardingDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        onCreated={(id) => navigate(`/onboarding/employees/${id}`)}
+        onCreated={(id) => navigate(`${employeesBasePath}/employees/${id}`)}
         users={users}
       />
       <EmployeeFormDrawer
