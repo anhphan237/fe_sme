@@ -145,3 +145,9 @@ export const apiGetSurveyAnalyticsReport = (
     "com.sme.survey.analytics.report",
     params ?? {},
   );
+
+  export const apiGetSurveyInstance = (payload: { instanceId: string }) =>
+  gatewayRequest<typeof payload, unknown>(
+    "com.sme.survey.instance.get",
+    payload,
+  );

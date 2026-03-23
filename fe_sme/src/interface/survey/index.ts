@@ -122,7 +122,7 @@ export interface SurveyInstanceListRequest {
 /** com.sme.survey.instance.schedule */
 export interface SurveyScheduleRequest {
   templateId: string;
-  onboardingId: string;
+   onboardingId: string;
   scheduledAt?: string;
 }
 
