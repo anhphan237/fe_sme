@@ -1258,7 +1258,7 @@
   "survey.question.empty_hint": "No questions yet. Click \"Add question\" to get started.",
 
   "survey.detail.title": "Survey",
-  "survey.detail.progress": "Question {{current}} of {{total}}",
+  "survey.detail.progress": "Question {current} of {total}",
   "survey.detail.next": "Next",
   "survey.detail.prev": "Previous",
   "survey.detail.submit": "Submit",
@@ -1402,5 +1402,4 @@
   "survey.send.validation.template_required": "Please select a survey template",
   "survey.send.total_items": "Total items",
   "survey.send.table.employee": "Employee"
-  
 }
