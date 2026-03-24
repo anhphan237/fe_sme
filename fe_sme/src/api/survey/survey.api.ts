@@ -8,6 +8,8 @@ import type {
   SurveyTemplateGetListRequest,
   SurveyTemplateArchiveRequest,
   SurveyQuestionCreateRequest,
+  SurveyQuestionUpdateRequest,
+  SurveyQuestionDeleteRequest,
   SurveyQuestionGetByTemplateRequest,
   SurveyScheduleRequest,
   SurveySendRequest,
@@ -73,6 +75,18 @@ export const apiListSurveyQuestions = (
     params,
   );
 
+
+export const apiUpdateSurveyQuestion = (payload: SurveyQuestionUpdateRequest) =>
+  gatewayRequest<SurveyQuestionUpdateRequest, unknown>(
+    "com.sme.survey.question.update",
+    payload,
+  );
+
+export const apiDeleteSurveyQuestion = (payload: SurveyQuestionDeleteRequest) =>
+  gatewayRequest<SurveyQuestionDeleteRequest, unknown>(
+    "com.sme.survey.question.delete",
+    payload,
+  );
 // ── Instance ────────────────────────────────────────────────
 
 /** com.sme.survey.instance.list */
@@ -130,4 +144,22 @@ export const apiGetSurveyAnalyticsReport = (
   gatewayRequest<SurveyAnalyticsReportRequest, unknown>(
     "com.sme.survey.analytics.report",
     params ?? {},
+  );
+
+  export const apiGetSurveyInstance = (payload: { instanceId: string }) =>
+  gatewayRequest<typeof payload, unknown>(
+    "com.sme.survey.instance.get",
+    payload,
+  );
+
+  export const apiSaveSurveyDraft = (payload: {
+    instanceId: string;
+    answers: Array<{
+      questionId: string;
+      value: string | number | string[] | null;
+    }>;
+  }) =>
+  gatewayRequest<typeof payload, unknown>(
+    "com.sme.survey.response.saveDraft",
+    payload,
   );

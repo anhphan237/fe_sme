@@ -4,6 +4,8 @@
 // Operations: com.sme.survey.*
 // ============================================================
 
+import type { off } from "process";
+
 // ---------------------------
 // Template
 // ---------------------------
@@ -60,11 +62,15 @@ export interface SurveyTemplateSummary {
 /** com.sme.survey.question.create */
 export interface SurveyQuestionCreateRequest {
   templateId: string;
-  text: string;
-  type: "RATING" | "TEXT" | "MULTIPLE_CHOICE" | "SINGLE_CHOICE";
+  content: string;
+  type: "RATING" | "TEXT" | "SINGLE_CHOICE" | "MULTIPLE_CHOICE";
+  required: boolean;
+  sortOrder?: number;
+  dimensionCode?: string;
+  measurable?: boolean;
   options?: string[];
-  required?: boolean;
-  order?: number;
+  scaleMin?: number;
+  scaleMax?: number;
 }
 
 /** com.sme.survey.question.update */
@@ -96,6 +102,9 @@ export interface SurveyQuestion {
   options: string[] | null;
   required: boolean;
   order: number;
+  scaleMin?: number | null;
+  scaleMax?: number | null;
+  content?: string;
 }
 
 // ---------------------------
@@ -107,12 +116,16 @@ export interface SurveyInstanceListRequest {
   templateId?: string;
   status?: string;
   employeeId?: string;
+  startDate?: string;
+  endDate?: string;
+  offset?: number;
+  limit?: number;
 }
 
 /** com.sme.survey.instance.schedule */
 export interface SurveyScheduleRequest {
   templateId: string;
-  employeeId: string;
+   onboardingId: string;
   scheduledAt?: string;
 }
 
@@ -123,6 +136,7 @@ export interface SurveySendRequest {
 
 /** Survey instance summary */
 export interface SurveyInstanceSummary {
+  id: string;
   instanceId: string;
   templateId: string;
   templateName: string;
@@ -130,6 +144,10 @@ export interface SurveyInstanceSummary {
   status: "PENDING" | "SENT" | "COMPLETED" | "EXPIRED";
   scheduledAt: string | null;
   completedAt: string | null;
+  employeeName?: string;
+  email?: string;
+  managerName?: string;
+  responderUserId?: string;
 }
 
 // ---------------------------
@@ -144,7 +162,7 @@ export interface SurveyAnswer {
 
 /** com.sme.survey.response.submit */
 export interface SurveySubmitRequest {
-  instanceId: string;
+  surveyInstanceId: string;
   answers: SurveyAnswer[];
 }
 
@@ -207,4 +225,24 @@ export interface SurveyAnalyticsReport {
     text: string;
     averageRating: number;
   }[];
+}
+
+// ============================================================
+
+export interface SurveyQuestionUpdateRequest {
+  questionId: string;
+  templateId: string;
+  content: string;
+  type: "RATING" | "TEXT" | "SINGLE_CHOICE" | "MULTIPLE_CHOICE";
+  required: boolean;
+  sortOrder: number;
+  dimensionCode?: string;
+  measurable?: boolean;
+  options?: string[];
+  scaleMin?: number;
+  scaleMax?: number;
+}
+
+export interface SurveyQuestionDeleteRequest {
+  questionId: string;
 }

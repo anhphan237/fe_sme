@@ -50,9 +50,11 @@ const SurveyInbox = () => {
     queryFn: () =>
       apiGetSurveyInstances({
         status: statusFilter || undefined,
-        employeeId: employeeOnlyView ? currentUser?.id : undefined,
+        limit: 20,
+        offset: 0,
       }),
   });
+
   const instances = extractList<SurveyInstanceSummary>(
     instancesRaw,
     "items",
@@ -60,6 +62,11 @@ const SurveyInbox = () => {
   );
 
   const filtered = useMemo(() => instances, [instances]);
+
+  const goDetail = (id?: string) => {
+    if (!id) return;
+    navigate(`/surveys/inbox/${id}`);
+  };
 
   const columns: ColumnsType<SurveyInstanceSummary> = [
     {
@@ -70,19 +77,31 @@ const SurveyInbox = () => {
         <button
           type="button"
           className="text-left font-medium text-[#223A59] hover:text-[#3684DB] hover:underline"
-          onClick={() => navigate(`/surveys/inbox/${row.instanceId}`)}>
+          onClick={() => goDetail(row.id)}
+        >
           {name}
         </button>
       ),
     },
-    {
-      title: t("survey.inbox.col.employee"),
-      dataIndex: "employeeId",
-      key: "employeeId",
-      render: (id: string) => (
-        <span className="font-mono text-xs text-slate-500">{id}</span>
-      ),
-    },
+    ...(!employeeOnlyView
+      ? [
+          {
+            title: t("survey.inbox.col.employee"),
+            dataIndex: "employeeName",
+            key: "employeeName",
+            render: (_: string, row: SurveyInstanceSummary) => (
+              <div className="leading-tight">
+                <div className="font-medium text-slate-700">
+                  {row.employeeName || "—"}
+                </div>
+                <div className="text-xs text-slate-400">
+                  {row.email || row.responderUserId || "—"}
+                </div>
+              </div>
+            ),
+          },
+        ]
+      : []),
     {
       title: t("survey.inbox.col.scheduled"),
       dataIndex: "scheduledAt",
@@ -108,27 +127,31 @@ const SurveyInbox = () => {
       title: t("global.action"),
       key: "actions",
       width: 140,
-      render: (_, row) =>
-        row.status === "PENDING" ? (
-          <BaseButton
-            size="small"
-            type="primary"
-            label="survey.inbox.take"
-            onClick={() => navigate(`/surveys/inbox/${row.instanceId}`)}
-          />
-        ) : (
+      render: (_, row) => {
+        if (row.status === "PENDING" || row.status === "SENT") {
+          return (
+            <BaseButton
+              size="small"
+              type="primary"
+              label="survey.inbox.take"
+              onClick={() => goDetail(row.id)}
+            />
+          );
+        }
+
+        return (
           <BaseButton
             size="small"
             label="survey.inbox.open"
-            onClick={() => navigate(`/surveys/inbox/${row.instanceId}`)}
+            onClick={() => goDetail(row.id)}
           />
-        ),
+        );
+      },
     },
   ];
 
   return (
     <div className="space-y-5">
-      {/* ── Page header ── */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-lg font-semibold text-[#223A59]">
@@ -148,7 +171,6 @@ const SurveyInbox = () => {
         ) : null}
       </div>
 
-      {/* ── Filter toolbar ── */}
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <div className="w-44">
           <BaseSelect
@@ -164,12 +186,11 @@ const SurveyInbox = () => {
         </div>
       </div>
 
-      {/* ── Table ── */}
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <MyTable
           columns={columns}
           dataSource={isError ? [] : filtered}
-          rowKey="instanceId"
+          rowKey="id"
           wrapClassName="w-full"
           loading={isLoading}
           pagination={{ showSizeChanger: true }}

@@ -1599,7 +1599,7 @@
   "survey.question.empty_hint": "Chưa có câu hỏi. Nhấn \"Thêm câu hỏi\" để bắt đầu.",
 
   "survey.detail.title": "Khảo sát",
-  "survey.detail.progress": "Câu hỏi {{current}} / {{total}}",
+  "survey.detail.progress": "Câu hỏi {current}} / {total}",
   "survey.detail.next": "Tiếp theo",
   "survey.detail.prev": "Quay lại",
   "survey.detail.submit": "Nộp khảo sát",
@@ -1631,13 +1631,138 @@
   "chatbot.journey.suggested_prompts_count": "{count} gợi ý câu hỏi",
   "chatbot.journey.conversation": "Hội thoại",
   "chatbot.journey.conversation_placeholder": "Bắt đầu hội thoại để tạo phiên làm việc",
+  "chatbot.journey.sessions": "Phiên chat",
+  "chatbot.journey.no_sessions": "Chưa có phiên nào",
   "chatbot.panel.subtitle": "Hỏi trợ lý onboarding của bạn về {stage}.",
+  "chatbot.panel.subtitle_simple": "Hỏi trợ lý AI về onboarding, chính sách hoặc phúc lợi.",
   "chatbot.empty.title": "Hãy đẩy nhanh hành trình onboarding của bạn.",
-  "chatbot.empty.subtitle": "Chọn một mốc và đặt câu hỏi cho trợ lý onboarding.",
+  "chatbot.empty.subtitle": "Bắt đầu bằng câu hỏi gợi ý hoặc nhập câu hỏi của bạn.",
   "chatbot.sources.label": "Nguồn tài liệu",
   "chatbot.status.thinking": "Đang suy nghĩ...",
   "chatbot.input.placeholder": "Hỏi về onboarding, chính sách hoặc phúc lợi...",
   "chatbot.input.send": "Gửi",
   "chatbot.fallback.no_answer": "Tôi chưa tìm thấy câu trả lời cụ thể. Hãy diễn đạt lại hoặc liên hệ bộ phận HR.",
-  "chatbot.error.generic": "Xin lỗi, đã có lỗi xảy ra. Vui lòng thử lại."
+  "chatbot.error.generic": "Xin lỗi, đã có lỗi xảy ra. Vui lòng thử lại.",
+  "survey.question.label": "Question {num}",
+  "survey.question.new": "New question",
+  "survey.question.saved": "Saved question",
+  "survey.question.content": "Content",
+  "survey.question.content_placeholder": "Enter question content",
+  "survey.validation.fix_errors": "Please fix these issues before saving",
+  "global.loading": "Loading...",
+  "survey.question.count": "{{count}} question",
+
+  "survey.template.editor.template_info": "Thông tin mẫu",
+
+  "survey.template.status_label": "Trạng thái",
+
+  "survey.template.is_default_label": "Mẫu mặc định",
+  "survey.template.loading": "Đang tải mẫu khảo sát...",
+
+  "survey.template.stage.day_7": "Ngày 7",
+  "survey.template.stage.day_30": "Ngày 30",
+  "survey.template.stage.day_60": "Ngày 60",
+  "survey.template.stage.custom": "Tùy chỉnh",
+
+  "survey.template.status.draft": "Bản nháp",
+  "survey.template.status.active": "Đang hoạt động",
+  "survey.template.status.archived": "Đã lưu trữ",
+
+  "survey.template.validation.name_required": "Tên mẫu khảo sát là bắt buộc",
+  "survey.template.validation.fix_before_save": "Vui lòng sửa các lỗi sau trước khi lưu:",
+  "survey.template.error.missing_template_id": "Không xác định được templateId sau khi tạo mẫu khảo sát.",
+
+  "survey.question.section_title": "Câu hỏi",
+  "survey.question.label_with_index": "Câu hỏi {{index}}",
+
+  "survey.question.content_label": "Nội dung",
+
+  "survey.question.type_label": "Loại câu hỏi",
+  "survey.question.dimension_label": "Nhóm đánh giá",
+
+  "survey.question.measurable": "Có thể đo lường",
+  "survey.question.scale_min": "Mức nhỏ nhất",
+  "survey.question.scale_max": "Mức lớn nhất",
+  "survey.question.options_label": "Lựa chọn",
+  "survey.question.option_with_index": "Lựa chọn {{index}}",
+  "survey.question.add_option": "Thêm lựa chọn",
+
+  "survey.question.count_singular": "câu hỏi",
+  "survey.question.count_plural": "câu hỏi",
+
+  "survey.question.type.rating": "Đánh giá",
+  "survey.question.type.text": "Văn bản",
+  "survey.question.type.single_choice": "Một lựa chọn",
+  "survey.question.type.multiple_choice": "Nhiều lựa chọn",
+
+  "survey.dimension.onboarding_clarity": "Mức độ rõ ràng khi onboarding",
+  "survey.dimension.training": "Đào tạo",
+  "survey.dimension.manager_support": "Hỗ trợ từ quản lý",
+  "survey.dimension.team_support": "Hỗ trợ từ nhóm",
+  "survey.dimension.tools_access": "Truy cập công cụ",
+  "survey.dimension.culture": "Văn hóa",
+  "survey.dimension.general": "Chung",
+
+  "survey.validation.at_least_one_question": "Phải có ít nhất một câu hỏi.",
+  "survey.validation.question_content_required": "nội dung là bắt buộc.",
+  "survey.validation.choice_min_options": "câu hỏi lựa chọn phải có ít nhất 2 đáp án.",
+  "survey.validation.choice_unique_options": "các đáp án phải là duy nhất.",
+  "survey.validation.rating_scale_integer": "thang điểm phải là số nguyên.",
+  "survey.validation.rating_scale_min_max": "giá trị nhỏ nhất phải bé hơn giá trị lớn nhất.",
+  "survey.validation.dimension_required": "nhóm đánh giá là bắt buộc.",
+
+  "survey.question.meta.sort_order": "thứ tự",
+  "survey.question.meta.id": "mã",
+  "survey.question.meta.new": "mới",
+
+  "survey.send.page_title": "Gửi khảo sát",
+  "survey.send.page_subtitle": "Lên lịch và theo dõi khảo sát onboarding cho nhân viên",
+
+  "survey.send.filter.template": "Mẫu khảo sát",
+  "survey.send.filter.status": "Trạng thái",
+  "survey.send.filter.date_range": "Khoảng ngày",
+
+  "survey.send.empty_title": "Chưa có khảo sát nào",
+  "survey.send.empty_desc": "Tạo khảo sát để gửi ngay hoặc lên lịch sau",
+  "survey.send.empty_count": "Chưa có dữ liệu",
+
+  "survey.send.table.template": "Mẫu khảo sát",
+  "survey.send.table.scheduled_at": "Thời gian gửi",
+  "survey.send.table.status": "Trạng thái",
+  "survey.send.table.created_at": "Ngày tạo",
+  "global.clear_filter": "Xóa bộ lọc",
+
+  "survey.send.validation.onboarding_required": "Vui lòng chọn onboarding",
+  "survey.send.validation.template_required": "Vui lòng chọn mẫu khảo sát",
+
+  "survey.send.employee_multi_placeholder": "Chọn một hoặc nhiều nhân viên",
+  "survey.send.scheduled_at_placeholder": "Chọn thời điểm",
+  "survey.send.min_schedule_hint": "Ngày gửi phải từ",
+
+  "survey.send.success_many": "khảo sát đã được lên lịch thành công",
+  "survey.send.success_partial": "thành công",
+  "survey.send.failed_partial": "thất bại",
+  "survey.send.employee_selection_hint": "Chọn nhân viên từ danh sách onboarding",
+  "survey.send.select_employees": "Chọn nhân viên",
+  "survey.send.confirm_selected_employees": "Xác nhận chọn",
+  "survey.send.no_employee_selected": "Chưa có nhân viên nào được chọn",
+  "survey.send.selected_count": "Đã chọn",
+
+
+  "survey.send.summary_title": "Tóm tắt gửi khảo sát",
+  "survey.send.summary_employee_count": "Số nhân viên",
+  "survey.send.summary_template": "Mẫu khảo sát",
+  "survey.send.summary_date": "Ngày dự kiến gửi",
+
+  "survey.send.select_employee_modal_title": "Chọn nhân viên onboarding",
+  "survey.send.search_employee_placeholder": "Tìm theo tên, email, quản lý hoặc trạng thái",
+  "survey.send.employee_name_column": "Tên nhân viên",
+  "survey.send.email_column": "Email",
+  "survey.send.manager_column": "Quản lý",
+  "survey.send.start_date_column": "Ngày bắt đầu",
+  "survey.send.status_column": "Trạng thái",
+  "survey.send.selected_employees_title": "Danh sách đã chọn",
+  "survey.send.empty_selected_employees": "Chưa chọn nhân viên nào",
+  "survey.send.total_items": "Tổng số mục",
+  "survey.send.table.employee": "Nhân viên"
 }
