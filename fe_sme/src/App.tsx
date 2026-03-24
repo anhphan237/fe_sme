@@ -10,6 +10,7 @@ import { AuthRehydrate } from "./components/auth/AuthRehydrate";
 import { useUserStore } from "./stores/user.store";
 import { useGlobalStore } from "./stores/global.store";
 import { localeConfig } from "./i18n";
+// import { WebSocketProvider } from "./contexts/WebSocketContext";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -60,16 +61,19 @@ const AppProviders = () => {
           },
         }}>
         <AntdApp>
+          {/* <WebSocketProvider> */}
           <ToastMessage />
-          <Spin
-            spinning={loading}
-            size="large"
-            className="!fixed !inset-0 !max-h-none"
-            style={{ backgroundColor: "rgba(255, 255, 255, 0.44)" }}>
-            <AuthRehydrate>
-              <RouterProvider router={router} />
-            </AuthRehydrate>
-          </Spin>
+          {loading && (
+            <div
+              className="fixed inset-0 z-[9999] flex items-center justify-center"
+              style={{ backgroundColor: "rgba(255, 255, 255, 0.44)" }}>
+              <Spin size="large" />
+            </div>
+          )}
+          <AuthRehydrate>
+            <RouterProvider router={router} />
+          </AuthRehydrate>
+          {/* </WebSocketProvider> */}
         </AntdApp>
       </ConfigProvider>
     </IntlProvider>

@@ -1,0 +1,107 @@
+/* ============================================================
+   Ant Design Breadcrumb — animated (fade-in + slide per item)
+   ============================================================ */
+
+/* Entire breadcrumb row fades in on mount / route change */
+@keyframes breadcrumbFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Each crumb item slides in from the left */
+@keyframes breadcrumbSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Wrapper — triggers breadcrumbFadeIn when the key prop changes */
+.antd-breadcrumb-animated {
+  animation: breadcrumbFadeIn 0.25s ease both;
+}
+
+/* Stagger each .ant-breadcrumb-link and separator */
+.antd-breadcrumb-animated .ant-breadcrumb ol > li {
+  animation: breadcrumbSlideIn 0.3s ease both;
+}
+
+/* Delay each item so they cascade left→right */
+.antd-breadcrumb-animated .ant-breadcrumb ol > li:nth-child(1) {
+  animation-delay: 0s;
+}
+.antd-breadcrumb-animated .ant-breadcrumb ol > li:nth-child(2) {
+  animation-delay: 0.06s;
+}
+.antd-breadcrumb-animated .ant-breadcrumb ol > li:nth-child(3) {
+  animation-delay: 0.12s;
+}
+.antd-breadcrumb-animated .ant-breadcrumb ol > li:nth-child(4) {
+  animation-delay: 0.18s;
+}
+.antd-breadcrumb-animated .ant-breadcrumb ol > li:nth-child(5) {
+  animation-delay: 0.24s;
+}
+.antd-breadcrumb-animated .ant-breadcrumb ol > li:nth-child(6) {
+  animation-delay: 0.3s;
+}
+
+/* Home link icon alignment */
+.antd-breadcrumb-animated .ant-breadcrumb-home-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Intermediate crumb links — visible on dark header */
+.antd-breadcrumb-animated .ant-breadcrumb-link a {
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 400;
+  transition:
+    color 0.18s ease,
+    background 0.18s ease;
+  border-radius: 5px;
+  padding: 2px 6px;
+}
+
+.antd-breadcrumb-animated .ant-breadcrumb-link a:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Separator — muted on dark */
+.antd-breadcrumb-animated .ant-breadcrumb-separator {
+  color: #475569 !important;
+}
+
+/* Home icon link on dark */
+.antd-breadcrumb-animated .antd-breadcrumb-home-link {
+  color: #94a3b8;
+  transition: color 0.18s ease;
+}
+.antd-breadcrumb-animated .antd-breadcrumb-home-link:hover {
+  color: #ffffff;
+}
+
+/* Current (last) crumb — white on dark */
+.antd-breadcrumb-animated .ant-breadcrumb-link:last-child span,
+.antd-breadcrumb-animated .ant-breadcrumb-link:last-child {
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+/* Separator color */
+.antd-breadcrumb-animated .ant-breadcrumb-separator {
+  color: #cbd5e1;
+  font-size: 12px;
+}

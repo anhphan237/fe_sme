@@ -1,23 +1,16 @@
 import { useMemo } from "react";
+import { Tag } from "antd";
 import { useUserStore } from "@/stores/user.store";
 import { ROLE_LABELS, getPrimaryRole } from "@/shared/rbac";
-
-function Badge({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
-      {children}
-    </span>
-  );
-}
+import { useLocale } from "@/i18n";
 
 export function RoleTenantSwitcher() {
+  const { t } = useLocale();
   const currentUser = useUserStore((s) => s.currentUser);
   const currentTenant = useUserStore((s) => s.currentTenant);
 
   const roleLabel = useMemo(() => {
-    if (!currentUser?.roles?.length) {
-      return "—";
-    }
+    if (!currentUser?.roles?.length) return "—";
     const primary = getPrimaryRole(currentUser.roles);
     const label = ROLE_LABELS[primary];
     if (label) return label;
@@ -28,15 +21,59 @@ export function RoleTenantSwitcher() {
   }, [currentUser?.roles]);
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="rounded-full border border-stroke bg-white px-3 py-2 text-sm">
-        {currentUser?.name ?? "Guest"}
-      </div>
-      <Badge>{roleLabel}</Badge>
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Tag
+        style={{
+          borderRadius: 999,
+          border: "1px solid #e2e8f0",
+          background: "#fff",
+          color: "#475569",
+          fontSize: 12,
+          fontWeight: 500,
+          padding: "2px 10px",
+          margin: 0,
+        }}>
+        {currentUser?.name ?? t("layout.user.guest")}
+      </Tag>
+
+      <Tag
+        color="blue"
+        style={{
+          borderRadius: 999,
+          fontSize: 12,
+          padding: "2px 10px",
+          margin: 0,
+        }}>
+        {roleLabel}
+      </Tag>
+
       {currentUser?.roles && currentUser.roles.length > 1 && (
-        <Badge>+{currentUser.roles.length - 1} roles</Badge>
+        <Tag
+          style={{
+            borderRadius: 999,
+            border: "1px solid #e2e8f0",
+            background: "#f8fafc",
+            color: "#64748b",
+            fontSize: 12,
+            padding: "2px 10px",
+            margin: 0,
+          }}>
+          +{currentUser.roles.length - 1} {t("layout.user.roles_more")}
+        </Tag>
       )}
-      {currentTenant && <Badge>{currentTenant.name}</Badge>}
+
+      {currentTenant && (
+        <Tag
+          color="geekblue"
+          style={{
+            borderRadius: 999,
+            fontSize: 12,
+            padding: "2px 10px",
+            margin: 0,
+          }}>
+          {currentTenant.name}
+        </Tag>
+      )}
     </div>
   );
 }

@@ -12,6 +12,8 @@ interface CheckoutFormProps {
   returnUrl: string;
   onSuccess?: () => void;
   onError?: (message: string) => void;
+  /** Set to false when the parent already renders its own order summary */
+  showSummary?: boolean;
 }
 
 export const CheckoutForm = ({
@@ -20,6 +22,7 @@ export const CheckoutForm = ({
   returnUrl,
   onSuccess,
   onError,
+  showSummary = true,
 }: CheckoutFormProps) => {
   const stripe = useStripe();
   const elements = useElements();
@@ -53,10 +56,12 @@ export const CheckoutForm = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="rounded-2xl border border-stroke bg-slate-50 p-4">
-        <div className="mb-1 text-sm text-muted">Invoice #{invoiceId}</div>
-        <div className="text-2xl font-bold text-ink">{amount}</div>
-      </div>
+      {showSummary && (
+        <div className="rounded-2xl border border-stroke bg-slate-50 p-4">
+          <div className="mb-1 text-sm text-muted">Invoice #{invoiceId}</div>
+          <div className="text-2xl font-bold text-ink">{amount}</div>
+        </div>
+      )}
 
       <PaymentElement />
 

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -40,7 +40,7 @@ interface SaveTemplatePayload {
     stage: string;
     sortOrder?: number;
     tasks: {
-      /** BE field — must be `title`, NOT `name` */
+      /** BE field � must be `title`, NOT `name` */
       title: string;
       ownerType: string;
       ownerRefId: Role;
@@ -87,6 +87,58 @@ const initialForm = (): EditorForm => ({
   description: "",
   checklists: [emptyChecklist()],
 });
+
+const aiTextToForm = (aiText: string): EditorForm => {
+  const lines = aiText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const titleLine = lines.find(
+    (line) =>
+      /^template\s*[:\-]/i.test(line) ||
+      /^title\s*[:\-]/i.test(line) ||
+      /^name\s*[:\-]/i.test(line),
+  );
+  const suggestedName =
+    titleLine?.split(/[:\-]/).slice(1).join(":").trim() ||
+    "AI Suggested Onboarding";
+
+  const bulletTasks = lines
+    .map((line) => line.replace(/^([\-\*�]|\d+[\.)])\s*/, "").trim())
+    .filter((line) => line.length > 0)
+    .filter((line) => !/^template\s*[:\-]/i.test(line))
+    .slice(0, 10);
+
+  const tasks = (
+    bulletTasks.length > 0
+      ? bulletTasks
+      : [
+          "Introduce company handbook",
+          "Setup core work tools",
+          "Assign onboarding buddy",
+        ]
+  ).map((taskName, index) => ({
+    id: crypto.randomUUID(),
+    name: taskName,
+    description: "",
+    dueDaysOffset: index === 0 ? 0 : Math.min(index * 2, 7),
+    requireAck: index === 0,
+  }));
+
+  return {
+    name: suggestedName,
+    description: aiText.slice(0, 500),
+    checklists: [
+      {
+        id: crypto.randomUUID(),
+        name: "AI Suggested Stage",
+        stageType: "DAY_1",
+        tasks,
+      },
+    ],
+  };
+};
 
 const templateToForm = (tmpl: OnboardingTemplate): EditorForm => ({
   name: tmpl.name ?? "",
@@ -218,6 +270,8 @@ const TemplateEditor = () => {
   const duplicateFrom = (
     location.state as { duplicateFrom?: OnboardingTemplate } | null
   )?.duplicateFrom;
+  const aiSuggestion = (location.state as { aiSuggestion?: string } | null)
+    ?.aiSuggestion;
 
   const { data, isLoading } = useTemplateQuery(
     !isCreate ? templateId : undefined,
@@ -245,7 +299,14 @@ const TemplateEditor = () => {
   // Single effect for all form-init paths: create/duplicate, or edit with loaded data
   useEffect(() => {
     if (isCreate) {
-      if (duplicateFrom) setForm(templateToForm(duplicateFrom));
+      if (duplicateFrom) {
+        setForm(templateToForm(duplicateFrom));
+        return;
+      }
+
+      if (aiSuggestion?.trim()) {
+        setForm(aiTextToForm(aiSuggestion));
+      }
       return;
     }
     if (!data) return;
@@ -254,7 +315,7 @@ const TemplateEditor = () => {
     syncedIdRef.current = id;
     setForm(templateToForm(data));
     if (id && data.name) setBreadcrumbs({ [id]: data.name });
-  }, [isCreate, duplicateFrom, data, templateId, setBreadcrumbs]);
+  }, [isCreate, duplicateFrom, aiSuggestion, data, templateId, setBreadcrumbs]);
 
   useEffect(() => {
     setActiveStageIndex((s) =>
@@ -399,7 +460,7 @@ const TemplateEditor = () => {
     try {
       const payload = buildPayload(form, createdBy);
       if (isEdit && templateId) {
-        // BE update endpoint only supports name/description/status — checklists intentionally omitted
+        // BE update endpoint only supports name/description/status � checklists intentionally omitted
         await saveTemplate.mutateAsync({
           name: payload.name,
           description: payload.description,
@@ -471,7 +532,7 @@ const TemplateEditor = () => {
         </h1>
       </div>
 
-      {/* ── Step 0: Info ──────────────────────────────────────────── */}
+      {/* -- Step 0: Info -------------------------------------------- */}
       {activeStep === 0 && (
         <div className="space-y-4">
           {/* Name + Description card */}
@@ -585,7 +646,7 @@ const TemplateEditor = () => {
                         {stageCount}{" "}
                         {t("onboarding.template.editor.stages_label")}
                       </span>
-                      <span>·</span>
+                      <span>�</span>
                       <span>
                         {taskCount}{" "}
                         {t("onboarding.template.review.tasks").toLowerCase()}
@@ -599,7 +660,7 @@ const TemplateEditor = () => {
         </div>
       )}
 
-      {/* ── Step 1: Builder ───────────────────────────────────────── */}
+      {/* -- Step 1: Builder ----------------------------------------- */}
       {activeStep === 1 && (
         <div className="overflow-hidden rounded-2xl border border-stroke bg-white shadow-sm">
           <div className="flex" style={{ minHeight: 560 }}>
@@ -645,7 +706,7 @@ const TemplateEditor = () => {
         </div>
       )}
 
-      {/* ── Step 2: Review ────────────────────────────────────────── */}
+      {/* -- Step 2: Review ------------------------------------------ */}
       {activeStep === 2 && (
         <div className="overflow-hidden rounded-2xl border border-stroke bg-white shadow-sm">
           <div className="border-b border-stroke px-6 py-5">
@@ -664,7 +725,7 @@ const TemplateEditor = () => {
                   {t("onboarding.template.editor.review.template_label")}
                 </p>
                 <p className="mt-1 truncate text-lg font-bold text-ink">
-                  {form.name || "—"}
+                  {form.name || "�"}
                 </p>
                 {form.description && (
                   <p className="mt-0.5 text-sm text-muted">
@@ -729,7 +790,7 @@ const TemplateEditor = () => {
                           <li
                             key={task.id}
                             className="flex items-baseline gap-3 px-4 py-2.5 text-sm">
-                            <span className="shrink-0 text-muted/40">·</span>
+                            <span className="shrink-0 text-muted/40">�</span>
                             <span className="flex-1 font-medium text-ink">
                               {task.name ||
                                 t(
@@ -756,7 +817,7 @@ const TemplateEditor = () => {
         </div>
       )}
 
-      {/* ── Wizard footer (sticky) ────────────────────────────────── */}
+      {/* -- Wizard footer (sticky) ---------------------------------- */}
       <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-stroke bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.07)] lg:left-64">
         <div className="mx-auto max-w-5xl px-6 py-3">
           <div className="flex items-center justify-between gap-4">

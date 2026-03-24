@@ -1,18 +1,37 @@
-﻿import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Clock } from "lucide-react";
-import { Button, Card, Empty, Progress, Skeleton } from "antd";
+import { AlertTriangle, CheckCircle2, Clock, Send } from "lucide-react";
+import {
+  Button,
+  Card,
+  Col,
+  Divider,
+  Drawer,
+  Empty,
+  Input,
+  Progress,
+  Row,
+  Segmented,
+  Select,
+  Skeleton,
+  Tag,
+  Typography,
+} from "antd";
 
 import { notify } from "@/utils/notify";
 import { useUserStore } from "@/stores/user.store";
 import { useLocale } from "@/i18n";
-import { isOnboardingEmployee } from "@/shared/rbac";
+import { isOnboardingEmployee, canManageOnboarding } from "@/shared/rbac";
 import {
+  apiAddTaskComment,
+  apiGetTaskDetail,
   apiListInstances,
   apiListTasks,
+  apiListTaskComments,
   apiUpdateTaskStatus,
 } from "@/api/onboarding/onboarding.api";
+import type { CommentResponse } from "@/interface/onboarding";
 import { extractList } from "@/api/core/types";
 import { mapInstance, mapTask } from "@/utils/mappers/onboarding";
 import type { OnboardingInstance, OnboardingTask } from "@/shared/types";
@@ -22,34 +41,9 @@ import type { OnboardingInstance, OnboardingTask } from "@/shared/types";
 const STATUS_DONE = "Done";
 const STATUS_DONE_API = "DONE";
 
+type StatusFilter = "all" | "pending" | "done";
+
 // ── Hooks ─────────────────────────────────────────────────────────────────────
-
-interface InstancesFilter {
-  employeeId?: string;
-  status?: string;
-}
-
-const useInstancesQuery = (filters?: InstancesFilter, enabled = true) =>
-  useQuery({
-    queryKey: [
-      "instances",
-      filters?.employeeId ?? "",
-      filters?.status ?? "ACTIVE",
-    ],
-    queryFn: () =>
-      apiListInstances({
-        employeeId: filters?.employeeId,
-        status: filters?.status ?? "ACTIVE",
-      }),
-    enabled,
-    select: (res: unknown) =>
-      extractList(
-        res as Record<string, unknown>,
-        "instances",
-        "items",
-        "list",
-      ).map(mapInstance) as OnboardingInstance[],
-  });
 
 const useTasksQuery = (onboardingId?: string) =>
   useQuery({
@@ -66,10 +60,37 @@ const useTasksQuery = (onboardingId?: string) =>
       ).map(mapTask) as OnboardingTask[],
   });
 
+const useTaskDetailQuery = (taskId?: string) =>
+  useQuery({
+    queryKey: ["onboarding-task-detail", taskId ?? ""],
+    queryFn: () => apiGetTaskDetail(taskId!),
+    enabled: Boolean(taskId),
+    select: (res: unknown) => {
+      const record = res as Record<string, unknown>;
+      return (record?.task ??
+        record?.data ??
+        record?.result ??
+        record?.payload ??
+        res) as Record<string, unknown>;
+    },
+  });
+
 const useUpdateTaskStatus = () =>
   useMutation({
     mutationFn: ({ taskId, status }: { taskId: string; status: string }) =>
       apiUpdateTaskStatus(taskId, status),
+  });
+
+const useTaskCommentsQuery = (taskId?: string) =>
+  useQuery({
+    queryKey: ["onboarding-task-comments", taskId ?? ""],
+    queryFn: () => apiListTaskComments(taskId!),
+    enabled: Boolean(taskId),
+    select: (res: unknown) => {
+      const record = res as Record<string, unknown>;
+      const list = record?.comments ?? record?.data ?? [];
+      return (Array.isArray(list) ? list : []) as CommentResponse[];
+    },
   });
 
 // ── Components ─────────────────────────────────────────────────────────────────
@@ -100,10 +121,12 @@ const TaskItem = ({
   task,
   isUpdating,
   onChange,
+  onInspect,
 }: {
   task: OnboardingTask;
   isUpdating: boolean;
   onChange: (task: OnboardingTask) => void;
+  onInspect: (task: OnboardingTask) => void;
 }) => {
   const { t } = useLocale();
   const isDone = task.status === STATUS_DONE;
@@ -111,7 +134,7 @@ const TaskItem = ({
     task.dueDate && !isDone && new Date(task.dueDate) < new Date();
 
   return (
-    <li className="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-slate-50">
+    <li className="flex flex-col gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50 sm:flex-row sm:items-center sm:gap-4">
       <label className="flex flex-1 cursor-pointer items-center gap-3">
         <input
           type="checkbox"
@@ -129,15 +152,26 @@ const TaskItem = ({
           {task.title}
         </span>
       </label>
-      {task.dueDate && (
-        <span
-          className={`flex items-center gap-1 text-xs ${
-            isOverdue ? "font-medium text-amber-600" : "text-gray-400"
-          }`}>
-          <Clock className="h-3 w-3" />
-          {t("onboarding.task.due", { date: task.dueDate })}
-        </span>
-      )}
+
+      <div className="flex items-center justify-between gap-2 sm:justify-end">
+        {task.dueDate ? (
+          <span
+            className={`flex items-center gap-1 text-xs ${
+              isOverdue ? "font-medium text-amber-600" : "text-gray-400"
+            }`}>
+            <Clock className="h-3 w-3" />
+            {t("onboarding.task.due", { date: task.dueDate })}
+          </span>
+        ) : (
+          <span className="text-xs text-gray-400">
+            {t("onboarding.task.no_due_date")}
+          </span>
+        )}
+
+        <Button size="small" onClick={() => onInspect(task)}>
+          {t("onboarding.task.detail.view")}
+        </Button>
+      </div>
     </li>
   );
 };
@@ -147,11 +181,13 @@ const StageSection = ({
   tasks,
   isUpdating,
   onToggle,
+  onInspect,
 }: {
   title: string;
   tasks: OnboardingTask[];
   isUpdating: boolean;
   onToggle: (task: OnboardingTask) => void;
+  onInspect: (task: OnboardingTask) => void;
 }) => {
   const done = tasks.filter((t) => t.status === STATUS_DONE).length;
   const total = tasks.length;
@@ -188,6 +224,7 @@ const StageSection = ({
             task={task}
             isUpdating={isUpdating}
             onChange={onToggle}
+            onInspect={onInspect}
           />
         ))}
       </ul>
@@ -221,22 +258,70 @@ const LoadingState = () => (
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
+const formatDate = (value?: string) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString("vi-VN");
+};
+
 const Tasks = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { t } = useLocale();
   const currentUser = useUserStore((s) => s.currentUser);
   const userId = currentUser?.id;
-  const isEmployee = isOnboardingEmployee(currentUser?.roles ?? []);
+  const roles = currentUser?.roles ?? [];
+  const isEmployee = isOnboardingEmployee(roles);
+  const isManager = roles.includes("MANAGER") && !roles.includes("HR");
+  const isHr = roles.includes("HR");
+  const canManage = canManageOnboarding(roles);
 
-  const { data: instances = [] } = useInstancesQuery(
-    isEmployee && userId ? { employeeId: userId, status: "ACTIVE" } : undefined,
-    Boolean(isEmployee && userId),
-  );
-  const myInstances = instances.filter(
-    (i) => i.employeeUserId === userId || i.employeeId === userId,
-  );
-  const onboardingId = myInstances[0]?.id;
+  // ── Instance loading ──────────────────────────────────────────────────────
+
+  const { data: allInstances = [], isLoading: loadingInstances } = useQuery({
+    queryKey: [
+      "onboarding-instances-tasks",
+      userId ?? "",
+      canManage ? "all" : "employee",
+    ],
+    queryFn: () =>
+      canManage
+        ? apiListInstances({ status: "ACTIVE" })
+        : apiListInstances({ employeeId: userId, status: "ACTIVE" }),
+    enabled: Boolean(userId),
+    select: (res: unknown) =>
+      extractList(
+        res as Record<string, unknown>,
+        "instances",
+        "items",
+        "list",
+      ).map(mapInstance) as OnboardingInstance[],
+  });
+
+  const instances = useMemo(() => {
+    if (isManager) {
+      return allInstances.filter((i) => i.managerUserId === userId);
+    }
+    if (isEmployee) {
+      return allInstances.filter(
+        (i) => i.employeeUserId === userId || i.employeeId === userId,
+      );
+    }
+    return allInstances; // HR sees all
+  }, [allInstances, isManager, isEmployee, userId]);
+
+  // ── Selected instance ─────────────────────────────────────────────────────
+  // Employees auto-select; managers/HR get a dropdown.
+
+  const [selectedInstanceId, setSelectedInstanceId] = useState<
+    string | undefined
+  >();
+  const onboardingId = isEmployee
+    ? instances[0]?.id
+    : (selectedInstanceId ?? instances[0]?.id);
+
+  // ── Tasks loading ─────────────────────────────────────────────────────────
 
   const {
     data: tasks = [],
@@ -245,21 +330,69 @@ const Tasks = () => {
     error,
     refetch,
   } = useTasksQuery(onboardingId);
+
   const updateStatus = useUpdateTaskStatus();
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [keyword, setKeyword] = useState("");
+  const [commentInput, setCommentInput] = useState("");
+
+  const { data: comments, isLoading: commentsLoading } = useTaskCommentsQuery(
+    selectedTaskId ?? undefined,
+  );
+
+  const addCommentMutation = useMutation({
+    mutationFn: ({ taskId, message }: { taskId: string; message: string }) =>
+      apiAddTaskComment(taskId, message),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-comments", selectedTaskId],
+      });
+      setCommentInput("");
+      notify.success(t("onboarding.task.comments.toast_added"));
+    },
+    onError: () => {
+      notify.error(t("onboarding.task.toast.failed"));
+    },
+  });
+
+  const handleAddComment = () => {
+    if (!selectedTaskId || !commentInput.trim()) return;
+    addCommentMutation.mutate({
+      taskId: selectedTaskId,
+      message: commentInput.trim(),
+    });
+  };
+
+  const { data: taskDetail, isLoading: taskDetailLoading } = useTaskDetailQuery(
+    selectedTaskId ?? undefined,
+  );
 
   const completedCount = tasks.filter(
     (task) => task.status === STATUS_DONE,
   ).length;
   const totalCount = tasks.length;
 
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      const matchKeyword = task.title
+        .toLowerCase()
+        .includes(keyword.trim().toLowerCase());
+      if (!matchKeyword) return false;
+      if (statusFilter === "all") return true;
+      if (statusFilter === "done") return task.status === STATUS_DONE;
+      return task.status !== STATUS_DONE;
+    });
+  }, [tasks, keyword, statusFilter]);
+
   const grouped = useMemo(() => {
     const map = new Map<string, OnboardingTask[]>();
-    for (const task of tasks) {
+    for (const task of filteredTasks) {
       const key = task.checklistName ?? "Other";
       map.set(key, [...(map.get(key) ?? []), task]);
     }
     return Array.from(map.entries());
-  }, [tasks]);
+  }, [filteredTasks]);
 
   const handleToggleTask = async (task: OnboardingTask) => {
     const isDone = task.status === STATUS_DONE;
@@ -279,21 +412,103 @@ const Tasks = () => {
     }
   };
 
+  const instanceSelectOptions = instances.map((inst) => ({
+    label: `#${inst.id.slice(-8)} — ${inst.employeeId ?? t("onboarding.task.instance.unknown_employee")} (${inst.status})`,
+    value: inst.id,
+  }));
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-800">
-          {t("onboarding.task.title")}
-        </h1>
-        <p className="mt-0.5 text-sm text-gray-500">
-          {t("onboarding.task.subtitle")}
-        </p>
-      </div>
+      {/* ── Filters & Instance Selector ─────────────────────────────── */}
+      <Card>
+        <Row gutter={[16, 12]} align="middle">
+          {canManage && (
+            <Col xs={24} md={8}>
+              <p className="mb-1 text-sm font-semibold text-gray-700">
+                {t("onboarding.task.instance.select_label")}
+              </p>
+              {loadingInstances ? (
+                <Skeleton.Input active block />
+              ) : (
+                <Select
+                  style={{ width: "100%" }}
+                  placeholder={t("onboarding.task.instance.select_placeholder")}
+                  options={instanceSelectOptions}
+                  value={onboardingId}
+                  onChange={(v) => setSelectedInstanceId(v)}
+                  showSearch
+                  filterOption={(input, option) =>
+                    ((option?.label as string) ?? "")
+                      .toLowerCase()
+                      .includes(input.toLowerCase())
+                  }
+                />
+              )}
+              {isHr && (
+                <p className="mt-1 text-xs text-gray-400">
+                  {t("onboarding.task.instance.hr_hint", {
+                    total: instances.length,
+                  })}
+                </p>
+              )}
+              {isManager && (
+                <p className="mt-1 text-xs text-gray-400">
+                  {t("onboarding.task.instance.manager_hint", {
+                    total: instances.length,
+                  })}
+                </p>
+              )}
+            </Col>
+          )}
+          <Col xs={24} md={canManage ? 8 : 12}>
+            <p className="mb-1 text-sm font-semibold text-gray-700">
+              {t("onboarding.task.quickview.search_placeholder")}
+            </p>
+            <Input
+              allowClear
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder={t("onboarding.task.quickview.search_placeholder")}
+            />
+          </Col>
+          <Col xs={24} md={canManage ? 8 : 12}>
+            <p className="mb-1 text-sm font-semibold text-gray-700">
+              {t("onboarding.task.quickview.title")}
+            </p>
+            <Segmented
+              value={statusFilter}
+              onChange={(value) => setStatusFilter(value as StatusFilter)}
+              options={[
+                {
+                  label: t("onboarding.task.quickview.filter_all"),
+                  value: "all",
+                },
+                {
+                  label: t("onboarding.task.quickview.filter_pending"),
+                  value: "pending",
+                },
+                {
+                  label: t("onboarding.task.quickview.filter_done"),
+                  value: "done",
+                },
+              ]}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              {t("onboarding.task.quickview.result", {
+                visible: filteredTasks.length,
+                total: totalCount,
+              })}
+            </p>
+          </Col>
+        </Row>
+      </Card>
 
+      {/* ── Progress summary ─────────────────────────────────── */}
       {totalCount > 0 && (
         <ProgressSummary completed={completedCount} total={totalCount} />
       )}
 
+      {/* ── Task list ─────────────────────────────────────────── */}
       {isLoading ? (
         <LoadingState />
       ) : isError ? (
@@ -321,6 +536,7 @@ const Tasks = () => {
               tasks={stageTasks}
               isUpdating={updateStatus.isPending}
               onToggle={handleToggleTask}
+              onInspect={(task) => setSelectedTaskId(task.id)}
             />
           ))}
         </div>
@@ -329,25 +545,167 @@ const Tasks = () => {
           <div className="py-8">
             <Empty
               description={
-                myInstances.length > 0
+                onboardingId
                   ? t("onboarding.task.empty.desc_has_instance")
                   : t("onboarding.task.empty.desc_no_instance")
               }>
-              <Button
-                type={myInstances.length > 0 ? "primary" : "default"}
-                onClick={() =>
-                  myInstances.length > 0
-                    ? navigate(`/onboarding/employees/${myInstances[0].id}`)
-                    : navigate("/onboarding/employees")
-                }>
-                {myInstances.length > 0
-                  ? t("onboarding.task.empty.action")
-                  : t("onboarding.task.empty.title")}
-              </Button>
+              {isEmployee ? (
+                <Button onClick={() => navigate("/onboarding/my-journey")}>
+                  {t("onboarding.task.empty.title")}
+                </Button>
+              ) : (
+                <Button
+                  type="primary"
+                  onClick={() => navigate("/onboarding/employees")}>
+                  {t("onboarding.task.empty.action")}
+                </Button>
+              )}
             </Empty>
           </div>
         </Card>
       )}
+
+      {/* ── Task Detail Drawer ─────────────────────────────────── */}
+      <Drawer
+        title={t("onboarding.task.detail.title")}
+        width={560}
+        open={Boolean(selectedTaskId)}
+        onClose={() => setSelectedTaskId(null)}>
+        {taskDetailLoading ? (
+          <Skeleton active paragraph={{ rows: 6 }} />
+        ) : taskDetail ? (
+          <div className="space-y-4">
+            <div>
+              <Typography.Text type="secondary">
+                {t("onboarding.employee.home.task_detail.field_title")}
+              </Typography.Text>
+              <Typography.Paragraph className="!mb-0 !mt-1" strong>
+                {String(taskDetail.title ?? "-")}
+              </Typography.Paragraph>
+            </div>
+
+            {!!taskDetail.description && (
+              <div>
+                <Typography.Text type="secondary">
+                  {t("onboarding.employee.home.task_detail.field_description")}
+                </Typography.Text>
+                <Typography.Paragraph className="!mb-0 !mt-1">
+                  {String(taskDetail.description)}
+                </Typography.Paragraph>
+              </div>
+            )}
+
+            <Row gutter={[12, 12]}>
+              <Col span={12}>
+                <div className="rounded-lg border border-gray-200 p-3">
+                  <Typography.Text type="secondary">
+                    {t("onboarding.employee.home.task_detail.field_status")}
+                  </Typography.Text>
+                  <div className="mt-1">
+                    <Tag
+                      color={
+                        String(taskDetail.status ?? "") === STATUS_DONE_API
+                          ? "success"
+                          : "processing"
+                      }>
+                      {String(taskDetail.status ?? "-")}
+                    </Tag>
+                  </div>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div className="rounded-lg border border-gray-200 p-3">
+                  <Typography.Text type="secondary">
+                    {t("onboarding.employee.home.task_detail.field_due_date")}
+                  </Typography.Text>
+                  <div className="mt-1">
+                    {formatDate(String(taskDetail.dueDate ?? ""))}
+                  </div>
+                </div>
+              </Col>
+            </Row>
+
+            {/* ── Comments ─────────────────────────────────── */}
+            <Divider orientationMargin={0}>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {t("onboarding.task.comments.title")}
+              </Typography.Text>
+            </Divider>
+
+            {commentsLoading ? (
+              <Skeleton active paragraph={{ rows: 2 }} />
+            ) : (comments?.length ?? 0) === 0 ? (
+              <Empty
+                description={t("onboarding.task.comments.empty")}
+                imageStyle={{ height: 40 }}
+              />
+            ) : (
+              <div className="max-h-52 space-y-3 overflow-y-auto pr-1">
+                {comments?.map((c) => (
+                  <div key={c.commentId} className="flex gap-2">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
+                      {(c.authorName ?? "U")[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 rounded-lg bg-gray-50 px-3 py-2">
+                      <p className="text-xs font-semibold text-gray-700">
+                        {c.authorName ??
+                          t("onboarding.task.comments.unknown_author")}
+                      </p>
+                      <p className="text-sm text-gray-600">{c.message}</p>
+                      {c.createdAt && (
+                        <p className="mt-1 text-[11px] text-gray-400">
+                          {formatDate(c.createdAt)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-3 flex gap-2">
+              <Input
+                placeholder={t("onboarding.task.comments.placeholder")}
+                value={commentInput}
+                onChange={(e) => setCommentInput(e.target.value)}
+                onPressEnter={handleAddComment}
+                maxLength={500}
+              />
+              <Button
+                type="primary"
+                icon={<Send className="h-3.5 w-3.5" />}
+                loading={addCommentMutation.isPending}
+                onClick={handleAddComment}
+                disabled={!commentInput.trim()}>
+                {t("onboarding.task.comments.send")}
+              </Button>
+            </div>
+
+            {isEmployee && (
+              <div className="mt-4 flex gap-2">
+                <Button
+                  type="primary"
+                  onClick={async () => {
+                    const task = tasks.find((t) => t.id === selectedTaskId);
+                    if (task) await handleToggleTask(task);
+                    setSelectedTaskId(null);
+                  }}
+                  loading={updateStatus.isPending}>
+                  {tasks.find((t) => t.id === selectedTaskId)?.status ===
+                  STATUS_DONE
+                    ? t("onboarding.employee.home.today_actions.mark_undone")
+                    : t("onboarding.employee.home.today_actions.mark_done")}
+                </Button>
+                <Button onClick={() => setSelectedTaskId(null)}>
+                  {t("global.close")}
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <Empty description={t("onboarding.task.detail.not_found")} />
+        )}
+      </Drawer>
     </div>
   );
 };

@@ -56,23 +56,18 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: ClipboardCheck,
     children: [
       {
-        titleKey: "nav.onboarding",
+        titleKey: "nav.onboarding.dashboard",
         to: "/onboarding",
         requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
       },
       {
-        titleKey: "nav.onboarding.templates",
-        to: "/onboarding/templates",
-        requiredRoles: ["HR"],
-      },
-      {
         titleKey: "nav.onboarding.employees",
         to: "/onboarding/employees",
-        requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
+        requiredRoles: ["HR", "MANAGER"],
       },
       {
-        titleKey: "nav.onboarding.new_employee",
-        to: "/onboarding/employees/new",
+        titleKey: "nav.onboarding.templates",
+        to: "/onboarding/templates",
         requiredRoles: ["HR"],
       },
       {
@@ -86,9 +81,14 @@ export const NAV_SECTIONS: NavSection[] = [
         requiredRoles: ["HR"],
       },
       {
+        titleKey: "nav.onboarding.my_journey",
+        to: "/onboarding/my-journey",
+        requiredRoles: ["EMPLOYEE"],
+      },
+      {
         titleKey: "nav.onboarding.knowledge_base",
-        to: "/admin/knowledge-base",
-        requiredRoles: ["HR"],
+        to: "/documents",
+        requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
       },
     ],
   },
@@ -159,17 +159,32 @@ export const NAV_SECTIONS: NavSection[] = [
         to: "/billing/invoices",
         requiredRoles: ["HR"],
       },
-      {
-        titleKey: "nav.billing.payment",
-        to: "/billing/payment",
-        requiredRoles: ["HR"],
-      },
     ],
   },
   {
     titleKey: "nav.platform",
     icon: Briefcase,
     children: [
+      {
+        titleKey: "nav.platform.dashboard",
+        to: "/platform/dashboard",
+        requiredRoles: ["ADMIN", "STAFF"],
+      },
+      {
+        titleKey: "nav.platform.companies",
+        to: "/platform/companies",
+        requiredRoles: ["ADMIN"],
+      },
+      {
+        titleKey: "nav.platform.onboarding_monitor",
+        to: "/platform/onboarding-monitor",
+        requiredRoles: ["ADMIN", "STAFF"],
+      },
+      {
+        titleKey: "nav.platform.onboarding_templates",
+        to: "/platform/onboarding-templates",
+        requiredRoles: ["ADMIN"],
+      },
       {
         titleKey: "nav.platform.payments",
         to: "/platform/payments",

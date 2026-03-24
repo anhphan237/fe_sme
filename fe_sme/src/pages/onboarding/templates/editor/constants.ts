@@ -5,6 +5,7 @@ export interface TaskDraft {
   description: string;
   dueDaysOffset: number;
   requireAck: boolean;
+  assignee?: "HR" | "MANAGER" | "EMPLOYEE" | "IT";
 }
 
 export interface ChecklistDraft {
@@ -48,6 +49,7 @@ export interface LibraryTask {
   dueDaysOffset: number;
   requireAck: boolean;
   category: TaskCategory;
+  assignee?: "HR" | "MANAGER" | "EMPLOYEE" | "IT";
 }
 
 export const TASK_CATEGORIES: { value: TaskCategory; label: string }[] = [
@@ -324,6 +326,35 @@ export const TEMPLATE_PRESETS: TemplatePreset[] = [
           },
         ]),
       },
+      {
+        name: "60-day review",
+        stageType: "DAY_60",
+        tasks: mkTasks([
+          {
+            name: "60-day performance review",
+            desc: "Manager reviews employee performance against initial goals",
+            due: 60,
+            ack: true,
+          },
+          {
+            name: "Career development goal setting",
+            desc: "Define 3-month and 6-month career goals together",
+            due: 60,
+            ack: true,
+          },
+          {
+            name: "Complete onboarding survey",
+            desc: "Employee feedback on onboarding experience quality",
+            due: 60,
+            ack: true,
+          },
+          {
+            name: "Confirm team integration",
+            desc: "Assess cultural fit and social integration with the team",
+            due: 60,
+          },
+        ]),
+      },
     ],
   },
   {
@@ -419,6 +450,35 @@ export const TEMPLATE_PRESETS: TemplatePreset[] = [
           },
         ]),
       },
+      {
+        name: "60-day review",
+        stageType: "DAY_60",
+        tasks: mkTasks([
+          {
+            name: "Code quality review",
+            desc: "Assess code quality, test coverage, and PR contribution velocity",
+            due: 60,
+            ack: true,
+          },
+          {
+            name: "Architecture contribution",
+            desc: "Propose or contribute to one architectural improvement",
+            due: 60,
+          },
+          {
+            name: "Mentor pairing progress",
+            desc: "Review mentorship outcomes and technical growth areas",
+            due: 60,
+            ack: true,
+          },
+          {
+            name: "Complete onboarding survey",
+            desc: "Engineering-specific feedback on tooling, processes, and team",
+            due: 60,
+            ack: true,
+          },
+        ]),
+      },
     ],
   },
   {
@@ -501,6 +561,35 @@ export const TEMPLATE_PRESETS: TemplatePreset[] = [
             name: "30-day check-in",
             desc: "Review pipeline and feedback",
             due: 30,
+            ack: true,
+          },
+        ]),
+      },
+      {
+        name: "60-day review",
+        stageType: "DAY_60",
+        tasks: mkTasks([
+          {
+            name: "Pipeline performance review",
+            desc: "Analyze opportunities created, conversion rate, and revenue contribution",
+            due: 60,
+            ack: true,
+          },
+          {
+            name: "OKR alignment review",
+            desc: "Assess progress against 60-day sales targets and OKRs",
+            due: 60,
+            ack: true,
+          },
+          {
+            name: "Key account assignment",
+            desc: "Assign first set of key accounts to manage independently",
+            due: 60,
+          },
+          {
+            name: "Complete onboarding survey",
+            desc: "Sales process and tooling feedback survey",
+            due: 60,
             ack: true,
           },
         ]),

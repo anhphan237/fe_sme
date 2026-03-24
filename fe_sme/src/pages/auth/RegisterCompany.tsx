@@ -1,10 +1,8 @@
-import { Form, Progress } from "antd";
-import { ArrowLeft } from "lucide-react";
+import { Form, Progress, Alert } from "antd";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useRegisterCompany } from "@/hooks/useRegisterCompany";
 import { RegisterSidebar } from "./components/RegisterSidebar";
 import { RegisterTopBar } from "./components/RegisterTopBar";
-import { RegisterStepHeader } from "./components/RegisterStepHeader";
-import { RegisterStepNavigation } from "./components/RegisterStepNavigation";
 import {
   RegisterStepEmail,
   RegisterStepCompany,
@@ -12,14 +10,33 @@ import {
 } from "./components/RegisterSteps";
 import { RegisterStepPlan } from "./components/RegisterStepPlan";
 import { RegisterStepPayment } from "./components/RegisterStepPayment";
+import { useLocale } from "@/i18n";
+import BaseButton from "@/components/button";
 
 const TOTAL_STEPS = 5;
+
+const TITLE_KEYS = [
+  "register.step0.title",
+  "register.step1.title",
+  "register.step2.title",
+  "register.step3.title",
+  "register.step4.title",
+];
+
+const SUBTITLE_KEYS = [
+  "register.step0.subtitle",
+  "register.step1.subtitle",
+  "register.step2.subtitle",
+  "register.step3.subtitle",
+  "register.step4.subtitle",
+];
 
 const DEFAULT_TZ =
   Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Ho_Chi_Minh";
 
 const RegisterCompany = () => {
   const vm = useRegisterCompany();
+  const { t } = useLocale();
 
   return (
     <div className="flex min-h-screen">
@@ -45,11 +62,44 @@ const RegisterCompany = () => {
               layout="vertical"
               initialValues={{ timezone: DEFAULT_TZ }}
               requiredMark={false}>
-              <RegisterStepHeader
-                step={vm.step}
-                totalSteps={TOTAL_STEPS}
-                error={vm.emailExistsError ?? vm.submitError}
-              />
+              {/* ── Step header ── */}
+              <header className="mb-8">
+                <div className="flex items-center gap-2 mb-5">
+                  {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+                    <span
+                      key={i}
+                      className={`h-2 rounded-full transition-all duration-300 shrink-0 ${
+                        i === vm.step
+                          ? "w-6 bg-brand"
+                          : i < vm.step
+                            ? "w-3 bg-brand/50"
+                            : "w-3 bg-gray-200"
+                      }`}
+                      aria-hidden="true"
+                    />
+                  ))}
+                  <span className="ml-auto text-[11px] font-semibold text-gray-400 tracking-wider uppercase">
+                    {t("register.step_badge", {
+                      current: String(vm.step + 1),
+                      total: String(TOTAL_STEPS),
+                    })}
+                  </span>
+                </div>
+                <h1 className="text-[22px] font-bold text-gray-900 leading-snug mb-1.5">
+                  {t(TITLE_KEYS[vm.step] ?? TITLE_KEYS[0])}
+                </h1>
+                <p className="text-sm text-gray-500 leading-relaxed">
+                  {t(SUBTITLE_KEYS[vm.step] ?? SUBTITLE_KEYS[0])}
+                </p>
+                {(vm.emailExistsError ?? vm.submitError) && (
+                  <Alert
+                    type="error"
+                    showIcon
+                    message={vm.emailExistsError ?? vm.submitError}
+                    className="mt-4 rounded-xl"
+                  />
+                )}
+              </header>
 
               {vm.step === 0 && <RegisterStepEmail />}
 
@@ -83,18 +133,34 @@ const RegisterCompany = () => {
                     vm.planList?.find((p) => p.code === vm.selectedPlanCode)
                       ?.name
                   }
+                  billingCycle={vm.billingCycle}
                   onError={(msg) => vm.setSubmitError(msg)}
                 />
               )}
 
-              {/* Unified navigation for steps 0-3 */}
+              {/* ── Navigation (steps 0–3) ── */}
               {vm.step < 4 && (
-                <RegisterStepNavigation
-                  hideBack={vm.step === 0}
-                  onBack={vm.handleBack}
-                  onNext={vm.handleNext}
-                  loading={vm.checkingEmail || vm.isPaying}
-                />
+                <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-100">
+                  {vm.step === 0 ? (
+                    <span />
+                  ) : (
+                    <BaseButton
+                      onClick={vm.handleBack}
+                      disabled={vm.checkingEmail || vm.isPaying}
+                      icon={<ArrowLeft className="w-3.5 h-3.5" />}>
+                      {t("register.btn.back")}
+                    </BaseButton>
+                  )}
+                  <BaseButton
+                    type="primary"
+                    onClick={vm.handleNext}
+                    loading={vm.checkingEmail || vm.isPaying}
+                    disabled={vm.checkingEmail || vm.isPaying}
+                    iconPosition="end"
+                    icon={<ArrowRight className="w-3.5 h-3.5" />}>
+                    {vm.payingLabel ?? t("register.btn.continue")}
+                  </BaseButton>
+                </div>
               )}
 
               {/* Step 4: allow going back to change plan */}

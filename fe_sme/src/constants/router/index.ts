@@ -13,13 +13,16 @@ export const AppRouters = {
   ADMIN_KNOWLEDGE_BASE: "/admin/knowledge-base",
   // Settings
   SETTINGS_NOTIFICATIONS: "/settings/notifications",
-  // Onboarding
-  ONBOARDING_TEMPLATES: "/onboarding/templates",
-  ONBOARDING_TEMPLATES_NEW: "/onboarding/templates/new",
+  // Onboarding - flat role-aware routes
+  ONBOARDING: "/onboarding",
+  ONBOARDING_DASHBOARD: "/onboarding",
   ONBOARDING_EMPLOYEES: "/onboarding/employees",
   ONBOARDING_EMPLOYEES_NEW: "/onboarding/employees/new",
+  ONBOARDING_TEMPLATES: "/onboarding/templates",
+  ONBOARDING_TEMPLATES_NEW: "/onboarding/templates/new",
   ONBOARDING_TASKS: "/onboarding/tasks",
   ONBOARDING_AUTOMATION: "/onboarding/automation",
+  ONBOARDING_MY_JOURNEY: "/onboarding/my-journey",
   // Documents
   DOCUMENTS: "/documents",
   DOCUMENTS_ACKNOWLEDGMENTS: "/documents/acknowledgments",
@@ -46,6 +49,10 @@ export const AppRouters = {
   PLATFORM_INVOICES: "/platform/invoices",
   PLATFORM_PAYMENTS: "/platform/payments",
   PLATFORM_EMAIL_LOGS: "/platform/email-logs",
+  PLATFORM_DASHBOARD: "/platform/dashboard",
+  PLATFORM_COMPANIES: "/platform/companies",
+  PLATFORM_ONBOARDING_MONITOR: "/platform/onboarding-monitor",
+  PLATFORM_ONBOARDING_TEMPLATES: "/platform/onboarding-templates",
 } as const;
 
 export type AppRouter = (typeof AppRouters)[keyof typeof AppRouters];

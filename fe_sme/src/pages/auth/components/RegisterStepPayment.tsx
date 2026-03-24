@@ -1,28 +1,36 @@
-import { CreditCard, Package } from "lucide-react";
+import { CreditCard, Package, ShieldCheck } from "lucide-react";
 import { StripeProvider } from "@/components/payment/StripeProvider";
 import { CheckoutForm } from "@/components/payment/CheckoutForm";
+import { isValidStripeSecret } from "@/lib/stripe";
 
 interface RegisterStepPaymentProps {
   clientSecret: string;
   invoiceId: string;
   amount: string;
   planName?: string;
+  billingCycle?: "MONTHLY" | "YEARLY";
   onError: (message: string) => void;
 }
-
-const isValidStripeSecret = (s: string) =>
-  s.startsWith("pi_") &&
-  s.includes("_secret_") &&
-  !s.toLowerCase().includes("mock");
 
 export const RegisterStepPayment = ({
   clientSecret,
   invoiceId,
   amount,
   planName,
+  billingCycle,
   onError,
 }: RegisterStepPaymentProps) => {
-  const returnUrl = `${window.location.origin}/billing/payment/confirmation`;
+  const returnUrl = `${window.location.origin}/billing/payment/confirmation?from=register`;
+
+  const cycleLabel = billingCycle === "YEARLY" ? "Hàng năm" : "Hàng tháng";
+
+  const now = new Date();
+  const periodLabel = `Tháng ${now.getMonth() + 1}/${now.getFullYear()}`;
+
+  const shortInvoiceId =
+    invoiceId.length > 8
+      ? invoiceId.slice(-8).toUpperCase()
+      : invoiceId.toUpperCase();
 
   if (!isValidStripeSecret(clientSecret)) {
     return (
@@ -36,21 +44,39 @@ export const RegisterStepPayment = ({
   return (
     <div className="flex flex-col gap-4">
       {/* Order summary */}
-      <div className="rounded-2xl bg-gray-50 border border-gray-100 px-4 py-3.5 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-brand/10 text-brand flex items-center justify-center shrink-0">
-            <Package className="w-4 h-4" aria-hidden="true" />
+      <div className="rounded-2xl bg-gray-50 border border-gray-100 px-4 py-4 flex flex-col gap-3">
+        {/* Plan row */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-brand/10 text-brand flex items-center justify-center shrink-0">
+              <Package className="w-4 h-4" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="text-[13px] font-semibold text-gray-800">
+                {planName ?? "Gói đăng ký"}
+              </p>
+              <p className="text-[11px] text-gray-400">{cycleLabel}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-[13px] font-semibold text-gray-800">
-              {planName ?? "Gói đăng ký"}
-            </p>
-            <p className="text-[11px] text-gray-400">Thanh toán một lần</p>
+          <span className="text-[15px] font-bold text-gray-900 shrink-0">
+            {amount}
+          </span>
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-gray-200" />
+
+        {/* Invoice & period details */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex justify-between text-[12px]">
+            <span className="text-gray-500">Số hóa đơn</span>
+            <span className="font-medium text-gray-700">#{shortInvoiceId}</span>
+          </div>
+          <div className="flex justify-between text-[12px]">
+            <span className="text-gray-500">Kỳ thanh toán</span>
+            <span className="font-medium text-gray-700">{periodLabel}</span>
           </div>
         </div>
-        <span className="text-[15px] font-bold text-gray-900 shrink-0">
-          {amount}
-        </span>
       </div>
 
       {/* Stripe payment form */}
@@ -67,8 +93,15 @@ export const RegisterStepPayment = ({
             invoiceId={invoiceId}
             returnUrl={returnUrl}
             onError={onError}
+            showSummary={false}
           />
         </StripeProvider>
+      </div>
+
+      {/* Security note */}
+      <div className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
+        <ShieldCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+        <span>Thanh toán được mã hóa và bảo mật bởi Stripe</span>
       </div>
     </div>
   );

@@ -11,8 +11,8 @@ const LANGUAGES: {
   label: string;
   native: string;
 }[] = [
-  { value: "vi_VN", flag: "ðŸ‡»ðŸ‡³", label: "Tiáº¿ng Viá»‡t", native: "VI" },
-  { value: "en_US", flag: "ðŸ‡ºðŸ‡¸", label: "English", native: "EN" },
+  { value: "vi_VN", flag: "🇻🇳", label: "Tiếng Việt", native: "VI" },
+  { value: "en_US", flag: "🇺🇸", label: "English", native: "EN" },
 ];
 
 const LandingNavbar = () => {
