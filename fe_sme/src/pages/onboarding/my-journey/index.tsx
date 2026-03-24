@@ -54,7 +54,7 @@ const getDaysDiff = (fromDate?: string) => {
   return Math.floor(diff / (1000 * 60 * 60 * 24));
 };
 
-const EmployeeHome = () => {
+const MyJourney = () => {
   const queryClient = useQueryClient();
   const { t } = useLocale();
   const currentUser = useUserStore((state) => state.currentUser);
@@ -64,10 +64,7 @@ const EmployeeHome = () => {
 
   const { data: instances = [], isLoading: loadingInstances } = useQuery({
     queryKey: ["employee-onboarding-instances", userId ?? ""],
-    queryFn: () =>
-      apiListInstances({
-        employeeId: userId,
-      }),
+    queryFn: () => apiListInstances({ employeeId: userId }),
     enabled: Boolean(userId),
     select: (res: unknown) =>
       extractList(
@@ -95,13 +92,11 @@ const EmployeeHome = () => {
   }, [instances]);
 
   const onboardingId = latestInstance?.id;
+
   const { data: tasks = [], isLoading: loadingTasks } = useQuery({
     queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
     queryFn: () =>
-      apiListTasks(onboardingId!, {
-        sortBy: "due_date",
-        sortOrder: "ASC",
-      }),
+      apiListTasks(onboardingId!, { sortBy: "due_date", sortOrder: "ASC" }),
     enabled: Boolean(onboardingId),
     select: (res: unknown) =>
       extractList(
@@ -168,7 +163,6 @@ const EmployeeHome = () => {
       const overduePenalty = due < Date.now() ? -1000000000 : 0;
       return overduePenalty + due;
     };
-
     return [...pendingTasks]
       .sort((a, b) => scoreTask(a) - scoreTask(b))
       .slice(0, 5);
@@ -176,8 +170,7 @@ const EmployeeHome = () => {
 
   const milestoneTimeline = useMemo(() => {
     const daysFromStart = getDaysDiff(latestInstance?.startDate);
-    const data = [7, 30, 60];
-    return data.map((milestone) => {
+    return [7, 30, 60].map((milestone) => {
       if (daysFromStart == null) {
         return {
           milestone,
@@ -204,23 +197,18 @@ const EmployeeHome = () => {
 
   const getStatusTag = (status?: string) => {
     const normalized = (status ?? "").toUpperCase();
-    if (normalized === "ACTIVE") {
+    if (normalized === "ACTIVE")
       return <Tag color="processing">{t("onboarding.status.active")}</Tag>;
-    }
-    if (normalized === "COMPLETED") {
+    if (normalized === "COMPLETED")
       return <Tag color="success">{t("onboarding.status.completed")}</Tag>;
-    }
-    if (normalized === "DRAFT") {
+    if (normalized === "DRAFT")
       return (
         <Tag color="gold">{t("onboarding.employee.home.status.draft")}</Tag>
       );
-    }
-    if (normalized === "PENDING") {
+    if (normalized === "PENDING")
       return <Tag color="gold">{t("onboarding.status.pending")}</Tag>;
-    }
-    if (normalized === "CANCELLED") {
+    if (normalized === "CANCELLED")
       return <Tag color="default">{t("onboarding.status.cancelled")}</Tag>;
-    }
     return <Tag>{t("global.status")}</Tag>;
   };
 
@@ -231,14 +219,12 @@ const EmployeeHome = () => {
         taskId: task.id,
         status: isDone ? "TODO" : STATUS_DONE_API,
       });
-
       queryClient.invalidateQueries({
         queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
       });
       queryClient.invalidateQueries({
         queryKey: ["employee-onboarding-instances", userId ?? ""],
       });
-
       notify.success(
         isDone
           ? t("onboarding.employee.home.toast.task_todo")
@@ -264,10 +250,9 @@ const EmployeeHome = () => {
             {t("onboarding.employee.home.empty_description")}
           </Typography.Text>
         </div>
-
         <Card>
           <Empty description={t("onboarding.employee.home.empty_description")}>
-            <Link to="/onboarding/employee">
+            <Link to="/onboarding/tasks">
               <BaseButton type="primary">
                 {t("onboarding.employee.home.empty_action")}
               </BaseButton>
@@ -395,9 +380,7 @@ const EmployeeHome = () => {
                     ? t("onboarding.employee.home.automation.assignment_ok")
                     : t(
                         "onboarding.employee.home.automation.assignment_missing",
-                        {
-                          total: unassignedTasks.length,
-                        },
+                        { total: unassignedTasks.length },
                       )}
                 </Typography.Text>
               </div>
@@ -428,7 +411,7 @@ const EmployeeHome = () => {
               <Typography.Title level={5} className="!mb-0">
                 {t("onboarding.employee.home.today_actions.title")}
               </Typography.Title>
-              <Link to="/onboarding/employee">
+              <Link to="/onboarding/tasks">
                 <BaseButton type="link">
                   {t("onboarding.employee.home.today_actions.view_all")}
                 </BaseButton>
@@ -729,7 +712,7 @@ const EmployeeHome = () => {
               </Col>
             </Row>
 
-            <Link to="/onboarding/employee">
+            <Link to="/onboarding/tasks">
               <BaseButton type="primary" block>
                 {t("onboarding.employee.home.task_detail.open_board")}
               </BaseButton>
@@ -745,4 +728,4 @@ const EmployeeHome = () => {
   );
 };
 
-export default EmployeeHome;
+export default MyJourney;

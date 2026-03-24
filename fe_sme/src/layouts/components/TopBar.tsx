@@ -55,19 +55,11 @@ function getModuleContext(pathname: string) {
 // Dynamic route patterns for detail pages not in nav config
 const DYNAMIC_ROUTE_PATTERNS: Array<{ pattern: string; titleKey: string }> = [
   {
-    pattern: "/onboarding/hr/templates/:id",
+    pattern: "/onboarding/templates/:id",
     titleKey: "nav.onboarding.templates",
   },
   {
-    pattern: "/onboarding/hr/employees/:id",
-    titleKey: "nav.onboarding.employees",
-  },
-  {
-    pattern: "/onboarding/manager/employees/:id",
-    titleKey: "nav.onboarding.employees",
-  },
-  {
-    pattern: "/onboarding/employee/instances/:id",
+    pattern: "/onboarding/employees/:id",
     titleKey: "nav.onboarding.employees",
   },
   { pattern: "/documents/:id", titleKey: "nav.documents.library" },

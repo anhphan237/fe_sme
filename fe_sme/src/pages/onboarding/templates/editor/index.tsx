@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -40,7 +40,7 @@ interface SaveTemplatePayload {
     stage: string;
     sortOrder?: number;
     tasks: {
-      /** BE field — must be `title`, NOT `name` */
+      /** BE field � must be `title`, NOT `name` */
       title: string;
       ownerType: string;
       ownerRefId: Role;
@@ -105,7 +105,7 @@ const aiTextToForm = (aiText: string): EditorForm => {
     "AI Suggested Onboarding";
 
   const bulletTasks = lines
-    .map((line) => line.replace(/^([\-\*•]|\d+[\.)])\s*/, "").trim())
+    .map((line) => line.replace(/^([\-\*�]|\d+[\.)])\s*/, "").trim())
     .filter((line) => line.length > 0)
     .filter((line) => !/^template\s*[:\-]/i.test(line))
     .slice(0, 10);
@@ -460,7 +460,7 @@ const TemplateEditor = () => {
     try {
       const payload = buildPayload(form, createdBy);
       if (isEdit && templateId) {
-        // BE update endpoint only supports name/description/status — checklists intentionally omitted
+        // BE update endpoint only supports name/description/status � checklists intentionally omitted
         await saveTemplate.mutateAsync({
           name: payload.name,
           description: payload.description,
@@ -477,7 +477,7 @@ const TemplateEditor = () => {
         queryClient.invalidateQueries({ queryKey: ["templates"] });
         message.success(t("onboarding.template.editor.toast.created"));
       }
-      navigate("/onboarding/hr/templates");
+      navigate("/onboarding/templates");
     } catch {
       message.error(
         t(
@@ -497,7 +497,7 @@ const TemplateEditor = () => {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => navigate("/onboarding/hr/templates")}
+            onClick={() => navigate("/onboarding/templates")}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition hover:bg-slate-100 hover:text-ink">
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -519,7 +519,7 @@ const TemplateEditor = () => {
       <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={() => navigate("/onboarding/hr/templates")}
+          onClick={() => navigate("/onboarding/templates")}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition hover:bg-slate-100 hover:text-ink">
           <ChevronLeft className="h-4 w-4" />
         </button>
@@ -532,7 +532,7 @@ const TemplateEditor = () => {
         </h1>
       </div>
 
-      {/* ── Step 0: Info ──────────────────────────────────────────── */}
+      {/* -- Step 0: Info -------------------------------------------- */}
       {activeStep === 0 && (
         <div className="space-y-4">
           {/* Name + Description card */}
@@ -646,7 +646,7 @@ const TemplateEditor = () => {
                         {stageCount}{" "}
                         {t("onboarding.template.editor.stages_label")}
                       </span>
-                      <span>·</span>
+                      <span>�</span>
                       <span>
                         {taskCount}{" "}
                         {t("onboarding.template.review.tasks").toLowerCase()}
@@ -660,7 +660,7 @@ const TemplateEditor = () => {
         </div>
       )}
 
-      {/* ── Step 1: Builder ───────────────────────────────────────── */}
+      {/* -- Step 1: Builder ----------------------------------------- */}
       {activeStep === 1 && (
         <div className="overflow-hidden rounded-2xl border border-stroke bg-white shadow-sm">
           <div className="flex" style={{ minHeight: 560 }}>
@@ -706,7 +706,7 @@ const TemplateEditor = () => {
         </div>
       )}
 
-      {/* ── Step 2: Review ────────────────────────────────────────── */}
+      {/* -- Step 2: Review ------------------------------------------ */}
       {activeStep === 2 && (
         <div className="overflow-hidden rounded-2xl border border-stroke bg-white shadow-sm">
           <div className="border-b border-stroke px-6 py-5">
@@ -725,7 +725,7 @@ const TemplateEditor = () => {
                   {t("onboarding.template.editor.review.template_label")}
                 </p>
                 <p className="mt-1 truncate text-lg font-bold text-ink">
-                  {form.name || "—"}
+                  {form.name || "�"}
                 </p>
                 {form.description && (
                   <p className="mt-0.5 text-sm text-muted">
@@ -790,7 +790,7 @@ const TemplateEditor = () => {
                           <li
                             key={task.id}
                             className="flex items-baseline gap-3 px-4 py-2.5 text-sm">
-                            <span className="shrink-0 text-muted/40">·</span>
+                            <span className="shrink-0 text-muted/40">�</span>
                             <span className="flex-1 font-medium text-ink">
                               {task.name ||
                                 t(
@@ -817,7 +817,7 @@ const TemplateEditor = () => {
         </div>
       )}
 
-      {/* ── Wizard footer (sticky) ────────────────────────────────── */}
+      {/* -- Wizard footer (sticky) ---------------------------------- */}
       <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-stroke bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.07)] lg:left-64">
         <div className="mx-auto max-w-5xl px-6 py-3">
           <div className="flex items-center justify-between gap-4">
@@ -834,7 +834,7 @@ const TemplateEditor = () => {
               ) : (
                 <button
                   type="button"
-                  onClick={() => navigate("/onboarding/hr/templates")}
+                  onClick={() => navigate("/onboarding/templates")}
                   className="rounded-lg px-3 py-2 text-sm font-medium text-muted transition hover:bg-slate-100 hover:text-ink">
                   {t("onboarding.template.editor.btn.cancel")}
                 </button>

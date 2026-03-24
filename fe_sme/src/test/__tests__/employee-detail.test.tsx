@@ -9,11 +9,11 @@ describe("Employee detail page", () => {
     renderWithProviders(
       <Routes>
         <Route
-          path="/onboarding/hr/employees/:employeeId"
+          path="/onboarding/employees/:employeeId"
           element={<EmployeeDetail />}
         />
       </Routes>,
-      "/onboarding/hr/employees/instance-1",
+      "/onboarding/employees/instance-1",
     );
 
     expect(await screen.findByText("Stage progress")).toBeInTheDocument();

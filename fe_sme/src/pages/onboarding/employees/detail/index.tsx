@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft } from "lucide-react";
 import { Button, Card, Drawer, Progress, Skeleton, Tabs, Tag } from "antd";
 import BaseModal from "@core/components/Modal/BaseModal";
 import { notify } from "@/utils/notify";
@@ -158,17 +157,12 @@ const useTemplatesQuery = (status?: string) =>
 const EmployeeDetail = () => {
   const { employeeId: instanceId } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
   const queryClient = useQueryClient();
   const { t } = useLocale();
   const currentUser = useUserStore((state) => state.currentUser);
   const setBreadcrumbs = useGlobalStore((state) => state.setBreadcrumbs);
   const isEmployee = isOnboardingEmployee(currentUser?.roles ?? []);
-  const backToEmployees = location.pathname.startsWith("/onboarding/manager")
-    ? "/onboarding/manager/employees"
-    : isEmployee
-      ? "/onboarding/employee"
-      : "/onboarding/hr/employees";
+  const backToEmployees = "/onboarding/employees";
   const canManage = canManageOnboarding(currentUser?.roles ?? []);
 
   // ── Queries ──────────────────────────────────────────────────────────────────

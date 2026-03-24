@@ -10,23 +10,22 @@ const LandingPage = lazy(() => import("@/pages/landing/LandingPage"));
 const Login = lazy(() => import("@/pages/auth/Login"));
 const RegisterCompany = lazy(() => import("@/pages/auth/RegisterCompany"));
 const InviteAccept = lazy(() => import("@/pages/auth/InviteAccept"));
-const Dashboard = lazy(() => import("@/pages/dashboard/Dashboard"));
+const DashboardRouter = lazy(() => import("@/pages/dashboard/DashboardRouter"));
+const HRDashboard = lazy(() => import("@/pages/dashboard/HRDashboard"));
+const ManagerDashboard = lazy(
+  () => import("@/pages/dashboard/ManagerDashboard"),
+);
+const EmployeeDashboard = lazy(
+  () => import("@/pages/dashboard/EmployeeDashboard"),
+);
 const AdminUsers = lazy(() => import("@/pages/users"));
 const AdminRoles = lazy(() => import("@/pages/roles"));
 const AdminKnowledgeBase = lazy(() => import("@/pages/knowledge-base"));
 const AdminDepartments = lazy(() => import("@/pages/departments"));
 const Profile = lazy(() => import("@/pages/profile/Profile"));
 const Notifications = lazy(() => import("@/pages/settings/Notifications"));
-const OnboardingRoleHome = lazy(() => import("@/pages/onboarding/role-home"));
-const OnboardingEmployeeHome = lazy(
-  () => import("@/pages/onboarding/role-home/EmployeeHome"),
-);
-const OnboardingManagerHome = lazy(
-  () => import("@/pages/onboarding/role-home/ManagerHome"),
-);
-const OnboardingHrHome = lazy(
-  () => import("@/pages/onboarding/role-home/HrHome"),
-);
+const OnboardingDashboard = lazy(() => import("@/pages/onboarding/dashboard"));
+const MyJourney = lazy(() => import("@/pages/onboarding/my-journey"));
 const Templates = lazy(() => import("@/pages/onboarding/templates"));
 const TemplateEditor = lazy(
   () => import("@/pages/onboarding/templates/editor"),
@@ -107,7 +106,19 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
     children: [
-      { path: "/dashboard", element: suspense(<Dashboard />) },
+      { path: "/dashboard", element: suspense(<DashboardRouter />) },
+      {
+        path: "/dashboard/hr",
+        element: suspense(withRoles(<HRDashboard />, ["HR"])),
+      },
+      {
+        path: "/dashboard/manager",
+        element: suspense(withRoles(<ManagerDashboard />, ["MANAGER"])),
+      },
+      {
+        path: "/dashboard/employee",
+        element: suspense(withRoles(<EmployeeDashboard />, ["EMPLOYEE"])),
+      },
       {
         path: "/admin/departments",
         element: suspense(withRoles(<AdminDepartments />, ["HR"])),
@@ -126,75 +137,113 @@ export const router = createBrowserRouter([
       },
       { path: "/profile", element: suspense(<Profile />) },
       { path: "/settings/notifications", element: suspense(<Notifications />) },
-      // Onboarding entry point - redirects by role
+      // Onboarding - flat structure
       {
         path: "/onboarding",
         element: suspense(
-          withRoles(<OnboardingRoleHome />, ["HR", "MANAGER", "EMPLOYEE"]),
+          withRoles(<OnboardingDashboard />, ["HR", "MANAGER", "EMPLOYEE"]),
         ),
       },
-      // HR namespace
       {
-        path: "/onboarding/hr",
-        element: suspense(withRoles(<OnboardingHrHome />, ["HR"])),
+        path: "/onboarding/employees",
+        element: suspense(withRoles(<Employees />, ["HR", "MANAGER"])),
       },
       {
-        path: "/onboarding/hr/employees",
-        element: suspense(withRoles(<Employees />, ["HR"])),
-      },
-      {
-        path: "/onboarding/hr/employees/new",
+        path: "/onboarding/employees/new",
         element: suspense(withRoles(<EmployeeManagement />, ["HR"])),
       },
       {
-        path: "/onboarding/hr/employees/:employeeId",
-        element: suspense(withRoles(<EmployeeDetail />, ["HR"])),
+        path: "/onboarding/employees/:employeeId",
+        element: suspense(
+          withRoles(<EmployeeDetail />, ["HR", "MANAGER", "EMPLOYEE"]),
+        ),
       },
       {
-        path: "/onboarding/hr/templates",
+        path: "/onboarding/templates",
         element: suspense(withRoles(<Templates />, ["HR"])),
       },
       {
-        path: "/onboarding/hr/templates/new",
+        path: "/onboarding/templates/new",
         element: suspense(withRoles(<TemplateEditor />, ["HR"])),
+      },
+      {
+        path: "/onboarding/templates/:templateId",
+        element: suspense(withRoles(<TemplateEditor />, ["HR"])),
+      },
+      {
+        path: "/onboarding/tasks",
+        element: suspense(
+          withRoles(<OnboardingTasks />, ["HR", "MANAGER", "EMPLOYEE"]),
+        ),
+      },
+      {
+        path: "/onboarding/automation",
+        element: suspense(withRoles(<OnboardingAutomation />, ["HR"])),
+      },
+      {
+        path: "/onboarding/my-journey",
+        element: suspense(withRoles(<MyJourney />, ["EMPLOYEE"])),
+      },
+      // Legacy redirects — old role-namespaced URLs
+      {
+        path: "/onboarding/hr",
+        element: <Navigate to="/onboarding" replace />,
+      },
+      {
+        path: "/onboarding/hr/employees",
+        element: <Navigate to="/onboarding/employees" replace />,
+      },
+      {
+        path: "/onboarding/hr/employees/new",
+        element: <Navigate to="/onboarding/employees/new" replace />,
+      },
+      {
+        path: "/onboarding/hr/employees/:employeeId",
+        element: <Navigate to="/onboarding/employees/:employeeId" replace />,
+      },
+      {
+        path: "/onboarding/hr/templates",
+        element: <Navigate to="/onboarding/templates" replace />,
+      },
+      {
+        path: "/onboarding/hr/templates/new",
+        element: <Navigate to="/onboarding/templates/new" replace />,
       },
       {
         path: "/onboarding/hr/templates/:templateId",
-        element: suspense(withRoles(<TemplateEditor />, ["HR"])),
+        element: <Navigate to="/onboarding/templates/:templateId" replace />,
       },
       {
         path: "/onboarding/hr/tasks",
-        element: suspense(withRoles(<OnboardingTasks />, ["HR"])),
+        element: <Navigate to="/onboarding/tasks" replace />,
       },
       {
         path: "/onboarding/hr/automation",
-        element: suspense(withRoles(<OnboardingAutomation />, ["HR"])),
+        element: <Navigate to="/onboarding/automation" replace />,
       },
-      // Manager namespace
       {
         path: "/onboarding/manager",
-        element: suspense(withRoles(<OnboardingManagerHome />, ["MANAGER"])),
+        element: <Navigate to="/onboarding" replace />,
       },
       {
         path: "/onboarding/manager/employees",
-        element: suspense(withRoles(<Employees />, ["MANAGER"])),
+        element: <Navigate to="/onboarding/employees" replace />,
       },
       {
         path: "/onboarding/manager/employees/:employeeId",
-        element: suspense(withRoles(<EmployeeDetail />, ["MANAGER"])),
+        element: <Navigate to="/onboarding/employees/:employeeId" replace />,
       },
       {
         path: "/onboarding/manager/tasks",
-        element: suspense(withRoles(<OnboardingTasks />, ["MANAGER"])),
+        element: <Navigate to="/onboarding/tasks" replace />,
       },
-      // Employee namespace
       {
         path: "/onboarding/employee",
-        element: suspense(withRoles(<OnboardingEmployeeHome />, ["EMPLOYEE"])),
+        element: <Navigate to="/onboarding/my-journey" replace />,
       },
       {
         path: "/onboarding/employee/instances/:employeeId",
-        element: suspense(withRoles(<EmployeeDetail />, ["EMPLOYEE"])),
+        element: <Navigate to="/onboarding/employees/:employeeId" replace />,
       },
       {
         path: "/documents",

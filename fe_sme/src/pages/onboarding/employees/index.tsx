@@ -1,6 +1,6 @@
 ﻿import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Users, UserCheck, UserX, Mail, Upload } from "lucide-react";
 import { Button, Empty, Progress, Select, Tabs, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -86,10 +86,7 @@ const StatCard = ({
 
 const Employees = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const employeesBasePath = location.pathname.startsWith("/onboarding/manager")
-    ? "/onboarding/manager"
-    : "/onboarding/hr";
+  const employeesBasePath = "/onboarding";
   const { t } = useLocale();
   const currentUser = useUserStore((s) => s.currentUser);
   const canStart = canManageOnboarding(currentUser?.roles ?? []);
