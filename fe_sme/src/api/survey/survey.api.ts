@@ -151,3 +151,15 @@ export const apiGetSurveyAnalyticsReport = (
     "com.sme.survey.instance.get",
     payload,
   );
+
+  export const apiSaveSurveyDraft = (payload: {
+    instanceId: string;
+    answers: Array<{
+      questionId: string;
+      value: string | number | string[] | null;
+    }>;
+  }) =>
+  gatewayRequest<typeof payload, unknown>(
+    "com.sme.survey.response.saveDraft",
+    payload,
+  );

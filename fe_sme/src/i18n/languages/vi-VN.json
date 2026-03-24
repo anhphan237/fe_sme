@@ -1262,7 +1262,7 @@
   "survey.question.empty_hint": "Chưa có câu hỏi. Nhấn \"Thêm câu hỏi\" để bắt đầu.",
 
   "survey.detail.title": "Khảo sát",
-  "survey.detail.progress": "Câu hỏi {{current}} / {{total}}",
+  "survey.detail.progress": "Câu hỏi {current}} / {total}",
   "survey.detail.next": "Tiếp theo",
   "survey.detail.prev": "Quay lại",
   "survey.detail.submit": "Nộp khảo sát",
@@ -1428,6 +1428,4 @@
   "survey.send.empty_selected_employees": "Chưa chọn nhân viên nào",
   "survey.send.total_items": "Tổng số mục",
   "survey.send.table.employee": "Nhân viên"
-
-
 }

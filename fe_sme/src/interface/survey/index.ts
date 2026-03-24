@@ -102,6 +102,9 @@ export interface SurveyQuestion {
   options: string[] | null;
   required: boolean;
   order: number;
+  scaleMin?: number | null;
+  scaleMax?: number | null;
+  content?: string;
 }
 
 // ---------------------------
@@ -133,6 +136,7 @@ export interface SurveySendRequest {
 
 /** Survey instance summary */
 export interface SurveyInstanceSummary {
+  id: string;
   instanceId: string;
   templateId: string;
   templateName: string;
@@ -140,6 +144,10 @@ export interface SurveyInstanceSummary {
   status: "PENDING" | "SENT" | "COMPLETED" | "EXPIRED";
   scheduledAt: string | null;
   completedAt: string | null;
+  employeeName?: string;
+  email?: string;
+  managerName?: string;
+  responderUserId?: string;
 }
 
 // ---------------------------
@@ -154,7 +162,7 @@ export interface SurveyAnswer {
 
 /** com.sme.survey.response.submit */
 export interface SurveySubmitRequest {
-  instanceId: string;
+  surveyInstanceId: string;
   answers: SurveyAnswer[];
 }
 
