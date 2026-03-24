@@ -17,12 +17,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import {
-  CheckCircle2,
-  ClipboardList,
-  TrendingUp,
-  Users,
-} from "lucide-react";
+import { CheckCircle2, ClipboardList, TrendingUp, Users } from "lucide-react";
 import { useUserStore } from "@/stores/user.store";
 import {
   apiGetCompanyOnboardingByDepartment,
@@ -218,8 +213,7 @@ function inRange(date: Date | null, start?: string, end?: string) {
   if (!date) return false;
   if (!start || !end) return true;
   return (
-    date >= new Date(`${start}T00:00:00`) &&
-    date <= new Date(`${end}T23:59:59`)
+    date >= new Date(`${start}T00:00:00`) && date <= new Date(`${end}T23:59:59`)
   );
 }
 
@@ -302,7 +296,9 @@ export default function HRDashboard() {
   ).length;
 
   const summaryActive =
-    typeof funnel.activeCount === "number" ? funnel.activeCount : activeInstances;
+    typeof funnel.activeCount === "number"
+      ? funnel.activeCount
+      : activeInstances;
   const summaryCompleted =
     typeof summary.completedCount === "number"
       ? summary.completedCount
@@ -356,8 +352,14 @@ export default function HRDashboard() {
   ];
 
   const funnelData: StageVolume[] = [
-    { stage: "Đang hoạt động", value: Number(funnel.activeCount ?? activeInstances) },
-    { stage: "Hoàn thành", value: Number(funnel.completedCount ?? completedInstances) },
+    {
+      stage: "Đang hoạt động",
+      value: Number(funnel.activeCount ?? activeInstances),
+    },
+    {
+      stage: "Hoàn thành",
+      value: Number(funnel.completedCount ?? completedInstances),
+    },
     {
       stage: "Đã huỷ",
       value: Number(
@@ -409,14 +411,18 @@ export default function HRDashboard() {
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold text-ink">Dashboard HR</h1>
-        <p className="text-sm text-muted">Tổng quan quản lý onboarding toàn công ty</p>
+        <p className="text-sm text-muted">
+          Tổng quan quản lý onboarding toàn công ty
+        </p>
       </div>
 
       {/* Filter Panel */}
       <Card className="border border-stroke bg-white shadow-sm">
         <div className="grid gap-3 md:grid-cols-3">
           <div>
-            <p className="mb-1 text-xs font-semibold uppercase text-muted">Khoảng thời gian</p>
+            <p className="mb-1 text-xs font-semibold uppercase text-muted">
+              Khoảng thời gian
+            </p>
             <DatePicker.RangePicker
               className="w-full"
               value={dateRange}
@@ -425,7 +431,9 @@ export default function HRDashboard() {
             />
           </div>
           <div>
-            <p className="mb-1 text-xs font-semibold uppercase text-muted">Trạng thái</p>
+            <p className="mb-1 text-xs font-semibold uppercase text-muted">
+              Trạng thái
+            </p>
             <Select
               className="w-full"
               value={statusFilter || undefined}
@@ -441,7 +449,9 @@ export default function HRDashboard() {
             />
           </div>
           <div>
-            <p className="mb-1 text-xs font-semibold uppercase text-muted">Phòng ban</p>
+            <p className="mb-1 text-xs font-semibold uppercase text-muted">
+              Phòng ban
+            </p>
             <Select
               className="w-full"
               value={departmentFilter || undefined}
@@ -467,7 +477,10 @@ export default function HRDashboard() {
       <div className="grid gap-4 lg:grid-cols-4">
         {isKpiLoading
           ? Array.from({ length: 4 }, (_, i) => (
-              <Card key={`kpi-sk-${i}`} size="small" className="border border-stroke bg-white shadow-sm">
+              <Card
+                key={`kpi-sk-${i}`}
+                size="small"
+                className="border border-stroke bg-white shadow-sm">
                 <Skeleton active paragraph={{ rows: 2 }} title={false} />
               </Card>
             ))
@@ -477,13 +490,19 @@ export default function HRDashboard() {
       {/* Funnel + Progress */}
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="border border-stroke bg-white shadow-sm lg:col-span-2">
-          <h2 className="text-base font-semibold text-ink">Tiến độ onboarding</h2>
-          <p className="text-sm text-muted">Phân bổ trạng thái các onboarding</p>
+          <h2 className="text-base font-semibold text-ink">
+            Tiến độ onboarding
+          </h2>
+          <p className="text-sm text-muted">
+            Phân bổ trạng thái các onboarding
+          </p>
           <div className="mt-6 h-64">
             {isProgressLoading ? (
               <Skeleton active paragraph={{ rows: 5 }} title={false} />
             ) : funnelData.length === 0 ? (
-              <p className="text-sm text-muted">Chưa có dữ liệu trong khoảng thời gian đã chọn.</p>
+              <p className="text-sm text-muted">
+                Chưa có dữ liệu trong khoảng thời gian đã chọn.
+              </p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={funnelData}>
@@ -500,10 +519,14 @@ export default function HRDashboard() {
 
         <Card className="border border-stroke bg-white shadow-sm">
           <h2 className="text-base font-semibold text-ink">Phân tích funnel</h2>
-          <p className="text-sm text-muted">Tỉ lệ chuyển đổi giữa các giai đoạn</p>
+          <p className="text-sm text-muted">
+            Tỉ lệ chuyển đổi giữa các giai đoạn
+          </p>
           <div className="mt-6 h-64">
             {!hasDateRange ? (
-              <p className="text-sm text-muted">Chọn khoảng thời gian để xem funnel.</p>
+              <p className="text-sm text-muted">
+                Chọn khoảng thời gian để xem funnel.
+              </p>
             ) : isProgressLoading ? (
               <Skeleton active paragraph={{ rows: 5 }} title={false} />
             ) : funnelData.length === 0 ? (
@@ -536,15 +559,23 @@ export default function HRDashboard() {
       {/* Department + Trend */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="border border-stroke bg-white shadow-sm">
-          <h2 className="text-base font-semibold text-ink">Thống kê theo phòng ban</h2>
-          <p className="text-sm text-muted">Tổng task và task hoàn thành mỗi phòng ban</p>
+          <h2 className="text-base font-semibold text-ink">
+            Thống kê theo phòng ban
+          </h2>
+          <p className="text-sm text-muted">
+            Tổng task và task hoàn thành mỗi phòng ban
+          </p>
           <div className="mt-6 h-72">
             {!hasDateRange ? (
-              <p className="text-sm text-muted">Chọn khoảng thời gian để xem dữ liệu.</p>
+              <p className="text-sm text-muted">
+                Chọn khoảng thời gian để xem dữ liệu.
+              </p>
             ) : byDepartmentLoading ? (
               <Skeleton active paragraph={{ rows: 5 }} title={false} />
             ) : departmentStats.length === 0 ? (
-              <p className="text-sm text-muted">Không có dữ liệu theo phòng ban.</p>
+              <p className="text-sm text-muted">
+                Không có dữ liệu theo phòng ban.
+              </p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={departmentStats}>
@@ -553,8 +584,18 @@ export default function HRDashboard() {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="totalTasks" name="Tổng task" fill="#60a5fa" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="completedTasks" name="Hoàn thành" fill="#0f766e" radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="totalTasks"
+                    name="Tổng task"
+                    fill="#60a5fa"
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="completedTasks"
+                    name="Hoàn thành"
+                    fill="#0f766e"
+                    radius={[4, 4, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -562,8 +603,12 @@ export default function HRDashboard() {
         </Card>
 
         <Card className="border border-stroke bg-white shadow-sm">
-          <h2 className="text-base font-semibold text-ink">Xu hướng onboarding</h2>
-          <p className="text-sm text-muted">Số lượng onboarding khởi tạo theo tháng</p>
+          <h2 className="text-base font-semibold text-ink">
+            Xu hướng onboarding
+          </h2>
+          <p className="text-sm text-muted">
+            Số lượng onboarding khởi tạo theo tháng
+          </p>
           <div className="mt-6 h-72">
             {instancesLoading ? (
               <Skeleton active paragraph={{ rows: 5 }} title={false} />
@@ -593,7 +638,9 @@ export default function HRDashboard() {
       {/* Recent Onboardings Table */}
       <Card className="border border-stroke bg-white shadow-sm">
         <h2 className="text-base font-semibold text-ink">Onboarding gần đây</h2>
-        <p className="text-sm text-muted">10 onboarding mới nhất trong khoảng thời gian đã chọn</p>
+        <p className="text-sm text-muted">
+          10 onboarding mới nhất trong khoảng thời gian đã chọn
+        </p>
         <div className="mt-4 overflow-x-auto">
           {instancesLoading ? (
             <Skeleton active paragraph={{ rows: 5 }} title={false} />

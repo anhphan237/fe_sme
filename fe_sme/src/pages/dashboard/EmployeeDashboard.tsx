@@ -10,7 +10,10 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useUserStore } from "@/stores/user.store";
-import { apiListInstances, apiListTasks } from "@/api/onboarding/onboarding.api";
+import {
+  apiListInstances,
+  apiListTasks,
+} from "@/api/onboarding/onboarding.api";
 import { apiGetDocuments } from "@/api/document/document.api";
 import { extractList } from "@/api/core/types";
 import { mapInstance, mapTask } from "@/utils/mappers/onboarding";
@@ -28,9 +31,19 @@ type DashboardDocument = {
 
 const MOCK_TIMELINE = [
   { phase: "Giai đoạn 1: Hành chính", done: true, tasks: 5, completed: 5 },
-  { phase: "Giai đoạn 2: Đào tạo kỹ năng", done: false, tasks: 8, completed: 3 },
+  {
+    phase: "Giai đoạn 2: Đào tạo kỹ năng",
+    done: false,
+    tasks: 8,
+    completed: 3,
+  },
   { phase: "Giai đoạn 3: Thực hành", done: false, tasks: 6, completed: 0 },
-  { phase: "Giai đoạn 4: Đánh giá cuối kỳ", done: false, tasks: 3, completed: 0 },
+  {
+    phase: "Giai đoạn 4: Đánh giá cuối kỳ",
+    done: false,
+    tasks: 3,
+    completed: 0,
+  },
 ];
 
 // ── Query hooks ────────────────────────────────────────────────────────────────
@@ -58,7 +71,9 @@ function useMyTasksQuery(instanceId?: string) {
       }),
     enabled: Boolean(instanceId),
     select: (res: unknown) =>
-      extractList(res, "tasks", "items", "list").map(mapTask) as OnboardingTask[],
+      extractList(res, "tasks", "items", "list").map(
+        mapTask,
+      ) as OnboardingTask[],
   });
 }
 
@@ -104,7 +119,9 @@ function StatCard({
   );
 }
 
-function taskStatusVariant(status?: string): "success" | "processing" | "warning" | "error" {
+function taskStatusVariant(
+  status?: string,
+): "success" | "processing" | "warning" | "error" {
   switch (status) {
     case "Done":
       return "success";
@@ -179,14 +196,22 @@ export default function EmployeeDashboard() {
             </h1>
             {daysInOnboarding !== null ? (
               <p className="mt-1 text-teal-100">
-                Ngày <span className="font-semibold text-white">{daysInOnboarding}</span> trong hành trình onboarding của bạn.
+                Ngày{" "}
+                <span className="font-semibold text-white">
+                  {daysInOnboarding}
+                </span>{" "}
+                trong hành trình onboarding của bạn.
               </p>
             ) : (
-              <p className="mt-1 text-teal-100">Bắt đầu hành trình onboarding của bạn.</p>
+              <p className="mt-1 text-teal-100">
+                Bắt đầu hành trình onboarding của bạn.
+              </p>
             )}
           </div>
           {latestInstance && (
-            <Tag color="white" className="mt-2 self-start text-teal-600 sm:mt-0">
+            <Tag
+              color="white"
+              className="mt-2 self-start text-teal-600 sm:mt-0">
               {latestInstance.status}
             </Tag>
           )}
@@ -260,10 +285,14 @@ export default function EmployeeDashboard() {
         <Card className="border border-stroke bg-white shadow-sm">
           <h2 className="text-base font-semibold text-ink">Task đang chờ</h2>
           <p className="text-sm text-muted">Các task bạn cần hoàn thành</p>
-          <div className="mt-4 space-y-2 overflow-y-auto" style={{ maxHeight: 320 }}>
+          <div
+            className="mt-4 space-y-2 overflow-y-auto"
+            style={{ maxHeight: 320 }}>
             {!latestInstance ? (
               <p className="py-4 text-sm text-muted">
-                {instancesLoading ? "Đang tải..." : "Bạn chưa có onboarding nào đang hoạt động."}
+                {instancesLoading
+                  ? "Đang tải..."
+                  : "Bạn chưa có onboarding nào đang hoạt động."}
               </p>
             ) : tasksLoading ? (
               <Skeleton active paragraph={{ rows: 5 }} title={false} />
@@ -314,8 +343,12 @@ export default function EmployeeDashboard() {
         <Card className="border border-stroke bg-white shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-base font-semibold text-ink">Tài liệu cần xác nhận</h2>
-              <p className="text-sm text-muted">Các tài liệu bạn cần đọc và xác nhận</p>
+              <h2 className="text-base font-semibold text-ink">
+                Tài liệu cần xác nhận
+              </h2>
+              <p className="text-sm text-muted">
+                Các tài liệu bạn cần đọc và xác nhận
+              </p>
             </div>
             {pendingDocs.length > 0 && (
               <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
@@ -323,7 +356,9 @@ export default function EmployeeDashboard() {
               </span>
             )}
           </div>
-          <div className="mt-4 space-y-2 overflow-y-auto" style={{ maxHeight: 320 }}>
+          <div
+            className="mt-4 space-y-2 overflow-y-auto"
+            style={{ maxHeight: 320 }}>
             {docsLoading ? (
               <Skeleton active paragraph={{ rows: 4 }} title={false} />
             ) : pendingDocs.length === 0 ? (
@@ -357,8 +392,12 @@ export default function EmployeeDashboard() {
       <Card className="border border-stroke bg-white shadow-sm">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-semibold text-ink">Lộ trình onboarding</h2>
-            <p className="text-sm text-muted">Các giai đoạn trong quá trình onboarding của bạn</p>
+            <h2 className="text-base font-semibold text-ink">
+              Lộ trình onboarding
+            </h2>
+            <p className="text-sm text-muted">
+              Các giai đoạn trong quá trình onboarding của bạn
+            </p>
           </div>
           <span className="rounded bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-600">
             ⏳ Demo data — Chờ API BE
@@ -372,8 +411,8 @@ export default function EmployeeDashboard() {
                 phase.done
                   ? "border-emerald-200 bg-emerald-50"
                   : index === MOCK_TIMELINE.findIndex((p) => !p.done)
-                  ? "border-teal-300 bg-teal-50"
-                  : "border-stroke bg-slate-50"
+                    ? "border-teal-300 bg-teal-50"
+                    : "border-stroke bg-slate-50"
               }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -389,8 +428,8 @@ export default function EmployeeDashboard() {
                       phase.done
                         ? "text-emerald-700"
                         : index === MOCK_TIMELINE.findIndex((p) => !p.done)
-                        ? "text-teal-700"
-                        : "text-muted"
+                          ? "text-teal-700"
+                          : "text-muted"
                     }`}>
                     {phase.phase}
                   </span>
@@ -416,16 +455,24 @@ export default function EmployeeDashboard() {
       {/* Contact Info */}
       <Card className="border border-stroke bg-white shadow-sm">
         <h2 className="text-base font-semibold text-ink">Liên hệ hỗ trợ</h2>
-        <p className="text-sm text-muted">Người hỗ trợ bạn trong quá trình onboarding</p>
+        <p className="text-sm text-muted">
+          Người hỗ trợ bạn trong quá trình onboarding
+        </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <div className="rounded-lg border border-stroke bg-slate-50 px-3 py-2.5">
-            <p className="text-xs font-semibold uppercase text-muted">Manager của tôi</p>
+            <p className="text-xs font-semibold uppercase text-muted">
+              Manager của tôi
+            </p>
             <p className="mt-1 text-sm font-medium text-ink">
-              {currentUser?.manager ?? currentUser?.managerUserId ?? "Chưa được phân công"}
+              {currentUser?.manager ??
+                currentUser?.managerUserId ??
+                "Chưa được phân công"}
             </p>
           </div>
           <div className="rounded-lg border border-stroke bg-slate-50 px-3 py-2.5">
-            <p className="text-xs font-semibold uppercase text-muted">Phòng ban</p>
+            <p className="text-xs font-semibold uppercase text-muted">
+              Phòng ban
+            </p>
             <p className="mt-1 text-sm font-medium text-ink">
               {currentUser?.department ?? "—"}
             </p>

@@ -19,10 +19,11 @@ import {
   Users,
 } from "lucide-react";
 import { useUserStore } from "@/stores/user.store";
+import { apiGetCompanyOnboardingByDepartment } from "@/api/admin/admin.api";
 import {
-  apiGetCompanyOnboardingByDepartment,
-} from "@/api/admin/admin.api";
-import { apiListInstances, apiListTasks } from "@/api/onboarding/onboarding.api";
+  apiListInstances,
+  apiListTasks,
+} from "@/api/onboarding/onboarding.api";
 import { extractList } from "@/api/core/types";
 import { mapInstance, mapTask } from "@/utils/mappers/onboarding";
 import type { OnboardingInstance, OnboardingTask } from "@/shared/types";
@@ -39,8 +40,18 @@ type DashboardDepartmentStat = {
 // ── Mock data — replace with com.sme.analytics.manager.team.summary ──────────
 
 const MOCK_AT_RISK = [
-  { name: "Nguyễn Văn A", role: "Software Engineer", daysOverdue: 5, taskCount: 3 },
-  { name: "Trần Thị B", role: "Business Analyst", daysOverdue: 3, taskCount: 1 },
+  {
+    name: "Nguyễn Văn A",
+    role: "Software Engineer",
+    daysOverdue: 5,
+    taskCount: 3,
+  },
+  {
+    name: "Trần Thị B",
+    role: "Business Analyst",
+    daysOverdue: 3,
+    taskCount: 1,
+  },
 ];
 
 // ── Query hooks ────────────────────────────────────────────────────────────────
@@ -92,7 +103,9 @@ function useTasksForInstanceQuery(instanceId?: string) {
       }),
     enabled: Boolean(instanceId),
     select: (res: unknown) =>
-      extractList(res, "tasks", "items", "list").map(mapTask) as OnboardingTask[],
+      extractList(res, "tasks", "items", "list").map(
+        mapTask,
+      ) as OnboardingTask[],
   });
 }
 
@@ -154,8 +167,7 @@ function inRange(date: Date | null, start?: string, end?: string) {
   if (!date) return false;
   if (!start || !end) return true;
   return (
-    date >= new Date(`${start}T00:00:00`) &&
-    date <= new Date(`${end}T23:59:59`)
+    date >= new Date(`${start}T00:00:00`) && date <= new Date(`${end}T23:59:59`)
   );
 }
 
@@ -226,16 +238,26 @@ export default function ManagerDashboard() {
     departments?: DashboardDepartmentStat[];
   };
 
-  const activeCount = filteredInstances.filter((i) => i.status === "ACTIVE").length;
-  const completedCount = filteredInstances.filter((i) => i.status === "COMPLETED").length;
+  const activeCount = filteredInstances.filter(
+    (i) => i.status === "ACTIVE",
+  ).length;
+  const completedCount = filteredInstances.filter(
+    (i) => i.status === "COMPLETED",
+  ).length;
 
   const pendingTasks = tasks.filter((t) => t.status !== "Done");
   const deptCompletionRate =
     byDepartment.departments && byDepartment.departments.length > 0
       ? Math.round(
-          (byDepartment.departments.reduce((acc, d) => acc + d.completedTasks, 0) /
+          (byDepartment.departments.reduce(
+            (acc, d) => acc + d.completedTasks,
+            0,
+          ) /
             Math.max(
-              byDepartment.departments.reduce((acc, d) => acc + d.totalTasks, 0),
+              byDepartment.departments.reduce(
+                (acc, d) => acc + d.totalTasks,
+                0,
+              ),
               1,
             )) *
             100,
@@ -248,7 +270,8 @@ export default function ManagerDashboard() {
       <div>
         <h1 className="text-xl font-bold text-ink">Dashboard Manager</h1>
         <p className="text-sm text-muted">
-          Xin chào, <span className="font-medium">{currentUser?.name}</span>! Đây là tổng quan nhóm của bạn.
+          Xin chào, <span className="font-medium">{currentUser?.name}</span>!
+          Đây là tổng quan nhóm của bạn.
         </p>
       </div>
 
@@ -256,7 +279,9 @@ export default function ManagerDashboard() {
       <Card className="border border-stroke bg-white shadow-sm">
         <div className="grid gap-3 md:grid-cols-2">
           <div>
-            <p className="mb-1 text-xs font-semibold uppercase text-muted">Khoảng thời gian</p>
+            <p className="mb-1 text-xs font-semibold uppercase text-muted">
+              Khoảng thời gian
+            </p>
             <DatePicker.RangePicker
               className="w-full"
               value={dateRange}
@@ -303,8 +328,8 @@ export default function ManagerDashboard() {
             deptCompletionRate !== null
               ? `${deptCompletionRate}%`
               : hasDateRange
-              ? "—"
-              : "Chọn ngày"
+                ? "—"
+                : "Chọn ngày"
           }
           icon={<CheckCircle2 className="h-4 w-4" />}
           tone="teal"
@@ -315,11 +340,17 @@ export default function ManagerDashboard() {
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Team list */}
         <Card className="border border-stroke bg-white shadow-sm">
-          <h2 className="text-base font-semibold text-ink">Danh sách onboarding nhóm</h2>
+          <h2 className="text-base font-semibold text-ink">
+            Danh sách onboarding nhóm
+          </h2>
           <p className="text-sm text-muted">
-            {hasDateRange ? "Trong khoảng thời gian đã chọn" : "Tất cả onboarding hiện tại"}
+            {hasDateRange
+              ? "Trong khoảng thời gian đã chọn"
+              : "Tất cả onboarding hiện tại"}
           </p>
-          <div className="mt-4 space-y-2 overflow-y-auto" style={{ maxHeight: 340 }}>
+          <div
+            className="mt-4 space-y-2 overflow-y-auto"
+            style={{ maxHeight: 340 }}>
             {instancesLoading ? (
               <Skeleton active paragraph={{ rows: 5 }} title={false} />
             ) : filteredInstances.length === 0 ? (
@@ -338,7 +369,10 @@ export default function ManagerDashboard() {
                       {inst.employeeId ?? "Không rõ"}
                     </p>
                     <p className="text-xs text-muted">
-                      Bắt đầu {inst.startDate ? dayjs(inst.startDate).format("DD/MM/YYYY") : "—"}
+                      Bắt đầu{" "}
+                      {inst.startDate
+                        ? dayjs(inst.startDate).format("DD/MM/YYYY")
+                        : "—"}
                     </p>
                   </div>
                   <Tag color={instanceStatusColor(inst.status)}>
@@ -356,13 +390,19 @@ export default function ManagerDashboard() {
           <p className="text-sm text-muted">
             Task từ onboarding gần nhất được giao cho bạn
           </p>
-          <div className="mt-4 space-y-2 overflow-y-auto" style={{ maxHeight: 340 }}>
+          <div
+            className="mt-4 space-y-2 overflow-y-auto"
+            style={{ maxHeight: 340 }}>
             {!latestInstance ? (
-              <p className="text-sm text-muted py-4">Không có onboarding nào để hiển thị task.</p>
+              <p className="text-sm text-muted py-4">
+                Không có onboarding nào để hiển thị task.
+              </p>
             ) : tasksLoading ? (
               <Skeleton active paragraph={{ rows: 4 }} title={false} />
             ) : pendingTasks.length === 0 ? (
-              <p className="text-sm text-muted py-4">Không có task nào đang chờ xử lý. 🎉</p>
+              <p className="text-sm text-muted py-4">
+                Không có task nào đang chờ xử lý. 🎉
+              </p>
             ) : (
               pendingTasks.slice(0, 8).map((task) => (
                 <div
@@ -379,7 +419,12 @@ export default function ManagerDashboard() {
                     )}
                   </div>
                   <Badge
-                    status={taskStatusColor(task.status) as "success" | "processing" | "warning"}
+                    status={
+                      taskStatusColor(task.status) as
+                        | "success"
+                        | "processing"
+                        | "warning"
+                    }
                     text={
                       <span className="text-xs text-muted">{task.status}</span>
                     }
@@ -394,8 +439,12 @@ export default function ManagerDashboard() {
       {/* Department chart */}
       {hasDateRange && (
         <Card className="border border-stroke bg-white shadow-sm">
-          <h2 className="text-base font-semibold text-ink">Tiến độ theo phòng ban</h2>
-          <p className="text-sm text-muted">Tổng task và task hoàn thành theo từng phòng ban</p>
+          <h2 className="text-base font-semibold text-ink">
+            Tiến độ theo phòng ban
+          </h2>
+          <p className="text-sm text-muted">
+            Tổng task và task hoàn thành theo từng phòng ban
+          </p>
           <div className="mt-6 h-72">
             {byDepartmentLoading ? (
               <Skeleton active paragraph={{ rows: 5 }} title={false} />
@@ -409,8 +458,18 @@ export default function ManagerDashboard() {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="totalTasks" name="Tổng task" fill="#60a5fa" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="completedTasks" name="Hoàn thành" fill="#0f766e" radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="totalTasks"
+                    name="Tổng task"
+                    fill="#60a5fa"
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="completedTasks"
+                    name="Hoàn thành"
+                    fill="#0f766e"
+                    radius={[4, 4, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -422,7 +481,9 @@ export default function ManagerDashboard() {
       <Card className="border border-orange-200 bg-orange-50/30 shadow-sm">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
-          <h2 className="text-base font-semibold text-ink">Nhân viên cần chú ý</h2>
+          <h2 className="text-base font-semibold text-ink">
+            Nhân viên cần chú ý
+          </h2>
           <span className="ml-auto rounded bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-600">
             ⏳ Demo data — Chờ API BE
           </span>
@@ -443,7 +504,9 @@ export default function ManagerDashboard() {
                 <p className="text-sm font-semibold text-red-500">
                   Quá hạn {emp.daysOverdue} ngày
                 </p>
-                <p className="text-xs text-muted">{emp.taskCount} task chưa hoàn thành</p>
+                <p className="text-xs text-muted">
+                  {emp.taskCount} task chưa hoàn thành
+                </p>
               </div>
             </div>
           ))}

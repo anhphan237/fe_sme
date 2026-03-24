@@ -2,7 +2,9 @@ import { Navigate } from "react-router-dom";
 import { useUserStore } from "@/stores/user.store";
 import { getPrimaryRole } from "@/shared/rbac";
 
-const ROLE_DASHBOARD_MAP: Partial<Record<ReturnType<typeof getPrimaryRole>, string>> = {
+const ROLE_DASHBOARD_MAP: Partial<
+  Record<ReturnType<typeof getPrimaryRole>, string>
+> = {
   HR: "/dashboard/hr",
   MANAGER: "/dashboard/manager",
   EMPLOYEE: "/dashboard/employee",
