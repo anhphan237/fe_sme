@@ -133,6 +133,7 @@ const RegisterCompany = () => {
                     vm.planList?.find((p) => p.code === vm.selectedPlanCode)
                       ?.name
                   }
+                  billingCycle={vm.billingCycle}
                   onError={(msg) => vm.setSubmitError(msg)}
                 />
               )}

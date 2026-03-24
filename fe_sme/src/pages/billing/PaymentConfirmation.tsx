@@ -14,6 +14,7 @@ const PaymentConfirmation = () => {
   const queryClient = useQueryClient();
   const clientSecret = searchParams.get("payment_intent_client_secret");
   const paymentIntentId = searchParams.get("payment_intent");
+  const isFromRegister = searchParams.get("from") === "register";
   const [status, setStatus] = useState<Status>(
     clientSecret ? "loading" : "failed",
   );
@@ -60,7 +61,7 @@ const PaymentConfirmation = () => {
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <h1 className="text-center text-2xl font-semibold text-slate-800">
-        Payment Result
+        Kết quả thanh toán
       </h1>
 
       <Card className="text-center">
@@ -88,10 +89,13 @@ const PaymentConfirmation = () => {
                 />
               </svg>
             </div>
-            <h2 className="text-xl font-bold text-ink">Payment Successful</h2>
+            <h2 className="text-xl font-bold text-ink">
+              Thanh toán thành công
+            </h2>
             <p className="text-sm text-muted">
-              Your payment has been processed successfully. The invoice status
-              will be updated shortly.
+              {isFromRegister
+                ? "Chào mừng bạn! Tài khoản đã được kích hoạt. Hóa đơn của bạn đã được cập nhật."
+                : "Thanh toán đã được xử lý thành công. Trạng thái hóa đơn đã được cập nhật."}
             </p>
           </div>
         )}
@@ -118,10 +122,12 @@ const PaymentConfirmation = () => {
                 />
               </svg>
             </div>
-            <h2 className="text-xl font-bold text-ink">Payment Processing</h2>
+            <h2 className="text-xl font-bold text-ink">
+              Đang xử lý thanh toán
+            </h2>
             <p className="text-sm text-muted">
-              Your payment is being processed. We&apos;ll update the invoice
-              status once confirmed.
+              Thanh toán đang được xử lý. Trạng thái hóa đơn sẽ được cập nhật
+              sau khi xác nhận.
             </p>
           </div>
         )}
@@ -142,21 +148,31 @@ const PaymentConfirmation = () => {
                 />
               </svg>
             </div>
-            <h2 className="text-xl font-bold text-ink">Payment Failed</h2>
+            <h2 className="text-xl font-bold text-ink">Thanh toán thất bại</h2>
             <p className="text-sm text-muted">
-              Something went wrong with your payment. Please try again or use a
-              different payment method.
+              Đã xảy ra lỗi trong quá trình thanh toán. Vui lòng thử lại hoặc sử
+              dụng phương thức thanh toán khác.
             </p>
           </div>
         )}
 
         <div className="mt-6 flex justify-center gap-3">
-          <BaseButton onClick={() => navigate("/billing/invoices")}>
-            Back to Invoices
-          </BaseButton>
+          {status === "succeeded" ? (
+            <BaseButton
+              type="primary"
+              onClick={() =>
+                navigate(isFromRegister ? "/dashboard" : "/billing/invoices")
+              }>
+              {isFromRegister ? "Đến Dashboard" : "Xem hóa đơn"}
+            </BaseButton>
+          ) : (
+            <BaseButton onClick={() => navigate("/billing/invoices")}>
+              Quản lý hóa đơn
+            </BaseButton>
+          )}
           {status === "failed" && (
             <BaseButton type="primary" onClick={() => navigate(-1)}>
-              Try Again
+              Thử lại
             </BaseButton>
           )}
         </div>

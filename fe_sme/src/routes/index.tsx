@@ -61,6 +61,21 @@ const PaymentConfirmation = lazy(
   () => import("@/pages/billing/PaymentConfirmation"),
 );
 const PlatformPayments = lazy(() => import("@/pages/platform/Payments"));
+const PlatformDashboard = lazy(
+  () => import("@/pages/platform/PlatformDashboard"),
+);
+const PlatformCompanyList = lazy(
+  () => import("@/pages/platform/companies/CompanyList"),
+);
+const PlatformCompanyDetail = lazy(
+  () => import("@/pages/platform/companies/CompanyDetail"),
+);
+const PlatformOnboardingMonitor = lazy(
+  () => import("@/pages/platform/onboarding/OnboardingMonitor"),
+);
+const PlatformTemplates = lazy(
+  () => import("@/pages/platform/onboarding/PlatformTemplates"),
+);
 const Forbidden = lazy(() => import("@/pages/Forbidden"));
 
 const PageSkeleton = () => (
@@ -324,6 +339,28 @@ export const router = createBrowserRouter([
       {
         path: "/platform/payments",
         element: suspense(withRoles(<PlatformPayments />, ["STAFF"])),
+      },
+      {
+        path: "/platform/dashboard",
+        element: suspense(withRoles(<PlatformDashboard />, ["ADMIN", "STAFF"])),
+      },
+      {
+        path: "/platform/companies",
+        element: suspense(withRoles(<PlatformCompanyList />, ["ADMIN"])),
+      },
+      {
+        path: "/platform/companies/:companyId",
+        element: suspense(withRoles(<PlatformCompanyDetail />, ["ADMIN"])),
+      },
+      {
+        path: "/platform/onboarding-monitor",
+        element: suspense(
+          withRoles(<PlatformOnboardingMonitor />, ["ADMIN", "STAFF"]),
+        ),
+      },
+      {
+        path: "/platform/onboarding-templates",
+        element: suspense(withRoles(<PlatformTemplates />, ["ADMIN"])),
       },
       { path: "/403", element: suspense(<Forbidden />) },
     ],

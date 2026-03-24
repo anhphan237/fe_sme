@@ -231,6 +231,16 @@ const ColumnFilterButton = ({
 
 // ── MyTable ────────────────────────────────────────────────────────────────
 
+export type TableSizePreset = "S" | "M" | "L" | "F";
+
+const SIZE_PRESET: Record<TableSizePreset, { width: string; height: string }> =
+  {
+    S: { width: "!max-w-2xl", height: "!h-80" },
+    M: { width: "!max-w-4xl", height: "!h-[480px]" },
+    L: { width: "!max-w-6xl", height: "!h-[640px]" },
+    F: { width: "!w-full", height: "!h-full" },
+  };
+
 export interface MyTableProps<T extends object> extends TableProps<T> {
   height?: string;
   wrapClassName?: string;
@@ -244,6 +254,15 @@ export interface MyTableProps<T extends object> extends TableProps<T> {
    * Columns must have a `key` prop set. `title` is used as the label.
    */
   columnFilter?: boolean;
+  /**
+   * Controls both width (max-width) and height of the table wrapper.
+   * S = max-w-2xl / 320px tall
+   * M = max-w-4xl / 480px tall  (default)
+   * L = max-w-6xl / 640px tall
+   * F = full width / full height
+   * The `height` prop, when provided, overrides the preset height via inline style.
+   */
+  sizePreset?: TableSizePreset;
 }
 
 const MyTable = <T extends object = object>({
@@ -255,6 +274,7 @@ const MyTable = <T extends object = object>({
   columns: columnsProp,
   draggableColumns = false,
   columnFilter = false,
+  sizePreset = "F",
   components,
   ...rest
 }: MyTableProps<T>) => {
@@ -584,7 +604,11 @@ const MyTable = <T extends object = object>({
     <div
       style={{ height }}
       css={styles}
-      className={clsx(wrapClassName, "!w-full !h-full")}>
+      className={clsx(
+        wrapClassName,
+        SIZE_PRESET[sizePreset].width,
+        SIZE_PRESET[sizePreset].height,
+      )}>
       {columnFilter && columnFilterMeta.length > 0 && (
         <div
           style={{

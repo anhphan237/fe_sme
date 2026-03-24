@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { ChevronDown } from "lucide-react";
 import { clsx } from "clsx";
+import { Tooltip } from "antd";
 import { useLocale } from "@/i18n";
 import type { NavSection } from "../nav.config";
 
@@ -8,13 +9,38 @@ type Props = {
   section: NavSection;
   open: boolean;
   onToggle: () => void;
+  collapsed: boolean;
 };
 
-export function SidebarNavSection({ section, open, onToggle }: Props) {
+export function SidebarNavSection({
+  section,
+  open,
+  onToggle,
+  collapsed,
+}: Props) {
   const { t } = useLocale();
   const hasChildren = section.children && section.children.length > 0;
 
   if (section.to && !hasChildren) {
+    if (collapsed) {
+      return (
+        <Tooltip title={t(section.titleKey)} placement="right">
+          <NavLink
+            to={section.to}
+            className={({ isActive }) =>
+              clsx(
+                "mb-1 flex h-10 w-10 items-center justify-center rounded-xl transition-all",
+                isActive
+                  ? "bg-brand/25 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
+                  : "text-slate-400 hover:bg-slate-900 hover:text-white",
+              )
+            }>
+            <section.icon className="h-[18px] w-[18px] shrink-0" />
+          </NavLink>
+        </Tooltip>
+      );
+    }
+
     return (
       <NavLink
         to={section.to}
@@ -26,15 +52,26 @@ export function SidebarNavSection({ section, open, onToggle }: Props) {
               : "text-slate-300 hover:bg-slate-900 hover:text-white",
           )
         }>
-        <section.icon
-          className={clsx("h-[18px] w-[18px] shrink-0 transition-colors")}
-        />
+        <section.icon className="h-[18px] w-[18px] shrink-0 transition-colors" />
         {t(section.titleKey)}
       </NavLink>
     );
   }
 
   if (!hasChildren) return null;
+
+  if (collapsed) {
+    return (
+      <Tooltip title={t(section.titleKey)} placement="right">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="mb-1 flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 transition-all hover:bg-slate-900 hover:text-white">
+          <section.icon className="h-[18px] w-[18px] shrink-0" />
+        </button>
+      </Tooltip>
+    );
+  }
 
   return (
     <div className="mb-1.5">

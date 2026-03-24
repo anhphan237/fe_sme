@@ -126,7 +126,7 @@ const BillingInvoices = () => {
                           type="primary"
                           onClick={() =>
                             navigate(
-                              `/billing/checkout/${invoice.id}?amount=${encodeURIComponent(invoice.amount)}`,
+                              `/billing/payment?invoiceId=${invoice.id}&amount=${encodeURIComponent(invoice.amount)}`,
                             )
                           }>
                           {t("billing.pay_now")}

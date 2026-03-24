@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Clock } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Send } from "lucide-react";
 import {
   Button,
   Card,
   Col,
+  Divider,
   Drawer,
   Empty,
   Input,
@@ -23,11 +24,14 @@ import { useUserStore } from "@/stores/user.store";
 import { useLocale } from "@/i18n";
 import { isOnboardingEmployee, canManageOnboarding } from "@/shared/rbac";
 import {
+  apiAddTaskComment,
   apiGetTaskDetail,
   apiListInstances,
   apiListTasks,
+  apiListTaskComments,
   apiUpdateTaskStatus,
 } from "@/api/onboarding/onboarding.api";
+import type { CommentResponse } from "@/interface/onboarding";
 import { extractList } from "@/api/core/types";
 import { mapInstance, mapTask } from "@/utils/mappers/onboarding";
 import type { OnboardingInstance, OnboardingTask } from "@/shared/types";
@@ -75,6 +79,18 @@ const useUpdateTaskStatus = () =>
   useMutation({
     mutationFn: ({ taskId, status }: { taskId: string; status: string }) =>
       apiUpdateTaskStatus(taskId, status),
+  });
+
+const useTaskCommentsQuery = (taskId?: string) =>
+  useQuery({
+    queryKey: ["onboarding-task-comments", taskId ?? ""],
+    queryFn: () => apiListTaskComments(taskId!),
+    enabled: Boolean(taskId),
+    select: (res: unknown) => {
+      const record = res as Record<string, unknown>;
+      const list = record?.comments ?? record?.data ?? [];
+      return (Array.isArray(list) ? list : []) as CommentResponse[];
+    },
   });
 
 // ── Components ─────────────────────────────────────────────────────────────────
@@ -319,6 +335,34 @@ const Tasks = () => {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [keyword, setKeyword] = useState("");
+  const [commentInput, setCommentInput] = useState("");
+
+  const { data: comments, isLoading: commentsLoading } = useTaskCommentsQuery(
+    selectedTaskId ?? undefined,
+  );
+
+  const addCommentMutation = useMutation({
+    mutationFn: ({ taskId, message }: { taskId: string; message: string }) =>
+      apiAddTaskComment(taskId, message),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-comments", selectedTaskId],
+      });
+      setCommentInput("");
+      notify.success(t("onboarding.task.comments.toast_added"));
+    },
+    onError: () => {
+      notify.error(t("onboarding.task.toast.failed"));
+    },
+  });
+
+  const handleAddComment = () => {
+    if (!selectedTaskId || !commentInput.trim()) return;
+    addCommentMutation.mutate({
+      taskId: selectedTaskId,
+      message: commentInput.trim(),
+    });
+  };
 
   const { data: taskDetail, isLoading: taskDetailLoading } = useTaskDetailQuery(
     selectedTaskId ?? undefined,
@@ -581,8 +625,64 @@ const Tasks = () => {
               </Col>
             </Row>
 
+            {/* ── Comments ─────────────────────────────────── */}
+            <Divider orientationMargin={0}>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {t("onboarding.task.comments.title")}
+              </Typography.Text>
+            </Divider>
+
+            {commentsLoading ? (
+              <Skeleton active paragraph={{ rows: 2 }} />
+            ) : (comments?.length ?? 0) === 0 ? (
+              <Empty
+                description={t("onboarding.task.comments.empty")}
+                imageStyle={{ height: 40 }}
+              />
+            ) : (
+              <div className="max-h-52 space-y-3 overflow-y-auto pr-1">
+                {comments?.map((c) => (
+                  <div key={c.commentId} className="flex gap-2">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
+                      {(c.authorName ?? "U")[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 rounded-lg bg-gray-50 px-3 py-2">
+                      <p className="text-xs font-semibold text-gray-700">
+                        {c.authorName ??
+                          t("onboarding.task.comments.unknown_author")}
+                      </p>
+                      <p className="text-sm text-gray-600">{c.message}</p>
+                      {c.createdAt && (
+                        <p className="mt-1 text-[11px] text-gray-400">
+                          {formatDate(c.createdAt)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-3 flex gap-2">
+              <Input
+                placeholder={t("onboarding.task.comments.placeholder")}
+                value={commentInput}
+                onChange={(e) => setCommentInput(e.target.value)}
+                onPressEnter={handleAddComment}
+                maxLength={500}
+              />
+              <Button
+                type="primary"
+                icon={<Send className="h-3.5 w-3.5" />}
+                loading={addCommentMutation.isPending}
+                onClick={handleAddComment}
+                disabled={!commentInput.trim()}>
+                {t("onboarding.task.comments.send")}
+              </Button>
+            </div>
+
             {isEmployee && (
-              <div className="flex gap-2">
+              <div className="mt-4 flex gap-2">
                 <Button
                   type="primary"
                   onClick={async () => {

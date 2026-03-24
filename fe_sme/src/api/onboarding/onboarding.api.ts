@@ -152,3 +152,19 @@ export const apiCompanySetup = (payload?: CompanySetupRequest) =>
     "com.sme.onboarding.company.setup",
     payload ?? {},
   );
+
+// ── Task Comments ──────────────────────────────────────────
+
+/** com.sme.onboarding.task.comment.list */
+export const apiListTaskComments = (taskId: string) =>
+  gatewayRequest<{ taskId: string }, unknown>(
+    "com.sme.onboarding.task.comment.list",
+    { taskId },
+  );
+
+/** com.sme.onboarding.task.comment.add */
+export const apiAddTaskComment = (taskId: string, message: string) =>
+  gatewayRequest<{ taskId: string; message: string }, unknown>(
+    "com.sme.onboarding.task.comment.add",
+    { taskId, message },
+  );

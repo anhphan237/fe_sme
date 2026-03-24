@@ -159,17 +159,32 @@ export const NAV_SECTIONS: NavSection[] = [
         to: "/billing/invoices",
         requiredRoles: ["HR"],
       },
-      {
-        titleKey: "nav.billing.payment",
-        to: "/billing/payment",
-        requiredRoles: ["HR"],
-      },
     ],
   },
   {
     titleKey: "nav.platform",
     icon: Briefcase,
     children: [
+      {
+        titleKey: "nav.platform.dashboard",
+        to: "/platform/dashboard",
+        requiredRoles: ["ADMIN", "STAFF"],
+      },
+      {
+        titleKey: "nav.platform.companies",
+        to: "/platform/companies",
+        requiredRoles: ["ADMIN"],
+      },
+      {
+        titleKey: "nav.platform.onboarding_monitor",
+        to: "/platform/onboarding-monitor",
+        requiredRoles: ["ADMIN", "STAFF"],
+      },
+      {
+        titleKey: "nav.platform.onboarding_templates",
+        to: "/platform/onboarding-templates",
+        requiredRoles: ["ADMIN"],
+      },
       {
         titleKey: "nav.platform.payments",
         to: "/platform/payments",

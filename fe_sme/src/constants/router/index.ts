@@ -49,6 +49,10 @@ export const AppRouters = {
   PLATFORM_INVOICES: "/platform/invoices",
   PLATFORM_PAYMENTS: "/platform/payments",
   PLATFORM_EMAIL_LOGS: "/platform/email-logs",
+  PLATFORM_DASHBOARD: "/platform/dashboard",
+  PLATFORM_COMPANIES: "/platform/companies",
+  PLATFORM_ONBOARDING_MONITOR: "/platform/onboarding-monitor",
+  PLATFORM_ONBOARDING_TEMPLATES: "/platform/onboarding-templates",
 } as const;
 
 export type AppRouter = (typeof AppRouters)[keyof typeof AppRouters];

@@ -2,6 +2,7 @@
 import BaseButton from "@/components/button";
 import { notify } from "@/utils/notify";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   apiGetPaymentProviders,
   apiConnectPayment,
@@ -21,6 +22,10 @@ const PROVIDER_ICONS: Record<string, string> = {
 
 const BillingPayment = () => {
   const { t } = useLocale();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const invoiceId = searchParams.get("invoiceId");
+  const invoiceAmount = searchParams.get("amount");
   const {
     data: providers,
     isLoading,
@@ -79,13 +84,24 @@ const BillingPayment = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-800">
-          {t("billing.payment.title")}
-        </h1>
-        <p className="mt-1 text-sm text-slate-600">
-          {t("billing.payment.subtitle")}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-800">
+            {t("billing.payment.title")}
+          </h1>
+          <p className="mt-1 text-sm text-slate-600">
+            {invoiceId
+              ? t("billing.payment.subtitle_invoice").replace("{id}", invoiceId)
+              : t("billing.payment.subtitle")}
+          </p>
+        </div>
+        {invoiceId && (
+          <BaseButton
+            type="default"
+            onClick={() => navigate("/billing/invoices")}>
+            {t("billing.checkout.back")}
+          </BaseButton>
+        )}
       </div>
 
       {isLoading ? (
@@ -142,7 +158,7 @@ const BillingPayment = () => {
                   )}
                 </div>
               </div>
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <BaseButton
                   type={provider.status === "Connected" ? "default" : "primary"}
                   danger={provider.status === "Connected"}
@@ -160,6 +176,17 @@ const BillingPayment = () => {
                     {testCharge.isPending
                       ? t("billing.payment.testing")
                       : t("billing.payment.test_charge")}
+                  </BaseButton>
+                )}
+                {invoiceId && provider.status === "Connected" && (
+                  <BaseButton
+                    type="primary"
+                    onClick={() =>
+                      navigate(
+                        `/billing/checkout/${invoiceId}?amount=${encodeURIComponent(invoiceAmount ?? "")}`,
+                      )
+                    }>
+                    {t("billing.pay_now")}
                   </BaseButton>
                 )}
               </div>
