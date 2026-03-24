@@ -6,6 +6,7 @@ import { StripeProvider } from "../../components/payment/StripeProvider";
 import { CheckoutForm } from "../../components/payment/CheckoutForm";
 import { useMutation } from "@tanstack/react-query";
 import { apiCreatePaymentIntent } from "@/api/billing/billing.api";
+import { isValidStripeSecret } from "@/lib/stripe";
 import { notify } from "@/utils/notify";
 import { useLocale } from "@/i18n";
 
@@ -18,12 +19,6 @@ const BillingCheckout = () => {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
 
   const amount = searchParams.get("amount") ?? "$0.00";
-
-  /** Stripe expects pi_xxx_secret_yyy. Reject mock/invalid values to avoid Elements crash. */
-  const isValidStripeSecret = (s: string) =>
-    s.startsWith("pi_") &&
-    s.includes("_secret_") &&
-    !s.toLowerCase().includes("mock");
 
   useEffect(() => {
     if (!invoiceId) return;

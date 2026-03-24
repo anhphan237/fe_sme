@@ -15,11 +15,10 @@ import {
   apiGetPlans,
   apiGetSubscription,
   apiGenerateInvoice,
-  apiGetInvoiceById,
   apiCreatePaymentIntent,
 } from "@/api/billing/billing.api";
 import { extractList } from "@/api/core/types";
-import { mapPlan, mapSubscription, mapInvoice } from "@/utils/mappers/billing";
+import { mapPlan, mapSubscription } from "@/utils/mappers/billing";
 
 export interface RegisterFormValues {
   adminUsername: string;
@@ -65,6 +64,8 @@ export interface UseRegisterCompanyResult {
   setBillingCycle: Dispatch<SetStateAction<"MONTHLY" | "YEARLY">>;
 
   isPaying: boolean;
+  /** Context-aware loading message shown while isPaying is true */
+  payingLabel: string | null;
 
   submitError: string | null;
   setSubmitError: Dispatch<SetStateAction<string | null>>;
@@ -92,6 +93,17 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
     "MONTHLY",
   );
   const [isPaying, setIsPaying] = useState(false);
+  const [payingLabel, setPayingLabel] = useState<string | null>(null);
+  /** Stores the result of the first successful apiRegisterCompany call so that
+   *  going back to change plan (Step 3 → Step 4) does NOT trigger a second
+   *  registration attempt with the same email. */
+  const [registrationResult, setRegistrationResult] = useState<{
+    companyId: string;
+    accessToken: string;
+    adminUserId: string;
+    newUser: ReturnType<typeof Object.assign>;
+    tenantData: Tenant;
+  } | null>(null);
   const [checkout, setCheckout] = useState<{
     secret: string | null;
     invoiceId: string | null;
@@ -138,58 +150,83 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
       return;
     }
     setIsPaying(true);
+    setPayingLabel(null);
     setSubmitError(null);
     try {
-      // getFieldsValue(true) returns ALL fields including unmounted steps (company/admin)
-      const data = form.getFieldsValue(true);
-      const result = await apiRegisterCompany({
-        company: {
+      let companyId: string;
+      let currentTenantData: Tenant;
+
+      if (registrationResult) {
+        // User went back from Step 4 to change plan — reuse existing registration,
+        // do NOT call apiRegisterCompany again (would fail: duplicate email).
+        companyId = registrationResult.companyId;
+        currentTenantData = {
+          ...registrationResult.tenantData,
+          plan: selectedPlanCode,
+        };
+        setTenant(currentTenantData);
+      } else {
+        setPayingLabel("Đang tạo tài khoản...");
+        // getFieldsValue(true) returns ALL fields including unmounted steps
+        const data = form.getFieldsValue(true);
+        const result = await apiRegisterCompany({
+          company: {
+            name: data.companyName,
+            taxCode: data.taxCode,
+            address: data.address,
+            timezone: data.timezone,
+          },
+          admin: {
+            username: data.adminUsername,
+            password: data.adminPassword,
+            fullName: data.adminFullName,
+            phone: data.adminPhone || undefined,
+          },
+          planCode: selectedPlanCode,
+          billingCycle,
+        });
+
+        if (!result?.accessToken || !result?.adminUserId) {
+          setSubmitError(t("register.error.failed"));
+          return;
+        }
+
+        const newUser = {
+          id: result.adminUserId,
+          name: data.adminFullName,
+          email: data.adminUsername,
+          roles: ["HR"] as Role[],
+          companyId: result.companyId,
+          department: "",
+          departmentId: null,
+          status: "Active" as const,
+          createdAt: new Date().toISOString(),
+        };
+
+        currentTenantData = {
+          id: result.companyId ?? "company-new",
           name: data.companyName,
-          taxCode: data.taxCode,
-          address: data.address,
-          timezone: data.timezone,
-        },
-        admin: {
-          username: data.adminUsername,
-          password: data.adminPassword,
-          fullName: data.adminFullName,
-          phone: data.adminPhone || undefined,
-        },
-        planCode: selectedPlanCode,
-        billingCycle,
-      });
+          industry: "",
+          size: "",
+          plan: selectedPlanCode ?? "",
+        };
 
-      if (!result?.accessToken || !result?.adminUserId) {
-        setSubmitError(t("register.error.failed"));
-        return;
-      }
+        setUser(newUser);
+        setToken(result.accessToken);
+        setTenant(currentTenantData);
 
-      const newUser = {
-        id: result.adminUserId,
-        name: data.adminFullName,
-        email: data.adminUsername,
-        roles: ["HR"] as Role[],
-        companyId: result.companyId,
-        department: "",
-        departmentId: null,
-        status: "Active" as const,
-        createdAt: new Date().toISOString(),
-      };
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("auth_user", JSON.stringify(newUser));
+        }
 
-      const tenantData: Tenant = {
-        id: result.companyId ?? "company-new",
-        name: data.companyName,
-        industry: "",
-        size: "",
-        plan: selectedPlanCode ?? "",
-      };
-
-      setUser(newUser);
-      setToken(result.accessToken);
-      setTenant(tenantData);
-
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("auth_user", JSON.stringify(newUser));
+        companyId = result.companyId;
+        setRegistrationResult({
+          companyId,
+          accessToken: result.accessToken,
+          adminUserId: result.adminUserId,
+          newUser,
+          tenantData: currentTenantData,
+        });
       }
 
       if (selectedPlanCode.toUpperCase() === "FREE") {
@@ -198,10 +235,11 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
         return;
       }
 
-      const sub = await apiGetSubscription(result.companyId);
+      setPayingLabel("Đang kích hoạt gói...");
+      const sub = await apiGetSubscription(companyId);
       const subData = mapSubscription(sub as any);
       if (subData.planCode)
-        setTenant({ ...tenantData, plan: subData.planCode });
+        setTenant({ ...currentTenantData, plan: subData.planCode });
       let invoiceId: string | undefined = subData?.invoiceId;
       if (!invoiceId && subData?.subscriptionId) {
         const { periodStart, periodEnd } = getCurrentPeriod();
@@ -218,20 +256,23 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
       }
 
       if (invoiceId) {
-        let amount = "0 ₫";
+        // Derive display amount from the already-loaded plan list to avoid
+        // an extra apiGetInvoiceById round-trip before showing the Stripe form.
+        const selectedPlan = planList?.find((p) => p.code === selectedPlanCode);
+        const amount =
+          billingCycle === "YEARLY"
+            ? (selectedPlan?.priceYearly ?? "0 ₫")
+            : (selectedPlan?.price ?? "0 ₫");
+
+        setPayingLabel("Đang khởi tạo thanh toán...");
         let secret: string | undefined;
-        const [invoiceResult, intentResult] = await Promise.allSettled([
-          apiGetInvoiceById(invoiceId),
-          apiCreatePaymentIntent(invoiceId),
-        ]);
-        if (invoiceResult.status === "fulfilled") {
-          amount = mapInvoice(invoiceResult.value as any).amount;
+        try {
+          const intentResult = await apiCreatePaymentIntent(invoiceId);
+          secret = (intentResult as any)?.clientSecret as string | undefined;
+        } catch {
+          /* payment intent creation failed — fall through to checkout page */
         }
-        if (intentResult.status === "fulfilled") {
-          secret = (intentResult.value as any)?.clientSecret as
-            | string
-            | undefined;
-        }
+
         if (secret) {
           setCheckout({ secret, invoiceId, amount });
           setStep(4);
@@ -250,6 +291,7 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
       notify.error(t("register.error.failed"));
     } finally {
       setIsPaying(false);
+      setPayingLabel(null);
     }
   };
 
@@ -305,6 +347,7 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
     submitError,
     setSubmitError,
     isPaying,
+    payingLabel,
     clientSecret: checkout.secret,
     checkoutInvoiceId: checkout.invoiceId,
     checkoutAmount: checkout.amount,

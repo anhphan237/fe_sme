@@ -41,33 +41,6 @@ type StatusFilter = "all" | "pending" | "done";
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
-interface InstancesFilter {
-  employeeId?: string;
-  status?: string;
-}
-
-const useInstancesQuery = (filters?: InstancesFilter, enabled = true) =>
-  useQuery({
-    queryKey: [
-      "instances",
-      filters?.employeeId ?? "",
-      filters?.status ?? "ACTIVE",
-    ],
-    queryFn: () =>
-      apiListInstances({
-        employeeId: filters?.employeeId,
-        status: filters?.status ?? "ACTIVE",
-      }),
-    enabled,
-    select: (res: unknown) =>
-      extractList(
-        res as Record<string, unknown>,
-        "instances",
-        "items",
-        "list",
-      ).map(mapInstance) as OnboardingInstance[],
-  });
-
 const useTasksQuery = (onboardingId?: string) =>
   useQuery({
     queryKey: ["onboarding-tasks-by-instance", onboardingId ?? ""],
@@ -567,7 +540,7 @@ const Tasks = () => {
               </Typography.Paragraph>
             </div>
 
-            {taskDetail.description && (
+            {!!taskDetail.description && (
               <div>
                 <Typography.Text type="secondary">
                   {t("onboarding.employee.home.task_detail.field_description")}

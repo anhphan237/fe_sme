@@ -66,9 +66,7 @@ const ManagerDashboard = () => {
     const completed = teamInstances.filter(
       (i) => i.status === "COMPLETED",
     ).length;
-    const pending = teamInstances.filter(
-      (i) => i.status === "DRAFT" || i.status === "PENDING",
-    ).length;
+    const pending = teamInstances.filter((i) => i.status === "DRAFT").length;
     const total = teamInstances.length;
     const avgProgress =
       total > 0

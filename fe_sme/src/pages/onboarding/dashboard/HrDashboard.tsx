@@ -54,9 +54,7 @@ const HrDashboard = () => {
     const completed = allInstances.filter(
       (i) => i.status === "COMPLETED",
     ).length;
-    const pending = allInstances.filter(
-      (i) => i.status === "DRAFT" || i.status === "PENDING",
-    ).length;
+    const pending = allInstances.filter((i) => i.status === "DRAFT").length;
     const total = allInstances.length;
     const avgProgress =
       total > 0

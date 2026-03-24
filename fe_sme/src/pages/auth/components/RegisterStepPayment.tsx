@@ -1,6 +1,7 @@
 import { CreditCard, Package } from "lucide-react";
 import { StripeProvider } from "@/components/payment/StripeProvider";
 import { CheckoutForm } from "@/components/payment/CheckoutForm";
+import { isValidStripeSecret } from "@/lib/stripe";
 
 interface RegisterStepPaymentProps {
   clientSecret: string;
@@ -9,11 +10,6 @@ interface RegisterStepPaymentProps {
   planName?: string;
   onError: (message: string) => void;
 }
-
-const isValidStripeSecret = (s: string) =>
-  s.startsWith("pi_") &&
-  s.includes("_secret_") &&
-  !s.toLowerCase().includes("mock");
 
 export const RegisterStepPayment = ({
   clientSecret,
@@ -67,6 +63,7 @@ export const RegisterStepPayment = ({
             invoiceId={invoiceId}
             returnUrl={returnUrl}
             onError={onError}
+            showSummary={false}
           />
         </StripeProvider>
       </div>

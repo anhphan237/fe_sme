@@ -18,3 +18,12 @@ import { loadStripe } from "@stripe/stripe-js";
 const STRIPE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string;
 
 export const stripePromise = loadStripe(STRIPE_KEY);
+
+/**
+ * Validates that a string is a real Stripe client secret (pi_xxx_secret_yyy)
+ * and not a mock/test placeholder that would crash the Stripe Elements SDK.
+ */
+export const isValidStripeSecret = (s: string): boolean =>
+  s.startsWith("pi_") &&
+  s.includes("_secret_") &&
+  !s.toLowerCase().includes("mock");
