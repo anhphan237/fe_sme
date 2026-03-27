@@ -146,19 +146,26 @@ const SurveyTemplateEditor = () => {
         name: "",
         description: "",
         stage: undefined,
-        managerOnly: false,
+        targetRole: "EMPLOYEE",
         status: "DRAFT",
         isDefault: false,
       };
     }
 
     const template = templateRaw as TemplateRaw;
-
+const safeTargetRole =
+  template.targetRole ??
+  template.target_role;
     return {
       name: template.name ?? "",
       description: template.description ?? "",
       stage: template.stage ?? undefined,
-      managerOnly: template.managerOnly ?? template.manager_only ?? false,
+        targetRole:
+    safeTargetRole === "EMPLOYEE" ||
+    safeTargetRole === "MANAGER" ||
+    safeTargetRole === "BOTH"
+      ? safeTargetRole
+      : "EMPLOYEE",
       status: template.status ?? "DRAFT",
       isDefault: template.isDefault ?? template.is_default ?? false,
     };

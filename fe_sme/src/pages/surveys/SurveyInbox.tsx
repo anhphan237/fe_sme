@@ -21,6 +21,8 @@ const SurveyInbox = () => {
   const { t } = useLocale();
   const currentUser = useUserStore((state) => state.currentUser);
   const roles = currentUser?.roles ?? [];
+  const isManager = roles.includes("MANAGER");
+  const isHR = roles.includes("HR");
   const employeeOnlyView = isOnboardingEmployee(roles);
   const canSendSurvey = roles.includes("HR");
   const [statusFilter, setStatusFilter] = useState("");
@@ -50,6 +52,8 @@ const SurveyInbox = () => {
     queryFn: () =>
       apiGetSurveyInstances({
         status: statusFilter || undefined,
+        responderUserId: employeeOnlyView ? currentUser?.id : undefined,
+        targetRole: !isHR && isManager ? "MANAGER" : undefined,
         limit: 20,
         offset: 0,
       }),
@@ -61,7 +65,31 @@ const SurveyInbox = () => {
     "instances",
   );
 
-  const filtered = useMemo(() => instances, [instances]);
+  const filtered = useMemo(() => {
+  if (!instances) return [];
+
+
+  if (isHR) return instances;
+
+  if (employeeOnlyView) {
+    return instances.filter(
+      (item) =>
+        item.responderUserId === currentUser?.id ||
+        item.userId === currentUser?.id,
+    );
+  }
+
+
+  if (isManager) {
+    return instances.filter(
+      (item) =>
+        item.receiverRole === "MANAGER" ||
+        item.targetRole === "MANAGER",
+    );
+  }
+
+  return instances;
+}, [instances, employeeOnlyView, isManager, isHR, currentUser?.id]);
 
   const goDetail = (id?: string) => {
     if (!id) return;
@@ -200,9 +228,12 @@ const SurveyInbox = () => {
         />
       </div>
 
-      {canSendSurvey ? (
-        <SurveySendDrawer open={sendOpen} onClose={() => setSendOpen(false)} />
-      ) : null}
+        {canSendSurvey && sendOpen && (
+      <SurveySendDrawer
+        open={sendOpen}
+        onClose={() => setSendOpen(false)}
+      />
+    )}
     </div>
   );
 };

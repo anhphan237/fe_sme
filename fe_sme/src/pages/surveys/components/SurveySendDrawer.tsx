@@ -11,7 +11,7 @@ import {
   apiScheduleSurvey,
 } from "@/api/survey/survey.api";
 import type {
-  SurveyScheduleRequest,
+
   SurveyTemplateSummary,
 } from "@/interface/survey";
 import { useLocale } from "@/i18n";
@@ -29,6 +29,7 @@ type FormValues = {
   onboardingIds: string[];
   templateId: string;
   scheduledAt?: Dayjs;
+  selectedOnboardings?: SelectedOnboardingItem[];
 };
 
 const SurveySendDrawer = ({ open, onClose }: Props) => {
@@ -53,7 +54,17 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
     "templates",
   );
 
-  const templateOptions = templates.map((template) => ({
+  const normalizeStage = (value?: string | null) =>
+  (value ?? "").trim().toUpperCase().replace(/\s+/g, "_");
+
+  
+const manualTemplates = templates.filter((template) => {
+  const stage = normalizeStage(template.stage);
+  const status = (template.status ?? "").trim().toUpperCase();
+
+  return stage === "CUSTOM" && status === "ACTIVE";
+});
+  const templateOptions = manualTemplates.map((template) => ({
     value: template.templateId,
     label: template.name,
   }));
@@ -71,31 +82,68 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
       : null;
 
   const selectedTemplateId = Form.useWatch("templateId", form);
-  const selectedTemplate = templates.find(
+  const selectedTemplate = manualTemplates.find(
     (item) => item.templateId === selectedTemplateId,
+    
   );
 
-  const scheduleMutation = useMutation({
-    mutationFn: async (values: FormValues) => {
-      let successCount = 0;
-      let failedCount = 0;
+ const scheduleMutation = useMutation({
+  mutationFn: async (values: FormValues) => {
+     console.log("MUTATION_FN_START", values, selectedTemplate, selectedOnboardings);
 
-      for (const item of selectedOnboardings) {
-      try {
-        await apiScheduleSurvey({
+    if (!selectedTemplate) {
+      throw new Error("Template not found");
+    }
+      if (!selectedTemplate) {
+        throw new Error("Template not found");
+      }
+
+      if (!values.selectedOnboardings || values.selectedOnboardings.length === 0) {
+        throw new Error("Vui lòng chọn onboarding");
+      }
+
+   const results = await Promise.allSettled(
+  values.selectedOnboardings.flatMap((item) => {
+    const payloads = [];
+    const rawRole = selectedTemplate.targetRole;
+    const role =
+  rawRole === "EMPLOYEE" || rawRole === "MANAGER" || rawRole === "BOTH"
+    ? rawRole
+    : "EMPLOYEE";
+
+    if (role === "EMPLOYEE" || role === "BOTH") {
+      payloads.push(
+        apiScheduleSurvey({
           onboardingId: item.onboardingId,
           templateId: values.templateId,
           scheduledAt: values.scheduledAt?.toISOString(),
-          responderUserId: item.userId, 
-        } as SurveyScheduleRequest);
+          responderUserId: item.userId,
+          targetRole: "EMPLOYEE",
+        }),
+      );
+    }
 
-    successCount += 1;
-  } catch {
-    failedCount += 1;
-  }
-}
+    if (role === "MANAGER" || role === "BOTH") {
+      payloads.push(
+        apiScheduleSurvey({
+          onboardingId: item.onboardingId,
+          templateId: values.templateId,
+          scheduledAt: values.scheduledAt?.toISOString(),
+          responderUserId: item.userId,
+          targetRole: "MANAGER",
+        }),
+      );
+    }
 
-      return { successCount, failedCount };
+    return payloads;
+  }),
+    );
+
+    const successCount = results.filter(r => r.status === "fulfilled").length;
+    const failedCount = results.filter(r => r.status === "rejected").length;
+
+    return { successCount, failedCount };
+
     },
     onSuccess: async ({ successCount, failedCount }) => {
       if (successCount > 0 && failedCount === 0) {
@@ -161,6 +209,7 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
 
   const handleFinish = async (values: FormValues) => {
     if (!selectedOnboardings.length) {
+      console.log("HANDLE_FINISH", values, selectedOnboardings, selectedTemplate);
       notify.error(t("survey.send.validation.onboarding_required"));
       return;
     }
@@ -168,6 +217,7 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
     await scheduleMutation.mutateAsync({
       ...values,
       onboardingIds: selectedOnboardings.map((item) => item.instanceId),
+      selectedOnboardings,
     });
   };
 
@@ -319,12 +369,14 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
         </Form>
       </Drawer>
 
+      {selectModalOpen && (
       <SelectOnboardingModal
         open={selectModalOpen}
         selectedIds={selectedOnboardings.map((item) => item.instanceId)}
         onClose={() => setSelectModalOpen(false)}
         onConfirm={handleConfirmEmployees}
       />
+    )}
     </>
   );
 };

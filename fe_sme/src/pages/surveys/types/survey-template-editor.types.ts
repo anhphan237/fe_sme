@@ -26,7 +26,7 @@ export type TemplateFormValues = {
   name: string;
   description?: string;
   stage?: string;
-  managerOnly?: boolean;
+  targetRole: "EMPLOYEE" | "MANAGER" | "BOTH";
   status: string;
   isDefault?: boolean;
 };
@@ -53,8 +53,8 @@ export type TemplateRaw = {
   name?: string;
   description?: string;
   stage?: string;
-  managerOnly?: boolean;
-  manager_only?: boolean;
+  targetRole?: "EMPLOYEE" | "MANAGER" | "BOTH";
+  target_role?: "EMPLOYEE" | "MANAGER" | "BOTH";
   status?: string;
   isDefault?: boolean;
   is_default?: boolean;
