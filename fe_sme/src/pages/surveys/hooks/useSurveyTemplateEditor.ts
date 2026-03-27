@@ -126,13 +126,12 @@ export const mapApiQuestionToLocal = (
 
 export const getQuestionValidationErrors = (
   questions: LocalQuestion[],
-  isEdit: boolean,
 ) => {
   const errors: string[] = [];
 
-  if (!isEdit && questions.length === 0) {
-    errors.push("At least one question is required.");
-  }
+    if (questions.length === 0) {
+      errors.push("At least one question is required.");
+    }
 
   questions.forEach((question, index) => {
     const label = `Question ${index + 1}`;
@@ -186,7 +185,7 @@ export const useSurveyTemplateEditor = ({
   const [deletedQuestionIds, setDeletedQuestionIds] = useState<string[]>([]);
 
   const validationErrors = useMemo(
-    () => getQuestionValidationErrors(localQuestions, isEdit),
+    () => getQuestionValidationErrors(localQuestions),
     [localQuestions, isEdit],
   );
 
@@ -237,13 +236,14 @@ export const useSurveyTemplateEditor = ({
       if (!source) return prev;
 
       const index = prev.findIndex((question) => question._uid === uid);
-      const duplicated: LocalQuestion = {
-        ...source,
-        _uid: nextUid(),
-        questionId: undefined,
-        isNew: true,
-        isDirty: true,
-      };
+    const duplicated: LocalQuestion = {
+      ...source,
+      _uid: nextUid(),
+      questionId: undefined,
+      sortOrder: index + 1,
+      isNew: true,
+      isDirty: true,
+    };
 
       const next = [...prev];
       next.splice(index + 1, 0, duplicated);

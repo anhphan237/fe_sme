@@ -81,15 +81,16 @@ const SurveyTemplateEditorContent = ({
       const values = await templateForm.validateFields();
 
       if (validationErrors.length > 0) {
-        throw new Error(validationErrors[0]);
+         notify.error(validationErrors[0]);
+        throw new Error("Validation failed");
       }
 
       const templatePayload = {
         name: values.name,
         description: values.description,
-        stage: values.stage,
-        managerOnly: values.managerOnly ?? false,
-        status: values.status,
+        stage: values.stage ?? "ONBOARDING",
+        status: values.status ?? "DRAFT",
+        targetRole: values.targetRole ?? "EMPLOYEE",
         isDefault: values.isDefault ?? false,
       };
 
@@ -242,9 +243,25 @@ const SurveyTemplateEditorContent = ({
             </div>
 
             <div className="mt-4">
-              <BaseCheckbox
-                name="managerOnly"
-                labelCheckbox={t("survey.template.manager_only_label")}
+              <BaseSelect
+                name="targetRole"
+                label={t("survey.template.target_role") || "Target role"}
+                options={[
+                  { value: "EMPLOYEE", label: t("survey.role.employee") || "Employee" },
+                  { value: "MANAGER", label: t("survey.role.manager") || "Manager" },
+                  { value: "BOTH", label: t("survey.role.both") || "Both" },
+                ]}
+                placeholder={t("global.select")}
+                formItemProps={{
+                  rules: [
+                    {
+                      required: true,
+                      message:
+                        t("survey.template.validation.target_role_required") ||
+                        "Target role is required",
+                    },
+                  ],
+                }}
               />
             </div>
 
