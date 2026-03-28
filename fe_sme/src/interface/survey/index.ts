@@ -51,6 +51,7 @@ export interface SurveyTemplateSummary {
   stage: string | null;
   targetRole: "EMPLOYEE" | "MANAGER" | "BOTH";
   status: string;
+  isDefault: boolean;
 }
 
 // ---------------------------

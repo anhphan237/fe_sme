@@ -10,10 +10,7 @@ import {
   apiListSurveyTemplates,
   apiScheduleSurvey,
 } from "@/api/survey/survey.api";
-import type {
-
-  SurveyTemplateSummary,
-} from "@/interface/survey";
+import type { SurveyTemplateSummary } from "@/interface/survey";
 import { useLocale } from "@/i18n";
 import { notify } from "@/utils/notify";
 import SelectOnboardingModal, {
@@ -54,16 +51,23 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
     "templates",
   );
 
-  const normalizeStage = (value?: string | null) =>
-  (value ?? "").trim().toUpperCase().replace(/\s+/g, "_");
+  const normalizeStage = (value?: string | null) => {
+    const stage = (value ?? "").trim().toUpperCase().replace(/\s+/g, "_");
 
-  
-const manualTemplates = templates.filter((template) => {
-  const stage = normalizeStage(template.stage);
-  const status = (template.status ?? "").trim().toUpperCase();
+    if (stage === "DAY_7" || stage === "D7") return "D7";
+    if (stage === "DAY_30" || stage === "D30") return "D30";
+    if (stage === "DAY_60" || stage === "D60") return "D60";
+    if (stage === "CUSTOM") return "CUSTOM";
 
-  return stage === "CUSTOM" && status === "ACTIVE";
-});
+    return stage;
+  };
+
+  const manualTemplates = templates.filter((template) => {
+    const stage = normalizeStage(template.stage);
+    const status = (template.status ?? "").trim().toUpperCase();
+
+    return stage === "CUSTOM" && status === "ACTIVE";
+  });
   const templateOptions = manualTemplates.map((template) => ({
     value: template.templateId,
     label: template.name,
@@ -84,66 +88,72 @@ const manualTemplates = templates.filter((template) => {
   const selectedTemplateId = Form.useWatch("templateId", form);
   const selectedTemplate = manualTemplates.find(
     (item) => item.templateId === selectedTemplateId,
-    
   );
 
- const scheduleMutation = useMutation({
-  mutationFn: async (values: FormValues) => {
-     console.log("MUTATION_FN_START", values, selectedTemplate, selectedOnboardings);
-
-    if (!selectedTemplate) {
-      throw new Error("Template not found");
-    }
+  const scheduleMutation = useMutation({
+    mutationFn: async (values: FormValues) => {
       if (!selectedTemplate) {
         throw new Error("Template not found");
       }
 
-      if (!values.selectedOnboardings || values.selectedOnboardings.length === 0) {
+      if (
+        !values.selectedOnboardings ||
+        values.selectedOnboardings.length === 0
+      ) {
         throw new Error("Vui lòng chọn onboarding");
       }
 
-   const results = await Promise.allSettled(
-  values.selectedOnboardings.flatMap((item) => {
-    const payloads = [];
-    const rawRole = selectedTemplate.targetRole;
-    const role =
-  rawRole === "EMPLOYEE" || rawRole === "MANAGER" || rawRole === "BOTH"
-    ? rawRole
-    : "EMPLOYEE";
+      const results = await Promise.allSettled(
+        values.selectedOnboardings.flatMap((item) => {
+          const payloads = [];
+          const rawRole = selectedTemplate.targetRole;
+          const role =
+            rawRole === "EMPLOYEE" || rawRole === "MANAGER"
+              ? rawRole
+              : "EMPLOYEE";
 
-    if (role === "EMPLOYEE" || role === "BOTH") {
-      payloads.push(
-        apiScheduleSurvey({
-          onboardingId: item.onboardingId,
-          templateId: values.templateId,
-          scheduledAt: values.scheduledAt?.toISOString(),
-          responderUserId: item.userId,
-          targetRole: "EMPLOYEE",
+          if (role === "EMPLOYEE") {
+            if (!item.employeeUserId) {
+              throw new Error("Employee user not found");
+            }
+
+            payloads.push(
+              apiScheduleSurvey({
+                onboardingId: item.onboardingId,
+                templateId: values.templateId,
+                scheduledAt: values.scheduledAt?.toISOString(),
+                responderUserId: item.employeeUserId,
+                targetRole: "EMPLOYEE",
+              }),
+            );
+          }
+
+          if (role === "MANAGER") {
+            if (!item.managerUserId) {
+              throw new Error("Manager user not found");
+            }
+
+            payloads.push(
+              apiScheduleSurvey({
+                onboardingId: item.onboardingId,
+                templateId: values.templateId,
+                scheduledAt: values.scheduledAt?.toISOString(),
+                responderUserId: item.managerUserId,
+                targetRole: "MANAGER",
+              }),
+            );
+          }
+
+          return payloads;
         }),
       );
-    }
 
-    if (role === "MANAGER" || role === "BOTH") {
-      payloads.push(
-        apiScheduleSurvey({
-          onboardingId: item.onboardingId,
-          templateId: values.templateId,
-          scheduledAt: values.scheduledAt?.toISOString(),
-          responderUserId: item.userId,
-          targetRole: "MANAGER",
-        }),
-      );
-    }
+      const successCount = results.filter(
+        (r) => r.status === "fulfilled",
+      ).length;
+      const failedCount = results.filter((r) => r.status === "rejected").length;
 
-    return payloads;
-  }),
-    );
-
-    const successCount = results.filter(r => r.status === "fulfilled").length;
-    const failedCount = results.filter(r => r.status === "rejected").length;
-
-    return { successCount, failedCount };
-
+      return { successCount, failedCount };
     },
     onSuccess: async ({ successCount, failedCount }) => {
       if (successCount > 0 && failedCount === 0) {
@@ -192,7 +202,7 @@ const manualTemplates = templates.filter((template) => {
     setSelectedOnboardings(items);
     form.setFieldValue(
       "onboardingIds",
-      items.map((item) => item.instanceId),
+      items.map((item) => item.onboardingId),
     );
 
     const currentScheduledAt = form.getFieldValue("scheduledAt");
@@ -209,14 +219,13 @@ const manualTemplates = templates.filter((template) => {
 
   const handleFinish = async (values: FormValues) => {
     if (!selectedOnboardings.length) {
-      console.log("HANDLE_FINISH", values, selectedOnboardings, selectedTemplate);
       notify.error(t("survey.send.validation.onboarding_required"));
       return;
     }
 
     await scheduleMutation.mutateAsync({
       ...values,
-      onboardingIds: selectedOnboardings.map((item) => item.instanceId),
+      onboardingIds: selectedOnboardings.map((item) => item.onboardingId),
       selectedOnboardings,
     });
   };
@@ -272,13 +281,14 @@ const manualTemplates = templates.filter((template) => {
             ) : (
               <div className="space-y-2">
                 <div className="text-sm font-medium text-slate-700">
-                  {t("survey.send.selected_count")}: {selectedOnboardings.length}
+                  {t("survey.send.selected_count")}:{" "}
+                  {selectedOnboardings.length}
                 </div>
 
                 <div className="max-h-52 space-y-2 overflow-auto">
                   {selectedOnboardings.map((item) => (
                     <div
-                      key={item.instanceId}
+                     key={item.onboardingId}
                       className="rounded-lg border border-slate-200 px-3 py-2"
                     >
                       <div className="font-medium text-slate-800">
@@ -329,7 +339,10 @@ const manualTemplates = templates.filter((template) => {
                 placeholder={t("survey.send.scheduled_at_placeholder")}
                 disabledDate={(current) => {
                   if (!latestStartDate) return false;
-                  return current.isBefore(latestStartDate.startOf("day"), "day");
+                  return current.isBefore(
+                    latestStartDate.startOf("day"),
+                    "day",
+                  );
                 }}
               />
             </Form.Item>
@@ -351,17 +364,25 @@ const manualTemplates = templates.filter((template) => {
 
             <div className="space-y-2 text-sm text-slate-600">
               <div>
-                <span className="font-medium">{t("survey.send.employee_label")}:</span>{" "}
+                <span className="font-medium">
+                  {t("survey.send.employee_label")}:
+                </span>{" "}
                 {selectedOnboardings.length}
               </div>
               <div>
-                <span className="font-medium">{t("survey.send.template_label")}:</span>{" "}
+                <span className="font-medium">
+                  {t("survey.send.template_label")}:
+                </span>{" "}
                 {selectedTemplate?.name || "-"}
               </div>
               <div>
-                <span className="font-medium">{t("survey.send.scheduled_at_label")}:</span>{" "}
+                <span className="font-medium">
+                  {t("survey.send.scheduled_at_label")}:
+                </span>{" "}
                 {form.getFieldValue("scheduledAt")
-                  ? dayjs(form.getFieldValue("scheduledAt")).format("DD-MM-YYYY")
+                  ? dayjs(form.getFieldValue("scheduledAt")).format(
+                      "DD-MM-YYYY",
+                    )
                   : "-"}
               </div>
             </div>
@@ -370,13 +391,13 @@ const manualTemplates = templates.filter((template) => {
       </Drawer>
 
       {selectModalOpen && (
-      <SelectOnboardingModal
-        open={selectModalOpen}
-        selectedIds={selectedOnboardings.map((item) => item.instanceId)}
-        onClose={() => setSelectModalOpen(false)}
-        onConfirm={handleConfirmEmployees}
-      />
-    )}
+        <SelectOnboardingModal
+          open={selectModalOpen}
+          selectedIds={selectedOnboardings.map((item) => item.onboardingId)}
+          onClose={() => setSelectModalOpen(false)}
+          onConfirm={handleConfirmEmployees}
+        />
+      )}
     </>
   );
 };

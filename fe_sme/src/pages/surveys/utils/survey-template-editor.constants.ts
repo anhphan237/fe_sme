@@ -3,9 +3,9 @@ import type { OptionItem } from "../types/survey-template-editor.types";
 type TranslateFn = (key: string) => string;
 
 export const getStageOptions = (t: TranslateFn): OptionItem[] => [
-  { value: "DAY_7", label: t("survey.template.stage.day_7") || "Day 7" },
-  { value: "DAY_30", label: t("survey.template.stage.day_30") || "Day 30" },
-  { value: "DAY_60", label: t("survey.template.stage.day_60") || "Day 60" },
+  { value: "D7", label: t("survey.template.stage.day_7") || "Day 7" },
+  { value: "D30", label: t("survey.template.stage.day_30") || "Day 30" },
+  { value: "D60", label: t("survey.template.stage.day_60") || "Day 60" },
   { value: "CUSTOM", label: t("survey.template.stage.custom") || "Custom" },
 ];
 

@@ -34,7 +34,10 @@ const parseQuestionOptions = (raw: unknown): string[] => {
   if (!raw) return [];
 
   if (Array.isArray(raw)) {
-    return raw.map(String).map((x) => x.trim()).filter(Boolean);
+    return raw
+      .map(String)
+      .map((x) => x.trim())
+      .filter(Boolean);
   }
 
   if (typeof raw !== "string") return [];
@@ -46,14 +49,20 @@ const parseQuestionOptions = (raw: unknown): string[] => {
     const parsed = JSON.parse(text);
 
     if (Array.isArray(parsed)) {
-      return parsed.map(String).map((x) => x.trim()).filter(Boolean);
+      return parsed
+        .map(String)
+        .map((x) => x.trim())
+        .filter(Boolean);
     }
 
     if (typeof parsed === "string") {
       try {
         const nested = JSON.parse(parsed);
         if (Array.isArray(nested)) {
-          return nested.map(String).map((x) => x.trim()).filter(Boolean);
+          return nested
+            .map(String)
+            .map((x) => x.trim())
+            .filter(Boolean);
         }
       } catch {
         return parsed
@@ -79,10 +88,7 @@ const mapApiQuestionToLocal = (
   const raw = q as SurveyQuestionRaw;
 
   const rawOptions =
-    raw.options ??
-    raw.valueOptions ??
-    raw.optionsJson ??
-    raw.options_json;
+    raw.options ?? raw.valueOptions ?? raw.optionsJson ?? raw.options_json;
 
   return {
     _uid: q.questionId,
@@ -115,6 +121,9 @@ const SurveyTemplateEditor = () => {
     queryKey: ["survey-template", templateId],
     queryFn: () => apiGetSurveyTemplate({ templateId: templateId! }),
     enabled: isEdit,
+    refetchOnMount: "always",
+    staleTime: 0,
+    gcTime: 0,
   });
 
   const {
@@ -125,6 +134,9 @@ const SurveyTemplateEditor = () => {
     queryKey: ["survey-questions", templateId],
     queryFn: () => apiListSurveyQuestions({ templateId: templateId! }),
     enabled: isEdit,
+    refetchOnMount: "always",
+    staleTime: 0,
+    gcTime: 0,
     select: (res): LocalQuestion[] => {
       const list = extractList<SurveyQuestion>(res, "items", "questions");
 
@@ -134,7 +146,10 @@ const SurveyTemplateEditor = () => {
           const qa = a as SurveyQuestionRaw;
           const qb = b as SurveyQuestionRaw;
 
-          return (qa.sortOrder ?? qa.sort_order ?? 0) - (qb.sortOrder ?? qb.sort_order ?? 0);
+          return (
+            (qa.sortOrder ?? qa.sort_order ?? 0) -
+            (qb.sortOrder ?? qb.sort_order ?? 0)
+          );
         })
         .map(mapApiQuestionToLocal);
     },
@@ -153,21 +168,17 @@ const SurveyTemplateEditor = () => {
     }
 
     const template = templateRaw as TemplateRaw;
-const safeTargetRole =
-  template.targetRole ??
-  template.target_role;
+    const safeTargetRole = template.targetRole ?? template.target_role;
     return {
       name: template.name ?? "",
       description: template.description ?? "",
       stage: template.stage ?? undefined,
-        targetRole:
-    safeTargetRole === "EMPLOYEE" ||
-    safeTargetRole === "MANAGER" ||
-    safeTargetRole === "BOTH"
-      ? safeTargetRole
-      : "EMPLOYEE",
+      targetRole:
+        safeTargetRole === "EMPLOYEE" || safeTargetRole === "MANAGER"
+          ? safeTargetRole
+          : "EMPLOYEE",
       status: template.status ?? "DRAFT",
-      isDefault: template.isDefault ?? template.is_default ?? false,
+      isDefault: Boolean(template.isDefault ?? template.is_default ?? false),
     };
   }, [isEdit, templateRaw]);
 
@@ -193,9 +204,9 @@ const safeTargetRole =
 
   return (
     <SurveyTemplateEditorContent
-      key={templateId ?? "new"}
+      key={`${templateId ?? "new"}-${initialValues.isDefault ? "default" : "normal"}-${initialValues.stage ?? "none"}`}
       templateId={templateId}
-      isEdit={isEdit}
+      isEditMode={isEdit}
       initialValues={initialValues}
       initialQuestions={isEdit ? questionsMapped : []}
       onCancel={() => navigate("/surveys/templates")}

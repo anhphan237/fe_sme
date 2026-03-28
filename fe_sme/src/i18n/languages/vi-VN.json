@@ -1764,5 +1764,10 @@
   "survey.send.selected_employees_title": "Danh sách đã chọn",
   "survey.send.empty_selected_employees": "Chưa chọn nhân viên nào",
   "survey.send.total_items": "Tổng số mục",
-  "survey.send.table.employee": "Nhân viên"
+  "survey.send.table.employee": "Nhân viên",
+  "survey.template.target_role" : "Vai trò mục tiêu",
+  "survey.role.employee": "Nhân viên",
+  "survey.role.manager": "Quản lý",
+  "survey.role.admin": "Quản trị viên",
+  "survey.role.both": "Cả hai"
 }

@@ -1,6 +1,6 @@
 import { Modal, Input, Table, Tag } from "antd";
 import { useQuery } from "@tanstack/react-query";
-import {  useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import dayjs from "dayjs";
 
 import BaseButton from "@/components/button";
@@ -25,7 +25,10 @@ type OnboardingInstanceItem = {
 export type SelectedOnboardingItem = {
   onboardingId: string;
   instanceId: string;
-  userId: string;
+
+  employeeUserId?: string | null;
+  managerUserId?: string | null;
+
   employeeName: string;
   email?: string | null;
   managerName?: string | null;
@@ -48,9 +51,8 @@ const SelectOnboardingModal = ({
 }: Props) => {
   const { t } = useLocale();
   const [keyword, setKeyword] = useState("");
-  const [localSelectedIds, setLocalSelectedIds] = useState<string[]>(selectedIds);
-
-
+  const [localSelectedIds, setLocalSelectedIds] =
+    useState<string[]>(selectedIds);
 
   const { data: onboardingRaw, isLoading: isOnboardingLoading } = useQuery({
     queryKey: ["onboarding-instances-for-survey-select"],
@@ -99,7 +101,9 @@ const SelectOnboardingModal = ({
           return {
             onboardingId: item.instanceId,
             instanceId: item.instanceId,
-            userId: item.employeeUserId as string,
+
+            employeeUserId: item.employeeUserId,
+            managerUserId: item.managerUserId,
             employeeName:
               employee?.fullName ||
               item.employeeId ||
@@ -129,7 +133,9 @@ const SelectOnboardingModal = ({
         item.startDate,
       ]
         .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(normalizedKeyword)),
+        .some((value) =>
+          String(value).toLowerCase().includes(normalizedKeyword),
+        ),
     );
   }, [rows, normalizedKeyword]);
 

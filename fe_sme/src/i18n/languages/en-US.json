@@ -1738,5 +1738,9 @@
   "survey.send.validation.onboarding_required": "Please select at least one onboarding employee",
   "survey.send.validation.template_required": "Please select a survey template",
   "survey.send.total_items": "Total items",
-  "survey.send.table.employee": "Employee"
+  "survey.send.table.employee": "Employee",
+  "survey.template.target_role" : "Target role",
+  "survey.role.employee": "Employee",
+  "survey.role.manager": "Manager",
+  "survey.role.both": "Both"
 }
