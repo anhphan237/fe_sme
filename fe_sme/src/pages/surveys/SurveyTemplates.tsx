@@ -22,11 +22,25 @@ import { extractList } from "@/api/core/types";
 import type { SurveyTemplateSummary } from "@/interface/survey";
 import { StageTag, TemplateStatusTag } from "./components/SurveyStatusTag";
 
+
+const normalizeStage = (stage?: string | null) => {
+  const value = String(stage ?? "")
+    .trim()
+    .toUpperCase();
+
+  if (value === "DAY_7" || value === "D7") return "D7";
+  if (value === "DAY_30" || value === "D30") return "D30";
+  if (value === "DAY_60" || value === "D60") return "D60";
+  if (value === "CUSTOM") return "CUSTOM";
+
+  return value;
+};
+
 const STAGE_OPTIONS = [
   { value: "", label: "All stages" },
-  { value: "DAY_7", label: "Day 7" },
-  { value: "DAY_30", label: "Day 30" },
-  { value: "DAY_60", label: "Day 60" },
+  { value: "D7", label: "Day 7" },
+  { value: "D30", label: "Day 30" },
+  { value: "D60", label: "Day 60" },
   { value: "CUSTOM", label: "Custom" },
 ];
 
@@ -83,7 +97,8 @@ const SurveyTemplates = () => {
     const kw = search.toLowerCase();
     return templates.filter((tmpl) => {
       const matchSearch = !kw || tmpl.name.toLowerCase().includes(kw);
-      const matchStage = !stageFilter || tmpl.stage === stageFilter;
+      const matchStage =
+        !stageFilter || String(tmpl.stage).toUpperCase() === stageFilter;
       const matchStatus = !statusFilter || tmpl.status === statusFilter;
       return matchSearch && matchStage && matchStatus;
     });
@@ -98,7 +113,8 @@ const SurveyTemplates = () => {
         <button
           type="button"
           className="text-left font-medium text-[#223A59] hover:text-[#3684DB] hover:underline"
-          onClick={() => navigate(`/surveys/templates/${row.templateId}`)}>
+          onClick={() => navigate(`/surveys/templates/${row.templateId}`)}
+        >
           {name}
         </button>
       ),
@@ -108,12 +124,7 @@ const SurveyTemplates = () => {
       dataIndex: "stage",
       key: "stage",
       width: 120,
-      render: (stage: string | null) =>
-        stage ? (
-          <StageTag stage={stage} />
-        ) : (
-          <span className="text-slate-400">—</span>
-        ),
+      render: (value) => <StageTag stage={normalizeStage(value)} />,
     },
     {
       title: t("survey.template.col.status"),
@@ -121,6 +132,21 @@ const SurveyTemplates = () => {
       key: "status",
       width: 130,
       render: (status: string) => <TemplateStatusTag status={status} />,
+    },
+    {
+      title: "Default",
+      dataIndex: "isDefault",
+      render: (_, row) => {
+        const stage = normalizeStage(row.stage);
+
+        if (stage === "CUSTOM") return "-";
+
+        return row.isDefault ? (
+          <span className="text-emerald-600 font-medium">Default</span>
+        ) : (
+          <span className="text-slate-400">-</span>
+        );
+      },
     },
     {
       title: t("global.action"),

@@ -13,7 +13,8 @@ const StatusTag: FC<{
   <span
     className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
       pillStyles[value] ?? PILL_FALLBACK
-    } ${className}`}>
+    } ${className}`}
+  >
     <span
       className={`h-1.5 w-1.5 rounded-full ${dotStyles[value] ?? DOT_FALLBACK}`}
     />
@@ -26,11 +27,21 @@ const TEMPLATE_DOT: Record<string, string> = {
   ACTIVE: "bg-emerald-500",
   ARCHIVED: "bg-slate-400",
   DRAFT: "bg-amber-400",
+  DISABLED: "bg-red-500",
 };
+
 const TEMPLATE_PILL: Record<string, string> = {
   ACTIVE: "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200",
   ARCHIVED: "bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200",
   DRAFT: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200",
+  DISABLED: "bg-red-50 text-red-700 ring-1 ring-inset ring-red-200",
+};
+
+const TEMPLATE_LABEL: Record<string, string> = {
+  ACTIVE: "Active",
+  ARCHIVED: "Archived",
+  DRAFT: "Draft",
+  DISABLED: "Disabled",
 };
 
 export const TemplateStatusTag: FC<{ status: string; className?: string }> = (
@@ -40,49 +51,67 @@ export const TemplateStatusTag: FC<{ status: string; className?: string }> = (
     value={p.status}
     dotStyles={TEMPLATE_DOT}
     pillStyles={TEMPLATE_PILL}
+    labels={TEMPLATE_LABEL}
     className={p.className}
   />
 );
 
 // ─── Stage Tag ────────────────────────────────────────────────────────────────
 const STAGE_DOT: Record<string, string> = {
-  DAY_7: "bg-blue-500",
-  DAY_30: "bg-cyan-500",
-  DAY_60: "bg-indigo-500",
+  D7: "bg-blue-500",
+  D30: "bg-cyan-500",
+  D60: "bg-indigo-500",
   CUSTOM: "bg-violet-500",
 };
+
 const STAGE_PILL: Record<string, string> = {
-  DAY_7: "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200",
-  DAY_30: "bg-cyan-50 text-cyan-700 ring-1 ring-inset ring-cyan-200",
-  DAY_60: "bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200",
+  D7: "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200",
+  D30: "bg-cyan-50 text-cyan-700 ring-1 ring-inset ring-cyan-200",
+  D60: "bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200",
   CUSTOM: "bg-violet-50 text-violet-700 ring-1 ring-inset ring-violet-200",
 };
 
 const STAGE_LABEL: Record<string, string> = {
-  DAY_7: "Day 7",
-  DAY_30: "Day 30",
-  DAY_60: "Day 60",
+  D7: "Day 7",
+  D30: "Day 30",
+  D60: "Day 60",
   CUSTOM: "Custom",
 };
+const normalizeStage = (stage?: string) => {
+  const value = String(stage ?? "").trim().toUpperCase();
 
-export const StageTag: FC<{ stage: string; className?: string }> = (p) => (
-  <StatusTag
-    value={p.stage}
-    dotStyles={STAGE_DOT}
-    pillStyles={STAGE_PILL}
-    labels={STAGE_LABEL}
-    className={p.className}
-  />
-);
+  if (value === "DAY_7" || value === "D7") return "D7";
+  if (value === "DAY_30" || value === "D30") return "D30";
+  if (value === "DAY_60" || value === "D60") return "D60";
+  if (value === "CUSTOM") return "CUSTOM";
+
+  return value;
+};
+export const StageTag: FC<{ stage: string; className?: string }> = (p) => {
+  const normalizedStage = normalizeStage(p.stage);
+
+  return (
+    <StatusTag
+      value={normalizedStage}
+      dotStyles={STAGE_DOT}
+      pillStyles={STAGE_PILL}
+      labels={STAGE_LABEL}
+      className={p.className}
+    />
+  );
+};
 
 // ─── Instance Status ──────────────────────────────────────────────────────────
 const INSTANCE_DOT: Record<string, string> = {
+  SCHEDULED: "bg-slate-500",
   PENDING: "bg-amber-400",
   SENT: "bg-blue-500",
   COMPLETED: "bg-emerald-500",
   EXPIRED: "bg-red-500",
 };
+
 const INSTANCE_PILL: Record<string, string> = {
+  SCHEDULED: "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200",
   PENDING: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200",
   SENT: "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200",
   COMPLETED:
@@ -91,6 +120,7 @@ const INSTANCE_PILL: Record<string, string> = {
 };
 
 const INSTANCE_LABEL: Record<string, string> = {
+  SCHEDULED: "Scheduled",
   PENDING: "Pending",
   SENT: "Sent",
   COMPLETED: "Completed",
