@@ -19,12 +19,15 @@ const BillingCheckout = () => {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
 
   const amount = searchParams.get("amount") ?? "$0.00";
+  const from = searchParams.get("from");
 
   useEffect(() => {
     if (!invoiceId) return;
     createIntent.mutate(invoiceId, {
       onSuccess: (data) => {
-        setClientSecret(data.clientSecret);
+        const secret =
+          (data as { clientSecret?: string })?.clientSecret ?? null;
+        setClientSecret(secret);
       },
       onError: (err) => {
         notify.error(t("billing.checkout.no_session") + ` (${err.message})`);
@@ -33,7 +36,7 @@ const BillingCheckout = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoiceId]);
 
-  const returnUrl = `${window.location.origin}/billing/payment/confirmation`;
+  const returnUrl = `${window.location.origin}/billing/payment/confirmation?invoiceId=${encodeURIComponent(invoiceId ?? "")}${from ? `&from=${encodeURIComponent(from)}` : ""}`;
 
   return (
     <div className="mx-auto max-w-lg space-y-6">

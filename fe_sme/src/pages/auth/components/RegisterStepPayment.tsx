@@ -1,4 +1,5 @@
 import { CreditCard, Package, ShieldCheck } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { StripeProvider } from "@/components/payment/StripeProvider";
 import { CheckoutForm } from "@/components/payment/CheckoutForm";
 import { isValidStripeSecret } from "@/lib/stripe";
@@ -20,7 +21,8 @@ export const RegisterStepPayment = ({
   billingCycle,
   onError,
 }: RegisterStepPaymentProps) => {
-  const returnUrl = `${window.location.origin}/billing/payment/confirmation?from=register`;
+  const navigate = useNavigate();
+  const returnUrl = `${window.location.origin}/billing/payment/confirmation?from=register&invoiceId=${encodeURIComponent(invoiceId)}`;
 
   const cycleLabel = billingCycle === "YEARLY" ? "Hàng năm" : "Hàng tháng";
 
@@ -93,6 +95,7 @@ export const RegisterStepPayment = ({
             invoiceId={invoiceId}
             returnUrl={returnUrl}
             onError={onError}
+            onSuccess={() => navigate("/dashboard", { replace: true })}
             showSummary={false}
           />
         </StripeProvider>

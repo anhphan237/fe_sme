@@ -15,7 +15,6 @@ import {
   apiGetPlans,
   apiGetSubscription,
   apiGenerateInvoice,
-  apiCreatePaymentIntent,
 } from "@/api/billing/billing.api";
 import { extractList } from "@/api/core/types";
 import { mapPlan, mapSubscription } from "@/utils/mappers/billing";
@@ -26,6 +25,8 @@ export interface RegisterFormValues {
   taxCode: string;
   address: string;
   timezone: string;
+  industry?: string;
+  companySize?: string;
   adminFullName: string;
   adminPassword: string;
   adminPhone?: string;
@@ -69,11 +70,6 @@ export interface UseRegisterCompanyResult {
 
   submitError: string | null;
   setSubmitError: Dispatch<SetStateAction<string | null>>;
-
-  // Step 4 — inline payment
-  clientSecret: string | null;
-  checkoutInvoiceId: string | null;
-  checkoutAmount: string;
 }
 
 export const useRegisterCompany = (): UseRegisterCompanyResult => {
@@ -95,8 +91,8 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
   const [isPaying, setIsPaying] = useState(false);
   const [payingLabel, setPayingLabel] = useState<string | null>(null);
   /** Stores the result of the first successful apiRegisterCompany call so that
-   *  going back to change plan (Step 3 → Step 4) does NOT trigger a second
-   *  registration attempt with the same email. */
+   *  going back to change plan does NOT trigger a second registration attempt
+   *  with the same email. */
   const [registrationResult, setRegistrationResult] = useState<{
     companyId: string;
     accessToken: string;
@@ -104,12 +100,6 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
     newUser: ReturnType<typeof Object.assign>;
     tenantData: Tenant;
   } | null>(null);
-  const [checkout, setCheckout] = useState<{
-    secret: string | null;
-    invoiceId: string | null;
-    amount: string;
-  }>({ secret: null, invoiceId: null, amount: "0 ₫" });
-
   const { data: planList, isLoading: plansLoading } = useQuery({
     queryKey: ["register_plans"],
     queryFn: () => apiGetPlans(),
@@ -175,6 +165,8 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
             taxCode: data.taxCode,
             address: data.address,
             timezone: data.timezone,
+            industry: data.industry || undefined,
+            companySize: data.companySize || undefined,
           },
           admin: {
             username: data.adminUsername,
@@ -256,30 +248,14 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
       }
 
       if (invoiceId) {
-        // Derive display amount from the already-loaded plan list to avoid
-        // an extra apiGetInvoiceById round-trip before showing the Stripe form.
         const selectedPlan = planList?.find((p) => p.code === selectedPlanCode);
         const amount =
           billingCycle === "YEARLY"
             ? (selectedPlan?.priceYearly ?? "0 ₫")
             : (selectedPlan?.price ?? "0 ₫");
 
-        setPayingLabel("Đang khởi tạo thanh toán...");
-        let secret: string | undefined;
-        try {
-          const intentResult = await apiCreatePaymentIntent(invoiceId);
-          secret = (intentResult as any)?.clientSecret as string | undefined;
-        } catch {
-          /* payment intent creation failed — fall through to checkout page */
-        }
-
-        if (secret) {
-          setCheckout({ secret, invoiceId, amount });
-          setStep(4);
-          return;
-        }
         navigate(
-          `/billing/checkout/${invoiceId}?amount=${encodeURIComponent(amount)}`,
+          `/billing/checkout/${invoiceId}?amount=${encodeURIComponent(amount)}&from=register`,
         );
       } else {
         notify.success(t("global.save_success"));
@@ -348,8 +324,5 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
     setSubmitError,
     isPaying,
     payingLabel,
-    clientSecret: checkout.secret,
-    checkoutInvoiceId: checkout.invoiceId,
-    checkoutAmount: checkout.amount,
   };
 };

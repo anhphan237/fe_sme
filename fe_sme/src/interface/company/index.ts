@@ -37,6 +37,10 @@ export interface CompanyRegisterRequest {
     code?: string;
     address?: string;
     timezone?: string;
+    /** Industry/sector, e.g. "Công nghệ", "Bán lẻ". Used by AI to generate default onboarding template. */
+    industry?: string;
+    /** Company size: STARTUP, SME, ENTERPRISE. Used by AI to generate default onboarding template. */
+    companySize?: string;
   };
   admin: {
     username: string;

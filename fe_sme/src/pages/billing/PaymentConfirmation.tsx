@@ -14,49 +14,81 @@ const PaymentConfirmation = () => {
   const queryClient = useQueryClient();
   const clientSecret = searchParams.get("payment_intent_client_secret");
   const paymentIntentId = searchParams.get("payment_intent");
+  const redirectStatus = searchParams.get("redirect_status");
   const isFromRegister = searchParams.get("from") === "register";
+  const invoiceId = searchParams.get("invoiceId");
   const [status, setStatus] = useState<Status>(
     clientSecret ? "loading" : "failed",
   );
 
+  // Auto-navigate to dashboard after successful payment during registration
   useEffect(() => {
-    if (!clientSecret) {
+    if (status !== "succeeded" || !isFromRegister) return;
+    const timer = setTimeout(
+      () => navigate("/dashboard", { replace: true }),
+      2500,
+    );
+    return () => clearTimeout(timer);
+  }, [status, isFromRegister, navigate]);
+
+  useEffect(() => {
+    if (!clientSecret) return;
+
+    // Fast-fail if Stripe already told us via URL param that payment failed
+    if (redirectStatus === "failed") {
+      setStatus("failed");
       return;
     }
 
-    stripePromise.then(async (stripe) => {
-      if (!stripe) {
-        setStatus("failed");
-        return;
-      }
-
-      const { paymentIntent } =
-        await stripe.retrievePaymentIntent(clientSecret);
-
-      switch (paymentIntent?.status) {
-        case "succeeded":
-          setStatus("succeeded");
-          // Sync backend so the invoice status is updated in the DB
-          if (paymentIntentId) {
-            apiGetPaymentStatus(paymentIntentId).catch(() => {
-              // Silently ignore — backend may update via webhook too
-            });
-          }
-          // Invalidate caches so Invoices page shows fresh data immediately
-          queryClient.invalidateQueries({ queryKey: ["invoices"] });
-          queryClient.invalidateQueries({ queryKey: ["subscription"] });
-          break;
-        case "processing":
-          setStatus("processing");
-          // Still invalidate so the page refetches when user navigates
-          queryClient.invalidateQueries({ queryKey: ["invoices"] });
-          break;
-        default:
+    const checkStatus = async () => {
+      try {
+        const stripe = await stripePromise;
+        if (!stripe) {
           setStatus("failed");
-          break;
+          return;
+        }
+
+        const { paymentIntent } =
+          await stripe.retrievePaymentIntent(clientSecret);
+
+        switch (paymentIntent?.status) {
+          case "succeeded":
+            // Sync backend FIRST so invoice status is updated before showing success screen
+            if (paymentIntentId) {
+              try {
+                await apiGetPaymentStatus(paymentIntentId);
+              } catch {
+                // Backend may also update via webhook — non-blocking
+              }
+            }
+            // Invalidate caches so Invoices/Subscription pages refresh
+            queryClient.invalidateQueries({ queryKey: ["invoices"] });
+            queryClient.invalidateQueries({ queryKey: ["subscription"] });
+            if (invoiceId) {
+              queryClient.invalidateQueries({
+                queryKey: ["invoice", invoiceId],
+              });
+            }
+            // Set success AFTER sync so the 2500ms auto-navigate timer only starts
+            // once the invoice has been updated in the backend.
+            setStatus("succeeded");
+            break;
+          case "processing":
+            setStatus("processing");
+            queryClient.invalidateQueries({ queryKey: ["invoices"] });
+            break;
+          default:
+            setStatus("failed");
+            break;
+        }
+      } catch {
+        // Network error or Stripe SDK failure
+        setStatus("failed");
       }
-    });
-  }, [clientSecret, paymentIntentId, queryClient]);
+    };
+
+    checkStatus();
+  }, [clientSecret, paymentIntentId, redirectStatus, queryClient]);
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
@@ -150,8 +182,9 @@ const PaymentConfirmation = () => {
             </div>
             <h2 className="text-xl font-bold text-ink">Thanh toán thất bại</h2>
             <p className="text-sm text-muted">
-              Đã xảy ra lỗi trong quá trình thanh toán. Vui lòng thử lại hoặc sử
-              dụng phương thức thanh toán khác.
+              {isFromRegister
+                ? "Tài khoản của bạn đã được tạo. Vui lòng đăng nhập và hoàn tất thanh toán tại trang Billing."
+                : "Đã xảy ra lỗi trong quá trình thanh toán. Vui lòng thử lại hoặc sử dụng phương thức thanh toán khác."}
             </p>
           </div>
         )}
@@ -171,8 +204,15 @@ const PaymentConfirmation = () => {
             </BaseButton>
           )}
           {status === "failed" && (
-            <BaseButton type="primary" onClick={() => navigate(-1)}>
-              Thử lại
+            <BaseButton
+              type="primary"
+              onClick={() =>
+                navigate(
+                  isFromRegister ? "/billing/invoices" : "/billing/invoices",
+                  { replace: true },
+                )
+              }>
+              {isFromRegister ? "Thanh toán sau" : "Thử lại"}
             </BaseButton>
           )}
         </div>

@@ -9,18 +9,16 @@ import {
   RegisterStepAdmin,
 } from "./components/RegisterSteps";
 import { RegisterStepPlan } from "./components/RegisterStepPlan";
-import { RegisterStepPayment } from "./components/RegisterStepPayment";
 import { useLocale } from "@/i18n";
 import BaseButton from "@/components/button";
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 4;
 
 const TITLE_KEYS = [
   "register.step0.title",
   "register.step1.title",
   "register.step2.title",
   "register.step3.title",
-  "register.step4.title",
 ];
 
 const SUBTITLE_KEYS = [
@@ -28,7 +26,6 @@ const SUBTITLE_KEYS = [
   "register.step1.subtitle",
   "register.step2.subtitle",
   "register.step3.subtitle",
-  "register.step4.subtitle",
 ];
 
 const DEFAULT_TZ =
@@ -124,55 +121,28 @@ const RegisterCompany = () => {
                 />
               )}
 
-              {vm.step === 4 && vm.clientSecret && vm.checkoutInvoiceId && (
-                <RegisterStepPayment
-                  clientSecret={vm.clientSecret}
-                  invoiceId={vm.checkoutInvoiceId}
-                  amount={vm.checkoutAmount}
-                  planName={
-                    vm.planList?.find((p) => p.code === vm.selectedPlanCode)
-                      ?.name
-                  }
-                  billingCycle={vm.billingCycle}
-                  onError={(msg) => vm.setSubmitError(msg)}
-                />
-              )}
-
-              {/* ── Navigation (steps 0–3) ── */}
-              {vm.step < 4 && (
-                <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-100">
-                  {vm.step === 0 ? (
-                    <span />
-                  ) : (
-                    <BaseButton
-                      onClick={vm.handleBack}
-                      disabled={vm.checkingEmail || vm.isPaying}
-                      icon={<ArrowLeft className="w-3.5 h-3.5" />}>
-                      {t("register.btn.back")}
-                    </BaseButton>
-                  )}
+              {/* ── Navigation ── */}
+              <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-100">
+                {vm.step === 0 ? (
+                  <span />
+                ) : (
                   <BaseButton
-                    type="primary"
-                    onClick={vm.handleNext}
-                    loading={vm.checkingEmail || vm.isPaying}
+                    onClick={vm.handleBack}
                     disabled={vm.checkingEmail || vm.isPaying}
-                    iconPosition="end"
-                    icon={<ArrowRight className="w-3.5 h-3.5" />}>
-                    {vm.payingLabel ?? t("register.btn.continue")}
+                    icon={<ArrowLeft className="w-3.5 h-3.5" />}>
+                    {t("register.btn.back")}
                   </BaseButton>
-                </div>
-              )}
-
-              {/* Step 4: allow going back to change plan */}
-              {vm.step === 4 && (
-                <button
-                  type="button"
-                  onClick={vm.handleBack}
-                  className="mt-6 flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-brand transition-colors mx-auto">
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  Đổi gói
-                </button>
-              )}
+                )}
+                <BaseButton
+                  type="primary"
+                  onClick={vm.handleNext}
+                  loading={vm.checkingEmail || vm.isPaying}
+                  disabled={vm.checkingEmail || vm.isPaying}
+                  iconPosition="end"
+                  icon={<ArrowRight className="w-3.5 h-3.5" />}>
+                  {vm.payingLabel ?? t("register.btn.continue")}
+                </BaseButton>
+              </div>
             </Form>
           </div>
         </div>

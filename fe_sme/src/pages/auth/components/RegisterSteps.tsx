@@ -16,6 +16,25 @@ const TIMEZONES = [
 
 const TIMEZONE_OPTIONS = TIMEZONES.map((tz) => ({ value: tz, label: tz }));
 
+const INDUSTRY_OPTIONS = [
+  { value: "Công nghệ", label: "Công nghệ" },
+  { value: "Bán lẻ", label: "Bán lẻ" },
+  { value: "Sản xuất", label: "Sản xuất" },
+  { value: "Dịch vụ", label: "Dịch vụ" },
+  { value: "Tài chính", label: "Tài chính" },
+  { value: "Y tế", label: "Y tế" },
+  { value: "Giáo dục", label: "Giáo dục" },
+  { value: "Xây dựng", label: "Xây dựng" },
+  { value: "Vận tải & Logistics", label: "Vận tải & Logistics" },
+  { value: "Khác", label: "Khác" },
+];
+
+const COMPANY_SIZE_OPTIONS = [
+  { value: "STARTUP", label: "Startup (dưới 10 người)" },
+  { value: "SME", label: "SME (10 – 200 người)" },
+  { value: "ENTERPRISE", label: "Enterprise (trên 200 người)" },
+];
+
 /** Shared wrapper – gives every step form consistent vertical rhythm */
 const StepSection = ({ children }: { children: ReactNode }) => (
   <section className="flex flex-col gap-4">{children}</section>
@@ -104,6 +123,20 @@ export const RegisterStepCompany = () => {
             { required: true, message: t("register.zod.timezone_required") },
           ],
         }}
+      />
+
+      <BaseSelect
+        name="industry"
+        label="Ngành nghề (tuỳ chọn)"
+        options={INDUSTRY_OPTIONS}
+        formItemProps={{ tooltip: "AI sẽ dùng thông tin này để tạo quy trình onboarding phù hợp" }}
+      />
+
+      <BaseSelect
+        name="companySize"
+        label="Quy mô công ty (tuỳ chọn)"
+        options={COMPANY_SIZE_OPTIONS}
+        formItemProps={{ tooltip: "AI sẽ dùng thông tin này để tạo quy trình onboarding phù hợp" }}
       />
     </StepSection>
   );

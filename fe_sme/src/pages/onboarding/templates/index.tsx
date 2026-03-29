@@ -1,19 +1,36 @@
 ﻿import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, FileText, Sparkles, WandSparkles } from "lucide-react";
-import { Button, Empty, Modal, Select, Tag, Typography, message } from "antd";
+import { Button, Empty, Form, Modal, Select, Tag, Typography, message } from "antd";
 import Input from "antd/es/input";
-import TextArea from "antd/es/input/TextArea";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ColumnsType } from "antd/es/table";
 import { useLocale } from "@/i18n";
 import { useGlobalStore } from "@/stores/global.store";
-import { apiListTemplates } from "@/api/onboarding/onboarding.api";
-import { apiChatbotAsk } from "@/api/chatbot/chatbot.api";
+import { apiListTemplates, apiGenerateTemplateWithAI } from "@/api/onboarding/onboarding.api";
 import { extractList } from "@/api/core/types";
 import { mapTemplate } from "@/utils/mappers/onboarding";
 import type { OnboardingTemplate } from "@/shared/types";
 import MyTable from "@/components/table";
+
+const INDUSTRY_OPTIONS = [
+  { value: "Công nghệ", label: "Công nghệ" },
+  { value: "Bán lẻ", label: "Bán lẻ" },
+  { value: "Sản xuất", label: "Sản xuất" },
+  { value: "Dịch vụ", label: "Dịch vụ" },
+  { value: "Tài chính", label: "Tài chính" },
+  { value: "Y tế", label: "Y tế" },
+  { value: "Giáo dục", label: "Giáo dục" },
+  { value: "Xây dựng", label: "Xây dựng" },
+  { value: "Vận tải & Logistics", label: "Vận tải & Logistics" },
+  { value: "Khác", label: "Khác" },
+];
+
+const COMPANY_SIZE_OPTIONS = [
+  { value: "STARTUP", label: "Startup (dưới 10 người)" },
+  { value: "SME", label: "SME (10 – 200 người)" },
+  { value: "ENTERPRISE", label: "Enterprise (trên 200 người)" },
+];
 
 // ── Types & constants ────────────────────────────────────────────────────────
 
@@ -49,8 +66,7 @@ const Templates = () => {
   const [searchText, setSearchText] = useState<string>("");
   const [cloneSourceId, setCloneSourceId] = useState<string>();
   const [aiOpen, setAiOpen] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState("");
-  const [aiDraft, setAiDraft] = useState("");
+  const [aiForm] = Form.useForm<{ industry: string; companySize: string; jobRole: string }>();
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["templates", statusFilter, searchText],
@@ -90,14 +106,19 @@ const Templates = () => {
     [navigate],
   );
 
-  const aiSuggestMutation = useMutation({
-    mutationFn: (prompt: string) => apiChatbotAsk({ query: prompt }),
-    onSuccess: (result) => {
-      setAiDraft(result.answer ?? "");
-      message.success(t("onboarding.template.ai.toast.generated"));
+  const aiGenerateMutation = useMutation({
+    mutationFn: (values: { industry: string; companySize: string; jobRole: string }) =>
+      apiGenerateTemplateWithAI(values),
+    onSuccess: (result: any) => {
+      setAiOpen(false);
+      aiForm.resetFields();
+      refetch();
+      message.success(
+        `Đã tạo template "${result?.name ?? ""}" với ${result?.totalChecklists ?? 0} giai đoạn và ${result?.totalTasks ?? 0} tasks!`,
+      );
     },
     onError: () => {
-      message.error(t("onboarding.template.ai.toast.failed"));
+      message.error("Không thể tạo template. Vui lòng thử lại.");
     },
   });
 
@@ -118,25 +139,13 @@ const Templates = () => {
     handleDuplicate(selectedTemplateToClone);
   };
 
-  const handleAskAi = () => {
-    const prompt = aiPrompt.trim();
-    if (!prompt) {
-      message.warning(t("onboarding.template.ai.prompt_required"));
-      return;
+  const handleAIGenerate = async () => {
+    try {
+      const values = await aiForm.validateFields();
+      aiGenerateMutation.mutate(values);
+    } catch {
+      /* validation failed */
     }
-    aiSuggestMutation.mutate(prompt);
-  };
-
-  const handleCreateFromAi = () => {
-    if (!aiDraft.trim()) {
-      message.warning(t("onboarding.template.ai.no_result"));
-      return;
-    }
-    navigate("/onboarding/templates/new", {
-      state: {
-        aiSuggestion: aiDraft,
-      },
-    });
   };
 
   const statusOptions = [
@@ -353,45 +362,55 @@ const Templates = () => {
       />
 
       <Modal
-        title={t("onboarding.template.ai.modal_title")}
+        title={
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-blue-500" />
+            <span>Tạo quy trình onboarding bằng AI</span>
+          </div>
+        }
         open={aiOpen}
-        onCancel={() => setAiOpen(false)}
+        onCancel={() => { setAiOpen(false); aiForm.resetFields(); }}
         footer={null}
-        width={760}>
-        <div className="space-y-3">
-          <TextArea
-            rows={4}
-            value={aiPrompt}
-            onChange={(e) => setAiPrompt(e.target.value)}
-            placeholder={t("onboarding.template.ai.prompt_placeholder")}
-          />
-          <div className="flex items-center justify-between gap-2">
-            <Typography.Text type="secondary" className="text-xs">
-              {t("onboarding.template.ai.flow_hint")}
-            </Typography.Text>
+        width={520}>
+        <div className="pt-2">
+          <Typography.Text type="secondary" className="text-xs block mb-4">
+            Cung cấp thông tin công ty để AI tạo quy trình onboarding phù hợp và lưu ngay vào danh sách templates.
+          </Typography.Text>
+          <Form form={aiForm} layout="vertical" requiredMark={false}>
+            <Form.Item
+              name="industry"
+              label="Ngành nghề"
+              rules={[{ required: true, message: "Vui lòng chọn ngành nghề" }]}>
+              <Select
+                placeholder="Chọn ngành nghề..."
+                options={INDUSTRY_OPTIONS}
+                showSearch
+                optionFilterProp="label"
+              />
+            </Form.Item>
+            <Form.Item
+              name="companySize"
+              label="Quy mô công ty"
+              rules={[{ required: true, message: "Vui lòng chọn quy mô" }]}>
+              <Select placeholder="Chọn quy mô..." options={COMPANY_SIZE_OPTIONS} />
+            </Form.Item>
+            <Form.Item
+              name="jobRole"
+              label="Vị trí nhân viên mới"
+              rules={[{ required: true, message: "Vui lòng nhập vị trí" }]}>
+              <Input placeholder="Ví dụ: Software Engineer, Sales Manager, Kế toán..." />
+            </Form.Item>
+          </Form>
+          <div className="flex items-center justify-end gap-2 mt-2">
+            <Button onClick={() => { setAiOpen(false); aiForm.resetFields(); }}>
+              Huỷ
+            </Button>
             <Button
               type="primary"
-              loading={aiSuggestMutation.isPending}
-              onClick={handleAskAi}>
-              {t("onboarding.template.ai.generate")}
-            </Button>
-          </div>
-
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <Typography.Text className="text-xs font-semibold text-slate-600">
-              {t("onboarding.template.ai.result_title")}
-            </Typography.Text>
-            <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded bg-white p-3 text-xs text-slate-700">
-              {aiDraft || t("onboarding.template.ai.result_empty")}
-            </pre>
-          </div>
-
-          <div className="flex items-center justify-end gap-2">
-            <Button onClick={() => setAiOpen(false)}>
-              {t("onboarding.template.ai.close")}
-            </Button>
-            <Button type="primary" onClick={handleCreateFromAi}>
-              {t("onboarding.template.ai.create_from_result")}
+              loading={aiGenerateMutation.isPending}
+              onClick={handleAIGenerate}
+              icon={<WandSparkles className="h-3.5 w-3.5" />}>
+              {aiGenerateMutation.isPending ? "Đang tạo..." : "Tạo với AI"}
             </Button>
           </div>
         </div>

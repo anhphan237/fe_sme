@@ -4,6 +4,18 @@ import type { Tenant, User } from "@/shared/types";
 export type Locale = "vi_VN" | "en_US";
 
 const AUTH_TOKEN_KEY = "auth_token";
+const TENANT_KEY = "auth_tenant";
+
+const parseStoredTenant = (raw: string | null): Tenant | null => {
+  if (!raw) return null;
+  try {
+    const t = JSON.parse(raw);
+    if (!t || typeof t !== "object" || !("id" in t)) return null;
+    return t as Tenant;
+  } catch {
+    return null;
+  }
+};
 
 const normalizeLocale = (value: string | null): Locale => {
   if (!value) return "vi_VN";
@@ -27,7 +39,10 @@ interface UserState {
 }
 
 export const useUserStore = create<UserState>((set) => ({
-  currentTenant: null,
+  currentTenant:
+    typeof window !== "undefined"
+      ? parseStoredTenant(localStorage.getItem(TENANT_KEY))
+      : null,
   currentUser: null,
   token:
     typeof window !== "undefined" ? localStorage.getItem(AUTH_TOKEN_KEY) : null,
@@ -39,7 +54,13 @@ export const useUserStore = create<UserState>((set) => ({
       ? !!localStorage.getItem(AUTH_TOKEN_KEY)
       : false,
 
-  setTenant: (tenant) => set({ currentTenant: tenant }),
+  setTenant: (tenant) => {
+    if (typeof window !== "undefined") {
+      if (tenant) localStorage.setItem(TENANT_KEY, JSON.stringify(tenant));
+      else localStorage.removeItem(TENANT_KEY);
+    }
+    set({ currentTenant: tenant });
+  },
   setUser: (user) => set({ currentUser: user }),
   setToken: (token) => {
     if (typeof window !== "undefined") {
@@ -58,6 +79,7 @@ export const useUserStore = create<UserState>((set) => ({
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(AUTH_TOKEN_KEY);
       window.localStorage.removeItem("auth_user");
+      window.localStorage.removeItem(TENANT_KEY);
     }
     set({
       currentTenant: null,
