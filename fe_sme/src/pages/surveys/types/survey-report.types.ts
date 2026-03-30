@@ -13,7 +13,7 @@ export type SurveyQuestionStat = {
   responseCount?: number;
   averageScore?: number | string | null;
   choiceDistribution?: Record<string, number> | null;
-  textAnswerCount?: number;
+  textAnswerCount?: number | null;
   completionRate?: number | string | null;
   sampleTexts?: string[] | null;
 };
@@ -22,6 +22,21 @@ export type SurveyTrendPoint = {
   bucket: string;
   submittedCount?: number;
   averageScore?: number | string | null;
+};
+
+export type SurveyStageTrend = {
+  stage: string;
+  submittedCount?: number;
+  averageOverall?: number | string | null;
+};
+
+export type SurveyResponseSummary = {
+  surveyResponseId?: string;
+  surveyInstanceId?: string;
+  templateName?: string;
+  employeeName?: string;
+  overallScore?: number | string | null;
+  submittedAt?: string | null;
 };
 
 export type SurveyAnalyticsReportVm = {
@@ -40,13 +55,14 @@ export type SurveyAnalyticsReportVm = {
   highestQuestions?: SurveyQuestionStat[];
 
   timeTrends?: SurveyTrendPoint[];
+  stageTrends?: SurveyStageTrend[];
 
   textResponseCount?: number | null;
   ratingQuestionCount?: number | null;
   textQuestionCount?: number | null;
   choiceQuestionCount?: number | null;
 
-  stageTrends?: SurveyStageTrend[];
+  responseSummaries?: SurveyResponseSummary[];
 };
 
 export type InsightItem = {
@@ -57,9 +73,4 @@ export type InsightItem = {
 
 export type SurveyReportsFilterState = {
   templateId: string;
-};
-export type SurveyStageTrend = {
-  stage: string;
-  submittedCount?: number;
-  averageOverall?: number | string | null;
 };

@@ -54,10 +54,8 @@ const SurveyReportsKpiRow = ({ analytics, loading }: Props) => {
 
   const getDimensionLabel = (name?: string) => {
     if (!name) return "—";
-
     const key = `survey.dimension.${name.toLowerCase()}`;
     const value = t(key);
-
     return value !== key ? value : name;
   };
 

@@ -3,16 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 
 import {
   apiGetSurveyAnalyticsReport,
-  apiGetSurveyInstances,
-  apiListSurveyResponses,
   apiListSurveyTemplates,
 } from "@/api/survey/survey.api";
 import { extractList } from "@/api/core/types";
-import type {
-  SurveyInstanceSummary,
-  SurveyResponseRecord,
-  SurveyTemplateSummary,
-} from "@/interface/survey";
+import type { SurveyTemplateSummary } from "@/interface/survey";
 
 import type {
   SurveyAnalyticsReportVm,
@@ -54,25 +48,6 @@ export const useSurveyReportsPage = () => {
     [templates],
   );
 
-  const { data: instancesRaw } = useQuery({
-    queryKey: ["survey-instances-report"],
-    queryFn: () => apiGetSurveyInstances(),
-  });
-
-  const instances = extractList<SurveyInstanceSummary>(
-    instancesRaw,
-    "items",
-    "instances",
-  );
-
-  const instanceMap = useMemo(
-    () =>
-      Object.fromEntries(
-        instances.map((item) => [item.instanceId, item.templateName]),
-      ),
-    [instances],
-  );
-
   const { data: analyticsRaw, isLoading: analyticsLoading } = useQuery({
     queryKey: ["survey-analytics-report", filters.templateId],
     queryFn: () =>
@@ -81,22 +56,7 @@ export const useSurveyReportsPage = () => {
       ),
   });
 
-  const { data: responsesRaw, isLoading: responsesLoading } = useQuery({
-    queryKey: ["survey-report-responses", filters.templateId],
-    queryFn: () =>
-      apiListSurveyResponses(
-        filters.templateId ? { templateId: filters.templateId } : undefined,
-      ),
-  });
-
   const analytics = (analyticsRaw ?? null) as SurveyAnalyticsReportVm | null;
-
-  const responses = extractList<SurveyResponseRecord>(
-    responsesRaw,
-    "items",
-    "responses",
-    "list",
-  );
 
   const dimensionChartData = useMemo(
     () => getDimensionChartData(analytics),
@@ -115,6 +75,13 @@ export const useSurveyReportsPage = () => {
     () => getQuestionTableData(analytics),
     [analytics],
   );
+
+  const responses = useMemo(
+    () => analytics?.responseSummaries ?? [],
+    [analytics],
+  );
+
+  const responsesLoading = analyticsLoading;
 
   const setTemplateId = (templateId?: string) => {
     setFilters((prev) => ({
@@ -136,7 +103,6 @@ export const useSurveyReportsPage = () => {
     riskItems,
     strengthItems,
     questionTableData,
-    instanceMap,
     setTemplateId,
   };
 };
