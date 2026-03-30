@@ -1742,5 +1742,27 @@
   "survey.template.target_role" : "Target role",
   "survey.role.employee": "Employee",
   "survey.role.manager": "Manager",
-  "survey.role.both": "Both"
+  "survey.role.both": "Both",
+  "survey.send.duplicate_error": "This survey has already been sent or scheduled for this user",
+  "survey.send.duplicate_partial": "were skipped because surveys already existed",
+  "survey.reports.sent_count": "Surveys sent",
+  "survey.reports.submitted_count": "Responses submitted",
+  "survey.reports.lowest_dimension": "Lowest dimension",
+  "survey.reports.best_dimension": "Best dimension",
+  "survey.reports.dimension_performance": "Dimension performance",
+  "survey.reports.trend_over_time": "Trend over time",
+  "survey.reports.top_risks": "Top risks",
+  "survey.reports.top_strengths": "Top strengths",
+  "survey.reports.question_performance": "Question performance",
+  "survey.reports.question": "Question",
+  "survey.reports.type": "Type",
+  "survey.reports.dimension": "Dimension",
+  "survey.reports.completion": "Completion",
+  "survey.reports.sample_comments": "Sample comments",
+  "survey.reports.stage_trends": "Stage trends",
+  "survey.reports.stage": "Stage",
+
+  "survey.dimension.service": "Service",
+  "survey.dimension.quality": "Quality",
+  "survey.dimension.experience": "Experience"
 }
