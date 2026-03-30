@@ -148,14 +148,32 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
         }),
       );
 
-      const successCount = results.filter(
-        (r) => r.status === "fulfilled",
-      ).length;
-      const failedCount = results.filter((r) => r.status === "rejected").length;
+      const fulfilled = results.filter(
+        (r): r is PromiseFulfilledResult<unknown> => r.status === "fulfilled",
+      );
 
-      return { successCount, failedCount };
+      const rejected = results.filter(
+        (r): r is PromiseRejectedResult => r.status === "rejected",
+      );
+
+      const successCount = fulfilled.length;
+      const failedCount = rejected.length;
+
+      const duplicateCount = rejected.filter((r) => {
+        const message = String(
+          r.reason?.message || r.reason || "",
+        ).toLowerCase();
+        return (
+          message.includes("already sent") ||
+          message.includes("already scheduled") ||
+          message.includes("already sent or scheduled")
+        );
+      }).length;
+
+      return { successCount, failedCount, duplicateCount };
     },
-    onSuccess: async ({ successCount, failedCount }) => {
+
+    onSuccess: async ({ successCount, failedCount, duplicateCount }) => {
       if (successCount > 0 && failedCount === 0) {
         notify.success(
           successCount === 1
@@ -163,11 +181,21 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
             : `${successCount} ${t("survey.send.success_many")}`,
         );
       } else if (successCount > 0 && failedCount > 0) {
-        notify.success(
-          `${successCount} ${t("survey.send.success_partial")}, ${failedCount} ${t("survey.send.failed_partial")}`,
-        );
+        if (duplicateCount > 0) {
+          notify.success(
+            `${successCount} ${t("survey.send.success_many")}, ${duplicateCount} ${t("survey.send.duplicate_partial")}`,
+          );
+        } else {
+          notify.success(
+            `${successCount} ${t("survey.send.success_partial")}, ${failedCount} ${t("survey.send.failed_partial")}`,
+          );
+        }
       } else {
-        notify.error(t("survey.send.error"));
+        if (duplicateCount > 0) {
+          notify.error(t("survey.send.duplicate_error"));
+        } else {
+          notify.error(t("survey.send.error"));
+        }
         return;
       }
 
@@ -183,6 +211,18 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
     onError: (error: unknown) => {
       const message =
         error instanceof Error ? error.message : t("survey.send.error");
+
+      const normalized = String(message).toLowerCase();
+
+      if (
+        normalized.includes("already sent") ||
+        normalized.includes("already scheduled") ||
+        normalized.includes("already sent or scheduled")
+      ) {
+        notify.error(t("survey.send.duplicate_error"));
+        return;
+      }
+
       notify.error(message);
     },
   });
@@ -288,7 +328,7 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
                 <div className="max-h-52 space-y-2 overflow-auto">
                   {selectedOnboardings.map((item) => (
                     <div
-                     key={item.onboardingId}
+                      key={item.onboardingId}
                       className="rounded-lg border border-slate-200 px-3 py-2"
                     >
                       <div className="font-medium text-slate-800">
