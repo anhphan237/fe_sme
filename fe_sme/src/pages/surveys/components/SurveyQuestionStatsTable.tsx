@@ -13,6 +13,13 @@ type Props = {
 const SurveyQuestionStatsTable = ({ data, loading }: Props) => {
   const { t } = useLocale();
 
+  const getDimensionLabel = (name?: string | null) => {
+    if (!name) return "—";
+    const key = `survey.dimension.${name.toLowerCase()}`;
+    const value = t(key);
+    return value !== key ? value : name;
+  };
+
   const columns: ColumnsType<SurveyQuestionStat> = [
     {
       title: t("survey.reports.question"),
@@ -34,7 +41,7 @@ const SurveyQuestionStatsTable = ({ data, loading }: Props) => {
       dataIndex: "dimensionCode",
       key: "dimensionCode",
       width: 170,
-      render: (value?: string | null) => value || "—",
+      render: (value?: string | null) => getDimensionLabel(value),
     },
     {
       title: t("survey.reports.avg_score"),

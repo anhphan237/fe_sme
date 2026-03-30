@@ -3,20 +3,10 @@ import type { ColumnsType } from "antd/es/table";
 import { Star } from "lucide-react";
 import MyTable from "@/components/table";
 import { useLocale } from "@/i18n";
-
-type ResponseRow = {
-  surveyResponseId?: string;
-  responseId?: string;
-  surveyInstanceId?: string;
-  instanceId?: string;
-  templateName?: string;
-  employeeName?: string;
-  overallScore?: number | string | null;
-  submittedAt?: string | null;
-};
+import type { SurveyResponseSummary } from "../types/survey-report.types";
 
 type Props = {
-  responses: ResponseRow[];
+  responses: SurveyResponseSummary[];
   loading?: boolean;
 };
 
@@ -29,7 +19,7 @@ const formatScore = (value?: number | string | null) => {
 const SurveyResponsesTable = ({ responses, loading }: Props) => {
   const { t } = useLocale();
 
-  const columns: ColumnsType<ResponseRow> = [
+  const columns: ColumnsType<SurveyResponseSummary> = [
     {
       title: t("survey.reports.col.template"),
       dataIndex: "templateName",
@@ -63,7 +53,7 @@ const SurveyResponsesTable = ({ responses, loading }: Props) => {
       title: t("survey.reports.col.submitted"),
       dataIndex: "submittedAt",
       key: "submittedAt",
-      width: 140,
+      width: 160,
       render: (date?: string | null) =>
         date ? (
           <span className="inline-flex items-center rounded-full bg-slate-50 px-2.5 py-0.5 text-xs text-slate-500 ring-1 ring-inset ring-slate-200">
@@ -82,7 +72,9 @@ const SurveyResponsesTable = ({ responses, loading }: Props) => {
       </h3>
 
       <MyTable
-        rowKey={(row) => row.surveyResponseId || row.responseId || row.surveyInstanceId || row.instanceId || Math.random()}
+        rowKey={(row) =>
+          row.surveyResponseId || row.surveyInstanceId || `${row.templateName}-${row.employeeName}`
+        }
         columns={columns}
         dataSource={Array.isArray(responses) ? responses : []}
         loading={loading}

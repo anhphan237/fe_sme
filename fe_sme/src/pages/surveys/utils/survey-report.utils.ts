@@ -6,7 +6,7 @@ import type {
   SurveyTrendPoint,
 } from "../types/survey-report.types";
 
-const toNumber = (value?: number | string | null) => {
+export const toNumber = (value?: number | string | null) => {
   if (value == null) return null;
   const n = typeof value === "number" ? value : Number(value);
   return Number.isNaN(n) ? null : n;
@@ -20,6 +20,11 @@ export const formatScore = (value?: number | string | null) => {
 export const formatPercent = (value?: number | string | null) => {
   const n = toNumber(value);
   return n == null ? "0%" : `${(n * 100).toFixed(0)}%`;
+};
+
+export const truncate = (value?: string | null, max = 80) => {
+  if (!value) return "—";
+  return value.length > max ? `${value.slice(0, max)}…` : value;
 };
 
 export const getDimensionChartData = (
@@ -38,6 +43,38 @@ export const getTrendChartData = (analytics?: SurveyAnalyticsReportVm | null) =>
     score: toNumber(item.averageScore) ?? 0,
     submitted: item.submittedCount ?? 0,
   }));
+
+export const getBestDimension = (analytics?: SurveyAnalyticsReportVm | null) => {
+  if (analytics?.topPositiveDimensions?.length) {
+    return analytics.topPositiveDimensions[0];
+  }
+
+  const sorted = [...(analytics?.dimensionStats ?? [])]
+    .filter((item) => toNumber(item.averageScore) != null)
+    .sort(
+      (a, b) =>
+        (toNumber(b.averageScore) ?? -Infinity) -
+        (toNumber(a.averageScore) ?? -Infinity),
+    );
+
+  return sorted[0];
+};
+
+export const getWorstDimension = (analytics?: SurveyAnalyticsReportVm | null) => {
+  if (analytics?.lowScoreDimensions?.length) {
+    return analytics.lowScoreDimensions[0];
+  }
+
+  const sorted = [...(analytics?.dimensionStats ?? [])]
+    .filter((item) => toNumber(item.averageScore) != null)
+    .sort(
+      (a, b) =>
+        (toNumber(a.averageScore) ?? Infinity) -
+        (toNumber(b.averageScore) ?? Infinity),
+    );
+
+  return sorted[0];
+};
 
 export const getRiskItems = (
   analytics?: SurveyAnalyticsReportVm | null,
@@ -126,40 +163,3 @@ export const getStrengthItems = (
 export const getQuestionTableData = (
   analytics?: SurveyAnalyticsReportVm | null,
 ): SurveyQuestionStat[] => analytics?.questionStats ?? [];
-
-export const getBestDimension = (analytics?: SurveyAnalyticsReportVm | null) => {
-  if (analytics?.topPositiveDimensions?.length) {
-    return analytics.topPositiveDimensions[0];
-  }
-
-  const sorted = [...(analytics?.dimensionStats ?? [])]
-    .filter((item) => toNumber(item.averageScore) != null)
-    .sort(
-      (a, b) =>
-        (toNumber(b.averageScore) ?? -Infinity) -
-        (toNumber(a.averageScore) ?? -Infinity),
-    );
-
-  return sorted[0];
-};
-
-export const getWorstDimension = (analytics?: SurveyAnalyticsReportVm | null) => {
-  if (analytics?.lowScoreDimensions?.length) {
-    return analytics.lowScoreDimensions[0];
-  }
-
-  const sorted = [...(analytics?.dimensionStats ?? [])]
-    .filter((item) => toNumber(item.averageScore) != null)
-    .sort(
-      (a, b) =>
-        (toNumber(a.averageScore) ?? Infinity) -
-        (toNumber(b.averageScore) ?? Infinity),
-    );
-
-  return sorted[0];
-};
-
-export const truncate = (value?: string | null, max = 80) => {
-  if (!value) return "—";
-  return value.length > max ? `${value.slice(0, max)}…` : value;
-};

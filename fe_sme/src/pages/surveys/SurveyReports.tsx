@@ -5,9 +5,9 @@ import SurveyTrendChartCard from "./components/SurveyTrendChartCard";
 import SurveyInsightCard from "./components/SurveyInsightCard";
 import SurveyQuestionStatsTable from "./components/SurveyQuestionStatsTable";
 import SurveyResponsesTable from "./components/SurveyResponsesTable";
+import SurveyStageTrendCard from "./components/SurveyStageTrendCard";
 import { useSurveyReportsPage } from "./hooks/useSurveyReportsPage";
 import { useLocale } from "@/i18n";
-import SurveyStageTrendCard from "./components/SurveyStageTrendCard";
 
 const SurveyReports = () => {
   const { t } = useLocale();
@@ -71,7 +71,10 @@ const SurveyReports = () => {
         loading={analyticsLoading}
       />
 
-      <SurveyResponsesTable responses={responses} loading={responsesLoading} />
+      <SurveyResponsesTable
+        responses={responses}
+        loading={responsesLoading}
+      />
     </div>
   );
 };

@@ -10,15 +10,10 @@ import {
   YAxis,
 } from "recharts";
 import { useLocale } from "@/i18n";
-
-type StageTrendItem = {
-  stage: string;
-  submittedCount?: number;
-  averageOverall?: number | string | null;
-};
+import type { SurveyStageTrend } from "../types/survey-report.types";
 
 type Props = {
-  data: StageTrendItem[];
+  data: SurveyStageTrend[];
   loading?: boolean;
 };
 
@@ -80,11 +75,7 @@ const SurveyStageTrendCard = ({ data, loading }: Props) => {
                 margin={{ top: 8, right: 16, left: 8, bottom: 8 }}
               >
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis
-                  type="number"
-                  domain={[0, 5]}
-                  tick={{ fontSize: 11 }}
-                />
+                <XAxis type="number" domain={[0, 5]} tick={{ fontSize: 11 }} />
                 <YAxis
                   type="category"
                   dataKey="label"
