@@ -38,6 +38,7 @@ const handleSuccess = async (
   addToast: (msg: string) => void,
   queryClient: ReturnType<typeof useQueryClient>,
   setSelected: (v: string | null) => void,
+  t: (key: string) => string,
 ) => {
   queryClient.invalidateQueries({ queryKey: ["subscription"] });
   queryClient.invalidateQueries({ queryKey: ["plans"] });
@@ -66,17 +67,17 @@ const handleSuccess = async (
     navigate(
       `/billing/checkout/${invoiceId}?amount=${encodeURIComponent(amount)}`,
     );
-    addToast("Please complete payment.");
+    addToast(t("billing.plan.toast.complete_payment"));
   } else if (prorateChargeVnd > 0) {
     queryClient.invalidateQueries({ queryKey: ["invoices"] });
     navigate("/billing/invoices");
-    addToast("Invoice created. Please pay the prorate amount.");
+    addToast(t("billing.plan.toast.invoice_created"));
   } else if (subscriptionId) {
     queryClient.invalidateQueries({ queryKey: ["invoices"] });
     navigate("/billing/invoices");
-    addToast("Subscription created. Check Invoices and pay when ready.");
+    addToast(t("billing.plan.toast.subscription_created"));
   } else {
-    addToast("Plan updated successfully.");
+    addToast(t("billing.plan.toast.updated"));
   }
 };
 
@@ -133,6 +134,7 @@ const BillingPlan = () => {
               notify.info,
               queryClient,
               setSelected,
+              t,
             ),
           onError: (err) => notify.error(`Failed: ${err.message}`),
         },
@@ -148,6 +150,7 @@ const BillingPlan = () => {
               notify.info,
               queryClient,
               setSelected,
+              t,
             ),
           onError: (err) => notify.error(`Failed: ${err.message}`),
         },

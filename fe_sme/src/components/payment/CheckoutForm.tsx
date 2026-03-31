@@ -5,6 +5,7 @@ import {
   useElements,
 } from "@stripe/react-stripe-js";
 import { Button } from "antd";
+import { useLocale } from "@/i18n";
 
 interface CheckoutFormProps {
   amount: string;
@@ -24,6 +25,7 @@ export const CheckoutForm = ({
   onError,
   showSummary = true,
 }: CheckoutFormProps) => {
+  const { t } = useLocale();
   const stripe = useStripe();
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
@@ -76,7 +78,9 @@ export const CheckoutForm = ({
         htmlType="submit"
         disabled={!stripe || processing}
         block>
-        {processing ? "Processing..." : `Pay ${amount}`}
+        {processing
+          ? t("billing.checkout.processing")
+          : t("billing.checkout.pay", { amount })}
       </Button>
     </form>
   );

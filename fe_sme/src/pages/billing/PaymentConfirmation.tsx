@@ -1,14 +1,16 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, Skeleton } from "antd";
 import BaseButton from "@/components/button";
 import { stripePromise } from "@/lib/stripe";
 import { apiGetPaymentStatus } from "@/api/billing/billing.api";
+import { useLocale } from "@/i18n";
 
 type Status = "loading" | "succeeded" | "processing" | "failed";
 
 const PaymentConfirmation = () => {
+  const { t } = useLocale();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -20,21 +22,27 @@ const PaymentConfirmation = () => {
   const [status, setStatus] = useState<Status>(
     clientSecret ? "loading" : "failed",
   );
+  const [countdown, setCountdown] = useState(3);
 
-  // Auto-navigate to dashboard after successful payment during registration
+  // Auto-navigate countdown when payment succeeded during registration
   useEffect(() => {
     if (status !== "succeeded" || !isFromRegister) return;
-    const timer = setTimeout(
-      () => navigate("/dashboard", { replace: true }),
-      2500,
-    );
-    return () => clearTimeout(timer);
+    const interval = setInterval(() => {
+      setCountdown((c) => {
+        if (c <= 1) {
+          clearInterval(interval);
+          navigate("/dashboard", { replace: true });
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
   }, [status, isFromRegister, navigate]);
 
   useEffect(() => {
     if (!clientSecret) return;
 
-    // Fast-fail if Stripe already told us via URL param that payment failed
     if (redirectStatus === "failed") {
       setStatus("failed");
       return;
@@ -53,7 +61,6 @@ const PaymentConfirmation = () => {
 
         switch (paymentIntent?.status) {
           case "succeeded":
-            // Sync backend FIRST so invoice status is updated before showing success screen
             if (paymentIntentId) {
               try {
                 await apiGetPaymentStatus(paymentIntentId);
@@ -61,7 +68,6 @@ const PaymentConfirmation = () => {
                 // Backend may also update via webhook — non-blocking
               }
             }
-            // Invalidate caches so Invoices/Subscription pages refresh
             queryClient.invalidateQueries({ queryKey: ["invoices"] });
             queryClient.invalidateQueries({ queryKey: ["subscription"] });
             if (invoiceId) {
@@ -69,8 +75,6 @@ const PaymentConfirmation = () => {
                 queryKey: ["invoice", invoiceId],
               });
             }
-            // Set success AFTER sync so the 2500ms auto-navigate timer only starts
-            // once the invoice has been updated in the backend.
             setStatus("succeeded");
             break;
           case "processing":
@@ -82,26 +86,24 @@ const PaymentConfirmation = () => {
             break;
         }
       } catch {
-        // Network error or Stripe SDK failure
         setStatus("failed");
       }
     };
 
     checkStatus();
-  }, [clientSecret, paymentIntentId, redirectStatus, queryClient]);
+  }, [clientSecret, paymentIntentId, redirectStatus, queryClient, invoiceId]);
 
   return (
-    <div className="mx-auto max-w-lg space-y-6">
+    <div className="mx-auto max-w-lg space-y-6 py-10">
       <h1 className="text-center text-2xl font-semibold text-slate-800">
-        Kết quả thanh toán
+        {t("billing.confirmation.title")}
       </h1>
 
-      <Card className="text-center">
+      <Card className="text-center shadow-sm">
         {status === "loading" && (
-          <div className="space-y-4">
-            <Skeleton className="mx-auto h-16 w-16 rounded-full" />
-            <Skeleton className="mx-auto h-6 w-48" />
-            <Skeleton className="mx-auto h-4 w-64" />
+          <div className="space-y-4 py-4">
+            <Skeleton.Avatar active size={64} className="mx-auto" />
+            <Skeleton active paragraph={{ rows: 2 }} title={false} className="mx-auto max-w-xs" />
           </div>
         )}
 
@@ -121,14 +123,19 @@ const PaymentConfirmation = () => {
                 />
               </svg>
             </div>
-            <h2 className="text-xl font-bold text-ink">
-              Thanh toán thành công
+            <h2 className="text-xl font-bold text-slate-800">
+              {t("billing.confirmation.success.title")}
             </h2>
-            <p className="text-sm text-muted">
+            <p className="text-sm text-slate-500">
               {isFromRegister
-                ? "Chào mừng bạn! Tài khoản đã được kích hoạt. Hóa đơn của bạn đã được cập nhật."
-                : "Thanh toán đã được xử lý thành công. Trạng thái hóa đơn đã được cập nhật."}
+                ? t("billing.confirmation.success.register")
+                : t("billing.confirmation.success.invoice")}
             </p>
+            {isFromRegister && (
+              <p className="text-xs text-slate-400">
+                {t("billing.confirmation.redirect", { sec: String(countdown) })}
+              </p>
+            )}
           </div>
         )}
 
@@ -154,12 +161,11 @@ const PaymentConfirmation = () => {
                 />
               </svg>
             </div>
-            <h2 className="text-xl font-bold text-ink">
-              Đang xử lý thanh toán
+            <h2 className="text-xl font-bold text-slate-800">
+              {t("billing.confirmation.processing.title")}
             </h2>
-            <p className="text-sm text-muted">
-              Thanh toán đang được xử lý. Trạng thái hóa đơn sẽ được cập nhật
-              sau khi xác nhận.
+            <p className="text-sm text-slate-500">
+              {t("billing.confirmation.processing.body")}
             </p>
           </div>
         )}
@@ -180,39 +186,43 @@ const PaymentConfirmation = () => {
                 />
               </svg>
             </div>
-            <h2 className="text-xl font-bold text-ink">Thanh toán thất bại</h2>
-            <p className="text-sm text-muted">
+            <h2 className="text-xl font-bold text-slate-800">
+              {t("billing.confirmation.failed.title")}
+            </h2>
+            <p className="text-sm text-slate-500">
               {isFromRegister
-                ? "Tài khoản của bạn đã được tạo. Vui lòng đăng nhập và hoàn tất thanh toán tại trang Billing."
-                : "Đã xảy ra lỗi trong quá trình thanh toán. Vui lòng thử lại hoặc sử dụng phương thức thanh toán khác."}
+                ? t("billing.confirmation.failed.register")
+                : t("billing.confirmation.failed.invoice")}
             </p>
           </div>
         )}
 
-        <div className="mt-6 flex justify-center gap-3">
-          {status === "succeeded" ? (
+        <div className="mt-6 flex justify-center gap-3 flex-wrap">
+          {status === "succeeded" && (
             <BaseButton
               type="primary"
               onClick={() =>
                 navigate(isFromRegister ? "/dashboard" : "/billing/invoices")
               }>
-              {isFromRegister ? "Đến Dashboard" : "Xem hóa đơn"}
-            </BaseButton>
-          ) : (
-            <BaseButton onClick={() => navigate("/billing/invoices")}>
-              Quản lý hóa đơn
+              {isFromRegister
+                ? t("billing.confirmation.btn.dashboard")
+                : t("billing.confirmation.btn.invoices")}
             </BaseButton>
           )}
+
+          {(status === "processing" || status === "failed") && (
+            <BaseButton onClick={() => navigate("/billing/invoices")}>
+              {t("billing.confirmation.btn.invoices")}
+            </BaseButton>
+          )}
+
           {status === "failed" && (
             <BaseButton
               type="primary"
-              onClick={() =>
-                navigate(
-                  isFromRegister ? "/billing/invoices" : "/billing/invoices",
-                  { replace: true },
-                )
-              }>
-              {isFromRegister ? "Thanh toán sau" : "Thử lại"}
+              onClick={() => navigate("/billing/invoices")}>
+              {isFromRegister
+                ? t("billing.confirmation.btn.pay_later")
+                : t("billing.confirmation.btn.retry")}
             </BaseButton>
           )}
         </div>

@@ -9,16 +9,18 @@ import {
   RegisterStepAdmin,
 } from "./components/RegisterSteps";
 import { RegisterStepPlan } from "./components/RegisterStepPlan";
+import { RegisterStepPayment } from "./components/RegisterStepPayment";
 import { useLocale } from "@/i18n";
 import BaseButton from "@/components/button";
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 
 const TITLE_KEYS = [
   "register.step0.title",
   "register.step1.title",
   "register.step2.title",
   "register.step3.title",
+  "register.step4.title",
 ];
 
 const SUBTITLE_KEYS = [
@@ -26,6 +28,7 @@ const SUBTITLE_KEYS = [
   "register.step1.subtitle",
   "register.step2.subtitle",
   "register.step3.subtitle",
+  "register.step4.subtitle",
 ];
 
 const DEFAULT_TZ =
@@ -34,6 +37,8 @@ const DEFAULT_TZ =
 const RegisterCompany = () => {
   const vm = useRegisterCompany();
   const { t } = useLocale();
+
+  const isPaymentStep = vm.step === 4;
 
   return (
     <div className="flex min-h-screen">
@@ -121,28 +126,52 @@ const RegisterCompany = () => {
                 />
               )}
 
-              {/* ── Navigation ── */}
-              <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-100">
-                {vm.step === 0 ? (
-                  <span />
-                ) : (
+              {vm.step === 4 && vm.paymentState && (
+                <RegisterStepPayment
+                  clientSecret={vm.paymentState.clientSecret}
+                  invoiceId={vm.paymentState.invoiceId}
+                  amount={vm.paymentState.amount}
+                  planName={vm.paymentState.planName}
+                  billingCycle={vm.paymentState.billingCycle}
+                  onError={(msg) => vm.setSubmitError(msg)}
+                />
+              )}
+
+              {/* ── Navigation — hidden on payment step (Stripe form has its own submit) ── */}
+              {!isPaymentStep && (
+                <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-100">
+                  {vm.step === 0 ? (
+                    <span />
+                  ) : (
+                    <BaseButton
+                      onClick={vm.handleBack}
+                      disabled={vm.checkingEmail || vm.isPaying}
+                      icon={<ArrowLeft className="w-3.5 h-3.5" />}>
+                      {t("register.btn.back")}
+                    </BaseButton>
+                  )}
+                  <BaseButton
+                    type="primary"
+                    onClick={vm.handleNext}
+                    loading={vm.checkingEmail || vm.isPaying}
+                    disabled={vm.checkingEmail || vm.isPaying}
+                    iconPosition="end"
+                    icon={<ArrowRight className="w-3.5 h-3.5" />}>
+                    {vm.payingLabel ?? t("register.btn.continue")}
+                  </BaseButton>
+                </div>
+              )}
+
+              {/* ── Back button on payment step ── */}
+              {isPaymentStep && (
+                <div className="mt-6 pt-4 border-t border-gray-100">
                   <BaseButton
                     onClick={vm.handleBack}
-                    disabled={vm.checkingEmail || vm.isPaying}
                     icon={<ArrowLeft className="w-3.5 h-3.5" />}>
                     {t("register.btn.back")}
                   </BaseButton>
-                )}
-                <BaseButton
-                  type="primary"
-                  onClick={vm.handleNext}
-                  loading={vm.checkingEmail || vm.isPaying}
-                  disabled={vm.checkingEmail || vm.isPaying}
-                  iconPosition="end"
-                  icon={<ArrowRight className="w-3.5 h-3.5" />}>
-                  {vm.payingLabel ?? t("register.btn.continue")}
-                </BaseButton>
-              </div>
+                </div>
+              )}
             </Form>
           </div>
         </div>
