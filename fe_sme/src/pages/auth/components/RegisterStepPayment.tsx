@@ -100,7 +100,21 @@ export const RegisterStepPayment = ({
             invoiceId={invoiceId}
             returnUrl={returnUrl}
             onError={onError}
-            onSuccess={() => navigate("/dashboard", { replace: true })}
+            onSuccess={({ paymentIntentId }) => {
+              // Payment completed inline (no browser redirect by Stripe).
+              // Navigate to PaymentConfirmation with the same URL params that
+              // Stripe would have appended on a redirect — so the success screen
+              // and payment recording logic are reused for both paths.
+              const params = new URLSearchParams({
+                from: "register",
+                invoiceId,
+                payment_intent: paymentIntentId,
+                payment_intent_client_secret: clientSecret,
+                redirect_status: "succeeded",
+              });
+              const url = `/billing/payment/confirmation?${params.toString()}`;
+              navigate(url, { replace: true });
+            }}
             showSummary={false}
           />
         </StripeProvider>

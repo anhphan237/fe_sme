@@ -30,9 +30,9 @@ export default defineConfig({
       "@core": fileURLToPath(new URL("./src/core", import.meta.url)),
     },
   },
-  // test: {
-  //   environment: "jsdom",
-  //   setupFiles: ["./src/test/setup.ts"],
-  //   globals: true,
-  // },
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./src/test/setup.ts"],
+    globals: true,
+  },
 });

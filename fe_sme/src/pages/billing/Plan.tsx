@@ -101,8 +101,11 @@ const BillingPlan = () => {
   });
 
   const createSub = useMutation({
-    mutationFn: (v: { companyId: string; planCode: string }) =>
-      apiCreateSubscription(v.companyId, v.planCode),
+    mutationFn: (v: {
+      companyId: string;
+      planCode: string;
+      billingCycle: string;
+    }) => apiCreateSubscription(v.companyId, v.planCode, v.billingCycle),
   });
   const updateSub = useMutation({ mutationFn: apiUpdateSubscription });
   const queryClient = useQueryClient();
@@ -124,6 +127,7 @@ const BillingPlan = () => {
         {
           subscriptionId: sub.subscriptionId,
           planCode: selected,
+          billingCycle,
           status: "ACTIVE",
         },
         {
@@ -141,7 +145,7 @@ const BillingPlan = () => {
       );
     } else if (companyId) {
       createSub.mutate(
-        { companyId: String(companyId), planCode: selected },
+        { companyId: String(companyId), planCode: selected, billingCycle },
         {
           onSuccess: (res) =>
             handleSuccess(

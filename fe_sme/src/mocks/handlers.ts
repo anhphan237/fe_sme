@@ -798,4 +798,17 @@ export const handlers = [
     }
     return HttpResponse.json(conversations)
   }),
+
+  // ── Gateway (com.sme.*) ─────────────────────────────────────────────────────
+  // Catch-all handler for the gateway endpoint. Routes by operationType.
+  http.post('/api/v1/gateway', async ({ request }) => {
+    const body = (await request.json()) as { operationType?: string; payload?: Record<string, unknown> }
+
+    if (body.operationType === 'com.sme.billing.payment.status') {
+      return HttpResponse.json({ data: { status: 'PAID', invoiceId: body.payload?.invoiceId } })
+    }
+
+    // Default: return empty success for unknown operations
+    return HttpResponse.json({ data: {} })
+  }),
 ]

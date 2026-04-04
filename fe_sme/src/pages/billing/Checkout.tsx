@@ -5,7 +5,8 @@ import BaseButton from "@/components/button";
 import { StripeProvider } from "../../components/payment/StripeProvider";
 import { CheckoutForm } from "../../components/payment/CheckoutForm";
 import { useMutation } from "@tanstack/react-query";
-import { apiCreatePaymentIntent } from "@/api/billing/billing.api";
+import { apiCreatePaymentIntent, apiGetPaymentStatus } from "@/api/billing/billing.api";
+import type { PaymentCreateIntentResponse } from "@/interface/billing";
 import { isValidStripeSecret } from "@/lib/stripe";
 import { notify } from "@/utils/notify";
 import { useLocale } from "@/i18n";
@@ -24,10 +25,8 @@ const BillingCheckout = () => {
   useEffect(() => {
     if (!invoiceId) return;
     createIntent.mutate(invoiceId, {
-      onSuccess: (data) => {
-        const secret =
-          (data as { clientSecret?: string })?.clientSecret ?? null;
-        setClientSecret(secret);
+      onSuccess: (data: PaymentCreateIntentResponse) => {
+        setClientSecret(data.clientSecret ?? null);
       },
       onError: (err) => {
         notify.error(t("billing.checkout.no_session") + ` (${err.message})`);
@@ -72,6 +71,16 @@ const BillingCheckout = () => {
               invoiceId={invoiceId ?? ""}
               returnUrl={returnUrl}
               onError={(msg) => notify.error(msg)}
+              onSuccess={async ({ paymentIntentId }) => {
+                // Payment completed inline (no redirect). Record it before
+                // navigating to avoid the invoice staying as unpaid.
+                try {
+                  await apiGetPaymentStatus(paymentIntentId, invoiceId ?? undefined);
+                } catch {
+                  // Non-blocking — backend webhook is the authoritative recorder.
+                }
+                navigate("/billing/invoices");
+              }}
             />
           </StripeProvider>
         ) : clientSecret ? (

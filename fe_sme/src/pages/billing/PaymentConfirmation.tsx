@@ -43,7 +43,10 @@ const PaymentConfirmation = () => {
   useEffect(() => {
     if (!clientSecret) return;
 
-    if (redirectStatus === "failed") {
+    // Stripe never returns redirect_status="failed"; non-success values are
+    // "requires_payment_method" or "requires_action". Still guard here to
+    // skip the retrievePaymentIntent call when Stripe signals a clear failure.
+    if (redirectStatus && redirectStatus !== "succeeded" && redirectStatus !== "processing") {
       setStatus("failed");
       return;
     }
@@ -63,7 +66,7 @@ const PaymentConfirmation = () => {
           case "succeeded":
             if (paymentIntentId) {
               try {
-                await apiGetPaymentStatus(paymentIntentId);
+                await apiGetPaymentStatus(paymentIntentId, invoiceId ?? undefined);
               } catch {
                 // Backend may also update via webhook — non-blocking
               }

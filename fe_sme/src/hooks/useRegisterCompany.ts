@@ -279,8 +279,7 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
 
         // Create payment intent and embed in step 4 instead of navigating away
         const intentResult = await apiCreatePaymentIntent(invoiceId);
-        const clientSecret =
-          (intentResult as { clientSecret?: string })?.clientSecret ?? "";
+        const clientSecret = intentResult.clientSecret ?? "";
 
         setPaymentState({
           clientSecret,
