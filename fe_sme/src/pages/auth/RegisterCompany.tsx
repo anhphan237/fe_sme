@@ -38,6 +38,8 @@ const RegisterCompany = () => {
   const vm = useRegisterCompany();
   const { t } = useLocale();
 
+  const isPaymentStep = vm.step === 4;
+
   return (
     <div className="flex min-h-screen">
       <RegisterSidebar step={vm.step} />
@@ -124,22 +126,19 @@ const RegisterCompany = () => {
                 />
               )}
 
-              {vm.step === 4 && vm.clientSecret && vm.checkoutInvoiceId && (
+              {vm.step === 4 && vm.paymentState && (
                 <RegisterStepPayment
-                  clientSecret={vm.clientSecret}
-                  invoiceId={vm.checkoutInvoiceId}
-                  amount={vm.checkoutAmount}
-                  planName={
-                    vm.planList?.find((p) => p.code === vm.selectedPlanCode)
-                      ?.name
-                  }
-                  billingCycle={vm.billingCycle}
+                  clientSecret={vm.paymentState.clientSecret}
+                  invoiceId={vm.paymentState.invoiceId}
+                  amount={vm.paymentState.amount}
+                  planName={vm.paymentState.planName}
+                  billingCycle={vm.paymentState.billingCycle}
                   onError={(msg) => vm.setSubmitError(msg)}
                 />
               )}
 
-              {/* ── Navigation (steps 0–3) ── */}
-              {vm.step < 4 && (
+              {/* ── Navigation — hidden on payment step (Stripe form has its own submit) ── */}
+              {!isPaymentStep && (
                 <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-100">
                   {vm.step === 0 ? (
                     <span />
@@ -163,15 +162,15 @@ const RegisterCompany = () => {
                 </div>
               )}
 
-              {/* Step 4: allow going back to change plan */}
-              {vm.step === 4 && (
-                <button
-                  type="button"
-                  onClick={vm.handleBack}
-                  className="mt-6 flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-brand transition-colors mx-auto">
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  Đổi gói
-                </button>
+              {/* ── Back button on payment step ── */}
+              {isPaymentStep && (
+                <div className="mt-6 pt-4 border-t border-gray-100">
+                  <BaseButton
+                    onClick={vm.handleBack}
+                    icon={<ArrowLeft className="w-3.5 h-3.5" />}>
+                    {t("register.btn.back")}
+                  </BaseButton>
+                </div>
               )}
             </Form>
           </div>

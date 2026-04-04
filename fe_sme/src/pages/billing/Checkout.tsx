@@ -5,7 +5,8 @@ import BaseButton from "@/components/button";
 import { StripeProvider } from "../../components/payment/StripeProvider";
 import { CheckoutForm } from "../../components/payment/CheckoutForm";
 import { useMutation } from "@tanstack/react-query";
-import { apiCreatePaymentIntent } from "@/api/billing/billing.api";
+import { apiCreatePaymentIntent, apiGetPaymentStatus } from "@/api/billing/billing.api";
+import type { PaymentCreateIntentResponse } from "@/interface/billing";
 import { isValidStripeSecret } from "@/lib/stripe";
 import { notify } from "@/utils/notify";
 import { useLocale } from "@/i18n";
@@ -19,12 +20,13 @@ const BillingCheckout = () => {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
 
   const amount = searchParams.get("amount") ?? "$0.00";
+  const from = searchParams.get("from");
 
   useEffect(() => {
     if (!invoiceId) return;
     createIntent.mutate(invoiceId, {
-      onSuccess: (data) => {
-        setClientSecret(data.clientSecret);
+      onSuccess: (data: PaymentCreateIntentResponse) => {
+        setClientSecret(data.clientSecret ?? null);
       },
       onError: (err) => {
         notify.error(t("billing.checkout.no_session") + ` (${err.message})`);
@@ -33,7 +35,7 @@ const BillingCheckout = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoiceId]);
 
-  const returnUrl = `${window.location.origin}/billing/payment/confirmation`;
+  const returnUrl = `${window.location.origin}/billing/payment/confirmation?invoiceId=${encodeURIComponent(invoiceId ?? "")}${from ? `&from=${encodeURIComponent(from)}` : ""}`;
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
@@ -69,6 +71,16 @@ const BillingCheckout = () => {
               invoiceId={invoiceId ?? ""}
               returnUrl={returnUrl}
               onError={(msg) => notify.error(msg)}
+              onSuccess={async ({ paymentIntentId }) => {
+                // Payment completed inline (no redirect). Record it before
+                // navigating to avoid the invoice staying as unpaid.
+                try {
+                  await apiGetPaymentStatus(paymentIntentId, invoiceId ?? undefined);
+                } catch {
+                  // Non-blocking — backend webhook is the authoritative recorder.
+                }
+                navigate("/billing/invoices");
+              }}
             />
           </StripeProvider>
         ) : clientSecret ? (

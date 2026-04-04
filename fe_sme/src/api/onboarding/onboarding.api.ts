@@ -41,6 +41,17 @@ export const apiUpdateTemplate = (payload: OnboardingTemplateUpdateRequest) =>
     payload,
   );
 
+/** com.sme.onboarding.template.ai.generate — AI tự tạo onboarding template */
+export const apiGenerateTemplateWithAI = (payload: {
+  industry: string;
+  companySize: string;
+  jobRole: string;
+}) =>
+  gatewayRequest<typeof payload, { templateId: string; name: string; totalChecklists: number; totalTasks: number }>(
+    "com.sme.onboarding.template.ai.generate",
+    payload,
+  );
+
 // ── Instances ───────────────────────────────────────────────
 
 /** com.sme.onboarding.instance.list */

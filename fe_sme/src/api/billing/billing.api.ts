@@ -3,16 +3,25 @@ import type {
   PlanListResponse,
   PlanGetResponse,
   SubscriptionUpdateRequest,
+  PaymentCreateIntentResponse,
 } from "@/interface/billing";
 
 // ── Subscription ────────────────────────────────────────────
 
 /** com.sme.billing.subscription.create */
-export const apiCreateSubscription = (companyId: string, planCode: string) =>
-  gatewayRequest<{ companyId: string; planCode: string }, unknown>(
-    "com.sme.billing.subscription.create",
-    { companyId, planCode },
-  );
+export const apiCreateSubscription = (
+  companyId: string,
+  planCode: string,
+  billingCycle?: string,
+) =>
+  gatewayRequest<
+    { companyId: string; planCode: string; billingCycle?: string },
+    unknown
+  >("com.sme.billing.subscription.create", {
+    companyId,
+    planCode,
+    ...(billingCycle && { billingCycle }),
+  });
 
 /** com.sme.billing.subscription.update */
 export const apiUpdateSubscription = (payload: SubscriptionUpdateRequest) =>
@@ -20,7 +29,8 @@ export const apiUpdateSubscription = (payload: SubscriptionUpdateRequest) =>
     "com.sme.billing.subscription.update",
     {
       subscriptionId: payload.subscriptionId,
-      planId: payload.planId,
+      planCode: payload.planCode,
+      billingCycle: payload.billingCycle,
       status: payload.status ?? "ACTIVE",
     },
   );
@@ -116,7 +126,7 @@ export const apiGetInvoiceById = (invoiceId: string) =>
 
 /** com.sme.billing.payment.createIntent */
 export const apiCreatePaymentIntent = (invoiceId: string) =>
-  gatewayRequest<{ invoiceId: string }, unknown>(
+  gatewayRequest<{ invoiceId: string }, PaymentCreateIntentResponse>(
     "com.sme.billing.payment.createIntent",
     { invoiceId },
   );
@@ -136,10 +146,13 @@ export const apiGetPaymentProviders = () =>
   );
 
 /** com.sme.billing.payment.status */
-export const apiGetPaymentStatus = (paymentIntentId: string) =>
-  gatewayRequest<{ paymentIntentId: string }, unknown>(
+export const apiGetPaymentStatus = (
+  paymentIntentId: string,
+  invoiceId?: string,
+) =>
+  gatewayRequest<{ paymentIntentId: string; invoiceId?: string }, unknown>(
     "com.sme.billing.payment.status",
-    { paymentIntentId },
+    { paymentIntentId, ...(invoiceId ? { invoiceId } : {}) },
   );
 
 /** com.sme.billing.payment.transactions */

@@ -10,7 +10,9 @@
 
 /** com.sme.billing.subscription.create */
 export interface SubscriptionCreateRequest {
-  planId: string;
+  companyId: string;
+  planCode: string;
+  billingCycle?: string;
   paymentMethodId?: string;
   couponCode?: string;
 }
@@ -18,7 +20,8 @@ export interface SubscriptionCreateRequest {
 /** com.sme.billing.subscription.update */
 export interface SubscriptionUpdateRequest {
   subscriptionId: string;
-  planId?: string;
+  planCode?: string;
+  billingCycle?: string;
   status?: string;
 }
 

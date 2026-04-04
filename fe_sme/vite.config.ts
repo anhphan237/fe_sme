@@ -12,6 +12,7 @@ export default defineConfig({
     proxy: {
       "/api": {
         target: "https://sme-7aido.ondigitalocean.app",
+        // target: "http://localhost:8080",
         changeOrigin: true,
       },
       // WebSocket proxy — only active when running against a local backend.
@@ -29,9 +30,9 @@ export default defineConfig({
       "@core": fileURLToPath(new URL("./src/core", import.meta.url)),
     },
   },
-  // test: {
-  //   environment: "jsdom",
-  //   setupFiles: ["./src/test/setup.ts"],
-  //   globals: true,
-  // },
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./src/test/setup.ts"],
+    globals: true,
+  },
 });

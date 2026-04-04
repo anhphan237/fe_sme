@@ -17,7 +17,7 @@ export interface LoginFormData {
 const useLogin = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { setUser, setToken } = useUserStore();
+  const { setUser, setToken, setTenant } = useUserStore();
   const { setRoles } = useGlobalStore();
   const [loading, setLoading] = useState(false);
 
@@ -34,6 +34,15 @@ const useLogin = () => {
       setToken(res.accessToken);
       setUser(user as any);
       setRoles(user.roles);
+      if (res.user?.tenantId) {
+        setTenant({
+          id: res.user.tenantId,
+          name: "",
+          industry: "",
+          size: "",
+          plan: "",
+        });
+      }
 
       const from =
         (location.state as { from?: { pathname: string } })?.from?.pathname ??

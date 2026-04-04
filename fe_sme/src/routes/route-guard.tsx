@@ -27,6 +27,7 @@ export function GuestRoute({ children }: GuestRouteProps) {
 /** Redirect unauthenticated users to /login */
 export function RequireAuth({ children }: RequireAuthProps) {
   const currentUser = useUserStore((state) => state.currentUser);
+  console.log("[RequireAuth] currentUser=", currentUser?.id ?? null, "path=", window.location.pathname);
   if (!currentUser) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }

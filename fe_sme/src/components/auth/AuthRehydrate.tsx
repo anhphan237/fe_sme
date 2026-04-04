@@ -51,6 +51,8 @@ export const AuthRehydrate = ({ children }: AuthRehydrateProps) => {
         ? localStorage.getItem(AUTH_USER_KEY)
         : null;
 
+    console.log("[AuthRehydrate] token=", token ? "EXISTS" : "NULL", "storedUser=", storedUser ? "EXISTS" : "NULL");
+
     if (!token) {
       setRehydrated(true);
       return;
@@ -58,10 +60,12 @@ export const AuthRehydrate = ({ children }: AuthRehydrateProps) => {
 
     setToken(token);
     const user = parseStoredUser(storedUser);
+    console.log("[AuthRehydrate] parsed user=", user ? { id: user.id, email: user.email, roles: user.roles } : null);
     if (user) {
       setUser(user);
     } else {
       // No stored user state — session is stale, force re-login
+      console.warn("[AuthRehydrate] user parse failed → logging out");
       logout();
     }
     setRehydrated(true);
