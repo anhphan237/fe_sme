@@ -10,10 +10,7 @@ import {
   apiListSurveyTemplates,
   apiScheduleSurvey,
 } from "@/api/survey/survey.api";
-import type {
-  SurveyScheduleRequest,
-  SurveyTemplateSummary,
-} from "@/interface/survey";
+import type { SurveyTemplateSummary } from "@/interface/survey";
 import { useLocale } from "@/i18n";
 import { notify } from "@/utils/notify";
 import SelectOnboardingModal, {
@@ -29,6 +26,7 @@ type FormValues = {
   onboardingIds: string[];
   templateId: string;
   scheduledAt?: Dayjs;
+  selectedOnboardings?: SelectedOnboardingItem[];
 };
 
 const SurveySendDrawer = ({ open, onClose }: Props) => {
@@ -53,7 +51,24 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
     "templates",
   );
 
-  const templateOptions = templates.map((template) => ({
+  const normalizeStage = (value?: string | null) => {
+    const stage = (value ?? "").trim().toUpperCase().replace(/\s+/g, "_");
+
+    if (stage === "DAY_7" || stage === "D7") return "D7";
+    if (stage === "DAY_30" || stage === "D30") return "D30";
+    if (stage === "DAY_60" || stage === "D60") return "D60";
+    if (stage === "CUSTOM") return "CUSTOM";
+
+    return stage;
+  };
+
+  const manualTemplates = templates.filter((template) => {
+    const stage = normalizeStage(template.stage);
+    const status = (template.status ?? "").trim().toUpperCase();
+
+    return stage === "CUSTOM" && status === "ACTIVE";
+  });
+  const templateOptions = manualTemplates.map((template) => ({
     value: template.templateId,
     label: template.name,
   }));
@@ -71,33 +86,94 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
       : null;
 
   const selectedTemplateId = Form.useWatch("templateId", form);
-  const selectedTemplate = templates.find(
+  const selectedTemplate = manualTemplates.find(
     (item) => item.templateId === selectedTemplateId,
   );
 
   const scheduleMutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      let successCount = 0;
-      let failedCount = 0;
+      if (!selectedTemplate) {
+        throw new Error("Template not found");
+      }
 
-      for (const item of selectedOnboardings) {
-      try {
-        await apiScheduleSurvey({
-          onboardingId: item.onboardingId,
-          templateId: values.templateId,
-          scheduledAt: values.scheduledAt?.toISOString(),
-          responderUserId: item.userId, 
-        } as SurveyScheduleRequest);
+      if (
+        !values.selectedOnboardings ||
+        values.selectedOnboardings.length === 0
+      ) {
+        throw new Error("Vui lòng chọn onboarding");
+      }
 
-    successCount += 1;
-  } catch {
-    failedCount += 1;
-  }
-}
+      const results = await Promise.allSettled(
+        values.selectedOnboardings.flatMap((item) => {
+          const payloads = [];
+          const rawRole = selectedTemplate.targetRole;
+          const role =
+            rawRole === "EMPLOYEE" || rawRole === "MANAGER"
+              ? rawRole
+              : "EMPLOYEE";
 
-      return { successCount, failedCount };
+          if (role === "EMPLOYEE") {
+            if (!item.employeeUserId) {
+              throw new Error("Employee user not found");
+            }
+
+            payloads.push(
+              apiScheduleSurvey({
+                onboardingId: item.onboardingId,
+                templateId: values.templateId,
+                scheduledAt: values.scheduledAt?.toISOString(),
+                responderUserId: item.employeeUserId,
+                targetRole: "EMPLOYEE",
+              }),
+            );
+          }
+
+          if (role === "MANAGER") {
+            if (!item.managerUserId) {
+              throw new Error("Manager user not found");
+            }
+
+            payloads.push(
+              apiScheduleSurvey({
+                onboardingId: item.onboardingId,
+                templateId: values.templateId,
+                scheduledAt: values.scheduledAt?.toISOString(),
+                responderUserId: item.managerUserId,
+                targetRole: "MANAGER",
+              }),
+            );
+          }
+
+          return payloads;
+        }),
+      );
+
+      const fulfilled = results.filter(
+        (r): r is PromiseFulfilledResult<unknown> => r.status === "fulfilled",
+      );
+
+      const rejected = results.filter(
+        (r): r is PromiseRejectedResult => r.status === "rejected",
+      );
+
+      const successCount = fulfilled.length;
+      const failedCount = rejected.length;
+
+      const duplicateCount = rejected.filter((r) => {
+        const message = String(
+          r.reason?.message || r.reason || "",
+        ).toLowerCase();
+        return (
+          message.includes("already sent") ||
+          message.includes("already scheduled") ||
+          message.includes("already sent or scheduled")
+        );
+      }).length;
+
+      return { successCount, failedCount, duplicateCount };
     },
-    onSuccess: async ({ successCount, failedCount }) => {
+
+    onSuccess: async ({ successCount, failedCount, duplicateCount }) => {
       if (successCount > 0 && failedCount === 0) {
         notify.success(
           successCount === 1
@@ -105,11 +181,21 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
             : `${successCount} ${t("survey.send.success_many")}`,
         );
       } else if (successCount > 0 && failedCount > 0) {
-        notify.success(
-          `${successCount} ${t("survey.send.success_partial")}, ${failedCount} ${t("survey.send.failed_partial")}`,
-        );
+        if (duplicateCount > 0) {
+          notify.success(
+            `${successCount} ${t("survey.send.success_many")}, ${duplicateCount} ${t("survey.send.duplicate_partial")}`,
+          );
+        } else {
+          notify.success(
+            `${successCount} ${t("survey.send.success_partial")}, ${failedCount} ${t("survey.send.failed_partial")}`,
+          );
+        }
       } else {
-        notify.error(t("survey.send.error"));
+        if (duplicateCount > 0) {
+          notify.error(t("survey.send.duplicate_error"));
+        } else {
+          notify.error(t("survey.send.error"));
+        }
         return;
       }
 
@@ -125,6 +211,18 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
     onError: (error: unknown) => {
       const message =
         error instanceof Error ? error.message : t("survey.send.error");
+
+      const normalized = String(message).toLowerCase();
+
+      if (
+        normalized.includes("already sent") ||
+        normalized.includes("already scheduled") ||
+        normalized.includes("already sent or scheduled")
+      ) {
+        notify.error(t("survey.send.duplicate_error"));
+        return;
+      }
+
       notify.error(message);
     },
   });
@@ -144,7 +242,7 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
     setSelectedOnboardings(items);
     form.setFieldValue(
       "onboardingIds",
-      items.map((item) => item.instanceId),
+      items.map((item) => item.onboardingId),
     );
 
     const currentScheduledAt = form.getFieldValue("scheduledAt");
@@ -167,7 +265,8 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
 
     await scheduleMutation.mutateAsync({
       ...values,
-      onboardingIds: selectedOnboardings.map((item) => item.instanceId),
+      onboardingIds: selectedOnboardings.map((item) => item.onboardingId),
+      selectedOnboardings,
     });
   };
 
@@ -222,13 +321,14 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
             ) : (
               <div className="space-y-2">
                 <div className="text-sm font-medium text-slate-700">
-                  {t("survey.send.selected_count")}: {selectedOnboardings.length}
+                  {t("survey.send.selected_count")}:{" "}
+                  {selectedOnboardings.length}
                 </div>
 
                 <div className="max-h-52 space-y-2 overflow-auto">
                   {selectedOnboardings.map((item) => (
                     <div
-                      key={item.instanceId}
+                      key={item.onboardingId}
                       className="rounded-lg border border-slate-200 px-3 py-2"
                     >
                       <div className="font-medium text-slate-800">
@@ -279,7 +379,10 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
                 placeholder={t("survey.send.scheduled_at_placeholder")}
                 disabledDate={(current) => {
                   if (!latestStartDate) return false;
-                  return current.isBefore(latestStartDate.startOf("day"), "day");
+                  return current.isBefore(
+                    latestStartDate.startOf("day"),
+                    "day",
+                  );
                 }}
               />
             </Form.Item>
@@ -301,17 +404,25 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
 
             <div className="space-y-2 text-sm text-slate-600">
               <div>
-                <span className="font-medium">{t("survey.send.employee_label")}:</span>{" "}
+                <span className="font-medium">
+                  {t("survey.send.employee_label")}:
+                </span>{" "}
                 {selectedOnboardings.length}
               </div>
               <div>
-                <span className="font-medium">{t("survey.send.template_label")}:</span>{" "}
+                <span className="font-medium">
+                  {t("survey.send.template_label")}:
+                </span>{" "}
                 {selectedTemplate?.name || "-"}
               </div>
               <div>
-                <span className="font-medium">{t("survey.send.scheduled_at_label")}:</span>{" "}
+                <span className="font-medium">
+                  {t("survey.send.scheduled_at_label")}:
+                </span>{" "}
                 {form.getFieldValue("scheduledAt")
-                  ? dayjs(form.getFieldValue("scheduledAt")).format("DD-MM-YYYY")
+                  ? dayjs(form.getFieldValue("scheduledAt")).format(
+                      "DD-MM-YYYY",
+                    )
                   : "-"}
               </div>
             </div>
@@ -319,12 +430,14 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
         </Form>
       </Drawer>
 
-      <SelectOnboardingModal
-        open={selectModalOpen}
-        selectedIds={selectedOnboardings.map((item) => item.instanceId)}
-        onClose={() => setSelectModalOpen(false)}
-        onConfirm={handleConfirmEmployees}
-      />
+      {selectModalOpen && (
+        <SelectOnboardingModal
+          open={selectModalOpen}
+          selectedIds={selectedOnboardings.map((item) => item.onboardingId)}
+          onClose={() => setSelectModalOpen(false)}
+          onConfirm={handleConfirmEmployees}
+        />
+      )}
     </>
   );
 };

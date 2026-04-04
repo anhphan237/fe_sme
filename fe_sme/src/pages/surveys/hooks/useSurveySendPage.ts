@@ -15,7 +15,6 @@ import type {
 
 import {
   mapSurveyInstanceListResponse,
-  mapTemplateOptions,
 } from "../utils/survey-send.utils";
 
 export const useSurveySendPage = () => {
@@ -39,10 +38,14 @@ export const useSurveySendPage = () => {
     "templates",
   );
 
-  const templateOptions = useMemo(
-    () => mapTemplateOptions(templates),
-    [templates],
-  );
+ const templateOptions = useMemo(
+  () =>
+    templates.map((item) => ({
+      value: item.templateId,
+      label: `${item.name} (${item.targetRole ?? "EMPLOYEE"})`,
+    })),
+  [templates],
+);
 
   const { data, isLoading } = useQuery({
     queryKey: [

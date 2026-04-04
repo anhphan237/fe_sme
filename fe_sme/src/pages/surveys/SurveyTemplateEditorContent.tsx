@@ -1,4 +1,4 @@
-import { Form } from "antd";
+import { Form, Modal, Switch } from "antd";
 import { Plus } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -6,7 +6,7 @@ import BaseButton from "@/components/button";
 import BaseInput from "@core/components/Input/InputWithLabel";
 import BaseSelect from "@core/components/Select/BaseSelect";
 import BaseTextArea from "@core/components/TextArea/BaseTextArea";
-import BaseCheckbox from "@core/components/Checkbox";
+
 import QuestionCard from "@/pages/surveys/components/QuestionCard";
 import { useLocale } from "@/i18n";
 import { notify } from "@/utils/notify";
@@ -34,21 +34,20 @@ import {
   resequenceQuestions,
   useSurveyTemplateEditor,
 } from "./hooks/useSurveyTemplateEditor";
-
 type Props = {
   templateId?: string;
-  isEdit: boolean;
   initialValues: TemplateFormValues;
   initialQuestions: LocalQuestion[];
   onCancel: () => void;
+  isEditMode: boolean;
 };
 
 const SurveyTemplateEditorContent = ({
   templateId,
-  isEdit,
   initialValues,
   initialQuestions,
   onCancel,
+  isEditMode,
 }: Props) => {
   const { t } = useLocale();
   const queryClient = useQueryClient();
@@ -73,29 +72,38 @@ const SurveyTemplateEditorContent = ({
     deleteOption,
   } = useSurveyTemplateEditor({
     initialQuestions,
-    isEdit,
+    isEdit: isEditMode,
   });
-
+  type SaveTemplatePayload = {
+    forceReplaceDefault?: boolean;
+  };
   const saveMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (override?: SaveTemplatePayload) => {
       const values = await templateForm.validateFields();
 
       if (validationErrors.length > 0) {
-        throw new Error(validationErrors[0]);
+        notify.error(validationErrors[0]);
+        throw new Error("Validation failed");
       }
 
       const templatePayload = {
         name: values.name,
         description: values.description,
         stage: values.stage,
-        managerOnly: values.managerOnly ?? false,
-        status: values.status,
-        isDefault: values.isDefault ?? false,
+        status: values.status ?? "DRAFT",
+        targetRole: values.targetRole ?? "EMPLOYEE",
+        ...(isEditMode
+          ? {
+              isDefault:
+                values.stage === "CUSTOM" ? false : Boolean(values.isDefault),
+            }
+          : {}),
+        ...override,
       };
 
       let currentTemplateId = templateId ?? "";
 
-      if (isEdit) {
+      if (isEditMode && currentTemplateId) {
         await apiUpdateSurveyTemplate({
           templateId: currentTemplateId,
           ...templatePayload,
@@ -109,7 +117,9 @@ const SurveyTemplateEditorContent = ({
         currentTemplateId = created?.templateId ?? created?.id ?? "";
 
         if (!currentTemplateId) {
-          throw new Error("Cannot determine templateId after template creation.");
+          throw new Error(
+            "Cannot determine templateId after template creation.",
+          );
         }
       }
 
@@ -157,20 +167,50 @@ const SurveyTemplateEditorContent = ({
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["survey-templates"] }),
-        queryClient.invalidateQueries({
-          queryKey: ["survey-template", savedTemplateId],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ["survey-questions", savedTemplateId],
-        }),
+        queryClient.invalidateQueries({ queryKey: ["survey-template"] }),
         queryClient.invalidateQueries({ queryKey: ["survey-questions"] }),
+        queryClient.refetchQueries({ queryKey: ["survey-templates"] }),
       ]);
+
+      queryClient.removeQueries({
+        queryKey: ["survey-template", savedTemplateId],
+        exact: true,
+      });
+
+      queryClient.removeQueries({
+        queryKey: ["survey-questions", savedTemplateId],
+        exact: true,
+      });
 
       onCancel();
     },
     onError: (error: unknown) => {
       const message =
         error instanceof Error ? error.message : t("global.save_failed");
+
+      if (message.includes("DEFAULT_TEMPLATE_ALREADY_EXISTS")) {
+        Modal.confirm({
+          title: "Replace default template?",
+          content: "Đã có default. Bạn có muốn thay thế không?",
+          onOk: () => {
+            saveMutation.mutate({
+              forceReplaceDefault: true,
+            });
+          },
+        });
+        return;
+      }
+
+      if (message.includes("CUSTOM_STAGE_CANNOT_BE_DEFAULT")) {
+        notify.error("Custom survey cannot be default.");
+        return;
+      }
+
+      if (message.includes("ONLY_ACTIVE_TEMPLATE_CAN_BE_DEFAULT")) {
+        notify.error("Only ACTIVE template can be set as default.");
+        return;
+      }
+
       notify.error(message);
     },
   });
@@ -179,7 +219,7 @@ const SurveyTemplateEditorContent = ({
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
         <h1 className="text-lg font-semibold text-[#223A59]">
-          {isEdit
+          {isEditMode
             ? t("survey.template.editor.edit_title") || "Edit survey template"
             : t("survey.template.editor.title") || "Create survey template"}
         </h1>
@@ -229,6 +269,11 @@ const SurveyTemplateEditorContent = ({
                 label={t("survey.template.stage_label")}
                 options={stageOptions}
                 placeholder={t("global.select")}
+                onChange={(value) => {
+                  if (value === "CUSTOM") {
+                    templateForm.setFieldValue("isDefault", false);
+                  }
+                }}
               />
             </div>
 
@@ -242,19 +287,56 @@ const SurveyTemplateEditorContent = ({
             </div>
 
             <div className="mt-4">
-              <BaseCheckbox
-                name="managerOnly"
-                labelCheckbox={t("survey.template.manager_only_label")}
+              <BaseSelect
+                name="targetRole"
+                label={t("survey.template.target_role") || "Target role"}
+                options={[
+                  {
+                    value: "EMPLOYEE",
+                    label: t("survey.role.employee") || "Employee",
+                  },
+                  {
+                    value: "MANAGER",
+                    label: t("survey.role.manager") || "Manager",
+                  },
+                ]}
+                placeholder={t("global.select")}
+                formItemProps={{
+                  rules: [
+                    {
+                      required: true,
+                      message:
+                        t("survey.template.validation.target_role_required") ||
+                        "Target role is required",
+                    },
+                  ],
+                }}
               />
             </div>
 
             <div className="mt-4">
-              <BaseCheckbox
+              {/* <BaseCheckbox
                 name="isDefault"
                 labelCheckbox={
                   t("survey.template.is_default_label") || "Default template"
                 }
-              />
+              /> */}
+              <Form.Item shouldUpdate noStyle>
+                {({ getFieldValue }) => {
+                  const stage = getFieldValue("stage");
+                  const disabled = !isEditMode || stage === "CUSTOM";
+
+                  return (
+                    <Form.Item name="isDefault" valuePropName="checked">
+                      <Switch
+                        disabled={disabled}
+                        checkedChildren="Default"
+                        unCheckedChildren="Normal"
+                      />
+                    </Form.Item>
+                  );
+                }}
+              </Form.Item>
             </div>
           </Form>
         </div>
@@ -334,7 +416,7 @@ const SurveyTemplateEditorContent = ({
         <BaseButton
           type="primary"
           label="survey.template.save"
-          onClick={() => saveMutation.mutate()}
+          onClick={() => saveMutation.mutate({})}
           loading={saveMutation.isPending}
         />
       </div>

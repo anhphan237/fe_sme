@@ -32,6 +32,8 @@ type RawSurveyInstance = {
   closedAt?: string | null;
   status?: string;
   createdAt?: string | null;
+  targetRole?: "EMPLOYEE" | "MANAGER" | "BOTH";
+receiverRole?: "EMPLOYEE" | "MANAGER";
 };
 
 export const mapSurveyInstanceListResponse = (
@@ -64,6 +66,8 @@ export const mapSurveyInstanceListResponse = (
 
       status: item.status || "",
       createdAt: item.createdAt,
+      targetRole: item.targetRole,
+      receiverRole: item.receiverRole,
     })),
     totalCount: response?.totalCount ?? 0,
   };
@@ -74,7 +78,7 @@ export const mapTemplateOptions = (
 ): SurveyTemplateOption[] =>
   templates.map((item) => ({
     value: item.templateId,
-    label: item.name,
+    label: `${item.name} (${item.targetRole ?? "EMPLOYEE"})`,
   }));
 
 export const formatDateTime = (value?: string | null) => {

@@ -5,7 +5,13 @@ export type QuestionType =
   | "TEXT"
   | "SINGLE_CHOICE"
   | "MULTIPLE_CHOICE";
+export type TemplateStage = "D7" | "D30" | "D60" | "CUSTOM";
 
+export type TemplateStatus =
+  | "DRAFT"
+  | "ACTIVE"
+  | "ARCHIVED"
+  | "DISABLED";
 export type LocalQuestion = {
   _uid: string;
   questionId?: string;
@@ -23,11 +29,11 @@ export type LocalQuestion = {
 };
 
 export type TemplateFormValues = {
-  name: string;
+   name: string;
   description?: string;
-  stage?: string;
-  managerOnly?: boolean;
-  status: string;
+  stage?: TemplateStage;
+  targetRole: "EMPLOYEE" | "MANAGER";
+  status: TemplateStatus;
   isDefault?: boolean;
 };
 
@@ -50,12 +56,12 @@ export type SurveyQuestionRaw = SurveyQuestion & {
 };
 
 export type TemplateRaw = {
-  name?: string;
+   name?: string;
   description?: string;
-  stage?: string;
-  managerOnly?: boolean;
-  manager_only?: boolean;
-  status?: string;
+  stage?: TemplateStage;
+  targetRole?: "EMPLOYEE" | "MANAGER";
+  target_role?: "EMPLOYEE" | "MANAGER";
+  status?: TemplateStatus;
   isDefault?: boolean;
   is_default?: boolean;
 };

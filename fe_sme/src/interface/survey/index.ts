@@ -14,10 +14,8 @@ import type { off } from "process";
 export interface SurveyTemplateCreateRequest {
   name: string;
   description?: string;
-  /** Onboarding milestone stage e.g. DAY_7, DAY_30, DAY_60 */
   stage?: string;
-  /** If true only managers can view results */
-  managerOnly?: boolean;
+  targetRole: "EMPLOYEE" | "MANAGER" | "BOTH";
 }
 
 /** com.sme.survey.template.update */
@@ -26,7 +24,7 @@ export interface SurveyTemplateUpdateRequest {
   name?: string;
   description?: string;
   stage?: string;
-  managerOnly?: boolean;
+  targetRole?: "EMPLOYEE" | "MANAGER" | "BOTH";
 }
 
 /** com.sme.survey.template.get */
@@ -51,8 +49,9 @@ export interface SurveyTemplateSummary {
   name: string;
   description: string | null;
   stage: string | null;
-  managerOnly: boolean;
+  targetRole: "EMPLOYEE" | "MANAGER" | "BOTH";
   status: string;
+  isDefault: boolean;
 }
 
 // ---------------------------
@@ -77,7 +76,7 @@ export interface SurveyQuestionCreateRequest {
 export interface SurveyQuestionUpdateRequest {
   questionId: string;
   text?: string;
-  type?: string;
+  type?: "RATING" | "TEXT" | "SINGLE_CHOICE" | "MULTIPLE_CHOICE";
   options?: string[];
   required?: boolean;
   order?: number;
@@ -120,18 +119,28 @@ export interface SurveyInstanceListRequest {
   endDate?: string;
   offset?: number;
   limit?: number;
+
+  responderUserId?: string;
+  targetRole?: "EMPLOYEE" | "MANAGER" | "BOTH";
 }
 
 /** com.sme.survey.instance.schedule */
 export interface SurveyScheduleRequest {
   templateId: string;
-   onboardingId: string;
+  onboardingId: string;
   scheduledAt?: string;
+  responderUserId: string;
+  targetRole?: "EMPLOYEE" | "MANAGER" | "BOTH";
 }
 
 /** com.sme.survey.instance.send */
 export interface SurveySendRequest {
-  instanceId: string;
+  surveyInstanceId?: string;
+  templateId?: string;
+  onboardingId?: string;
+
+  responderUserId?: string;
+  targetRole?: "EMPLOYEE" | "MANAGER" | "BOTH";
 }
 
 /** Survey instance summary */
@@ -148,6 +157,9 @@ export interface SurveyInstanceSummary {
   email?: string;
   managerName?: string;
   responderUserId?: string;
+  userId?: string;
+  targetRole?: "EMPLOYEE" | "MANAGER" | "BOTH";
+  receiverRole?: "EMPLOYEE" | "MANAGER";
 }
 
 // ---------------------------
@@ -241,8 +253,4 @@ export interface SurveyQuestionUpdateRequest {
   options?: string[];
   scaleMin?: number;
   scaleMax?: number;
-}
-
-export interface SurveyQuestionDeleteRequest {
-  questionId: string;
 }
