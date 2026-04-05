@@ -1,6 +1,5 @@
 import { gatewayRequest } from "../core/gateway";
 import type {
-  DocumentItem,
   DocumentListResponse,
   UploadDocumentRequest,
   UploadDocumentResponse,
@@ -26,7 +25,13 @@ export const apiSaveDocument = (payload: UploadDocumentRequest) =>
     payload,
   );
 
-/** com.sme.content.document.acknowledge */
+/** com.sme.document.acknowledgment.list */
+export const apiListAcknowledgments = () =>
+  gatewayRequest<Record<string, never>, unknown>(
+    "com.sme.document.acknowledgment.list",
+    {},
+  );
+
 export const apiAcknowledgeDocument = (
   documentId: string,
   onboardingId?: string,

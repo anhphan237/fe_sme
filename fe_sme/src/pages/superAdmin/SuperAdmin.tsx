@@ -1,12 +1,13 @@
 ﻿import { useState } from "react";
 import { Card, Skeleton, Tabs } from "antd";
 import { useQuery } from "@tanstack/react-query";
+import type { Tenant } from "@/shared/types";
 
 /** @deprecated stub — no gateway operation yet */
 const useSaTenantsQuery = () =>
-  useQuery({ queryKey: ["sa-tenants"], queryFn: () => Promise.resolve([]) });
+  useQuery({ queryKey: ["sa-tenants"], queryFn: () => Promise.resolve([] as Tenant[]) });
 const useSaFinanceQuery = () =>
-  useQuery({ queryKey: ["sa-finance"], queryFn: () => Promise.resolve([]) });
+  useQuery({ queryKey: ["sa-finance"], queryFn: () => Promise.resolve([] as unknown[]) });
 import {
   LineChart,
   Line,

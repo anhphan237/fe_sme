@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { Card, Skeleton, Tabs } from "antd";
-import { useQuery } from "@tanstack/react-query";
+import { Card, Skeleton, Tabs, Button, Modal, notification } from "antd";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Building2,
@@ -9,6 +9,9 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  PowerOff,
+  Power,
+  Trash2,
 } from "lucide-react";
 import {
   BarChart,
@@ -23,7 +26,12 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import { apiGetPlatformCompanyDetail } from "@/api/platform/platform.api";
+import {
+  apiGetPlatformCompanyDetail,
+  apiActivateCompany,
+  apiDeactivateCompany,
+  apiDeleteCompany,
+} from "@/api/platform/platform.api";
 import { useLocale } from "@/i18n";
 import type { PlatformCompanyDetailResponse } from "@/interface/platform";
 
@@ -69,8 +77,66 @@ const CompanyDetail = () => {
   const { companyId } = useParams<{ companyId: string }>();
   const { t } = useLocale();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: company, isLoading, isError } = useCompanyDetail(companyId!);
+
+  const activateMutation = useMutation({
+    mutationFn: () => apiActivateCompany({ companyId: companyId! }),
+    onSuccess: () => {
+      notification.success({
+        message: t("platform.company_detail.activate_success"),
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["platform-company-detail", companyId],
+      });
+    },
+    onError: () =>
+      notification.error({
+        message: t("platform.company_detail.activate_error"),
+      }),
+  });
+
+  const deactivateMutation = useMutation({
+    mutationFn: () => apiDeactivateCompany({ companyId: companyId! }),
+    onSuccess: () => {
+      notification.success({
+        message: t("platform.company_detail.deactivate_success"),
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["platform-company-detail", companyId],
+      });
+    },
+    onError: () =>
+      notification.error({
+        message: t("platform.company_detail.deactivate_error"),
+      }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => apiDeleteCompany({ companyId: companyId! }),
+    onSuccess: () => {
+      notification.success({
+        message: t("platform.company_detail.delete_success"),
+      });
+      navigate("/platform/admin/companies");
+    },
+    onError: () =>
+      notification.error({
+        message: t("platform.company_detail.delete_error"),
+      }),
+  });
+
+  const handleDelete = () => {
+    Modal.confirm({
+      title: t("platform.company_detail.delete_confirm_title"),
+      content: t("platform.company_detail.delete_confirm_body"),
+      okText: t("global.delete"),
+      okButtonProps: { danger: true },
+      cancelText: t("global.cancel"),
+      onOk: () => deleteMutation.mutate(),
+    });
+  };
 
   const funnelData = company
     ? [
@@ -118,7 +184,7 @@ const CompanyDetail = () => {
       {/* Back + Header */}
       <div className="flex items-center gap-3">
         <button
-          onClick={() => navigate("/platform/companies")}
+          onClick={() => navigate("/platform/admin/companies")}
           className="flex items-center gap-1.5 rounded-xl border border-stroke px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
           <ArrowLeft className="h-4 w-4" />
           {t("global.back")}
@@ -152,14 +218,45 @@ const CompanyDetail = () => {
           )}
         </div>
         {!isLoading && company && (
-          <div className="text-right text-sm text-slate-400">
-            <p>
-              {t("platform.company_detail.plan")}:{" "}
-              <span className="font-medium text-slate-700">{company.plan}</span>
-            </p>
-            <p>
-              {t("platform.company_detail.admin")}: {company.adminEmail}
-            </p>
+          <div className="flex flex-col items-end gap-3">
+            <div className="text-right text-sm text-slate-400">
+              <p>
+                {t("platform.company_detail.plan")}:{" "}
+                <span className="font-medium text-slate-700">
+                  {company.plan}
+                </span>
+              </p>
+              <p>
+                {t("platform.company_detail.admin")}: {company.adminEmail}
+              </p>
+            </div>
+            {/* Action buttons */}
+            <div className="flex items-center gap-2">
+              {(company.status === "INACTIVE" ||
+                company.status === "SUSPENDED") && (
+                <Button
+                  icon={<Power className="h-3.5 w-3.5" />}
+                  loading={activateMutation.isPending}
+                  onClick={() => activateMutation.mutate()}>
+                  {t("platform.company_detail.activate")}
+                </Button>
+              )}
+              {company.status === "ACTIVE" && (
+                <Button
+                  icon={<PowerOff className="h-3.5 w-3.5" />}
+                  loading={deactivateMutation.isPending}
+                  onClick={() => deactivateMutation.mutate()}>
+                  {t("platform.company_detail.deactivate")}
+                </Button>
+              )}
+              <Button
+                danger
+                icon={<Trash2 className="h-3.5 w-3.5" />}
+                loading={deleteMutation.isPending}
+                onClick={handleDelete}>
+                {t("global.delete")}
+              </Button>
+            </div>
           </div>
         )}
       </div>

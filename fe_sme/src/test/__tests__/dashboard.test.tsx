@@ -8,7 +8,7 @@ describe('Dashboard page', () => {
     renderWithProviders(<Dashboard />)
 
     expect(screen.getByText('Active onboardings')).toBeInTheDocument()
-    expect(screen.getByText('Tasks due this week')).toBeInTheDocument()
+    expect(screen.getByText('Pending tasks')).toBeInTheDocument()
   })
 })
 

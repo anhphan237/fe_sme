@@ -5,6 +5,20 @@ import type {
   OnboardingInstanceCreateRequest,
   CompanySetupRequest,
   ListTasksByOnboardingOptions,
+  OnboardingTaskAcknowledgeRequest,
+  OnboardingTaskApproveRequest,
+  OnboardingTaskRejectRequest,
+  TaskAttachmentAddRequest,
+  TaskAttachmentAddResponse,
+  ListTasksByAssigneeOptions,
+  TaskTimelineRequest,
+  TaskScheduleProposeRequest,
+  TaskScheduleConfirmRequest,
+  TaskScheduleRescheduleRequest,
+  TaskScheduleCancelRequest,
+  TaskScheduleMarkNoShowRequest,
+  TaskScheduleResponse,
+  TaskDetailResponse,
 } from "@/interface/onboarding";
 
 // ── Templates ──────────────────────────────────────────────
@@ -47,10 +61,15 @@ export const apiGenerateTemplateWithAI = (payload: {
   companySize: string;
   jobRole: string;
 }) =>
-  gatewayRequest<typeof payload, { templateId: string; name: string; totalChecklists: number; totalTasks: number }>(
-    "com.sme.onboarding.template.ai.generate",
-    payload,
-  );
+  gatewayRequest<
+    typeof payload,
+    {
+      templateId: string;
+      name: string;
+      totalChecklists: number;
+      totalTasks: number;
+    }
+  >("com.sme.onboarding.template.ai.generate", payload);
 
 // ── Instances ───────────────────────────────────────────────
 
@@ -178,4 +197,145 @@ export const apiAddTaskComment = (taskId: string, message: string) =>
   gatewayRequest<{ taskId: string; message: string }, unknown>(
     "com.sme.onboarding.task.comment.add",
     { taskId, message },
+  );
+
+// ── Task Actions (Acknowledge / Approve / Reject) ──────────
+
+/** com.sme.onboarding.task.acknowledge
+ *  Employee acknowledges receipt of task (requireAck=true flow).
+ *  Status → WAIT_ACK; employee must then call updateStatus(DONE) to complete.
+ */
+export const apiAcknowledgeTask = (
+  payload: OnboardingTaskAcknowledgeRequest,
+) =>
+  gatewayRequest<OnboardingTaskAcknowledgeRequest, unknown>(
+    "com.sme.onboarding.task.acknowledge",
+    payload,
+  );
+
+/** com.sme.onboarding.task.approve
+ *  Manager/HR approves a PENDING_APPROVAL task → DONE.
+ *  Only designated approver or line manager can call this.
+ */
+export const apiApproveTask = (payload: OnboardingTaskApproveRequest) =>
+  gatewayRequest<OnboardingTaskApproveRequest, unknown>(
+    "com.sme.onboarding.task.approve",
+    payload,
+  );
+
+/** com.sme.onboarding.task.reject
+ *  Manager/HR rejects a PENDING_APPROVAL task → TODO.
+ *  Optional reason is sent back to employee.
+ */
+export const apiRejectTask = (payload: OnboardingTaskRejectRequest) =>
+  gatewayRequest<OnboardingTaskRejectRequest, unknown>(
+    "com.sme.onboarding.task.reject",
+    payload,
+  );
+
+/** com.sme.onboarding.task.attachment.add
+ *  Add a file attachment to a task (evidence of completion).
+ */
+export const apiAddTaskAttachment = (payload: TaskAttachmentAddRequest) =>
+  gatewayRequest<TaskAttachmentAddRequest, TaskAttachmentAddResponse>(
+    "com.sme.onboarding.task.attachment.add",
+    payload,
+  );
+
+// ── Task Views (Assignee / Timeline) ──────────────────────
+
+/** com.sme.onboarding.task.listByAssignee
+ *  Lists all tasks assigned to the current user (employee/manager self-view).
+ */
+export const apiListTasksByAssignee = (options?: ListTasksByAssigneeOptions) =>
+  gatewayRequest<Record<string, unknown>, unknown>(
+    "com.sme.onboarding.task.listByAssignee",
+    {
+      ...(options?.status && { status: options.status }),
+      ...(options?.page != null && { page: options.page }),
+      ...(options?.size != null && { size: options.size }),
+      ...(options?.sortBy && { sortBy: options.sortBy }),
+      ...(options?.sortOrder && { sortOrder: options.sortOrder }),
+    },
+  );
+
+/** com.sme.onboarding.task.timelineByOnboarding
+ *  Returns tasks grouped by assignee for a timeline/Gantt view.
+ *  HR/Manager use to track full team progress.
+ */
+export const apiGetTaskTimeline = (payload: TaskTimelineRequest) =>
+  gatewayRequest<TaskTimelineRequest, unknown>(
+    "com.sme.onboarding.task.timelineByOnboarding",
+    payload,
+  );
+
+// ── Task Schedule Operations ──────────────────────────────
+
+/** com.sme.onboarding.task.schedule.propose
+ *  Employee or IT staff proposes a schedule → PROPOSED.
+ *  Manager/HR must confirm before the task can be completed.
+ */
+export const apiProposeTaskSchedule = (payload: TaskScheduleProposeRequest) =>
+  gatewayRequest<TaskScheduleProposeRequest, TaskScheduleResponse>(
+    "com.sme.onboarding.task.schedule.propose",
+    payload,
+  );
+
+/** com.sme.onboarding.task.schedule.confirm
+ *  Manager/HR confirms a PROPOSED schedule → CONFIRMED.
+ *  Proposer cannot self-confirm unless they have HR/MANAGER role.
+ */
+export const apiConfirmTaskSchedule = (payload: TaskScheduleConfirmRequest) =>
+  gatewayRequest<TaskScheduleConfirmRequest, TaskScheduleResponse>(
+    "com.sme.onboarding.task.schedule.confirm",
+    payload,
+  );
+
+/** com.sme.onboarding.task.schedule.reschedule
+ *  Change a CONFIRMED schedule → RESCHEDULED.
+ *  Notifies the other party.
+ */
+export const apiRescheduleTask = (payload: TaskScheduleRescheduleRequest) =>
+  gatewayRequest<TaskScheduleRescheduleRequest, TaskScheduleResponse>(
+    "com.sme.onboarding.task.schedule.reschedule",
+    payload,
+  );
+
+/** com.sme.onboarding.task.schedule.cancel
+ *  Cancel a schedule → CANCELLED.
+ *  Task reverts to needing rescheduling.
+ */
+export const apiCancelTaskSchedule = (payload: TaskScheduleCancelRequest) =>
+  gatewayRequest<TaskScheduleCancelRequest, TaskScheduleResponse>(
+    "com.sme.onboarding.task.schedule.cancel",
+    payload,
+  );
+
+/** com.sme.onboarding.task.schedule.markNoShow
+ *  Mark that the scheduled session was missed → MISSED.
+ *  Triggers TASK_SCHEDULE_NO_SHOW_CANDIDATE notification to both parties.
+ */
+export const apiMarkTaskNoShow = (payload: TaskScheduleMarkNoShowRequest) =>
+  gatewayRequest<TaskScheduleMarkNoShowRequest, TaskScheduleResponse>(
+    "com.sme.onboarding.task.schedule.markNoShow",
+    payload,
+  );
+
+/** com.sme.onboarding.task.detail (override — returns full typed response) */
+export const apiGetTaskDetailFull = (
+  taskId: string,
+  options?: {
+    includeComments?: boolean;
+    includeAttachments?: boolean;
+    includeActivityLogs?: boolean;
+  },
+) =>
+  gatewayRequest<Record<string, unknown>, TaskDetailResponse>(
+    "com.sme.onboarding.task.detail",
+    {
+      taskId,
+      includeComments: options?.includeComments ?? true,
+      includeAttachments: options?.includeAttachments ?? true,
+      includeActivityLogs: options?.includeActivityLogs ?? false,
+    },
   );

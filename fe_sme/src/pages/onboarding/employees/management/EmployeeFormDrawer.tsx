@@ -152,8 +152,8 @@ const useEmployeeForm = (
         queryClient.invalidateQueries({ queryKey: ["users"] });
         notify.success(t("onboarding.employee.form.create_success"));
         const newUserId =
-          ((result as Record<string, unknown>)?.userId as string | undefined) ??
-          ((result as Record<string, unknown>)?.id as string | undefined);
+          ((result as unknown as Record<string, unknown>)?.userId as string | undefined) ??
+          ((result as unknown as Record<string, unknown>)?.id as string | undefined);
         if (newUserId) onCreated?.(newUserId);
       }
       handleClose();

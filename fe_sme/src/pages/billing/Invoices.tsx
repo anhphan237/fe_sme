@@ -112,7 +112,7 @@ const BillingInvoices = () => {
               <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                    {t("billing.invoice")}
+                    {t("billing.invoice_no")}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
                     {t("billing.amount")}

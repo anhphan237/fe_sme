@@ -25,7 +25,6 @@ import { User, Mail, Briefcase, MapPin, Calendar } from "lucide-react";
 
 const Profile = () => {
   const currentUser = useUserStore((s) => s.currentUser);
-  const setUser = useUserStore((s) => s.setUser);
   const queryClient = useQueryClient();
 
   const { data: detail, isLoading: detailLoading } = useUserDetailQuery(
@@ -52,12 +51,11 @@ const Profile = () => {
   const handleSave = async () => {
     if (!currentUser?.id) return;
     try {
-      const updated = await updateUser.mutateAsync({
+      await updateUser.mutateAsync({
         id: currentUser.id,
         name: fullName,
         phone,
       });
-      setUser(updated);
       setDraft(null);
       queryClient.invalidateQueries({
         queryKey: ["user-detail", currentUser.id],

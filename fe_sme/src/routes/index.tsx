@@ -26,7 +26,7 @@ const Profile = lazy(() => import("@/pages/profile/Profile"));
 const Notifications = lazy(() => import("@/pages/settings/Notifications"));
 const OnboardingDashboard = lazy(() => import("@/pages/onboarding/dashboard"));
 const MyJourney = lazy(() => import("@/pages/onboarding/my-journey"));
-const Templates = lazy(() => import("@/pages/onboarding/templates"));
+const Templates = lazy(() => import("@/pages/onboarding/Templates"));
 const TemplateEditor = lazy(
   () => import("@/pages/onboarding/templates/editor"),
 );
@@ -75,6 +75,21 @@ const PlatformOnboardingMonitor = lazy(
 );
 const PlatformTemplates = lazy(
   () => import("@/pages/platform/onboarding/PlatformTemplates"),
+);
+const StaffDashboard = lazy(
+  () => import("@/pages/platform/staff/StaffDashboard"),
+);
+const PlatformSubscriptions = lazy(
+  () => import("@/pages/platform/admin/PlatformSubscriptions"),
+);
+const PlatformPlans = lazy(
+  () => import("@/pages/platform/admin/PlatformPlans"),
+);
+const PlatformFeedback = lazy(
+  () => import("@/pages/platform/admin/PlatformFeedback"),
+);
+const PlatformSystem = lazy(
+  () => import("@/pages/platform/admin/PlatformSystem"),
 );
 const Forbidden = lazy(() => import("@/pages/Forbidden"));
 const SurveySend = lazy(() => import("@/pages/surveys/SurveySendPage"));
@@ -336,37 +351,85 @@ export const router = createBrowserRouter([
         path: "/billing/payment/confirmation",
         element: suspense(withRoles(<PaymentConfirmation />, ["HR"])),
       },
+      // Platform Admin routes (/platform/admin/*)
       {
-        path: "/platform/payments",
-        element: suspense(withRoles(<PlatformPayments />, ["STAFF"])),
+        path: "/platform/admin/dashboard",
+        element: suspense(withRoles(<PlatformDashboard />, ["ADMIN"])),
       },
       {
-        path: "/platform/dashboard",
-        element: suspense(withRoles(<PlatformDashboard />, ["ADMIN", "STAFF"])),
-      },
-      {
-        path: "/platform/companies",
+        path: "/platform/admin/companies",
         element: suspense(withRoles(<PlatformCompanyList />, ["ADMIN"])),
       },
       {
-        path: "/platform/companies/:companyId",
+        path: "/platform/admin/companies/:companyId",
         element: suspense(withRoles(<PlatformCompanyDetail />, ["ADMIN"])),
       },
       {
+        path: "/platform/admin/subscriptions",
+        element: suspense(withRoles(<PlatformSubscriptions />, ["ADMIN"])),
+      },
+      {
+        path: "/platform/admin/plans",
+        element: suspense(withRoles(<PlatformPlans />, ["ADMIN"])),
+      },
+      {
+        path: "/platform/admin/onboarding",
+        element: suspense(withRoles(<PlatformOnboardingMonitor />, ["ADMIN"])),
+      },
+      {
+        path: "/platform/admin/templates",
+        element: suspense(withRoles(<PlatformTemplates />, ["ADMIN"])),
+      },
+      {
+        path: "/platform/admin/feedback",
+        element: suspense(withRoles(<PlatformFeedback />, ["ADMIN"])),
+      },
+      {
+        path: "/platform/admin/system",
+        element: suspense(withRoles(<PlatformSystem />, ["ADMIN"])),
+      },
+      // Platform Staff routes (/platform/staff/*)
+      {
+        path: "/platform/staff/dashboard",
+        element: suspense(withRoles(<StaffDashboard />, ["STAFF"])),
+      },
+      {
+        path: "/platform/staff/payments",
+        element: suspense(withRoles(<PlatformPayments />, ["STAFF"])),
+      },
+      {
+        path: "/platform/staff/onboarding",
+        element: suspense(withRoles(<PlatformOnboardingMonitor />, ["STAFF"])),
+      },
+      // Legacy platform route redirects
+      {
+        path: "/platform/payments",
+        element: <Navigate to="/platform/staff/payments" replace />,
+      },
+      {
+        path: "/platform/dashboard",
+        element: <Navigate to="/platform/admin/dashboard" replace />,
+      },
+      {
+        path: "/platform/companies",
+        element: <Navigate to="/platform/admin/companies" replace />,
+      },
+      {
+        path: "/platform/companies/:companyId",
+        element: <Navigate to="/platform/admin/companies/:companyId" replace />,
+      },
+      {
         path: "/platform/onboarding-monitor",
-        element: suspense(
-          withRoles(<PlatformOnboardingMonitor />, ["ADMIN", "STAFF"]),
-        ),
+        element: <Navigate to="/platform/admin/onboarding" replace />,
       },
       {
         path: "/platform/onboarding-templates",
-        element: suspense(withRoles(<PlatformTemplates />, ["ADMIN"])),
+        element: <Navigate to="/platform/admin/templates" replace />,
       },
       { path: "/403", element: suspense(<Forbidden />) },
       {
         path: "/surveys/send",
-        element: suspense(
-          withRoles(<SurveySend />, ["HR"])),
+        element: suspense(withRoles(<SurveySend />, ["HR"])),
       },
     ],
   },

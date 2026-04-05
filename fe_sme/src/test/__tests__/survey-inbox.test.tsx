@@ -8,7 +8,7 @@ describe('Survey inbox page', () => {
     renderWithProviders(<SurveyInbox />)
 
     expect(await screen.findByText('Survey')).toBeInTheDocument()
-    expect(screen.getByText('Due date')).toBeInTheDocument()
+    expect(screen.getByText('Scheduled')).toBeInTheDocument()
   })
 })
 

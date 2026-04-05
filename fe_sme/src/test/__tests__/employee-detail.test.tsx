@@ -13,7 +13,7 @@ describe("Employee detail page", () => {
           element={<EmployeeDetail />}
         />
       </Routes>,
-      "/onboarding/employees/instance-1",
+      { route: "/onboarding/employees/instance-1" },
     );
 
     expect(await screen.findByText("Stage progress")).toBeInTheDocument();

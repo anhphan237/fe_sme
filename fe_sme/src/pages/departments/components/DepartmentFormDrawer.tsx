@@ -109,7 +109,9 @@ export const DepartmentFormDrawer = ({
         htmlType="submit"
         form={FORM_ID}
         loading={submitting}
-        label={mode === "create" ? "department.create" : "department.save"}
+        label={
+          mode === "create" ? "department.create" : "department.save_changes"
+        }
       />
     </div>
   );

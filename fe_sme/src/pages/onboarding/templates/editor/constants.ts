@@ -212,13 +212,14 @@ export interface TemplatePreset {
   nameKey: string;
   descKey: string;
   icon: string; // emoji
-  checklists: Omit<ChecklistDraft, "id">[];
+  checklists: (Omit<ChecklistDraft, "id"> & { tasks: TaskDraft[] })[];
 }
 
 const mkTasks = (
   items: { name: string; desc: string; due: number; ack?: boolean }[],
-): Omit<TaskDraft, "id">[] =>
-  items.map((t) => ({
+): TaskDraft[] =>
+  items.map((t, i) => ({
+    id: `preset-task-${i}`,
     name: t.name,
     description: t.desc,
     dueDaysOffset: t.due,

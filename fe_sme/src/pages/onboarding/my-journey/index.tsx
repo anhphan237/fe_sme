@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import {
   Alert,
+  Button,
   Card,
   Col,
   Drawer,
@@ -25,16 +26,18 @@ import { Link } from "react-router-dom";
 import BaseButton from "@/components/button";
 import { extractList } from "@/api/core/types";
 import {
-  apiGetTaskDetail,
+  apiGetTaskDetailFull,
   apiListInstances,
   apiListTasks,
   apiUpdateTaskStatus,
+  apiAcknowledgeTask,
 } from "@/api/onboarding/onboarding.api";
 import { mapInstance, mapTask } from "@/utils/mappers/onboarding";
 import { notify } from "@/utils/notify";
 import { useUserStore } from "@/stores/user.store";
 import { useLocale } from "@/i18n";
 import type { OnboardingInstance, OnboardingTask } from "@/shared/types";
+import type { TaskDetailResponse } from "@/interface/onboarding";
 
 const STATUS_DONE = "Done";
 const STATUS_DONE_API = "DONE";
@@ -110,7 +113,7 @@ const MyJourney = () => {
 
   const { data: selectedTaskDetail, isLoading: loadingTaskDetail } = useQuery({
     queryKey: ["employee-onboarding-task-detail", selectedTaskId ?? ""],
-    queryFn: () => apiGetTaskDetail(selectedTaskId!),
+    queryFn: () => apiGetTaskDetailFull(selectedTaskId!),
     enabled: Boolean(selectedTaskId),
     select: (res: unknown) => {
       const record = res as Record<string, unknown>;
@@ -121,13 +124,27 @@ const MyJourney = () => {
         record?.payload ??
         res;
       if (!raw || typeof raw !== "object") return null;
-      return raw as Record<string, unknown>;
+      return raw as TaskDetailResponse;
     },
   });
 
   const updateTaskStatus = useMutation({
     mutationFn: ({ taskId, status }: { taskId: string; status: string }) =>
       apiUpdateTaskStatus(taskId, status),
+  });
+
+  const acknowledgeTaskMutation = useMutation({
+    mutationFn: (taskId: string) => apiAcknowledgeTask({ taskId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["employee-onboarding-task-detail", selectedTaskId],
+      });
+      notify.success(t("onboarding.task.toast.acknowledged"));
+    },
+    onError: () => notify.error(t("onboarding.task.toast.failed")),
   });
 
   const completedCount = tasks.filter(
@@ -214,10 +231,40 @@ const MyJourney = () => {
 
   const handleToggleTask = async (task: OnboardingTask) => {
     const isDone = task.status === STATUS_DONE;
+    if (isDone) {
+      try {
+        await updateTaskStatus.mutateAsync({ taskId: task.id, status: "TODO" });
+        queryClient.invalidateQueries({
+          queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
+        });
+        notify.success(t("onboarding.employee.home.toast.task_todo"));
+      } catch {
+        notify.error(t("onboarding.employee.home.toast.task_failed"));
+      }
+      return;
+    }
+
+    // Respect requiresManagerApproval: submit for approval instead of direct DONE
+    if (task.requiresManagerApproval) {
+      try {
+        await updateTaskStatus.mutateAsync({
+          taskId: task.id,
+          status: "PENDING_APPROVAL",
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
+        });
+        notify.success(t("onboarding.task.toast.submitted_approval"));
+      } catch {
+        notify.error(t("onboarding.employee.home.toast.task_failed"));
+      }
+      return;
+    }
+
     try {
       await updateTaskStatus.mutateAsync({
         taskId: task.id,
-        status: isDone ? "TODO" : STATUS_DONE_API,
+        status: STATUS_DONE_API,
       });
       queryClient.invalidateQueries({
         queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
@@ -225,11 +272,7 @@ const MyJourney = () => {
       queryClient.invalidateQueries({
         queryKey: ["employee-onboarding-instances", userId ?? ""],
       });
-      notify.success(
-        isDone
-          ? t("onboarding.employee.home.toast.task_todo")
-          : t("onboarding.employee.home.toast.task_done"),
-      );
+      notify.success(t("onboarding.employee.home.toast.task_done"));
     } catch {
       notify.error(t("onboarding.employee.home.toast.task_failed"));
     }
@@ -633,7 +676,7 @@ const MyJourney = () => {
                 {t("onboarding.employee.home.task_detail.field_title")}
               </Typography.Text>
               <Typography.Paragraph className="!mb-0 !mt-1" strong>
-                {String(selectedTaskDetail.title ?? "-")}
+                {selectedTaskDetail.title ?? "-"}
               </Typography.Paragraph>
             </div>
 
@@ -642,9 +685,18 @@ const MyJourney = () => {
                 {t("onboarding.employee.home.task_detail.field_description")}
               </Typography.Text>
               <Typography.Paragraph className="!mb-0 !mt-1">
-                {String(selectedTaskDetail.description ?? "-")}
+                {selectedTaskDetail.description ?? "-"}
               </Typography.Paragraph>
             </div>
+
+            {selectedTaskDetail.rejectionReason && (
+              <Alert
+                type="error"
+                showIcon
+                message={t("onboarding.task.rejection_reason")}
+                description={selectedTaskDetail.rejectionReason}
+              />
+            )}
 
             <Row gutter={[12, 12]}>
               <Col span={12}>
@@ -653,7 +705,25 @@ const MyJourney = () => {
                     {t("onboarding.employee.home.task_detail.field_status")}
                   </Typography.Text>
                   <div className="mt-1">
-                    {String(selectedTaskDetail.status ?? "-")}
+                    {selectedTaskDetail.status === "DONE" ? (
+                      <Tag color="success">
+                        {t("onboarding.task.status.done")}
+                      </Tag>
+                    ) : selectedTaskDetail.status === "PENDING_APPROVAL" ? (
+                      <Tag color="warning">
+                        {t("onboarding.task.status.pending_approval")}
+                      </Tag>
+                    ) : selectedTaskDetail.status === "WAIT_ACK" ? (
+                      <Tag color="orange">
+                        {t("onboarding.task.status.wait_ack")}
+                      </Tag>
+                    ) : selectedTaskDetail.status === "IN_PROGRESS" ? (
+                      <Tag color="processing">
+                        {t("onboarding.task.status.in_progress")}
+                      </Tag>
+                    ) : (
+                      <Tag>{t("onboarding.task.status.todo")}</Tag>
+                    )}
                   </div>
                 </div>
               </Col>
@@ -663,7 +733,7 @@ const MyJourney = () => {
                     {t("onboarding.employee.home.task_detail.field_due_date")}
                   </Typography.Text>
                   <div className="mt-1">
-                    {formatDate(String(selectedTaskDetail.dueDate ?? ""))}
+                    {formatDate(selectedTaskDetail.dueDate ?? "")}
                   </div>
                 </div>
               </Col>
@@ -712,8 +782,160 @@ const MyJourney = () => {
               </Col>
             </Row>
 
+            {/* Employee action buttons */}
+            {selectedTaskDetail.status !== "DONE" && (
+              <div className="space-y-2 pt-2">
+                {/* requireAck: employee must acknowledge before completing */}
+                {selectedTaskDetail.requireAck &&
+                  ["TODO", "IN_PROGRESS", "ASSIGNED"].includes(
+                    selectedTaskDetail.status ?? "",
+                  ) && (
+                    <Button
+                      type="primary"
+                      block
+                      loading={acknowledgeTaskMutation.isPending}
+                      onClick={() =>
+                        acknowledgeTaskMutation.mutate(
+                          selectedTaskDetail.taskId!,
+                        )
+                      }>
+                      {t("onboarding.task.action.acknowledge")}
+                    </Button>
+                  )}
+
+                {/* WAIT_ACK: confirm completion after manager ack */}
+                {selectedTaskDetail.status === "WAIT_ACK" && (
+                  <Button
+                    type="primary"
+                    block
+                    loading={updateTaskStatus.isPending}
+                    onClick={() =>
+                      updateTaskStatus.mutate(
+                        { taskId: selectedTaskDetail.taskId!, status: "DONE" },
+                        {
+                          onSuccess: () => {
+                            queryClient.invalidateQueries({
+                              queryKey: [
+                                "employee-onboarding-tasks",
+                                onboardingId ?? "",
+                              ],
+                            });
+                            queryClient.invalidateQueries({
+                              queryKey: [
+                                "employee-onboarding-task-detail",
+                                selectedTaskId,
+                              ],
+                            });
+                            notify.success(
+                              t("onboarding.task.toast.confirmed_complete"),
+                            );
+                          },
+                          onError: () =>
+                            notify.error(t("onboarding.task.toast.failed")),
+                        },
+                      )
+                    }>
+                    {t("onboarding.task.action.confirm_complete")}
+                  </Button>
+                )}
+
+                {/* requiresManagerApproval: submit for approval */}
+                {!selectedTaskDetail.requireAck &&
+                  selectedTaskDetail.requiresManagerApproval &&
+                  ["TODO", "IN_PROGRESS", "ASSIGNED"].includes(
+                    selectedTaskDetail.status ?? "",
+                  ) && (
+                    <Button
+                      type="default"
+                      block
+                      loading={updateTaskStatus.isPending}
+                      onClick={() =>
+                        updateTaskStatus.mutate(
+                          {
+                            taskId: selectedTaskDetail.taskId!,
+                            status: "PENDING_APPROVAL",
+                          },
+                          {
+                            onSuccess: () => {
+                              queryClient.invalidateQueries({
+                                queryKey: [
+                                  "employee-onboarding-tasks",
+                                  onboardingId ?? "",
+                                ],
+                              });
+                              queryClient.invalidateQueries({
+                                queryKey: [
+                                  "employee-onboarding-task-detail",
+                                  selectedTaskId,
+                                ],
+                              });
+                              notify.success(
+                                t("onboarding.task.toast.submitted_approval"),
+                              );
+                            },
+                            onError: () =>
+                              notify.error(t("onboarding.task.toast.failed")),
+                          },
+                        )
+                      }>
+                      {t("onboarding.task.action.submit_approval")}
+                    </Button>
+                  )}
+
+                {/* Normal task: mark done directly */}
+                {!selectedTaskDetail.requireAck &&
+                  !selectedTaskDetail.requiresManagerApproval &&
+                  selectedTaskDetail.status !== "WAIT_ACK" &&
+                  selectedTaskDetail.status !== "PENDING_APPROVAL" && (
+                    <Button
+                      type="primary"
+                      block
+                      loading={updateTaskStatus.isPending}
+                      onClick={() =>
+                        updateTaskStatus.mutate(
+                          {
+                            taskId: selectedTaskDetail.taskId!,
+                            status: "DONE",
+                          },
+                          {
+                            onSuccess: () => {
+                              queryClient.invalidateQueries({
+                                queryKey: [
+                                  "employee-onboarding-tasks",
+                                  onboardingId ?? "",
+                                ],
+                              });
+                              queryClient.invalidateQueries({
+                                queryKey: [
+                                  "employee-onboarding-instances",
+                                  userId ?? "",
+                                ],
+                              });
+                              queryClient.invalidateQueries({
+                                queryKey: [
+                                  "employee-onboarding-task-detail",
+                                  selectedTaskId,
+                                ],
+                              });
+                              notify.success(
+                                t("onboarding.employee.home.toast.task_done"),
+                              );
+                            },
+                            onError: () =>
+                              notify.error(
+                                t("onboarding.employee.home.toast.task_failed"),
+                              ),
+                          },
+                        )
+                      }>
+                      {t("onboarding.task.action.confirm_complete")}
+                    </Button>
+                  )}
+              </div>
+            )}
+
             <Link to="/onboarding/tasks">
-              <BaseButton type="primary" block>
+              <BaseButton type="default" block>
                 {t("onboarding.employee.home.task_detail.open_board")}
               </BaseButton>
             </Link>

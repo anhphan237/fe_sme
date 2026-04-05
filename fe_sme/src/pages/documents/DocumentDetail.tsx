@@ -9,11 +9,11 @@ import { apiAcknowledgeDocument } from "@/api/document/document.api";
 const useDocumentQuery = (id?: string) =>
   useQuery({
     queryKey: ["document", id],
-    queryFn: () => Promise.resolve(null),
+    queryFn: () => Promise.resolve(null as { documentId: string } | null),
     enabled: Boolean(id),
   });
 const useAcknowledgeDocument = () =>
-  useMutation({ mutationFn: apiAcknowledgeDocument });
+  useMutation({ mutationFn: (documentId: string) => apiAcknowledgeDocument(documentId) });
 
 const DocumentDetail = () => {
   const { t } = useLocale();
