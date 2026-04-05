@@ -205,9 +205,7 @@ export const apiAddTaskComment = (taskId: string, message: string) =>
  *  Employee acknowledges receipt of task (requireAck=true flow).
  *  Status → WAIT_ACK; employee must then call updateStatus(DONE) to complete.
  */
-export const apiAcknowledgeTask = (
-  payload: OnboardingTaskAcknowledgeRequest,
-) =>
+export const apiAcknowledgeTask = (payload: OnboardingTaskAcknowledgeRequest) =>
   gatewayRequest<OnboardingTaskAcknowledgeRequest, unknown>(
     "com.sme.onboarding.task.acknowledge",
     payload,
