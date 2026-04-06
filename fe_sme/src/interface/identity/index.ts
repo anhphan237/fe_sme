@@ -45,7 +45,7 @@ export interface CheckEmailResponse {
 /** com.sme.identity.user.create */
 export interface CreateUserRequest {
   email: string;
-  password: string;
+  password?: string;
   fullName: string;
   phone?: string;
   /** default: ACTIVE */

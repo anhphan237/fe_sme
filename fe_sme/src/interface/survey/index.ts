@@ -4,8 +4,6 @@
 // Operations: com.sme.survey.*
 // ============================================================
 
-import type { off } from "process";
-
 // ---------------------------
 // Template
 // ---------------------------
@@ -229,6 +227,7 @@ export interface SurveyAnalyticsReport {
   [key: string]: unknown;
 }
 
+export interface SurveySatisfactionReport {
   totalResponses: number;
   averageRating: number;
   distribution: Record<string, number>;
@@ -241,9 +240,8 @@ export interface SurveyAnalyticsReport {
 
 // ============================================================
 
-export interface SurveyQuestionUpdateRequest {
-  questionId: string;
-  templateId: string;
+/** com.sme.survey.question.update (full payload) */
+export interface SurveyQuestionFullUpdateRequest {
   content: string;
   type: "RATING" | "TEXT" | "SINGLE_CHOICE" | "MULTIPLE_CHOICE";
   required: boolean;

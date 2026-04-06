@@ -69,11 +69,19 @@ export const mapInstance = (i: any): OnboardingInstance => ({
 
 export const mapTaskStatus = (
   s: string | undefined,
-): "Pending" | "In Progress" | "Done" | undefined => {
+):
+  | "Pending"
+  | "In Progress"
+  | "Done"
+  | "Wait Ack"
+  | "Pending Approval"
+  | undefined => {
   if (!s) return undefined;
   const u = s.toUpperCase();
   if (u === "DONE" || u === "COMPLETED") return "Done";
   if (u === "IN_PROGRESS" || u === "IN PROGRESS") return "In Progress";
+  if (u === "WAIT_ACK") return "Wait Ack";
+  if (u === "PENDING_APPROVAL") return "Pending Approval";
   if (u === "TODO" || u === "PENDING" || u === "ASSIGNED") return "Pending";
   return "Pending";
 };
@@ -84,7 +92,10 @@ export const mapTask = (t: any): OnboardingTask => ({
   ownerRole: (t.ownerRefId ?? t.ownerRole ?? "EMPLOYEE") as any,
   dueOffset: String(t.dueDaysOffset ?? t.dueOffset ?? 0),
   required: t.requireAck ?? t.required ?? false,
+  requireAck: Boolean(t.requireAck ?? t.required ?? false),
+  requiresManagerApproval: Boolean(t.requiresManagerApproval ?? false),
   status: mapTaskStatus(t.status),
+  rawStatus: t.status ?? undefined,
   dueDate: t.dueDate,
   checklistId: t.checklistId ?? undefined,
   checklistName: t.checklistName ?? undefined,

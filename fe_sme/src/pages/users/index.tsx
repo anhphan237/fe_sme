@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { AlertCircle, Plus, Upload } from "lucide-react";
 import { clsx } from "clsx";
-import { Empty, Tag } from "antd";
+import { Empty, Select, Tag } from "antd";
 import { notify } from "@/utils/notify";
 import MyTable from "@/components/table";
 import type { ColumnsType } from "antd/es/table";
@@ -14,7 +14,7 @@ import {
 } from "@/api/identity/identity.api";
 import { useLocale } from "@/i18n";
 import { ROLE_LABELS, getPrimaryRole } from "@/shared/rbac";
-import { ROLE_BADGE_STYLES } from "./constants";
+import { ROLE_OPTIONS, ROLE_BADGE_STYLES } from "./constants";
 import { useUsersQuery, useDepartmentsQuery } from "@/hooks/adminHooks";
 import { UserStatusTag } from "@core/components/Status/StatusTag";
 import { InviteUserDrawer } from "./components/InviteUserDrawer";
@@ -142,6 +142,8 @@ const AdminUsers = () => {
   const [importOpen, setImportOpen] = useState(false);
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<string>("ALL");
+  const [deptFilter, setDeptFilter] = useState<string>("");
   const [disablingId, setDisablingId] = useState<string | null>(null);
   const [enablingId, setEnablingId] = useState<string | null>(null);
 
@@ -151,14 +153,18 @@ const AdminUsers = () => {
   const q = search.trim().toLowerCase();
   const filtered = !users
     ? []
-    : !q
-      ? users
-      : users.filter(
+    : users
+        .filter(
           (u) =>
+            !q ||
             u.name.toLowerCase().includes(q) ||
             u.email.toLowerCase().includes(q) ||
             (u.department ?? "").toLowerCase().includes(q),
-        );
+        )
+        .filter(
+          (u) => roleFilter === "ALL" || getPrimaryRole(u.roles) === roleFilter,
+        )
+        .filter((u) => !deptFilter || u.departmentId === deptFilter);
 
   const handleInvite = async (form: {
     email: string;
@@ -284,7 +290,8 @@ const AdminUsers = () => {
 
   return (
     <div className="flex h-full flex-col p-4">
-      <div className="mb-4 flex items-center justify-between gap-3">
+      {/* Toolbar */}
+      <div className="mb-3 flex items-center justify-between gap-3">
         <BaseSearch
           placeholder={t("user.search_placeholder")}
           allowClear
@@ -304,6 +311,56 @@ const AdminUsers = () => {
             label="user.invite"
           />
         </div>
+      </div>
+
+      {/* Filter row: role tabs + department select */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {/* Role filter chips */}
+        <div className="flex items-center gap-1">
+          {[{ value: "ALL", label: t("user.filter.all") }, ...ROLE_OPTIONS].map(
+            (opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setRoleFilter(opt.value)}
+                className={clsx(
+                  "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                  roleFilter === opt.value
+                    ? "bg-[#3684DB] text-white"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                )}>
+                {opt.label}
+              </button>
+            ),
+          )}
+        </div>
+
+        {/* Department filter */}
+        <Select
+          allowClear
+          placeholder={t("user.filter.all_departments")}
+          className="w-48 text-xs"
+          size="small"
+          value={deptFilter || undefined}
+          onChange={(v) => setDeptFilter(v ?? "")}
+          options={departments.map((d) => ({
+            value: d.departmentId,
+            label: d.name,
+          }))}
+        />
+
+        {/* Active filter summary */}
+        {(roleFilter !== "ALL" || deptFilter) && (
+          <button
+            type="button"
+            onClick={() => {
+              setRoleFilter("ALL");
+              setDeptFilter("");
+            }}
+            className="text-xs text-[#758BA5] underline hover:text-[#3684DB]">
+            {t("user.filter.clear")}
+          </button>
+        )}
       </div>
       <MyTable
         columns={userColumns}

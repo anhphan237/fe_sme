@@ -10,7 +10,6 @@ type Step = "verify" | "set-password" | "done";
 
 const InviteAccept = () => {
   const [step, setStep] = useState<Step>("verify");
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [sessionEmail, setSessionEmail] = useState<string>("");
 
@@ -42,7 +41,6 @@ const InviteAccept = () => {
       })) as LoginResponse;
       // Store token in localStorage so subsequent gatewayRequest calls are authenticated
       localStorage.setItem("auth_token", res.accessToken);
-      setSessionToken(res.accessToken);
       setSessionUserId(res.user.id);
       setSessionEmail(res.user.email);
       setFullName(res.user.fullName ?? "");
@@ -82,7 +80,6 @@ const InviteAccept = () => {
       });
       // Clean up the temp token from localStorage — user must log in fresh
       localStorage.removeItem("auth_token");
-      setSessionToken(null);
       setStep("done");
     } catch (err) {
       setPwError(

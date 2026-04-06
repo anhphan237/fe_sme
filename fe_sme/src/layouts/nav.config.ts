@@ -6,6 +6,7 @@ import {
   FileText,
   Gauge,
   LayoutGrid,
+  Monitor,
   Shield,
 } from "lucide-react";
 import type { Role } from "../shared/types";
@@ -161,33 +162,75 @@ export const NAV_SECTIONS: NavSection[] = [
       },
     ],
   },
+
+  // ── Platform Admin sidebar (ADMIN only) ──────────────────────────
   {
-    titleKey: "nav.platform",
+    titleKey: "nav.platform.admin",
     icon: Briefcase,
+    requiredRoles: ["ADMIN"],
     children: [
       {
         titleKey: "nav.platform.dashboard",
-        to: "/platform/dashboard",
-        requiredRoles: ["ADMIN", "STAFF"],
+        to: "/platform/admin/dashboard",
+        requiredRoles: ["ADMIN"],
       },
       {
         titleKey: "nav.platform.companies",
-        to: "/platform/companies",
+        to: "/platform/admin/companies",
+        requiredRoles: ["ADMIN"],
+      },
+      {
+        titleKey: "nav.platform.subscriptions",
+        to: "/platform/admin/subscriptions",
+        requiredRoles: ["ADMIN"],
+      },
+      {
+        titleKey: "nav.platform.plans",
+        to: "/platform/admin/plans",
         requiredRoles: ["ADMIN"],
       },
       {
         titleKey: "nav.platform.onboarding_monitor",
-        to: "/platform/onboarding-monitor",
-        requiredRoles: ["ADMIN", "STAFF"],
-      },
-      {
-        titleKey: "nav.platform.onboarding_templates",
-        to: "/platform/onboarding-templates",
+        to: "/platform/admin/onboarding",
         requiredRoles: ["ADMIN"],
       },
       {
+        titleKey: "nav.platform.onboarding_templates",
+        to: "/platform/admin/templates",
+        requiredRoles: ["ADMIN"],
+      },
+      {
+        titleKey: "nav.platform.feedback",
+        to: "/platform/admin/feedback",
+        requiredRoles: ["ADMIN"],
+      },
+      {
+        titleKey: "nav.platform.system",
+        to: "/platform/admin/system",
+        requiredRoles: ["ADMIN"],
+      },
+    ],
+  },
+
+  // ── Platform Staff sidebar (STAFF only) ──────────────────────────
+  {
+    titleKey: "nav.platform.staff",
+    icon: Monitor,
+    requiredRoles: ["STAFF"],
+    children: [
+      {
+        titleKey: "nav.platform.dashboard",
+        to: "/platform/staff/dashboard",
+        requiredRoles: ["STAFF"],
+      },
+      {
         titleKey: "nav.platform.payments",
-        to: "/platform/payments",
+        to: "/platform/staff/payments",
+        requiredRoles: ["STAFF"],
+      },
+      {
+        titleKey: "nav.platform.onboarding_monitor",
+        to: "/platform/staff/onboarding",
         requiredRoles: ["STAFF"],
       },
     ],

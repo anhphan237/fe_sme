@@ -329,7 +329,8 @@ const Chatbot = () => {
                 disabled={isPending}
               />
               <BaseButton
-                type="submit"
+                htmlType="submit"
+                type="primary"
                 disabled={isPending || !query.trim()}
                 className="shrink-0 rounded-2xl px-5"
                 icon={<Send className="h-4 w-4" />}>

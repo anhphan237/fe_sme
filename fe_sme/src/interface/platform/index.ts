@@ -188,3 +188,237 @@ export interface PlatformTemplatePublishRequest {
 export interface PlatformTemplateArchiveRequest {
   templateId: string;
 }
+
+// ---------------------------
+// Company Actions
+// ---------------------------
+
+/** com.sme.platform.company.activate */
+export interface PlatformCompanyActivateRequest {
+  companyId: string;
+}
+
+/** com.sme.platform.company.deactivate */
+export interface PlatformCompanyDeactivateRequest {
+  companyId: string;
+}
+
+/** com.sme.platform.company.delete */
+export interface PlatformCompanyDeleteRequest {
+  companyId: string;
+}
+
+// ---------------------------
+// Subscription Management
+// ---------------------------
+
+/** com.sme.platform.subscription.list */
+export interface PlatformSubscriptionListRequest {
+  page?: number;
+  pageSize?: number;
+  companyId?: string;
+  status?: string;
+}
+
+export interface PlatformSubscriptionItem {
+  subscriptionId: string;
+  companyName: string;
+  plan: string;
+  status: string;
+  billingCycle: string;
+  nextRenewal: string;
+  amount: number;
+}
+
+export interface PlatformSubscriptionListResponse {
+  items: PlatformSubscriptionItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  [key: string]: unknown;
+}
+
+/** com.sme.platform.subscription.detail */
+export interface PlatformSubscriptionDetailRequest {
+  subscriptionId: string;
+}
+
+export interface PlatformSubscriptionDetailResponse {
+  subscriptionId: string;
+  companyName: string;
+  plan: string;
+  status: string;
+  billingCycle: string;
+  nextRenewal: string;
+  amount: number;
+  paymentHistory: {
+    paymentId: string;
+    amount: number;
+    status: string;
+    createdAt: string;
+  }[];
+  [key: string]: unknown;
+}
+
+// ---------------------------
+// Billing Plan Management
+// ---------------------------
+
+/** com.sme.platform.plan.list */
+export interface PlatformPlanListRequest {
+  // no params required
+}
+
+export interface PlatformPlanItem {
+  planCode: string;
+  name: string;
+  price: number;
+  billingCycle: string;
+  maxEmployees: number;
+  features: string[];
+}
+
+export interface PlatformPlanListResponse {
+  plans: PlatformPlanItem[];
+  [key: string]: unknown;
+}
+
+/** com.sme.platform.plan.create */
+export interface PlatformPlanCreateRequest {
+  planCode: string;
+  name: string;
+  price: number;
+  billingCycle: string;
+  maxEmployees: number;
+  features: string[];
+}
+
+/** com.sme.platform.plan.update */
+export interface PlatformPlanUpdateRequest {
+  planCode: string;
+  name?: string;
+  price?: number;
+  features?: string[];
+}
+
+/** com.sme.platform.plan.delete */
+export interface PlatformPlanDeleteRequest {
+  planCode: string;
+}
+
+// ---------------------------
+// Feedback Management
+// ---------------------------
+
+/** com.sme.platform.feedback.list */
+export interface PlatformFeedbackListRequest {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+}
+
+export interface PlatformFeedbackItem {
+  feedbackId: string;
+  userId: string;
+  companyName: string;
+  message: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface PlatformFeedbackListResponse {
+  items: PlatformFeedbackItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  [key: string]: unknown;
+}
+
+/** com.sme.platform.feedback.detail */
+export interface PlatformFeedbackDetailRequest {
+  feedbackId: string;
+}
+
+/** com.sme.platform.feedback.resolve */
+export interface PlatformFeedbackResolveRequest {
+  feedbackId: string;
+  resolution?: string;
+}
+
+// ---------------------------
+// System Health & Logs
+// ---------------------------
+
+/** com.sme.platform.system.health */
+export interface PlatformSystemHealthResponse {
+  status: "UP" | "DEGRADED" | "DOWN";
+  services: {
+    name: string;
+    status: "UP" | "DOWN";
+    latencyMs?: number;
+  }[];
+  [key: string]: unknown;
+}
+
+/** com.sme.platform.system.errorLog */
+export interface PlatformSystemErrorLogRequest {
+  page?: number;
+  pageSize?: number;
+  severity?: string;
+  from?: string;
+  to?: string;
+}
+
+export interface PlatformSystemErrorLogItem {
+  logId: string;
+  message: string;
+  severity: string;
+  timestamp: string;
+  stackTrace?: string;
+}
+
+export interface PlatformSystemErrorLogResponse {
+  items: PlatformSystemErrorLogItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  [key: string]: unknown;
+}
+
+/** com.sme.platform.system.activityLog */
+export interface PlatformSystemActivityLogRequest {
+  page?: number;
+  pageSize?: number;
+  actorId?: string;
+  from?: string;
+  to?: string;
+}
+
+export interface PlatformSystemActivityLogItem {
+  actorId: string;
+  action: string;
+  resource: string;
+  timestamp: string;
+}
+
+export interface PlatformSystemActivityLogResponse {
+  items: PlatformSystemActivityLogItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  [key: string]: unknown;
+}
+
+// ---------------------------
+// Dunning (Failed Payment Recovery)
+// ---------------------------
+
+/** com.sme.billing.dunning.retry */
+export interface PlatformDunningRetryRequest {
+  subscriptionId: string;
+}
+
+export interface PlatformDunningRetryResponse {
+  retried: boolean;
+  nextAttemptAt?: string;
+}

@@ -11,7 +11,7 @@ describe('Survey detail page', () => {
       <Routes>
         <Route path="/surveys/inbox/:surveyId" element={<SurveyDetail />} />
       </Routes>,
-      '/surveys/inbox/survey-1'
+      { route: '/surveys/inbox/survey-1' }
     )
 
     const submit = await screen.findByRole('button', { name: 'Submit' })

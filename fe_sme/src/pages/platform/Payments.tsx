@@ -1,10 +1,11 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Card, Empty, Skeleton } from "antd";
 import { useQuery } from "@tanstack/react-query";
 import { apiGetPaymentTransactions } from "@/api/billing/billing.api";
 import { extractList } from "@/api/core/types";
 import { mapTransaction } from "@/utils/mappers/billing";
 import type { PaymentTransaction } from "@/shared/types";
+import { useLocale } from "@/i18n";
 
 const usePaymentTransactionsQuery = () =>
   useQuery({
@@ -25,39 +26,48 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 const PlatformPayments = () => {
+  const { t } = useLocale();
   const { data, isLoading, isError, refetch } = usePaymentTransactionsQuery();
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const filtered =
     statusFilter === "all"
       ? data
-      : data?.filter((t) => t.status === statusFilter);
+      : data?.filter((tx) => tx.status === statusFilter);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-800">
-          Payment Lookup
+          {t("platform.payments.title")}
         </h1>
         <p className="mt-1 text-sm text-slate-600">
-          Review and troubleshoot payment transactions.
+          {t("platform.payments.subtitle")}
         </p>
       </div>
 
       <div className="flex items-center gap-3">
         <label className="text-sm font-medium text-muted">
-          Filter by status:
+          {t("platform.payments.filter_label")}
         </label>
         <select
           className="rounded-xl border border-stroke bg-white px-3 py-1.5 text-sm"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="all">All</option>
-          <option value="succeeded">Succeeded</option>
-          <option value="processing">Processing</option>
-          <option value="pending">Pending</option>
-          <option value="failed">Failed</option>
-          <option value="refunded">Refunded</option>
+          <option value="all">{t("platform.payments.status_all")}</option>
+          <option value="succeeded">
+            {t("platform.payments.status_succeeded")}
+          </option>
+          <option value="processing">
+            {t("platform.payments.status_processing")}
+          </option>
+          <option value="pending">
+            {t("platform.payments.status_pending")}
+          </option>
+          <option value="failed">{t("platform.payments.status_failed")}</option>
+          <option value="refunded">
+            {t("platform.payments.status_refunded")}
+          </option>
         </select>
       </div>
 
@@ -70,25 +80,35 @@ const PlatformPayments = () => {
           </div>
         ) : isError ? (
           <div className="p-6 text-sm">
-            Failed to load transactions.{" "}
+            {t("platform.payments.load_error")}{" "}
             <button className="font-semibold" onClick={() => refetch()}>
-              Retry
+              {t("global.retry")}
             </button>
           </div>
         ) : filtered && filtered.length === 0 ? (
           <div className="p-6">
-            <Empty description="No transactions found" />
+            <Empty description={t("platform.payments.empty")} />
           </div>
         ) : (
           <table className="w-full">
             <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase text-muted">
               <tr>
-                <th className="px-4 py-3">Transaction ID</th>
-                <th className="px-4 py-3">Invoice</th>
-                <th className="px-4 py-3">Amount</th>
-                <th className="px-4 py-3">Provider</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3">
+                  {t("platform.payments.col_transaction")}
+                </th>
+                <th className="px-4 py-3">
+                  {t("platform.payments.col_invoice")}
+                </th>
+                <th className="px-4 py-3">
+                  {t("platform.payments.col_amount")}
+                </th>
+                <th className="px-4 py-3">
+                  {t("platform.payments.col_provider")}
+                </th>
+                <th className="px-4 py-3">
+                  {t("platform.payments.col_status")}
+                </th>
+                <th className="px-4 py-3">{t("platform.payments.col_date")}</th>
               </tr>
             </thead>
             <tbody>

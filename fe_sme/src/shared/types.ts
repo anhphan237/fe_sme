@@ -1,4 +1,5 @@
-export type { Role } from "@/enums/Role";
+import type { Role } from "@/enums/Role";
+export type { Role };
 
 export interface Tenant {
   id: string;
@@ -62,7 +63,14 @@ export interface OnboardingTask {
   ownerRole: Role;
   dueOffset: string;
   required: boolean;
-  status?: "Pending" | "In Progress" | "Done";
+  /** requireAck flag: employee must acknowledge before marking DONE */
+  requireAck?: boolean;
+  /** requiresManagerApproval flag: employee must submit PENDING_APPROVAL; cannot set DONE directly */
+  requiresManagerApproval?: boolean;
+  /** UI-friendly mapped status */
+  status?: "Pending" | "In Progress" | "Done" | "Wait Ack" | "Pending Approval";
+  /** Raw API status: TODO | IN_PROGRESS | ASSIGNED | WAIT_ACK | PENDING_APPROVAL | DONE */
+  rawStatus?: string;
   dueDate?: string;
   checklistId?: string;
   checklistName?: string;

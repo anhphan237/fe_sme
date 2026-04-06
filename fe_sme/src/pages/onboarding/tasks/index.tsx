@@ -10,6 +10,7 @@ import {
   Drawer,
   Empty,
   Input,
+  Modal,
   Progress,
   Row,
   Segmented,
@@ -25,13 +26,19 @@ import { useLocale } from "@/i18n";
 import { isOnboardingEmployee, canManageOnboarding } from "@/shared/rbac";
 import {
   apiAddTaskComment,
-  apiGetTaskDetail,
+  apiGetTaskDetailFull,
   apiListInstances,
   apiListTasks,
   apiListTaskComments,
   apiUpdateTaskStatus,
+  apiAcknowledgeTask,
+  apiApproveTask,
+  apiRejectTask,
 } from "@/api/onboarding/onboarding.api";
-import type { CommentResponse } from "@/interface/onboarding";
+import type {
+  CommentResponse,
+  TaskDetailResponse,
+} from "@/interface/onboarding";
 import { extractList } from "@/api/core/types";
 import { mapInstance, mapTask } from "@/utils/mappers/onboarding";
 import type { OnboardingInstance, OnboardingTask } from "@/shared/types";
@@ -63,7 +70,7 @@ const useTasksQuery = (onboardingId?: string) =>
 const useTaskDetailQuery = (taskId?: string) =>
   useQuery({
     queryKey: ["onboarding-task-detail", taskId ?? ""],
-    queryFn: () => apiGetTaskDetail(taskId!),
+    queryFn: () => apiGetTaskDetailFull(taskId!),
     enabled: Boolean(taskId),
     select: (res: unknown) => {
       const record = res as Record<string, unknown>;
@@ -71,7 +78,7 @@ const useTaskDetailQuery = (taskId?: string) =>
         record?.data ??
         record?.result ??
         record?.payload ??
-        res) as Record<string, unknown>;
+        res) as TaskDetailResponse;
     },
   });
 
@@ -336,6 +343,55 @@ const Tasks = () => {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [keyword, setKeyword] = useState("");
   const [commentInput, setCommentInput] = useState("");
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+
+  const acknowledgeMutation = useMutation({
+    mutationFn: (taskId: string) => apiAcknowledgeTask({ taskId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-tasks-by-instance"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-detail", selectedTaskId],
+      });
+      notify.success(t("onboarding.task.toast.acknowledged"));
+    },
+    onError: () => notify.error(t("onboarding.task.toast.failed")),
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: (taskId: string) => apiApproveTask({ taskId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-tasks-by-instance"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-detail", selectedTaskId],
+      });
+      setSelectedTaskId(null);
+      notify.success(t("onboarding.task.toast.approved"));
+    },
+    onError: () => notify.error(t("onboarding.task.toast.failed")),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: ({ taskId, reason }: { taskId: string; reason?: string }) =>
+      apiRejectTask({ taskId, reason }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-tasks-by-instance"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-detail", selectedTaskId],
+      });
+      setSelectedTaskId(null);
+      setRejectModalOpen(false);
+      setRejectReason("");
+      notify.success(t("onboarding.task.toast.rejected"));
+    },
+    onError: () => notify.error(t("onboarding.task.toast.failed")),
+  });
 
   const { data: comments, isLoading: commentsLoading } = useTaskCommentsQuery(
     selectedTaskId ?? undefined,
@@ -396,17 +452,48 @@ const Tasks = () => {
 
   const handleToggleTask = async (task: OnboardingTask) => {
     const isDone = task.status === STATUS_DONE;
-    const nextStatus = isDone ? "TODO" : STATUS_DONE_API;
+    if (isDone) {
+      // Uncheck: revert to TODO (Manager/HR only or simple task)
+      try {
+        await updateStatus.mutateAsync({ taskId: task.id, status: "TODO" });
+        queryClient.invalidateQueries({
+          queryKey: ["onboarding-tasks-by-instance"],
+        });
+        notify.success(t("onboarding.task.toast.undone"));
+      } catch {
+        notify.error(t("onboarding.task.toast.failed"));
+      }
+      return;
+    }
+
+    // For employees: respect requiresManagerApproval
+    if (isEmployee && task.requiresManagerApproval) {
+      // Submit for approval instead of marking done
+      try {
+        await updateStatus.mutateAsync({
+          taskId: task.id,
+          status: "PENDING_APPROVAL",
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["onboarding-tasks-by-instance"],
+        });
+        notify.success(t("onboarding.task.toast.submitted_approval"));
+      } catch {
+        notify.error(t("onboarding.task.toast.failed"));
+      }
+      return;
+    }
+
+    // Normal toggle
     try {
-      await updateStatus.mutateAsync({ taskId: task.id, status: nextStatus });
+      await updateStatus.mutateAsync({
+        taskId: task.id,
+        status: STATUS_DONE_API,
+      });
       queryClient.invalidateQueries({
         queryKey: ["onboarding-tasks-by-instance"],
       });
-      notify.success(
-        isDone
-          ? t("onboarding.task.toast.undone")
-          : t("onboarding.task.toast.done"),
-      );
+      notify.success(t("onboarding.task.toast.done"));
     } catch {
       notify.error(t("onboarding.task.toast.failed"));
     }
@@ -604,11 +691,25 @@ const Tasks = () => {
                   <div className="mt-1">
                     <Tag
                       color={
-                        String(taskDetail.status ?? "") === STATUS_DONE_API
+                        taskDetail.status === STATUS_DONE_API
                           ? "success"
-                          : "processing"
+                          : taskDetail.status === "PENDING_APPROVAL"
+                            ? "warning"
+                            : taskDetail.status === "WAIT_ACK"
+                              ? "orange"
+                              : "processing"
                       }>
-                      {String(taskDetail.status ?? "-")}
+                      {taskDetail.status === "PENDING_APPROVAL"
+                        ? t("onboarding.task.status.pending_approval")
+                        : taskDetail.status === "WAIT_ACK"
+                          ? t("onboarding.task.status.wait_ack")
+                          : taskDetail.status === "DONE"
+                            ? t("onboarding.task.status.done")
+                            : taskDetail.status === "IN_PROGRESS"
+                              ? t("onboarding.task.status.in_progress")
+                              : taskDetail.status === "TODO"
+                                ? t("onboarding.task.status.todo")
+                                : String(taskDetail.status ?? "-")}
                     </Tag>
                   </div>
                 </div>
@@ -624,6 +725,142 @@ const Tasks = () => {
                 </div>
               </Col>
             </Row>
+
+            {/* ── Rejection reason if rejected ─────────────────── */}
+            {taskDetail.rejectionReason && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                <Typography.Text type="danger">
+                  {t("onboarding.task.rejection_reason", {
+                    reason: taskDetail.rejectionReason,
+                  })}
+                </Typography.Text>
+              </div>
+            )}
+
+            {/* ── Role-aware action buttons ─────────────────────── */}
+            <Divider orientationMargin={0}>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {t("onboarding.task.detail.title")}
+              </Typography.Text>
+            </Divider>
+
+            <div className="flex flex-wrap gap-2">
+              {/* Employee: Acknowledge (requireAck=true, status TODO or IN_PROGRESS) */}
+              {isEmployee &&
+                taskDetail.requireAck &&
+                (taskDetail.status === "TODO" ||
+                  taskDetail.status === "IN_PROGRESS") && (
+                  <Button
+                    type="primary"
+                    loading={acknowledgeMutation.isPending}
+                    onClick={() =>
+                      acknowledgeMutation.mutate(taskDetail.taskId)
+                    }>
+                    {t("onboarding.task.action.acknowledge")}
+                  </Button>
+                )}
+
+              {/* Employee: Confirm Complete after WAIT_ACK */}
+              {isEmployee && taskDetail.status === "WAIT_ACK" && (
+                <Button
+                  type="primary"
+                  loading={updateStatus.isPending}
+                  onClick={async () => {
+                    try {
+                      await updateStatus.mutateAsync({
+                        taskId: taskDetail.taskId,
+                        status: STATUS_DONE_API,
+                      });
+                      queryClient.invalidateQueries({
+                        queryKey: ["onboarding-tasks-by-instance"],
+                      });
+                      queryClient.invalidateQueries({
+                        queryKey: ["onboarding-task-detail", selectedTaskId],
+                      });
+                      setSelectedTaskId(null);
+                      notify.success(t("onboarding.task.toast.done"));
+                    } catch {
+                      notify.error(t("onboarding.task.toast.failed"));
+                    }
+                  }}>
+                  {t("onboarding.task.action.confirm_complete")}
+                </Button>
+              )}
+
+              {/* Employee: Submit for Approval (requiresManagerApproval=true, status TODO or IN_PROGRESS) */}
+              {isEmployee &&
+                taskDetail.requiresManagerApproval &&
+                (taskDetail.status === "TODO" ||
+                  taskDetail.status === "IN_PROGRESS") && (
+                  <Button
+                    type="primary"
+                    loading={updateStatus.isPending}
+                    onClick={async () => {
+                      try {
+                        await updateStatus.mutateAsync({
+                          taskId: taskDetail.taskId,
+                          status: "PENDING_APPROVAL",
+                        });
+                        queryClient.invalidateQueries({
+                          queryKey: ["onboarding-tasks-by-instance"],
+                        });
+                        queryClient.invalidateQueries({
+                          queryKey: ["onboarding-task-detail", selectedTaskId],
+                        });
+                        setSelectedTaskId(null);
+                        notify.success(
+                          t("onboarding.task.toast.submitted_approval"),
+                        );
+                      } catch {
+                        notify.error(t("onboarding.task.toast.failed"));
+                      }
+                    }}>
+                    {t("onboarding.task.action.submit_approval")}
+                  </Button>
+                )}
+
+              {/* Employee: Normal done (no requireAck, no requiresManagerApproval, status TODO or IN_PROGRESS) */}
+              {isEmployee &&
+                !taskDetail.requireAck &&
+                !taskDetail.requiresManagerApproval &&
+                (taskDetail.status === "TODO" ||
+                  taskDetail.status === "IN_PROGRESS") && (
+                  <Button
+                    type="primary"
+                    loading={updateStatus.isPending}
+                    onClick={async () => {
+                      const task = tasks.find((t) => t.id === selectedTaskId);
+                      if (task) await handleToggleTask(task);
+                      setSelectedTaskId(null);
+                    }}>
+                    {t("onboarding.employee.home.today_actions.mark_done")}
+                  </Button>
+                )}
+
+              {/* Manager/HR: Approve (status PENDING_APPROVAL) */}
+              {canManage && taskDetail.status === "PENDING_APPROVAL" && (
+                <Button
+                  type="primary"
+                  loading={approveMutation.isPending}
+                  onClick={() => approveMutation.mutate(taskDetail.taskId)}>
+                  {t("onboarding.task.action.approve")}
+                </Button>
+              )}
+
+              {/* Manager/HR: Reject (status PENDING_APPROVAL) */}
+              {canManage && taskDetail.status === "PENDING_APPROVAL" && (
+                <Button
+                  danger
+                  loading={rejectMutation.isPending}
+                  onClick={() => setRejectModalOpen(true)}>
+                  {t("onboarding.task.action.reject")}
+                </Button>
+              )}
+
+              <Button onClick={() => setSelectedTaskId(null)}>
+                {t("global.close")}
+              </Button>
+            </div>
 
             {/* ── Comments ─────────────────────────────────── */}
             <Divider orientationMargin={0}>
@@ -680,32 +917,45 @@ const Tasks = () => {
                 {t("onboarding.task.comments.send")}
               </Button>
             </div>
-
-            {isEmployee && (
-              <div className="mt-4 flex gap-2">
-                <Button
-                  type="primary"
-                  onClick={async () => {
-                    const task = tasks.find((t) => t.id === selectedTaskId);
-                    if (task) await handleToggleTask(task);
-                    setSelectedTaskId(null);
-                  }}
-                  loading={updateStatus.isPending}>
-                  {tasks.find((t) => t.id === selectedTaskId)?.status ===
-                  STATUS_DONE
-                    ? t("onboarding.employee.home.today_actions.mark_undone")
-                    : t("onboarding.employee.home.today_actions.mark_done")}
-                </Button>
-                <Button onClick={() => setSelectedTaskId(null)}>
-                  {t("global.close")}
-                </Button>
-              </div>
-            )}
           </div>
         ) : (
           <Empty description={t("onboarding.task.detail.not_found")} />
         )}
       </Drawer>
+
+      {/* ── Reject Reason Modal ──────────────────────────────────── */}
+      <Modal
+        title={t("onboarding.task.action.reject")}
+        open={rejectModalOpen}
+        onCancel={() => {
+          setRejectModalOpen(false);
+          setRejectReason("");
+        }}
+        onOk={() => {
+          if (selectedTaskId) {
+            rejectMutation.mutate({
+              taskId: selectedTaskId,
+              reason: rejectReason.trim() || undefined,
+            });
+          }
+        }}
+        okText={t("onboarding.task.action.reject_confirm")}
+        okButtonProps={{ danger: true, loading: rejectMutation.isPending }}
+        cancelText={t("global.close")}>
+        <div className="mt-3">
+          <Typography.Text>
+            {t("onboarding.task.action.reject_reason_label")}
+          </Typography.Text>
+          <Input.TextArea
+            className="mt-2"
+            rows={4}
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder={t("onboarding.task.action.reject_reason_placeholder")}
+            maxLength={500}
+          />
+        </div>
+      </Modal>
     </div>
   );
 };

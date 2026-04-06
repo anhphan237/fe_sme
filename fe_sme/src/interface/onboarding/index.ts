@@ -208,7 +208,191 @@ export interface OnboardingTaskAssignRequest {
 /** com.sme.onboarding.task.updateStatus */
 export interface OnboardingTaskUpdateStatusRequest {
   taskId: string;
-  status: "PENDING" | "IN_PROGRESS" | "DONE";
+  /** BE statuses — Employee cannot use DONE if requiresManagerApproval=true; use PENDING_APPROVAL instead */
+  status:
+    | "TODO"
+    | "IN_PROGRESS"
+    | "ASSIGNED"
+    | "WAIT_ACK"
+    | "PENDING_APPROVAL"
+    | "DONE";
+}
+
+/** com.sme.onboarding.task.acknowledge */
+export interface OnboardingTaskAcknowledgeRequest {
+  taskId: string;
+}
+
+/** com.sme.onboarding.task.approve */
+export interface OnboardingTaskApproveRequest {
+  taskId: string;
+}
+
+/** com.sme.onboarding.task.reject */
+export interface OnboardingTaskRejectRequest {
+  taskId: string;
+  /** Reason shown to employee on rejection */
+  reason?: string;
+}
+
+/** com.sme.onboarding.task.attachment.add */
+export interface TaskAttachmentAddRequest {
+  taskId: string;
+  fileName: string;
+  fileUrl: string;
+  fileType?: string;
+  fileSizeBytes?: number;
+}
+
+/** com.sme.onboarding.task.attachment.add → response */
+export interface TaskAttachmentAddResponse {
+  attachmentId: string;
+}
+
+/** com.sme.onboarding.task.listByAssignee — query options */
+export interface ListTasksByAssigneeOptions {
+  status?: string;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortOrder?: "ASC" | "DESC";
+}
+
+/** com.sme.onboarding.task.timelineByOnboarding */
+export interface TaskTimelineRequest {
+  onboardingId: string;
+  /** Include DONE tasks (default: false → actionable work view only) */
+  includeDone?: boolean;
+}
+
+// ---------------------------
+// Task Schedule
+// ---------------------------
+
+/** com.sme.onboarding.task.schedule.propose */
+export interface TaskScheduleProposeRequest {
+  taskId: string;
+  /** ISO datetime string */
+  scheduledStartAt: string;
+  /** ISO datetime string — must be after scheduledStartAt */
+  scheduledEndAt?: string;
+}
+
+/** com.sme.onboarding.task.schedule.confirm */
+export interface TaskScheduleConfirmRequest {
+  taskId: string;
+}
+
+/** com.sme.onboarding.task.schedule.reschedule */
+export interface TaskScheduleRescheduleRequest {
+  taskId: string;
+  scheduledStartAt: string;
+  scheduledEndAt?: string;
+  reason?: string;
+}
+
+/** com.sme.onboarding.task.schedule.cancel */
+export interface TaskScheduleCancelRequest {
+  taskId: string;
+  reason?: string;
+}
+
+/** com.sme.onboarding.task.schedule.markNoShow */
+export interface TaskScheduleMarkNoShowRequest {
+  taskId: string;
+  reason?: string;
+}
+
+/** Response for all schedule operations */
+export interface TaskScheduleResponse {
+  taskId: string;
+  scheduleStatus:
+    | "UNSCHEDULED"
+    | "PROPOSED"
+    | "CONFIRMED"
+    | "RESCHEDULED"
+    | "CANCELLED"
+    | "MISSED";
+  scheduledStartAt?: string;
+  scheduledEndAt?: string;
+  scheduleProposedBy?: string;
+  scheduleProposedAt?: string;
+  scheduleConfirmedBy?: string;
+  scheduleConfirmedAt?: string;
+  scheduleRescheduleReason?: string;
+  scheduleCancelReason?: string;
+  scheduleNoShowReason?: string;
+}
+
+// ---------------------------
+// Task Detail (full)
+// ---------------------------
+
+/** Attachment in task detail */
+export interface TaskAttachmentItem {
+  attachmentId: string;
+  fileName: string;
+  fileUrl: string;
+  fileType?: string;
+  fileSizeBytes?: number;
+  uploadedBy?: string;
+  createdAt?: string;
+}
+
+/** Activity log entry in task detail */
+export interface TaskActivityLogItem {
+  logId: string;
+  action: string;
+  oldValue?: string;
+  newValue?: string;
+  actorUserId?: string;
+  actorName?: string;
+  createdAt: string;
+}
+
+/** com.sme.onboarding.task.detail → full response */
+export interface TaskDetailResponse {
+  taskId: string;
+  title: string;
+  description?: string;
+  status: OnboardingTaskUpdateStatusRequest["status"];
+  dueDate?: string;
+  dueInHours?: number;
+  overdue?: boolean;
+  dueCategory?: string;
+  completedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string;
+  // Assignee
+  assignedUserId?: string;
+  assignedUserName?: string;
+  // Checklist
+  checklistId?: string;
+  checklistName?: string;
+  // Acknowledgment
+  requireAck: boolean;
+  acknowledgedAt?: string;
+  acknowledgedBy?: string;
+  // Approval
+  requiresManagerApproval: boolean;
+  approvalStatus?: "NONE" | "PENDING" | "APPROVED" | "REJECTED";
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectionReason?: string;
+  approverUserId?: string;
+  // Schedule
+  scheduledStartAt?: string;
+  scheduledEndAt?: string;
+  scheduleStatus?: TaskScheduleResponse["scheduleStatus"];
+  scheduleProposedBy?: string;
+  scheduleProposedAt?: string;
+  scheduleConfirmedBy?: string;
+  scheduleConfirmedAt?: string;
+  // Collections
+  comments?: CommentResponse[];
+  attachments?: TaskAttachmentItem[];
+  activityLogs?: TaskActivityLogItem[];
 }
 
 /** com.sme.onboarding.task.listByOnboarding — query options */
@@ -359,4 +543,24 @@ export interface EmailLogResponse {
 /** com.sme.onboarding.automation.email.list → response data */
 export interface EmailLogListResponse {
   logs: EmailLogResponse[];
+}
+
+// ---------------------------
+// Automation Email Send (Self-Test)
+// ---------------------------
+
+/** com.sme.automation.email.send — send a test email to verify configuration */
+export interface AutomationEmailSendRequest {
+  /** Template code: WELCOME_NEW_EMPLOYEE | PRE_FIRST_DAY | TASK_REMINDER */
+  templateCode: string;
+  /** Recipient email address */
+  toEmail: string;
+  /** Template placeholders e.g. { employeeName, companyName, startDate } */
+  placeholders?: Record<string, string>;
+}
+
+/** com.sme.automation.email.send → response */
+export interface AutomationEmailSendResponse {
+  success: boolean;
+  message: string;
 }

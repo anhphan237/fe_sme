@@ -19,6 +19,7 @@ const parseStoredUser = (raw: string | null): User | null => {
       roles: Array.isArray(user.roles) ? user.roles : ["EMPLOYEE"],
       companyId: user.companyId ?? null,
       department: user.department ?? "",
+      departmentId: user.departmentId ?? null,
       status: user.status ?? "Active",
       createdAt: user.createdAt ?? new Date().toISOString().slice(0, 10),
     };

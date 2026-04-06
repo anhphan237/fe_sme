@@ -203,25 +203,25 @@ const PlatformDashboard = () => {
             {[
               {
                 label: t("platform.dashboard.link_companies"),
-                to: "/platform/companies",
+                to: "/platform/admin/companies",
                 icon: Building2,
                 color: "text-blue-600",
               },
               {
                 label: t("platform.dashboard.link_onboarding"),
-                to: "/platform/onboarding-monitor",
+                to: "/platform/admin/onboarding",
                 icon: ClipboardCheck,
                 color: "text-violet-600",
               },
               {
                 label: t("platform.dashboard.link_templates"),
-                to: "/platform/onboarding-templates",
+                to: "/platform/admin/templates",
                 icon: Users,
                 color: "text-emerald-600",
               },
               {
-                label: t("platform.dashboard.link_payments"),
-                to: "/platform/payments",
+                label: t("platform.dashboard.link_subscriptions"),
+                to: "/platform/admin/subscriptions",
                 icon: TrendingUp,
                 color: "text-rose-600",
               },

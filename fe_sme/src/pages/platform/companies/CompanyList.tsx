@@ -185,7 +185,7 @@ const CompanyList = () => {
                     key={c.companyId}
                     className="cursor-pointer border-t border-stroke transition hover:bg-slate-50"
                     onClick={() =>
-                      navigate(`/platform/companies/${c.companyId}`)
+                      navigate(`/platform/admin/companies/${c.companyId}`)
                     }>
                     <td className="px-5 py-3 font-medium text-slate-800">
                       {c.name}
@@ -213,12 +213,12 @@ const CompanyList = () => {
                           <div
                             className="h-full rounded-full bg-violet-500"
                             style={{
-                              width: `${Math.min(c.completionRate, 100)}%`,
+                              width: `${Math.min(c.completionRate ?? 0, 100)}%`,
                             }}
                           />
                         </div>
                         <span className="text-xs text-slate-500">
-                          {c.completionRate.toFixed(0)}%
+                          {(c.completionRate ?? 0).toFixed(0)}%
                         </span>
                       </div>
                     </td>
