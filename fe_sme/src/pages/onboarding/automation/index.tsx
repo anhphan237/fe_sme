@@ -1,19 +1,20 @@
 ﻿import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Mail, RefreshCw, Zap } from "lucide-react";
+import { Mail, RefreshCw, SendHorizonal, Zap } from "lucide-react";
 import {
   apiListAutomationRules,
   apiListEmailLogs,
+  apiSendTestEmail,
   apiToggleAutomationRule,
 } from "@/api/onboarding/automation.api";
 import {
-  Alert,
   Button,
-  Card,
   Empty,
+  Form,
+  Input,
   message,
+  Select,
   Skeleton,
-  Space,
   Switch,
   Tabs,
   Tag,
@@ -26,25 +27,25 @@ import type {
 } from "@/interface/onboarding";
 
 // ---------------------------------------------------------------------------
-// Constants
+// Template config for the self-test tab
 // ---------------------------------------------------------------------------
-const TRIGGER_LABELS: Record<string, string> = {
-  INSTANCE_ACTIVATED: "Instance activated",
-  INSTANCE_COMPLETED: "Instance completed",
-  INSTANCE_CANCELLED: "Instance cancelled",
-  TASK_DUE: "Task due",
-  TASK_COMPLETED: "Task completed",
-  EVALUATION_DAY_7: "Evaluation Day 7",
-  EVALUATION_DAY_30: "Evaluation Day 30",
-  EVALUATION_DAY_60: "Evaluation Day 60",
-  WELCOME: "Welcome",
-  REMINDER: "Reminder",
-};
-
-const CHANNEL_LABELS: Record<string, string> = {
-  email: "Email",
-  notification: "Notification",
-};
+const TEMPLATES = [
+  {
+    code: "WELCOME_NEW_EMPLOYEE",
+    label: "Welcome New Employee",
+    variables: ["employeeName", "companyName", "startDate"],
+  },
+  {
+    code: "PRE_FIRST_DAY",
+    label: "Pre First Day",
+    variables: ["employeeName", "companyName", "startDate"],
+  },
+  {
+    code: "TASK_REMINDER",
+    label: "Task Reminder",
+    variables: ["employeeName", "taskTitle", "dueDate"],
+  },
+];
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -59,10 +60,8 @@ const InlineError = ({
   const { t } = useLocale();
   return (
     <Empty
-      image={<AlertTriangle className="mx-auto h-10 w-10 text-red-400" />}
-      description={<span className="text-sm text-ink">{msg}</span>}>
-      <Button onClick={onRetry}>
-        <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+      description={<span className="text-sm text-red-500">{msg}</span>}>
+      <Button onClick={onRetry} icon={<RefreshCw className="h-3.5 w-3.5" />}>
         {t("onboarding.template.error.retry")}
       </Button>
     </Empty>
@@ -79,17 +78,31 @@ const RuleRow = ({
   isToggling: boolean;
 }) => {
   const { t } = useLocale();
-  const triggerLabel = TRIGGER_LABELS[rule.trigger] ?? rule.trigger;
-  const channelLabel = CHANNEL_LABELS[rule.channel] ?? rule.channel;
+  const triggerLabel =
+    t(`onboarding.automation.rule.trigger.${rule.trigger}`) ?? rule.trigger;
+  const channelLabel =
+    t(`onboarding.automation.rule.channel.${rule.channel}`) ?? rule.channel;
   const channelColor = rule.channel === "email" ? "blue" : "purple";
 
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-stroke bg-white px-5 py-4 transition hover:shadow-sm">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100">
+    <div
+      className={`flex items-center gap-4 rounded-xl border px-5 py-4 transition hover:shadow-sm ${
+        rule.enabled
+          ? "border-primary/20 bg-primary/5"
+          : "border-stroke bg-white opacity-60"
+      }`}>
+      <span
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+          rule.enabled ? "bg-primary/10" : "bg-slate-100"
+        }`}>
         {rule.channel === "email" ? (
-          <Mail className="h-4 w-4 text-slate-500" />
+          <Mail
+            className={`h-4 w-4 ${rule.enabled ? "text-primary" : "text-slate-400"}`}
+          />
         ) : (
-          <Zap className="h-4 w-4 text-slate-500" />
+          <Zap
+            className={`h-4 w-4 ${rule.enabled ? "text-primary" : "text-slate-400"}`}
+          />
         )}
       </span>
       <div className="min-w-0 flex-1">
@@ -117,7 +130,7 @@ const RuleRow = ({
 
 const EmailLogRow = ({ log }: { log: EmailLogResponse }) => {
   const { t } = useLocale();
-
+  const statusKey = log.status?.toLowerCase() === "sent" ? "sent" : "failed";
   return (
     <tr className="border-b border-stroke last:border-0 hover:bg-slate-50/60">
       <td className="py-3 pr-4 text-sm text-ink">{log.subject}</td>
@@ -128,11 +141,137 @@ const EmailLogRow = ({ log }: { log: EmailLogResponse }) => {
         {log.sentAt ? log.sentAt.slice(0, 16).replace("T", " ") : "-"}
       </td>
       <td className="py-3">
-        <Tag color={log.status === "Sent" ? "success" : "error"}>
-          {t(`onboarding.automation.log.status.${log.status.toLowerCase()}`)}
+        <Tag color={statusKey === "sent" ? "success" : "error"}>
+          {t(`onboarding.automation.log.status.${statusKey}`)}
         </Tag>
       </td>
     </tr>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Test Email tab component
+// ---------------------------------------------------------------------------
+const TestEmailTab = () => {
+  const { t } = useLocale();
+  const [form] = Form.useForm<{
+    templateCode: string;
+    toEmail: string;
+    [key: string]: string;
+  }>();
+  const [selectedTemplate, setSelectedTemplate] = useState<
+    (typeof TEMPLATES)[number] | null
+  >(null);
+
+  const sendMutation = useMutation({ mutationFn: apiSendTestEmail });
+
+  const handleTemplateChange = (code: string) => {
+    const tpl = TEMPLATES.find((t) => t.code === code) ?? null;
+    setSelectedTemplate(tpl);
+    // Clear old variable fields
+    const clearFields: Record<string, string> = {};
+    TEMPLATES.forEach((t) =>
+      t.variables.forEach((v) => {
+        clearFields[v] = "";
+      }),
+    );
+    form.setFieldsValue(clearFields);
+  };
+
+  const handleSend = async () => {
+    try {
+      const values = await form.validateFields();
+      const { templateCode, toEmail, ...rest } = values;
+      const placeholders: Record<string, string> = {};
+      if (selectedTemplate) {
+        selectedTemplate.variables.forEach((v) => {
+          if (rest[v]) placeholders[v] = rest[v];
+        });
+      }
+      await sendMutation.mutateAsync({ templateCode, toEmail, placeholders });
+      message.success(t("onboarding.automation.test.success"));
+      form.resetFields();
+      setSelectedTemplate(null);
+    } catch {
+      if (sendMutation.isError) {
+        message.error(t("onboarding.automation.test.failed"));
+      }
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-stroke bg-white p-6">
+      <div className="mb-6">
+        <Typography.Title level={5} className="!mb-1">
+          {t("onboarding.automation.test.title")}
+        </Typography.Title>
+        <Typography.Text type="secondary" className="text-sm">
+          {t("onboarding.automation.test.subtitle")}
+        </Typography.Text>
+      </div>
+
+      <Form form={form} layout="vertical" className="max-w-lg">
+        <Form.Item
+          name="templateCode"
+          label={t("onboarding.automation.test.template_label")}
+          rules={[{ required: true }]}>
+          <Select
+            placeholder={t("onboarding.automation.test.template_placeholder")}
+            onChange={handleTemplateChange}
+            options={TEMPLATES.map((tpl) => ({
+              value: tpl.code,
+              label: tpl.label,
+            }))}
+          />
+        </Form.Item>
+
+        <Form.Item
+          name="toEmail"
+          label={t("onboarding.automation.test.recipient_label")}
+          rules={[
+            { required: true },
+            { type: "email", message: "Invalid email address" },
+          ]}>
+          <Input
+            placeholder={t("onboarding.automation.test.recipient_placeholder")}
+            prefix={<Mail className="h-3.5 w-3.5 text-muted" />}
+          />
+        </Form.Item>
+
+        {selectedTemplate && (
+          <>
+            <Typography.Text
+              strong
+              className="mb-3 block text-sm text-ink/70">
+              {t("onboarding.automation.test.variables_label")}
+            </Typography.Text>
+            {selectedTemplate.variables.map((varName) => (
+              <Form.Item
+                key={varName}
+                name={varName}
+                label={
+                  <span className="font-mono text-xs text-primary">
+                    {`{{${varName}}}`}
+                  </span>
+                }>
+                <Input placeholder={varName} />
+              </Form.Item>
+            ))}
+          </>
+        )}
+
+        <Form.Item className="mb-0 mt-2">
+          <Button
+            type="primary"
+            icon={<SendHorizonal className="h-4 w-4" />}
+            loading={sendMutation.isPending}
+            onClick={handleSend}
+            className="flex items-center gap-2">
+            {t("onboarding.automation.test.send_btn")}
+          </Button>
+        </Form.Item>
+      </Form>
+    </div>
   );
 };
 
@@ -186,48 +325,58 @@ const Automation = () => {
   const tabItems = [
     {
       key: "rules",
-      label: t("onboarding.automation.tab.rules"),
+      label: (
+        <span className="flex items-center gap-1.5">
+          <Zap className="h-3.5 w-3.5" />
+          {t("onboarding.automation.tab.rules")}
+        </span>
+      ),
       children: (
-        <Card>
+        <div className="space-y-3">
           {rulesLoading ? (
-            <Space direction="vertical" size={12} className="w-full">
+            <div className="space-y-3">
               <Skeleton active paragraph={{ rows: 1 }} />
               <Skeleton active paragraph={{ rows: 1 }} />
               <Skeleton active paragraph={{ rows: 1 }} />
-            </Space>
+            </div>
           ) : rulesError ? (
             <InlineError
               message={t("onboarding.automation.rule.error")}
               onRetry={refetchRules}
             />
           ) : rules.length > 0 ? (
-            <Space direction="vertical" size={12} className="w-full">
-              {rules.map((rule) => (
-                <RuleRow
-                  key={rule.ruleId}
-                  rule={rule}
-                  onToggle={handleToggle}
-                  isToggling={pendingRuleId === rule.ruleId}
-                />
-              ))}
-            </Space>
+            rules.map((rule) => (
+              <RuleRow
+                key={rule.ruleId}
+                rule={rule}
+                onToggle={handleToggle}
+                isToggling={pendingRuleId === rule.ruleId}
+              />
+            ))
           ) : (
-            <Empty description={t("onboarding.automation.rule.empty")} />
+            <div className="rounded-xl border border-stroke bg-white py-12">
+              <Empty description={t("onboarding.automation.rule.empty")} />
+            </div>
           )}
-        </Card>
+        </div>
       ),
     },
     {
       key: "logs",
-      label: t("onboarding.automation.tab.logs"),
+      label: (
+        <span className="flex items-center gap-1.5">
+          <Mail className="h-3.5 w-3.5" />
+          {t("onboarding.automation.tab.logs")}
+        </span>
+      ),
       children: (
-        <Card>
+        <div className="rounded-xl border border-stroke bg-white p-4">
           {logsLoading ? (
-            <Space direction="vertical" size={12} className="w-full">
+            <div className="space-y-3">
               <Skeleton active paragraph={{ rows: 1 }} />
               <Skeleton active paragraph={{ rows: 1 }} />
               <Skeleton active paragraph={{ rows: 1 }} />
-            </Space>
+            </div>
           ) : logsError ? (
             <InlineError
               message={t("onboarding.automation.log.error")}
@@ -262,31 +411,40 @@ const Automation = () => {
           ) : (
             <Empty description={t("onboarding.automation.log.empty")} />
           )}
-        </Card>
+        </div>
       ),
+    },
+    {
+      key: "test",
+      label: (
+        <span className="flex items-center gap-1.5">
+          <SendHorizonal className="h-3.5 w-3.5" />
+          {t("onboarding.automation.tab.test")}
+        </span>
+      ),
+      children: <TestEmailTab />,
     },
   ];
 
   return (
-    <Space direction="vertical" size={24} className="w-full">
-      <Space direction="vertical" size={4}>
-        <Typography.Title level={4} className="!mb-0">
-          {t("onboarding.automation.page.title")}
-        </Typography.Title>
-        <Typography.Text type="secondary">
-          {t("onboarding.automation.page.subtitle")}
-        </Typography.Text>
-      </Space>
+    <div className="space-y-6">
+      {/* Page header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-ink">
+            {t("onboarding.automation.page.title")}
+          </h1>
+          <p className="mt-1 text-sm text-muted">
+            {t("onboarding.automation.page.subtitle")}
+          </p>
+        </div>
+      </div>
 
-      <Alert
-        type="warning"
-        showIcon
-        message={t("onboarding.automation.notice.coming_soon")}
-      />
-
+      {/* Tabs */}
       <Tabs defaultActiveKey="rules" items={tabItems} />
-    </Space>
+    </div>
   );
 };
 
 export default Automation;
+

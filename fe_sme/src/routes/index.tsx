@@ -1,5 +1,5 @@
 ﻿import { Suspense, lazy } from "react";
-import { Navigate, Outlet, createBrowserRouter } from "react-router-dom";
+import { Navigate, Outlet, createBrowserRouter, useParams } from "react-router-dom";
 import { Skeleton } from "antd";
 import AppLayout from "@/layouts/AppLayout";
 import AuthLayout from "@/layouts/AuthLayout";
@@ -108,6 +108,11 @@ const suspense = (node: JSX.Element) => (
 const withRoles = (node: JSX.Element, requiredRoles?: Role[]) => {
   if (!requiredRoles || requiredRoles.length === 0) return node;
   return <RequireRoles requiredRoles={requiredRoles}>{node}</RequireRoles>;
+};
+
+const CompanyDetailRedirect = () => {
+  const { companyId } = useParams<{ companyId: string }>();
+  return <Navigate to={`/platform/admin/companies/${companyId}`} replace />;
 };
 
 export const router = createBrowserRouter([
@@ -416,7 +421,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "/platform/companies/:companyId",
-        element: <Navigate to="/platform/admin/companies/:companyId" replace />,
+        element: <CompanyDetailRedirect />,
       },
       {
         path: "/platform/onboarding-monitor",

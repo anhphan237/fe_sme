@@ -1,5 +1,7 @@
 import { gatewayRequest } from "../core/gateway";
 import type {
+  AutomationEmailSendRequest,
+  AutomationEmailSendResponse,
   AutomationRuleListResponse,
   AutomationRuleResponse,
   AutomationRuleToggleRequest,
@@ -29,3 +31,13 @@ export const apiListEmailLogs = (): Promise<EmailLogResponse[]> =>
     "com.sme.automation.email.log.list",
     {},
   ).then((res) => (res as EmailLogListResponse).logs ?? []);
+
+/** com.sme.automation.email.send — send a test/manual email using a template */
+export const apiSendTestEmail = (
+  payload: AutomationEmailSendRequest,
+): Promise<AutomationEmailSendResponse> =>
+  gatewayRequest<AutomationEmailSendRequest, AutomationEmailSendResponse>(
+    "com.sme.automation.email.send",
+    payload,
+  ).then((res) => res as AutomationEmailSendResponse);
+

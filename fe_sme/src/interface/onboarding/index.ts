@@ -544,3 +544,23 @@ export interface EmailLogResponse {
 export interface EmailLogListResponse {
   logs: EmailLogResponse[];
 }
+
+// ---------------------------
+// Automation Email Send (Self-Test)
+// ---------------------------
+
+/** com.sme.automation.email.send — send a test email to verify configuration */
+export interface AutomationEmailSendRequest {
+  /** Template code: WELCOME_NEW_EMPLOYEE | PRE_FIRST_DAY | TASK_REMINDER */
+  templateCode: string;
+  /** Recipient email address */
+  toEmail: string;
+  /** Template placeholders e.g. { employeeName, companyName, startDate } */
+  placeholders?: Record<string, string>;
+}
+
+/** com.sme.automation.email.send → response */
+export interface AutomationEmailSendResponse {
+  success: boolean;
+  message: string;
+}
