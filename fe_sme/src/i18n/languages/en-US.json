@@ -364,6 +364,13 @@
   "onboarding.template.preset.sales.name": "Sales Team",
   "onboarding.template.preset.sales.desc": "CRM, pitch training, and shadowing",
 
+  "onboarding.template.edit_modal.title": "Edit Template Info",
+  "onboarding.template.edit_modal.save": "Save Changes",
+  "onboarding.template.edit_modal.structure_hint": "To change stages or tasks, use Duplicate to create a new version.",
+  "onboarding.template.action.edit_success": "Template updated.",
+  "onboarding.template.action.edit_failed": "Failed to update template.",
+  "onboarding.template.ai.modal.review_hint": "Review and customize the AI-generated template before saving.",
+
   "onboarding.employee.title": "Onboarding Employees",
   "onboarding.employee.subtitle": "Track onboarding status across teams.",
   "onboarding.employee.action.start": "Start Onboarding",

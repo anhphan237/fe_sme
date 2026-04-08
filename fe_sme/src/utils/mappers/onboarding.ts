@@ -25,6 +25,7 @@ export const mapTemplate = (t: any): OnboardingTemplate => {
           tasks: (c.tasks ?? []).map((task: any) => ({
             id: task.taskTemplateId ?? task.id ?? "",
             title: task.name ?? task.title ?? "",
+            description: task.description ?? "",
             ownerRole: (task.ownerRefId ?? "HR") as any,
             dueOffset: String(task.dueDaysOffset ?? task.dueOffset ?? 0),
             required: task.requireAck ?? task.required ?? false,
