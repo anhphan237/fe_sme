@@ -706,6 +706,7 @@
   "user.update.success": "User updated successfully.",
   "user.saving": "Saving…",
   "user.invite.hint": "Fill in the details below to invite a new team member.",
+  "user.invite.email_link_hint": "An activation email with a secure link will be sent to the user. They will use it to set their own password.",
   "user.section.account": "Account",
   "user.section.role_department": "Role & Department",
   "user.section.password": "Temporary Password",

@@ -172,12 +172,10 @@ const AdminUsers = () => {
     roleCode: string;
     departmentId: string;
     managerUserId: string;
-    tempPassword: string;
   }) => {
     await apiCreateUser({
       email: form.email,
       fullName: form.name,
-      password: form.tempPassword,
       roleCode: form.roleCode,
       departmentId: form.departmentId || undefined,
       managerUserId: form.managerUserId || undefined,

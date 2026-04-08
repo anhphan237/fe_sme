@@ -707,6 +707,7 @@
   "user.update.success": "Cập nhật người dùng thành công.",
   "user.saving": "Đang lưu…",
   "user.invite.hint": "Điền thông tin bên dưới để mời thành viên mới.",
+  "user.invite.email_link_hint": "Email kích hoạt với đường dẫn bảo mật sẽ được gửi đến người dùng. Họ sẽ dùng đường dẫn đó để tự tạo mật khẩu.",
   "user.section.account": "Tài khoản",
   "user.section.role_department": "Vai trò & Phòng ban",
   "user.section.password": "Mật khẩu tạm thời",

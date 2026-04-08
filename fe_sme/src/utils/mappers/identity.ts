@@ -51,9 +51,11 @@ export function mapUser(u: UserListItem | Record<string, unknown>): User {
     status:
       raw["status"] === "DISABLED"
         ? "Inactive"
-        : raw["status"] === "INVITED"
-          ? "Invited"
-          : "Active",
+        : raw["status"] === "INACTIVE"
+          ? "Inactive"
+          : raw["status"] === "PENDING" || raw["status"] === "INVITED"
+            ? "Invited"
+            : "Active",
     employeeId: (raw["employeeId"] as string | null) ?? null,
     managerUserId: (raw["managerUserId"] as string | null) ?? null,
     manager: raw["managerName"] as string | undefined,
@@ -72,9 +74,11 @@ export function mapUserDetail(d: GetUserResponse): UserDetail {
     status:
       d.status === "DISABLED"
         ? "DISABLED"
-        : d.status === "INVITED"
-          ? "INVITED"
-          : "ACTIVE",
+        : d.status === "INACTIVE"
+          ? "INACTIVE"
+          : d.status === "PENDING" || d.status === "INVITED"
+            ? "INVITED"
+            : "ACTIVE",
     employeeId: d.employeeId ?? null,
     departmentId: d.departmentId ?? null,
     employeeCode: d.employeeCode ?? null,

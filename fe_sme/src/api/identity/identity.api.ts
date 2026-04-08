@@ -92,7 +92,31 @@ export const apiRevokeRole = (userId: string, roleCode: Role) =>
 export const apiLogout = (): Promise<{ ok: boolean }> =>
   Promise.resolve({ ok: true });
 
-// ── Bulk Import ───────────────────────────────────────────
+/** POST /api/v1/invite/set-password (public endpoint — no auth required) */
+export const apiInviteSetPassword = async (
+  token: string,
+  password: string,
+): Promise<void> => {
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+  const base =
+    import.meta.env.DEV && BASE_URL ? "" : BASE_URL.replace(/\/$/, "");
+  const res = await fetch(`${base}/api/v1/invite/set-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, password }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    let msg = `Request failed (${res.status})`;
+    try {
+      const json = JSON.parse(text) as { message?: string; errorCode?: string };
+      msg = json.message ?? json.errorCode ?? msg;
+    } catch {
+      /* non-JSON */
+    }
+    throw new Error(String(msg));
+  }
+};
 
 /** com.sme.identity.user.bulkCreate */
 export const apiBulkCreateUsers = (payload: BulkCreateUsersRequest) =>
