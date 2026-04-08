@@ -372,17 +372,41 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
             <Form.Item<FormValues>
               name="scheduledAt"
               label={t("survey.send.scheduled_at_label")}
+              rules={[
+                {
+                  validator: (_, value) => {
+                    if (!value) return Promise.resolve();
+
+                    if (dayjs(value).isBefore(dayjs(), "day")) {
+                      return Promise.reject(
+                        "Không được chọn ngày trong quá khứ",
+                      );
+                    }
+
+                    return Promise.resolve();
+                  },
+                },
+              ]}
             >
               <DatePicker
                 className="w-full"
                 format="DD-MM-YYYY"
                 placeholder={t("survey.send.scheduled_at_placeholder")}
                 disabledDate={(current) => {
-                  if (!latestStartDate) return false;
-                  return current.isBefore(
-                    latestStartDate.startOf("day"),
-                    "day",
-                  );
+                  const today = dayjs().startOf("day");
+
+                  if (current && current.isBefore(today, "day")) {
+                    return true;
+                  }
+
+                  if (latestStartDate) {
+                    return current.isBefore(
+                      latestStartDate.startOf("day"),
+                      "day",
+                    );
+                  }
+
+                  return false;
                 }}
               />
             </Form.Item>
