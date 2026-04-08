@@ -1,39 +1,39 @@
 import { useState } from "react";
 import { Card, Empty, Skeleton } from "antd";
 import { useQuery } from "@tanstack/react-query";
-import { apiGetPaymentTransactions } from "@/api/billing/billing.api";
-import { extractList } from "@/api/core/types";
-import { mapTransaction } from "@/utils/mappers/billing";
-import type { PaymentTransaction } from "@/shared/types";
+import { apiGetPlatformPaymentList } from "@/api/platform/platform.api";
+import type { PlatformPaymentItem } from "@/interface/platform";
 import { useLocale } from "@/i18n";
 
-const usePaymentTransactionsQuery = () =>
+const PAGE_SIZE = 50;
+
+const usePaymentListQuery = (statusFilter: string) =>
   useQuery({
-    queryKey: ["payment-transactions"],
-    queryFn: apiGetPaymentTransactions,
-    select: (res: unknown) =>
-      extractList(res, "transactions", "items").map(
-        mapTransaction,
-      ) as PaymentTransaction[],
+    queryKey: ["platform-payment-list", statusFilter],
+    queryFn: () =>
+      apiGetPlatformPaymentList({
+        page: 0,
+        size: PAGE_SIZE,
+        status: statusFilter || undefined,
+      }),
+    select: (res: any) =>
+      (res?.data?.items ?? res?.items ?? []) as PlatformPaymentItem[],
   });
 
 const STATUS_STYLES: Record<string, string> = {
-  succeeded: "bg-green-100 text-green-700",
-  processing: "bg-yellow-100 text-yellow-700",
-  pending: "bg-slate-100 text-slate-700",
-  failed: "bg-red-100 text-red-700",
-  refunded: "bg-purple-100 text-purple-700",
+  SUCCEEDED: "bg-green-100 text-green-700",
+  PROCESSING: "bg-yellow-100 text-yellow-700",
+  PENDING: "bg-slate-100 text-slate-700",
+  FAILED: "bg-red-100 text-red-700",
+  REFUNDED: "bg-purple-100 text-purple-700",
 };
 
 const PlatformPayments = () => {
   const { t } = useLocale();
-  const { data, isLoading, isError, refetch } = usePaymentTransactionsQuery();
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("");
 
-  const filtered =
-    statusFilter === "all"
-      ? data
-      : data?.filter((tx) => tx.status === statusFilter);
+  const { data, isLoading, isError, refetch } =
+    usePaymentListQuery(statusFilter);
 
   return (
     <div className="space-y-6">
@@ -54,18 +54,18 @@ const PlatformPayments = () => {
           className="rounded-xl border border-stroke bg-white px-3 py-1.5 text-sm"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="all">{t("platform.payments.status_all")}</option>
-          <option value="succeeded">
+          <option value="">{t("platform.payments.status_all")}</option>
+          <option value="SUCCEEDED">
             {t("platform.payments.status_succeeded")}
           </option>
-          <option value="processing">
+          <option value="PROCESSING">
             {t("platform.payments.status_processing")}
           </option>
-          <option value="pending">
+          <option value="PENDING">
             {t("platform.payments.status_pending")}
           </option>
-          <option value="failed">{t("platform.payments.status_failed")}</option>
-          <option value="refunded">
+          <option value="FAILED">{t("platform.payments.status_failed")}</option>
+          <option value="REFUNDED">
             {t("platform.payments.status_refunded")}
           </option>
         </select>
@@ -85,7 +85,7 @@ const PlatformPayments = () => {
               {t("global.retry")}
             </button>
           </div>
-        ) : filtered && filtered.length === 0 ? (
+        ) : !data || data.length === 0 ? (
           <div className="p-6">
             <Empty description={t("platform.payments.empty")} />
           </div>
@@ -95,6 +95,9 @@ const PlatformPayments = () => {
               <tr>
                 <th className="px-4 py-3">
                   {t("platform.payments.col_transaction")}
+                </th>
+                <th className="px-4 py-3">
+                  {t("platform.payments.col_company")}
                 </th>
                 <th className="px-4 py-3">
                   {t("platform.payments.col_invoice")}
@@ -112,14 +115,17 @@ const PlatformPayments = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered?.map((tx) => (
+              {data.map((tx) => (
                 <tr
-                  key={tx.id}
+                  key={tx.paymentId}
                   className="border-t border-stroke hover:bg-slate-50">
-                  <td className="px-4 py-3 font-mono text-sm">{tx.id}</td>
+                  <td className="px-4 py-3 font-mono text-sm">
+                    {tx.paymentId}
+                  </td>
+                  <td className="px-4 py-3 text-muted">{tx.companyName}</td>
                   <td className="px-4 py-3 text-muted">{tx.invoiceId}</td>
                   <td className="px-4 py-3 font-medium">
-                    {tx.amount} {tx.currency.toUpperCase()}
+                    {tx.amount?.toLocaleString()} {tx.currency?.toUpperCase()}
                   </td>
                   <td className="px-4 py-3 text-muted capitalize">
                     {tx.provider}

@@ -29,6 +29,7 @@ import {
   apiGetTaskDetailFull,
   apiListInstances,
   apiListTasks,
+  apiListTasksByAssignee,
   apiListTaskComments,
   apiUpdateTaskStatus,
   apiAcknowledgeTask,
@@ -52,11 +53,28 @@ type StatusFilter = "all" | "pending" | "done";
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
+// HR/Manager: list tasks by onboarding instance
 const useTasksQuery = (onboardingId?: string) =>
   useQuery({
     queryKey: ["onboarding-tasks-by-instance", onboardingId ?? ""],
     queryFn: () => apiListTasks(onboardingId!),
     enabled: Boolean(onboardingId),
+    select: (res: unknown) =>
+      extractList(
+        res as Record<string, unknown>,
+        "tasks",
+        "content",
+        "items",
+        "list",
+      ).map(mapTask) as OnboardingTask[],
+  });
+
+// Employee: list tasks assigned to self (task.listByAssignee — all roles)
+const useEmployeeTasksQuery = (userId?: string) =>
+  useQuery({
+    queryKey: ["employee-tasks-by-assignee", userId ?? ""],
+    queryFn: () => apiListTasksByAssignee(),
+    enabled: Boolean(userId),
     select: (res: unknown) =>
       extractList(
         res as Record<string, unknown>,
@@ -329,6 +347,11 @@ const Tasks = () => {
     : (selectedInstanceId ?? instances[0]?.id);
 
   // ── Tasks loading ─────────────────────────────────────────────────────────
+  // Employee uses task.listByAssignee (all roles);
+  // HR/Manager uses task.listByOnboarding (HR/Manager only).
+
+  const managerHRTasksQuery = useTasksQuery(!isEmployee ? onboardingId : undefined);
+  const employeeTasksQuery = useEmployeeTasksQuery(isEmployee ? userId : undefined);
 
   const {
     data: tasks = [],
@@ -336,7 +359,7 @@ const Tasks = () => {
     isError,
     error,
     refetch,
-  } = useTasksQuery(onboardingId);
+  } = isEmployee ? employeeTasksQuery : managerHRTasksQuery;
 
   const updateStatus = useUpdateTaskStatus();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -350,7 +373,9 @@ const Tasks = () => {
     mutationFn: (taskId: string) => apiAcknowledgeTask({ taskId }),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["onboarding-tasks-by-instance"],
+        queryKey: isEmployee
+          ? ["employee-tasks-by-assignee", userId ?? ""]
+          : ["onboarding-tasks-by-instance"],
       });
       queryClient.invalidateQueries({
         queryKey: ["onboarding-task-detail", selectedTaskId],
@@ -452,13 +477,15 @@ const Tasks = () => {
 
   const handleToggleTask = async (task: OnboardingTask) => {
     const isDone = task.status === STATUS_DONE;
+    const taskQueryKey = isEmployee
+      ? ["employee-tasks-by-assignee", userId ?? ""]
+      : ["onboarding-tasks-by-instance"];
+
     if (isDone) {
       // Uncheck: revert to TODO (Manager/HR only or simple task)
       try {
         await updateStatus.mutateAsync({ taskId: task.id, status: "TODO" });
-        queryClient.invalidateQueries({
-          queryKey: ["onboarding-tasks-by-instance"],
-        });
+        queryClient.invalidateQueries({ queryKey: taskQueryKey });
         notify.success(t("onboarding.task.toast.undone"));
       } catch {
         notify.error(t("onboarding.task.toast.failed"));
@@ -466,17 +493,25 @@ const Tasks = () => {
       return;
     }
 
+    // For employees: requireAck tasks must be acknowledged first (→ WAIT_ACK)
+    if (
+      isEmployee &&
+      task.requireAck &&
+      task.rawStatus !== "WAIT_ACK" &&
+      task.rawStatus !== "DONE"
+    ) {
+      acknowledgeMutation.mutate(task.id);
+      return;
+    }
+
     // For employees: respect requiresManagerApproval
     if (isEmployee && task.requiresManagerApproval) {
-      // Submit for approval instead of marking done
       try {
         await updateStatus.mutateAsync({
           taskId: task.id,
           status: "PENDING_APPROVAL",
         });
-        queryClient.invalidateQueries({
-          queryKey: ["onboarding-tasks-by-instance"],
-        });
+        queryClient.invalidateQueries({ queryKey: taskQueryKey });
         notify.success(t("onboarding.task.toast.submitted_approval"));
       } catch {
         notify.error(t("onboarding.task.toast.failed"));
@@ -490,9 +525,7 @@ const Tasks = () => {
         taskId: task.id,
         status: STATUS_DONE_API,
       });
-      queryClient.invalidateQueries({
-        queryKey: ["onboarding-tasks-by-instance"],
-      });
+      queryClient.invalidateQueries({ queryKey: taskQueryKey });
       notify.success(t("onboarding.task.toast.done"));
     } catch {
       notify.error(t("onboarding.task.toast.failed"));
@@ -772,7 +805,7 @@ const Tasks = () => {
                         status: STATUS_DONE_API,
                       });
                       queryClient.invalidateQueries({
-                        queryKey: ["onboarding-tasks-by-instance"],
+                        queryKey: ["employee-tasks-by-assignee", userId ?? ""],
                       });
                       queryClient.invalidateQueries({
                         queryKey: ["onboarding-task-detail", selectedTaskId],
@@ -802,7 +835,7 @@ const Tasks = () => {
                           status: "PENDING_APPROVAL",
                         });
                         queryClient.invalidateQueries({
-                          queryKey: ["onboarding-tasks-by-instance"],
+                          queryKey: ["employee-tasks-by-assignee", userId ?? ""],
                         });
                         queryClient.invalidateQueries({
                           queryKey: ["onboarding-task-detail", selectedTaskId],

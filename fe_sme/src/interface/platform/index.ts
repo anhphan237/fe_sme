@@ -1,30 +1,44 @@
 // ============================================================
 // Platform Admin Module Interfaces
-// Maps to BE: modules/platform (new - to be implemented)
+// Maps to BE: modules/platform
 // Operations: com.sme.platform.*
 // Access: ADMIN + STAFF roles only
 // ============================================================
 
 // ---------------------------
-// Platform Dashboard Overview
+// Platform Company Analytics
 // ---------------------------
 
-/** com.sme.platform.dashboard.overview */
-export interface PlatformDashboardOverviewRequest {
-  startDate: string;
-  endDate: string;
+/** com.sme.platform.analytics.company */
+export interface PlatformCompanyAnalyticsRequest {
+  startDate?: string;
+  endDate?: string;
 }
 
-export interface PlatformDashboardOverviewResponse {
+export interface PlatformCompanyAnalyticsResponse {
   totalCompanies: number;
   activeCompanies: number;
-  trialCompanies: number;
-  totalOnboardingInstances: number;
-  activeOnboardingInstances: number;
-  completedOnboardingInstances: number;
-  platformCompletionRate: number;
-  atRiskCount: number;
-  [key: string]: unknown;
+  inactiveCompanies: number;
+  suspendedCompanies: number;
+  newCompanies: number;
+  growthRate: number;
+}
+
+// ---------------------------
+// Platform Onboarding Analytics
+// ---------------------------
+
+/** com.sme.platform.analytics.onboarding */
+export interface PlatformOnboardingAnalyticsRequest {
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface PlatformOnboardingAnalyticsResponse {
+  totalOnboardings: number;
+  completedOnboardings: number;
+  completionRate: number;
+  averageCompletionDays: number;
 }
 
 // ---------------------------
@@ -34,114 +48,55 @@ export interface PlatformDashboardOverviewResponse {
 /** com.sme.platform.company.list */
 export interface PlatformCompanyListRequest {
   page?: number;
-  pageSize?: number;
+  size?: number;
   search?: string;
-  plan?: string;
+  planCode?: string;
   status?: string;
 }
 
 export interface PlatformCompanyItem {
   companyId: string;
   name: string;
-  industry: string;
-  size: string;
-  plan: string;
   status: string;
-  activeOnboardings: number;
-  completionRate: number;
   createdAt: string;
+  userCount: number;
+  subscriptionStatus: string;
+  planCode: string;
 }
 
 export interface PlatformCompanyListResponse {
   items: PlatformCompanyItem[];
   total: number;
-  page: number;
-  pageSize: number;
-  [key: string]: unknown;
 }
 
-/** com.sme.platform.company.get */
-export interface PlatformCompanyGetRequest {
+/** com.sme.platform.company.detail */
+export interface PlatformCompanyDetailRequest {
   companyId: string;
 }
 
 export interface PlatformCompanyDetailResponse {
   companyId: string;
   name: string;
-  industry: string;
-  size: string;
-  plan: string;
+  taxCode: string;
+  address: string;
   status: string;
-  adminEmail: string;
   createdAt: string;
-  // Onboarding stats
-  totalOnboardings: number;
-  activeOnboardings: number;
-  completedOnboardings: number;
-  cancelledOnboardings: number;
-  completionRate: number;
-  // Task stats
-  totalTasks: number;
-  completedTasks: number;
-  taskCompletionRate: number;
-  // Department breakdown
-  departments: PlatformCompanyDepartmentStat[];
-  [key: string]: unknown;
-}
-
-export interface PlatformCompanyDepartmentStat {
-  departmentId: string;
-  departmentName: string;
-  totalTasks: number;
-  completedTasks: number;
-  completionRate: number;
-}
-
-// ---------------------------
-// Onboarding Monitor (cross-company)
-// ---------------------------
-
-/** com.sme.platform.onboarding.overview */
-export interface PlatformOnboardingOverviewRequest {
-  startDate: string;
-  endDate: string;
-  page?: number;
-  pageSize?: number;
-}
-
-export interface PlatformOnboardingCompanyStat {
-  companyId: string;
-  companyName: string;
-  totalInstances: number;
-  activeCount: number;
-  completedCount: number;
-  cancelledCount: number;
-  completionRate: number;
-  atRisk: boolean;
-}
-
-export interface PlatformOnboardingOverviewResponse {
-  totalInstances: number;
-  activeInstances: number;
-  completedInstances: number;
-  cancelledInstances: number;
-  overallCompletionRate: number;
-  atRiskCount: number;
-  companies: PlatformOnboardingCompanyStat[];
-  total: number;
-  page: number;
-  pageSize: number;
-  [key: string]: unknown;
+  userCount: number;
+  subscriptionId: string;
+  subscriptionStatus: string;
+  planCode: string;
+  planName: string;
+  currentPeriodEnd: string;
 }
 
 // ---------------------------
 // Platform Templates (global shared library)
 // ---------------------------
 
-/** com.sme.platform.template.list */
+/** com.sme.onboarding.template.list */
 export interface PlatformTemplateListRequest {
   page?: number;
-  pageSize?: number;
+  size?: number;
   search?: string;
   status?: string;
 }
@@ -162,29 +117,28 @@ export interface PlatformTemplateListResponse {
   items: PlatformTemplateItem[];
   total: number;
   page: number;
-  pageSize: number;
-  [key: string]: unknown;
+  size: number;
 }
 
-/** com.sme.platform.template.create */
+/** com.sme.onboarding.template.create */
 export interface PlatformTemplateCreateRequest {
   name: string;
   description?: string;
 }
 
-/** com.sme.platform.template.update */
+/** com.sme.onboarding.template.update */
 export interface PlatformTemplateUpdateRequest {
   templateId: string;
   name?: string;
   description?: string;
 }
 
-/** com.sme.platform.template.publish */
+/** pending backend implementation */
 export interface PlatformTemplatePublishRequest {
   templateId: string;
 }
 
-/** com.sme.platform.template.archive */
+/** pending backend implementation */
 export interface PlatformTemplateArchiveRequest {
   templateId: string;
 }
@@ -215,27 +169,25 @@ export interface PlatformCompanyDeleteRequest {
 /** com.sme.platform.subscription.list */
 export interface PlatformSubscriptionListRequest {
   page?: number;
-  pageSize?: number;
+  size?: number;
   companyId?: string;
   status?: string;
 }
 
 export interface PlatformSubscriptionItem {
   subscriptionId: string;
+  companyId: string;
   companyName: string;
-  plan: string;
+  planCode: string;
   status: string;
   billingCycle: string;
-  nextRenewal: string;
-  amount: number;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
 }
 
 export interface PlatformSubscriptionListResponse {
   items: PlatformSubscriptionItem[];
   total: number;
-  page: number;
-  pageSize: number;
-  [key: string]: unknown;
 }
 
 /** com.sme.platform.subscription.detail */
@@ -246,18 +198,11 @@ export interface PlatformSubscriptionDetailRequest {
 export interface PlatformSubscriptionDetailResponse {
   subscriptionId: string;
   companyName: string;
-  plan: string;
+  planCode: string;
   status: string;
   billingCycle: string;
-  nextRenewal: string;
-  amount: number;
-  paymentHistory: {
-    paymentId: string;
-    amount: number;
-    status: string;
-    createdAt: string;
-  }[];
-  [key: string]: unknown;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
 }
 
 // ---------------------------
@@ -266,44 +211,44 @@ export interface PlatformSubscriptionDetailResponse {
 
 /** com.sme.platform.plan.list */
 export interface PlatformPlanListRequest {
-  // no params required
+  [key: string]: never;
 }
 
 export interface PlatformPlanItem {
-  planCode: string;
+  planId: string;
+  code: string;
   name: string;
-  price: number;
-  billingCycle: string;
-  maxEmployees: number;
-  features: string[];
+  employeeLimitPerMonth: number;
+  priceVndMonthly: number;
+  priceVndYearly: number;
+  status: string;
 }
 
 export interface PlatformPlanListResponse {
-  plans: PlatformPlanItem[];
-  [key: string]: unknown;
+  items: PlatformPlanItem[];
 }
 
 /** com.sme.platform.plan.create */
 export interface PlatformPlanCreateRequest {
-  planCode: string;
+  code: string;
   name: string;
-  price: number;
-  billingCycle: string;
-  maxEmployees: number;
-  features: string[];
+  employeeLimitPerMonth: number;
+  priceVndMonthly: number;
+  priceVndYearly: number;
 }
 
 /** com.sme.platform.plan.update */
 export interface PlatformPlanUpdateRequest {
-  planCode: string;
+  planId: string;
   name?: string;
-  price?: number;
-  features?: string[];
+  employeeLimitPerMonth?: number;
+  priceVndMonthly?: number;
+  priceVndYearly?: number;
 }
 
 /** com.sme.platform.plan.delete */
 export interface PlatformPlanDeleteRequest {
-  planCode: string;
+  planId: string;
 }
 
 // ---------------------------
@@ -313,15 +258,16 @@ export interface PlatformPlanDeleteRequest {
 /** com.sme.platform.feedback.list */
 export interface PlatformFeedbackListRequest {
   page?: number;
-  pageSize?: number;
+  size?: number;
   status?: string;
 }
 
 export interface PlatformFeedbackItem {
   feedbackId: string;
-  userId: string;
+  companyId: string;
   companyName: string;
-  message: string;
+  userId: string;
+  subject: string;
   status: string;
   createdAt: string;
 }
@@ -329,9 +275,6 @@ export interface PlatformFeedbackItem {
 export interface PlatformFeedbackListResponse {
   items: PlatformFeedbackItem[];
   total: number;
-  page: number;
-  pageSize: number;
-  [key: string]: unknown;
 }
 
 /** com.sme.platform.feedback.detail */
@@ -357,56 +300,48 @@ export interface PlatformSystemHealthResponse {
     status: "UP" | "DOWN";
     latencyMs?: number;
   }[];
-  [key: string]: unknown;
 }
 
 /** com.sme.platform.system.errorLog */
 export interface PlatformSystemErrorLogRequest {
   page?: number;
-  pageSize?: number;
-  severity?: string;
-  from?: string;
-  to?: string;
+  size?: number;
 }
 
 export interface PlatformSystemErrorLogItem {
-  logId: string;
+  errorId: string;
+  errorCode: string;
   message: string;
-  severity: string;
-  timestamp: string;
+  requestId: string;
+  createdAt: string;
   stackTrace?: string;
 }
 
 export interface PlatformSystemErrorLogResponse {
   items: PlatformSystemErrorLogItem[];
   total: number;
-  page: number;
-  pageSize: number;
-  [key: string]: unknown;
 }
 
 /** com.sme.platform.system.activityLog */
 export interface PlatformSystemActivityLogRequest {
   page?: number;
-  pageSize?: number;
-  actorId?: string;
-  from?: string;
-  to?: string;
+  size?: number;
 }
 
 export interface PlatformSystemActivityLogItem {
-  actorId: string;
+  logId: string;
+  companyId: string;
+  userId: string;
   action: string;
-  resource: string;
-  timestamp: string;
+  entityType: string;
+  entityId: string;
+  detail: string;
+  createdAt: string;
 }
 
 export interface PlatformSystemActivityLogResponse {
   items: PlatformSystemActivityLogItem[];
   total: number;
-  page: number;
-  pageSize: number;
-  [key: string]: unknown;
 }
 
 // ---------------------------
@@ -421,4 +356,168 @@ export interface PlatformDunningRetryRequest {
 export interface PlatformDunningRetryResponse {
   retried: boolean;
   nextAttemptAt?: string;
+}
+
+// ---------------------------
+// Financial Dashboard
+// ---------------------------
+
+/** com.sme.platform.dashboard.financial */
+export interface PlatformFinancialDashboardRequest {
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface PlatformFinancialDashboardResponse {
+  totalRevenue: number;
+  mrr: number;
+  churn: number;
+  totalSubscriptions: number;
+  activeSubscriptions: number;
+  newSubscriptions: number;
+}
+
+// ---------------------------
+// Invoice Management
+// ---------------------------
+
+/** com.sme.platform.invoice.list */
+export interface PlatformInvoiceListRequest {
+  page?: number;
+  size?: number;
+  companyId?: string;
+  status?: string;
+}
+
+export interface PlatformInvoiceItem {
+  invoiceId: string;
+  companyId: string;
+  companyName: string;
+  amount: number;
+  currency: string;
+  status: string;
+  dueDate: string;
+  paidAt: string;
+  createdAt: string;
+}
+
+export interface PlatformInvoiceListResponse {
+  items: PlatformInvoiceItem[];
+  total: number;
+}
+
+// ---------------------------
+// Payment Management
+// ---------------------------
+
+/** com.sme.platform.payment.list */
+export interface PlatformPaymentListRequest {
+  page?: number;
+  size?: number;
+  companyId?: string;
+  status?: string;
+}
+
+export interface PlatformPaymentItem {
+  paymentId: string;
+  companyId: string;
+  companyName: string;
+  invoiceId: string;
+  amount: number;
+  currency: string;
+  status: string;
+  provider: string;
+  createdAt: string;
+}
+
+export interface PlatformPaymentListResponse {
+  items: PlatformPaymentItem[];
+  total: number;
+}
+
+// ---------------------------
+// Revenue Analytics
+// ---------------------------
+
+/** com.sme.platform.analytics.revenue */
+export interface PlatformRevenueAnalyticsRequest {
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface PlatformRevenueAnalyticsResponse {
+  totalRevenue: number;
+  mrr: number;
+  revenueGrowth: number;
+}
+
+// ---------------------------
+// Subscription Analytics
+// ---------------------------
+
+/** com.sme.platform.analytics.subscription */
+export interface PlatformSubscriptionAnalyticsRequest {
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface PlatformSubscriptionAnalyticsResponse {
+  totalSubscriptions: number;
+  activeSubscriptions: number;
+  mrr: number;
+  churn: number;
+}
+
+// ---------------------------
+// Usage Analytics
+// ---------------------------
+
+/** com.sme.platform.analytics.usage */
+export interface PlatformUsageAnalyticsRequest {
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface PlatformUsageAnalyticsResponse {
+  activeUsers: number;
+  totalActions: number;
+  averageSessionDuration: number;
+}
+
+// ---------------------------
+// Admin Audit Log
+// ---------------------------
+
+/** com.sme.platform.audit.adminLog */
+export interface PlatformAdminAuditLogRequest {
+  page?: number;
+  size?: number;
+}
+
+export interface PlatformAdminAuditLogItem {
+  logId: string;
+  adminId: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  detail: string;
+  createdAt: string;
+}
+
+export interface PlatformAdminAuditLogResponse {
+  items: PlatformAdminAuditLogItem[];
+  total: number;
+}
+
+// ---------------------------
+// Monitoring Metrics
+// ---------------------------
+
+/** com.sme.platform.monitoring.metrics */
+export interface PlatformMonitoringMetricsResponse {
+  cpuUsage: number;
+  memoryUsage: number;
+  apiLatencyMs: number;
+  errorRate: number;
+  requestsPerMinute: number;
 }

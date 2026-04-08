@@ -24,6 +24,12 @@ const STATUS_COLOR: Record<string, string> = {
   CLOSED: "default",
 };
 
+const STATUS_LABEL_KEY: Record<string, string> = {
+  OPEN: "platform.feedback.status_open",
+  RESOLVED: "platform.feedback.status_resolved",
+  CLOSED: "platform.feedback.status_closed",
+};
+
 const PlatformFeedback = () => {
   const { t } = useLocale();
   const queryClient = useQueryClient();
@@ -38,7 +44,7 @@ const PlatformFeedback = () => {
   const { data, isLoading } = useQuery({
     queryKey: ["platform-feedback", page, statusFilter],
     queryFn: () =>
-      apiGetPlatformFeedbackList({ page, pageSize: 20, status: statusFilter }),
+      apiGetPlatformFeedbackList({ page, size: 20, status: statusFilter }),
     select: (res: any) => res?.data ?? res,
   });
 
@@ -83,7 +89,7 @@ const PlatformFeedback = () => {
       dataIndex: "status",
       key: "status",
       render: (v: string) => (
-        <Tag color={STATUS_COLOR[v] ?? "default"}>{v}</Tag>
+        <Tag color={STATUS_COLOR[v] ?? "default"}>{t(STATUS_LABEL_KEY[v] ?? v)}</Tag>
       ),
     },
     {
@@ -132,9 +138,9 @@ const PlatformFeedback = () => {
             setPage(1);
           }}
           options={[
-            { value: "OPEN", label: "Open" },
-            { value: "RESOLVED", label: "Resolved" },
-            { value: "CLOSED", label: "Closed" },
+            { value: "OPEN", label: t("platform.feedback.status_open") },
+            { value: "RESOLVED", label: t("platform.feedback.status_resolved") },
+            { value: "CLOSED", label: t("platform.feedback.status_closed") },
           ]}
         />
       </div>
@@ -174,7 +180,7 @@ const PlatformFeedback = () => {
         <div className="space-y-4 py-2">
           {resolvingItem && (
             <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-              {resolvingItem.message}
+              {resolvingItem.subject}
             </div>
           )}
           <Input.TextArea

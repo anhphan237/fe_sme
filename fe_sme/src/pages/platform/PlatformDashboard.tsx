@@ -20,8 +20,11 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { apiGetPlatformSubscriptionMetrics } from "@/api/admin/admin.api";
-import { apiGetPlatformDashboardOverview } from "@/api/platform/platform.api";
+import {
+  apiGetPlatformCompanyAnalytics,
+  apiGetPlatformOnboardingAnalytics,
+  apiGetPlatformSubscriptionAnalytics,
+} from "@/api/platform/platform.api";
 import { useLocale } from "@/i18n";
 
 const { RangePicker } = DatePicker;
@@ -30,19 +33,25 @@ const DEFAULT_START = dayjs().subtract(30, "day").format("YYYY-MM-DD");
 const DEFAULT_END = dayjs().format("YYYY-MM-DD");
 
 const usePlatformDashboard = (startDate: string, endDate: string) => {
-  const overview = useQuery({
-    queryKey: ["platform-dashboard-overview", startDate, endDate],
-    queryFn: () => apiGetPlatformDashboardOverview({ startDate, endDate }),
+  const companyAnalytics = useQuery({
+    queryKey: ["platform-company-analytics", startDate, endDate],
+    queryFn: () => apiGetPlatformCompanyAnalytics({ startDate, endDate }),
+    select: (res: any) => res?.data ?? res,
+  });
+
+  const onboardingAnalytics = useQuery({
+    queryKey: ["platform-onboarding-analytics", startDate, endDate],
+    queryFn: () => apiGetPlatformOnboardingAnalytics({ startDate, endDate }),
     select: (res: any) => res?.data ?? res,
   });
 
   const metrics = useQuery({
-    queryKey: ["platform-subscription-metrics", startDate, endDate],
-    queryFn: () => apiGetPlatformSubscriptionMetrics({ startDate, endDate }),
+    queryKey: ["platform-subscription-analytics", startDate, endDate],
+    queryFn: () => apiGetPlatformSubscriptionAnalytics({ startDate, endDate }),
     select: (res: any) => res?.data ?? res,
   });
 
-  return { overview, metrics };
+  return { companyAnalytics, onboardingAnalytics, metrics };
 };
 
 const StatCard = ({
@@ -86,18 +95,16 @@ const PlatformDashboard = () => {
     DEFAULT_END,
   ]);
 
-  const { overview, metrics } = usePlatformDashboard(
-    dateRange[0],
-    dateRange[1],
-  );
-  const ov = overview.data as any;
+  const { companyAnalytics, onboardingAnalytics, metrics } =
+    usePlatformDashboard(dateRange[0], dateRange[1]);
+  const ca = companyAnalytics.data as any;
+  const oa = onboardingAnalytics.data as any;
   const mt = metrics.data as any;
 
   const mrrData = mt
     ? [
-        { name: "Start", value: mt.activeAtStart ?? 0 },
+        { name: "Total", value: mt.totalSubscriptions ?? 0 },
         { name: "Active", value: mt.activeSubscriptions ?? 0 },
-        { name: "Churned", value: mt.churnedCount ?? 0 },
       ]
     : [];
 
@@ -126,38 +133,34 @@ const PlatformDashboard = () => {
         <StatCard
           icon={Building2}
           label={t("platform.dashboard.active_companies")}
-          value={ov?.activeCompanies ?? "—"}
-          sub={`${ov?.trialCompanies ?? 0} ${t("platform.dashboard.on_trial")}`}
+          value={ca?.activeCompanies ?? "—"}
+          sub={`${ca?.newCompanies ?? 0} ${t("platform.dashboard.on_trial")}`}
           color="bg-blue-500"
-          loading={overview.isLoading}
+          loading={companyAnalytics.isLoading}
         />
         <StatCard
           icon={TrendingUp}
           label={t("platform.dashboard.mrr")}
-          value={
-            mt?.monthlyRecurringRevenue
-              ? `$${Number(mt.monthlyRecurringRevenue).toLocaleString()}`
-              : "—"
-          }
-          sub={`${t("platform.dashboard.churn_rate")}: ${mt?.churnRate != null ? `${(mt.churnRate * 100).toFixed(1)}%` : "—"}`}
+          value={mt?.mrr ? `$${Number(mt.mrr).toLocaleString()}` : "—"}
+          sub={`${t("platform.dashboard.churn_rate")}: ${mt?.churn != null ? `${(mt.churn * 100).toFixed(1)}%` : "—"}`}
           color="bg-emerald-500"
           loading={metrics.isLoading}
         />
         <StatCard
           icon={ClipboardCheck}
           label={t("platform.dashboard.active_onboardings")}
-          value={ov?.activeOnboardingInstances ?? "—"}
-          sub={`${t("platform.dashboard.completed")}: ${ov?.completedOnboardingInstances ?? 0}`}
+          value={oa?.totalOnboardings ?? "—"}
+          sub={`${t("platform.dashboard.completed")}: ${oa?.completedOnboardings ?? 0}`}
           color="bg-violet-500"
-          loading={overview.isLoading}
+          loading={onboardingAnalytics.isLoading}
         />
         <StatCard
           icon={AlertTriangle}
           label={t("platform.dashboard.at_risk")}
-          value={ov?.atRiskCount ?? "—"}
+          value={ca?.suspendedCompanies ?? "—"}
           sub={t("platform.dashboard.at_risk_desc")}
           color="bg-rose-500"
-          loading={overview.isLoading}
+          loading={companyAnalytics.isLoading}
         />
       </div>
 
@@ -248,14 +251,14 @@ const PlatformDashboard = () => {
             {t("platform.dashboard.completion_rate")}
           </span>
         }>
-        {overview.isLoading ? (
+        {onboardingAnalytics.isLoading ? (
           <Skeleton active paragraph={{ rows: 2 }} />
         ) : (
           <div className="flex items-center gap-6">
             <div>
               <p className="text-4xl font-bold text-violet-600">
-                {ov?.platformCompletionRate != null
-                  ? `${(ov.platformCompletionRate * 100).toFixed(1)}%`
+                {oa?.completionRate != null
+                  ? `${(oa.completionRate * 100).toFixed(1)}%`
                   : "—"}
               </p>
               <p className="mt-1 text-sm text-slate-500">
@@ -267,7 +270,7 @@ const PlatformDashboard = () => {
                 <div
                   className="h-full rounded-full bg-violet-500 transition-all duration-700"
                   style={{
-                    width: `${Math.round((ov?.platformCompletionRate ?? 0) * 100)}%`,
+                    width: `${Math.round((oa?.completionRate ?? 0) * 100)}%`,
                   }}
                 />
               </div>

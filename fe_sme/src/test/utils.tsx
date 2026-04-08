@@ -6,12 +6,13 @@ import { IntlProvider } from "react-intl";
 import { App, ConfigProvider } from "antd";
 import { localeConfig } from "@/i18n";
 import { useUserStore } from "@/stores/user.store";
-import type { Tenant } from "@/shared/types";
+import type { Tenant, User } from "@/shared/types";
 
 export interface RenderOptions {
   route?: string;
   locale?: "en_US" | "vi_VN";
   tenant?: Tenant;
+  user?: Partial<User>;
 }
 
 const DEFAULT_TENANT: Tenant = {
@@ -28,11 +29,26 @@ export function renderWithProviders(
     route = "/",
     locale = "en_US",
     tenant = DEFAULT_TENANT,
+    user,
   }: RenderOptions = {},
 ) {
   // Seed Zustand store so gateway calls include correct companyId/tenantId
   const store = useUserStore.getState();
   if (tenant) store.setTenant(tenant);
+  if (user) {
+    store.setUser({
+      id: "test-user",
+      name: "Test User",
+      email: "test@example.com",
+      roles: [],
+      companyId: tenant?.id ?? "1",
+      department: "Test",
+      departmentId: null,
+      status: "Active",
+      ...user,
+    } as User);
+    store.setToken("mock-token");
+  }
 
   const messages = localeConfig[locale] ?? localeConfig["en_US"];
 

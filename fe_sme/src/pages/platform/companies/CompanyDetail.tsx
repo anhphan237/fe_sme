@@ -32,8 +32,18 @@ import {
   apiDeactivateCompany,
   apiDeleteCompany,
 } from "@/api/platform/platform.api";
+import {
+  apiGetCompanyOnboardingFunnel,
+  apiGetCompanyOnboardingByDepartment,
+  apiGetCompanyTaskCompletion,
+} from "@/api/admin/admin.api";
 import { useLocale } from "@/i18n";
 import type { PlatformCompanyDetailResponse } from "@/interface/platform";
+import type {
+  CompanyOnboardingFunnelResponse,
+  CompanyOnboardingByDepartmentResponse,
+  CompanyTaskCompletionResponse,
+} from "@/interface/admin";
 
 const STATUS_COLOR: Record<string, string> = {
   ACTIVE: "bg-green-100 text-green-700",
@@ -43,11 +53,56 @@ const STATUS_COLOR: Record<string, string> = {
 
 const PIE_COLORS = ["#6366f1", "#22c55e", "#ef4444", "#94a3b8"];
 
+const TODAY = new Date().toISOString().slice(0, 10);
+const START_DEFAULT = new Date(Date.now() - 90 * 86400000)
+  .toISOString()
+  .slice(0, 10);
+
 const useCompanyDetail = (companyId: string) =>
   useQuery({
     queryKey: ["platform-company-detail", companyId],
     queryFn: () => apiGetPlatformCompanyDetail({ companyId }),
     select: (res: any) => (res?.data ?? res) as PlatformCompanyDetailResponse,
+    enabled: !!companyId,
+  });
+
+const useCompanyFunnel = (companyId: string) =>
+  useQuery({
+    queryKey: ["company-onboarding-funnel", companyId],
+    queryFn: () =>
+      apiGetCompanyOnboardingFunnel({
+        companyId,
+        startDate: START_DEFAULT,
+        endDate: TODAY,
+      }),
+    select: (res: any) => (res?.data ?? res) as CompanyOnboardingFunnelResponse,
+    enabled: !!companyId,
+  });
+
+const useCompanyDepartments = (companyId: string) =>
+  useQuery({
+    queryKey: ["company-onboarding-departments", companyId],
+    queryFn: () =>
+      apiGetCompanyOnboardingByDepartment({
+        companyId,
+        startDate: START_DEFAULT,
+        endDate: TODAY,
+      }),
+    select: (res: any) =>
+      (res?.data ?? res) as CompanyOnboardingByDepartmentResponse,
+    enabled: !!companyId,
+  });
+
+const useCompanyTaskCompletion = (companyId: string) =>
+  useQuery({
+    queryKey: ["company-task-completion", companyId],
+    queryFn: () =>
+      apiGetCompanyTaskCompletion({
+        companyId,
+        startDate: START_DEFAULT,
+        endDate: TODAY,
+      }),
+    select: (res: any) => (res?.data ?? res) as CompanyTaskCompletionResponse,
     enabled: !!companyId,
   });
 
@@ -80,6 +135,9 @@ const CompanyDetail = () => {
   const queryClient = useQueryClient();
 
   const { data: company, isLoading, isError } = useCompanyDetail(companyId!);
+  const { data: funnel } = useCompanyFunnel(companyId!);
+  const { data: deptData } = useCompanyDepartments(companyId!);
+  const { data: taskCompletion } = useCompanyTaskCompletion(companyId!);
 
   const activateMutation = useMutation({
     mutationFn: () => apiActivateCompany({ companyId: companyId! }),
@@ -138,30 +196,24 @@ const CompanyDetail = () => {
     });
   };
 
-  const funnelData = company
+  const funnelData = funnel
     ? [
         {
           name: t("platform.company_detail.status_active"),
-          value: company.activeOnboardings,
+          value: funnel.activeCount,
         },
         {
           name: t("platform.company_detail.status_completed"),
-          value: company.completedOnboardings,
+          value: funnel.completedCount,
         },
         {
           name: t("platform.company_detail.status_cancelled"),
-          value: company.cancelledOnboardings,
+          value: funnel.cancelledCount,
         },
       ]
     : [];
 
-  const deptData =
-    company?.departments?.map((d) => ({
-      name: d.departmentName,
-      total: d.totalTasks,
-      completed: d.completedTasks,
-      rate: Math.round(d.completionRate),
-    })) ?? [];
+  const departments = deptData?.departments ?? [];
 
   if (isError) {
     return (
@@ -205,9 +257,7 @@ const CompanyDetail = () => {
                 {company?.name}
               </h1>
               <div className="mt-1 flex items-center gap-3 text-sm text-slate-500">
-                <span>{company?.industry}</span>
-                <span>·</span>
-                <span>{company?.size}</span>
+                <span>{company?.planName ?? company?.planCode}</span>
                 <span>·</span>
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[company?.status ?? ""] ?? "bg-slate-100 text-slate-600"}`}>
@@ -223,11 +273,14 @@ const CompanyDetail = () => {
               <p>
                 {t("platform.company_detail.plan")}:{" "}
                 <span className="font-medium text-slate-700">
-                  {company.plan}
+                  {company.planCode}
                 </span>
               </p>
               <p>
-                {t("platform.company_detail.admin")}: {company.adminEmail}
+                {t("platform.company_detail.users")}:{" "}
+                <span className="font-medium text-slate-700">
+                  {company.userCount}
+                </span>
               </p>
             </div>
             {/* Action buttons */}
@@ -266,26 +319,28 @@ const CompanyDetail = () => {
         <KpiCard
           icon={ClipboardCheck}
           label={t("platform.company_detail.total_onboardings")}
-          value={isLoading ? "—" : (company?.totalOnboardings ?? 0)}
+          value={isLoading ? "—" : (funnel?.totalInstances ?? 0)}
           color="bg-violet-500"
         />
         <KpiCard
           icon={Clock}
           label={t("platform.company_detail.active_onboardings")}
-          value={isLoading ? "—" : (company?.activeOnboardings ?? 0)}
+          value={isLoading ? "—" : (funnel?.activeCount ?? 0)}
           color="bg-blue-500"
         />
         <KpiCard
           icon={CheckCircle2}
           label={t("platform.company_detail.completed_onboardings")}
-          value={isLoading ? "—" : (company?.completedOnboardings ?? 0)}
+          value={isLoading ? "—" : (funnel?.completedCount ?? 0)}
           color="bg-emerald-500"
         />
         <KpiCard
           icon={TrendingUp}
           label={t("platform.company_detail.task_completion_rate")}
           value={
-            isLoading ? "—" : `${company?.taskCompletionRate?.toFixed(1) ?? 0}%`
+            isLoading
+              ? "—"
+              : `${taskCompletion?.completionRate?.toFixed(1) ?? 0}%`
           }
           color="bg-amber-500"
         />
@@ -335,17 +390,17 @@ const CompanyDetail = () => {
                       {[
                         {
                           label: t("platform.company_detail.status_active"),
-                          value: company?.activeOnboardings,
+                          value: funnel?.activeCount,
                           color: "bg-violet-500",
                         },
                         {
                           label: t("platform.company_detail.status_completed"),
-                          value: company?.completedOnboardings,
+                          value: funnel?.completedCount,
                           color: "bg-emerald-500",
                         },
                         {
                           label: t("platform.company_detail.status_cancelled"),
-                          value: company?.cancelledOnboardings,
+                          value: funnel?.cancelledCount,
                           color: "bg-rose-500",
                         },
                       ].map((row) => (
@@ -369,7 +424,7 @@ const CompanyDetail = () => {
                         <p className="text-sm text-violet-700">
                           {t("platform.company_detail.overall_completion")}{" "}
                           <span className="font-bold">
-                            {company?.completionRate?.toFixed(1) ?? 0}%
+                            {taskCompletion?.completionRate?.toFixed(1) ?? 0}%
                           </span>
                         </p>
                       </div>
@@ -386,7 +441,7 @@ const CompanyDetail = () => {
               <Card>
                 {isLoading ? (
                   <Skeleton active paragraph={{ rows: 5 }} />
-                ) : deptData.length === 0 ? (
+                ) : departments.length === 0 ? (
                   <p className="py-10 text-center text-sm text-slate-400">
                     {t("platform.company_detail.no_dept_data")}
                   </p>
@@ -394,7 +449,11 @@ const CompanyDetail = () => {
                   <div className="space-y-6">
                     <ResponsiveContainer width="100%" height={280}>
                       <BarChart
-                        data={deptData}
+                        data={departments.map((d) => ({
+                          name: d.departmentName,
+                          total: d.totalTasks,
+                          completed: d.completedTasks,
+                        }))}
                         margin={{ top: 5, right: 20, left: 0, bottom: 40 }}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis
@@ -440,36 +499,42 @@ const CompanyDetail = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {company?.departments?.map((d) => (
-                            <tr
-                              key={d.departmentId}
-                              className="border-t border-stroke">
-                              <td className="px-4 py-2 font-medium">
-                                {d.departmentName}
-                              </td>
-                              <td className="px-4 py-2 text-slate-500">
-                                {d.totalTasks}
-                              </td>
-                              <td className="px-4 py-2 text-slate-500">
-                                {d.completedTasks}
-                              </td>
-                              <td className="px-4 py-2">
-                                <div className="flex items-center gap-2">
-                                  <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
-                                    <div
-                                      className="h-full rounded-full bg-violet-500"
-                                      style={{
-                                        width: `${Math.min(d.completionRate, 100)}%`,
-                                      }}
-                                    />
+                          {departments.map((d) => {
+                            const rate =
+                              d.totalTasks > 0
+                                ? (d.completedTasks / d.totalTasks) * 100
+                                : 0;
+                            return (
+                              <tr
+                                key={d.departmentId}
+                                className="border-t border-stroke">
+                                <td className="px-4 py-2 font-medium">
+                                  {d.departmentName}
+                                </td>
+                                <td className="px-4 py-2 text-slate-500">
+                                  {d.totalTasks}
+                                </td>
+                                <td className="px-4 py-2 text-slate-500">
+                                  {d.completedTasks}
+                                </td>
+                                <td className="px-4 py-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
+                                      <div
+                                        className="h-full rounded-full bg-violet-500"
+                                        style={{
+                                          width: `${Math.min(rate, 100)}%`,
+                                        }}
+                                      />
+                                    </div>
+                                    <span className="text-xs text-slate-500">
+                                      {rate.toFixed(0)}%
+                                    </span>
                                   </div>
-                                  <span className="text-xs text-slate-500">
-                                    {d.completionRate?.toFixed(0)}%
-                                  </span>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

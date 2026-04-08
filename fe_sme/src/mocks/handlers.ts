@@ -1256,6 +1256,165 @@ export const handlers = [
       });
     }
 
+    // ── Onboarding Template: list ──────────────────────────────────────────
+    if (op === "com.sme.onboarding.template.list") {
+      const { status, search } = payload as {
+        status?: string;
+        search?: string;
+      };
+      let result = [...templates];
+      if (status) {
+        result = result.filter(
+          (t) =>
+            (t.status ?? "ACTIVE").toUpperCase() === status.toUpperCase(),
+        );
+      }
+      if (search) {
+        const q = search.toLowerCase();
+        result = result.filter((t) => t.name.toLowerCase().includes(q));
+      }
+      return HttpResponse.json({ data: { templates: result } });
+    }
+
+    // ── Onboarding Template: get ───────────────────────────────────────────
+    if (op === "com.sme.onboarding.template.get") {
+      const { templateId } = payload as { templateId?: string };
+      const tmpl = templates.find((t) => t.id === templateId);
+      if (!tmpl) {
+        return HttpResponse.json(
+          { message: "Template not found" },
+          { status: 404 },
+        );
+      }
+      return HttpResponse.json({ data: tmpl });
+    }
+
+    // ── Onboarding Template: create ────────────────────────────────────────
+    if (op === "com.sme.onboarding.template.create") {
+      const { name, description, checklists } = payload as {
+        name?: string;
+        description?: string;
+        checklists?: Array<{ name: string; stage?: string; tasks?: unknown[] }>;
+      };
+      const newTemplate: OnboardingTemplate = {
+        id: `template-${Date.now()}`,
+        name: name ?? "New Template",
+        description: description ?? "",
+        stages: (checklists ?? []).map((c, i) => ({
+          id: `stage-${i}`,
+          name: c.name ?? "",
+          tasks: [],
+        })),
+        status: "ACTIVE",
+        updatedAt: new Date().toISOString().slice(0, 10),
+        companyId: "1",
+      };
+      templates.unshift(newTemplate);
+      return HttpResponse.json({
+        data: { templateId: newTemplate.id, name: newTemplate.name },
+      });
+    }
+
+    // ── Onboarding Template: update ────────────────────────────────────────
+    if (op === "com.sme.onboarding.template.update") {
+      const { templateId, name, description, status } = payload as {
+        templateId?: string;
+        name?: string;
+        description?: string;
+        status?: string;
+      };
+      const idx = templates.findIndex((t) => t.id === templateId);
+      if (idx >= 0) {
+        if (name !== undefined) templates[idx].name = name;
+        if (description !== undefined) templates[idx].description = description;
+        if (status !== undefined)
+          templates[idx].status = status as "ACTIVE" | "INACTIVE";
+        templates[idx].updatedAt = new Date().toISOString().slice(0, 10);
+      }
+      return HttpResponse.json({ data: { templateId } });
+    }
+
+    // ── Onboarding Template: AI generate ──────────────────────────────────
+    if (op === "com.sme.onboarding.template.ai.generate") {
+      const { industry, companySize, jobRole } = payload as {
+        industry?: string;
+        companySize?: string;
+        jobRole?: string;
+      };
+      const generatedTemplate: OnboardingTemplate = {
+        id: `template-ai-${Date.now()}`,
+        name: `${jobRole ?? "New Role"} Onboarding`,
+        description: `AI-generated onboarding for ${jobRole ?? "new role"} in the ${industry ?? "industry"} sector.`,
+        stages: [
+          {
+            id: "ai-stage-pre",
+            name: "Pre-boarding",
+            stageType: "PRE_BOARDING",
+            tasks: [
+              {
+                id: "ai-task-1",
+                title: "Send welcome package",
+                ownerRole: "HR",
+                dueOffset: "0",
+                required: true,
+              },
+            ],
+          },
+          {
+            id: "ai-stage-day1",
+            name: "Day 1",
+            stageType: "DAY_1",
+            tasks: [
+              {
+                id: "ai-task-2",
+                title: "Team introduction meeting",
+                ownerRole: "MANAGER",
+                dueOffset: "1",
+                required: true,
+              },
+              {
+                id: "ai-task-3",
+                title: "Setup workstation",
+                ownerRole: "IT",
+                dueOffset: "1",
+                required: true,
+              },
+            ],
+          },
+          {
+            id: "ai-stage-week1",
+            name: "Week 1",
+            stageType: "DAY_7",
+            tasks: [
+              {
+                id: "ai-task-4",
+                title: "Complete role-specific training",
+                ownerRole: "EMPLOYEE",
+                dueOffset: "7",
+                required: true,
+              },
+            ],
+          },
+        ],
+        status: "ACTIVE",
+        updatedAt: new Date().toISOString().slice(0, 10),
+        companyId: "1",
+      };
+      templates.unshift(generatedTemplate);
+      return HttpResponse.json({
+        data: {
+          templateId: generatedTemplate.id,
+          name: generatedTemplate.name,
+          totalChecklists: generatedTemplate.stages.length,
+          totalTasks: generatedTemplate.stages.reduce(
+            (sum, s) => sum + (s.tasks?.length ?? 0),
+            0,
+          ),
+          companySize,
+        },
+      });
+    }
+
     // Default: return empty success for unknown operations
     return HttpResponse.json({ data: {} });
   }),

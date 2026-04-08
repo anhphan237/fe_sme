@@ -195,7 +195,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "/onboarding/templates",
-        element: suspense(withRoles(<Templates />, ["HR"])),
+        element: suspense(withRoles(<Templates />, ["HR", "MANAGER"])),
       },
       {
         path: "/onboarding/templates/new",

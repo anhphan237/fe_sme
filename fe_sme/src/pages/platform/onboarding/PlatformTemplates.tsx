@@ -40,7 +40,7 @@ const usePlatformTemplates = (params: {
     queryFn: () =>
       apiGetPlatformTemplateList({
         page: params.page,
-        pageSize: PAGE_SIZE,
+        size: PAGE_SIZE,
         search: params.search || undefined,
         status: params.status || undefined,
       }),
@@ -255,11 +255,13 @@ const PlatformTemplates = () => {
 
               {/* Actions */}
               <div className="mt-4 flex items-center gap-2 border-t border-stroke pt-3">
-                <button
-                  className="flex-1 rounded-lg border border-slate-200 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-                  onClick={() => openEdit(tpl)}>
-                  {t("global.edit")}
-                </button>
+                {tpl.status !== "ARCHIVED" && (
+                  <button
+                    className="flex-1 rounded-lg border border-slate-200 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                    onClick={() => openEdit(tpl)}>
+                    {t("global.edit")}
+                  </button>
+                )}
                 {tpl.status === "DRAFT" && (
                   <Tooltip title={t("platform.templates.publish_tooltip")}>
                     <button
@@ -271,7 +273,7 @@ const PlatformTemplates = () => {
                     </button>
                   </Tooltip>
                 )}
-                {tpl.status !== "ARCHIVED" && (
+                {tpl.status === "PUBLISHED" && (
                   <Tooltip title={t("platform.templates.archive_tooltip")}>
                     <button
                       className="flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-100"
