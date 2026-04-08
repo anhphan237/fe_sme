@@ -24,6 +24,9 @@ const AdminKnowledgeBase = lazy(() => import("@/pages/knowledge-base"));
 const AdminDepartments = lazy(() => import("@/pages/departments"));
 const Profile = lazy(() => import("@/pages/profile/Profile"));
 const Notifications = lazy(() => import("@/pages/settings/Notifications"));
+const NotificationsPage = lazy(
+  () => import("@/pages/notifications/NotificationsPage"),
+);
 const OnboardingDashboard = lazy(() => import("@/pages/onboarding/dashboard"));
 const MyJourney = lazy(() => import("@/pages/onboarding/my-journey"));
 const Templates = lazy(() => import("@/pages/onboarding/Templates"));
@@ -172,6 +175,12 @@ export const router = createBrowserRouter([
       },
       { path: "/profile", element: suspense(<Profile />) },
       { path: "/settings/notifications", element: suspense(<Notifications />) },
+      {
+        path: "/notifications",
+        element: suspense(
+          withRoles(<NotificationsPage />, ["HR", "MANAGER", "EMPLOYEE"]),
+        ),
+      },
       // Onboarding - flat structure
       {
         path: "/onboarding",

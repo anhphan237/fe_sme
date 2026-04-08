@@ -1,5 +1,6 @@
 import {
   Banknote,
+  Bell,
   Bot,
   Briefcase,
   ClipboardCheck,
@@ -139,6 +140,12 @@ export const NAV_SECTIONS: NavSection[] = [
     titleKey: "nav.chatbot",
     icon: Bot,
     to: "/chatbot",
+    requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
+  },
+  {
+    titleKey: "nav.notifications",
+    icon: Bell,
+    to: "/notifications",
     requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
   },
   {
