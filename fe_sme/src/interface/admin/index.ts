@@ -5,16 +5,6 @@
 // ============================================================
 
 // ---------------------------
-// Platform Subscription Metrics
-// ---------------------------
-
-/** com.sme.analytics.platform.subscription.metrics */
-export interface PlatformSubscriptionMetricsRequest {
-  startDate: string;
-  endDate: string;
-}
-
-// ---------------------------
 // Company Onboarding Analytics
 // ---------------------------
 
@@ -81,13 +71,5 @@ export interface CompanyTaskCompletionResponse {
   totalTasks: number;
   completedTasks: number;
   completionRate: number;
-  [key: string]: unknown;
-}
-
-export interface PlatformSubscriptionMetricsResponse {
-  totalSubscriptions: number;
-  activeSubscriptions: number;
-  mrr: number;
-  churn: number;
   [key: string]: unknown;
 }

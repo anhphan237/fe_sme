@@ -9,6 +9,7 @@ import {
   ClipboardCheck,
   AlertTriangle,
   ArrowRight,
+  DollarSign,
 } from "lucide-react";
 import dayjs from "dayjs";
 import {
@@ -24,6 +25,8 @@ import {
   apiGetPlatformCompanyAnalytics,
   apiGetPlatformOnboardingAnalytics,
   apiGetPlatformSubscriptionAnalytics,
+  apiGetPlatformRevenueAnalytics,
+  apiGetPlatformUsageAnalytics,
 } from "@/api/platform/platform.api";
 import { useLocale } from "@/i18n";
 
@@ -51,7 +54,19 @@ const usePlatformDashboard = (startDate: string, endDate: string) => {
     select: (res: any) => res?.data ?? res,
   });
 
-  return { companyAnalytics, onboardingAnalytics, metrics };
+  const revenueAnalytics = useQuery({
+    queryKey: ["platform-revenue-analytics", startDate, endDate],
+    queryFn: () => apiGetPlatformRevenueAnalytics({ startDate, endDate }),
+    select: (res: any) => res?.data ?? res,
+  });
+
+  const usageAnalytics = useQuery({
+    queryKey: ["platform-usage-analytics", startDate, endDate],
+    queryFn: () => apiGetPlatformUsageAnalytics({ startDate, endDate }),
+    select: (res: any) => res?.data ?? res,
+  });
+
+  return { companyAnalytics, onboardingAnalytics, metrics, revenueAnalytics, usageAnalytics };
 };
 
 const StatCard = ({
@@ -95,16 +110,21 @@ const PlatformDashboard = () => {
     DEFAULT_END,
   ]);
 
-  const { companyAnalytics, onboardingAnalytics, metrics } =
+  const { companyAnalytics, onboardingAnalytics, metrics, revenueAnalytics, usageAnalytics } =
     usePlatformDashboard(dateRange[0], dateRange[1]);
   const ca = companyAnalytics.data as any;
   const oa = onboardingAnalytics.data as any;
   const mt = metrics.data as any;
+  const rv = revenueAnalytics.data as any;
+  const ua = usageAnalytics.data as any;
 
   const mrrData = mt
     ? [
-        { name: "Total", value: mt.totalSubscriptions ?? 0 },
-        { name: "Active", value: mt.activeSubscriptions ?? 0 },
+        { name: t("platform.dashboard.sub_total"), value: mt.totalSubscriptions ?? 0 },
+        { name: t("platform.dashboard.sub_active"), value: mt.activeSubscriptions ?? 0 },
+        { name: t("platform.dashboard.sub_new"), value: mt.newSubscriptions ?? 0 },
+        { name: t("platform.dashboard.sub_cancelled"), value: mt.cancelledSubscriptions ?? 0 },
+        { name: t("platform.dashboard.sub_suspended"), value: mt.suspendedSubscriptions ?? 0 },
       ]
     : [];
 
@@ -141,10 +161,10 @@ const PlatformDashboard = () => {
         <StatCard
           icon={TrendingUp}
           label={t("platform.dashboard.mrr")}
-          value={mt?.mrr ? `$${Number(mt.mrr).toLocaleString()}` : "—"}
-          sub={`${t("platform.dashboard.churn_rate")}: ${mt?.churn != null ? `${(mt.churn * 100).toFixed(1)}%` : "—"}`}
+          value={rv?.mrr != null ? `${Number(rv.mrr).toLocaleString("vi-VN")}₫` : "—"}
+          sub={`${t("platform.dashboard.churn_rate")}: ${mt?.churnRate != null ? `${(mt.churnRate * 100).toFixed(1)}%` : "—"}`}
           color="bg-emerald-500"
-          loading={metrics.isLoading}
+          loading={metrics.isLoading || revenueAnalytics.isLoading}
         />
         <StatCard
           icon={ClipboardCheck}
@@ -278,7 +298,95 @@ const PlatformDashboard = () => {
                 <span>0%</span>
                 <span>100%</span>
               </div>
+              {ua?.avgOnboardingsPerCompany != null && (
+                <p className="mt-2 text-xs text-slate-500">
+                  {t("platform.dashboard.avg_per_company")}:{" "}
+                  {Number(ua.avgOnboardingsPerCompany).toFixed(1)}
+                </p>
+              )}
             </div>
+          </div>
+        )}
+      </Card>
+      {/* Revenue Analytics */}
+      <Card
+        title={
+          <span className="text-sm font-semibold">
+            {t("platform.dashboard.revenue")}
+          </span>
+        }>
+        {revenueAnalytics.isLoading ? (
+          <Skeleton active paragraph={{ rows: 4 }} />
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="rounded-xl bg-emerald-50 p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <DollarSign className="h-4 w-4 text-emerald-600" />
+                  <span className="text-xs font-medium text-emerald-700">
+                    {t("platform.dashboard.mrr")}
+                  </span>
+                </div>
+                <p className="text-2xl font-bold text-emerald-700">
+                  {rv?.mrr != null
+                    ? Number(rv.mrr).toLocaleString("vi-VN") + "₫"
+                    : "—"}
+                </p>
+              </div>
+              <div className="rounded-xl bg-blue-50 p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <TrendingUp className="h-4 w-4 text-blue-600" />
+                  <span className="text-xs font-medium text-blue-700">
+                    {t("platform.dashboard.arr")}
+                  </span>
+                </div>
+                <p className="text-2xl font-bold text-blue-700">
+                  {rv?.arr != null
+                    ? Number(rv.arr).toLocaleString("vi-VN") + "₫"
+                    : "—"}
+                </p>
+              </div>
+              <div className="rounded-xl bg-violet-50 p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <DollarSign className="h-4 w-4 text-violet-600" />
+                  <span className="text-xs font-medium text-violet-700">
+                    {t("platform.dashboard.total_revenue")}
+                  </span>
+                </div>
+                <p className="text-2xl font-bold text-violet-700">
+                  {rv?.totalRevenue != null
+                    ? Number(rv.totalRevenue).toLocaleString("vi-VN") + "₫"
+                    : "—"}
+                </p>
+              </div>
+            </div>
+
+            {rv?.revenueByPlans?.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  {t("platform.dashboard.revenue_by_plan")}
+                </p>
+                <div className="space-y-2">
+                  {rv.revenueByPlans.map((item: any) => (
+                    <div
+                      key={item.planId}
+                      className="flex items-center justify-between rounded-lg border border-stroke px-4 py-2.5">
+                      <div>
+                        <span className="text-sm font-medium text-slate-700">
+                          {item.planName ?? item.planCode ?? item.planId}
+                        </span>
+                        <span className="ml-2 text-xs text-slate-400">
+                          {item.subscriptionCount} {t("platform.dashboard.subscriptions")}
+                        </span>
+                      </div>
+                      <span className="text-sm font-semibold text-emerald-600">
+                        {Number(item.revenue).toLocaleString("vi-VN")}₫
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Card>

@@ -1,9 +1,19 @@
 import { useState } from "react";
-import { Card, Empty, Skeleton } from "antd";
+import { Card, Empty, Skeleton, DatePicker } from "antd";
 import { useQuery } from "@tanstack/react-query";
-import { apiGetPlatformPaymentList } from "@/api/platform/platform.api";
+import { TrendingUp, DollarSign, AlertTriangle, Users } from "lucide-react";
+import dayjs from "dayjs";
+import {
+  apiGetPlatformPaymentList,
+  apiGetPlatformFinancialDashboard,
+} from "@/api/platform/platform.api";
 import type { PlatformPaymentItem } from "@/interface/platform";
 import { useLocale } from "@/i18n";
+
+const { RangePicker } = DatePicker;
+
+const DEFAULT_START = dayjs().subtract(30, "day").format("YYYY-MM-DD");
+const DEFAULT_END = dayjs().format("YYYY-MM-DD");
 
 const PAGE_SIZE = 50;
 
@@ -31,20 +41,125 @@ const STATUS_STYLES: Record<string, string> = {
 const PlatformPayments = () => {
   const { t } = useLocale();
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [dateRange, setDateRange] = useState<[string, string]>([
+    DEFAULT_START,
+    DEFAULT_END,
+  ]);
+
+  const financialQuery = useQuery({
+    queryKey: ["platform-financial-dashboard", dateRange],
+    queryFn: () =>
+      apiGetPlatformFinancialDashboard({
+        startDate: dateRange[0],
+        endDate: dateRange[1],
+      }),
+    select: (res: any) => res?.data ?? res,
+  });
+
+  const fin = financialQuery.data as any;
 
   const { data, isLoading, isError, refetch } =
     usePaymentListQuery(statusFilter);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-800">
-          {t("platform.payments.title")}
-        </h1>
-        <p className="mt-1 text-sm text-slate-600">
-          {t("platform.payments.subtitle")}
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-800">
+            {t("platform.payments.title")}
+          </h1>
+          <p className="mt-1 text-sm text-slate-600">
+            {t("platform.payments.subtitle")}
+          </p>
+        </div>
+        <RangePicker
+          defaultValue={[dayjs(DEFAULT_START), dayjs(DEFAULT_END)]}
+          onChange={(_, strs) => {
+            if (strs[0] && strs[1]) setDateRange([strs[0], strs[1]]);
+          }}
+        />
       </div>
+
+      {/* Financial Summary */}
+      <Card
+        title={
+          <span className="text-sm font-semibold">
+            {t("platform.payments.financial_title")}
+          </span>
+        }>
+        {financialQuery.isLoading ? (
+          <Skeleton active paragraph={{ rows: 1 }} />
+        ) : (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="rounded-xl bg-emerald-50 p-3">
+              <div className="flex items-center gap-1 mb-1">
+                <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
+                <span className="text-xs font-medium text-emerald-700">
+                  {t("platform.dashboard.mrr")}
+                </span>
+              </div>
+              <p className="text-lg font-bold text-emerald-700">
+                {fin?.mrr != null ? Number(fin.mrr).toLocaleString("vi-VN") + "₫" : "—"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-blue-50 p-3">
+              <div className="flex items-center gap-1 mb-1">
+                <TrendingUp className="h-3.5 w-3.5 text-blue-600" />
+                <span className="text-xs font-medium text-blue-700">
+                  {t("platform.dashboard.total_revenue")}
+                </span>
+              </div>
+              <p className="text-lg font-bold text-blue-700">
+                {fin?.totalRevenue != null ? Number(fin.totalRevenue).toLocaleString("vi-VN") + "₫" : "—"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-violet-50 p-3">
+              <div className="flex items-center gap-1 mb-1">
+                <Users className="h-3.5 w-3.5 text-violet-600" />
+                <span className="text-xs font-medium text-violet-700">
+                  {t("platform.payments.active_subs")}
+                </span>
+              </div>
+              <p className="text-lg font-bold text-violet-700">
+                {fin?.activeSubscriptions ?? "—"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-sky-50 p-3">
+              <div className="flex items-center gap-1 mb-1">
+                <TrendingUp className="h-3.5 w-3.5 text-sky-600" />
+                <span className="text-xs font-medium text-sky-700">
+                  {t("platform.payments.new_subs")}
+                </span>
+              </div>
+              <p className="text-lg font-bold text-sky-700">
+                {fin?.newSubscriptions ?? "—"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-amber-50 p-3">
+              <div className="flex items-center gap-1 mb-1">
+                <TrendingUp className="h-3.5 w-3.5 text-amber-600" />
+                <span className="text-xs font-medium text-amber-700">
+                  {t("platform.dashboard.churn_rate")}
+                </span>
+              </div>
+              <p className="text-lg font-bold text-amber-700">
+                {fin?.churnRate != null ? `${(fin.churnRate * 100).toFixed(1)}%` : "—"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-rose-50 p-3">
+              <div className="flex items-center gap-1 mb-1">
+                <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />
+                <span className="text-xs font-medium text-rose-700">
+                  {t("platform.payments.failed_payments")}
+                </span>
+              </div>
+              <p className="text-lg font-bold text-rose-700">
+                {fin?.failedPayments ?? "—"}
+              </p>
+            </div>
+          </div>
+        )}
+      </Card>
 
       <div className="flex items-center gap-3">
         <label className="text-sm font-medium text-muted">

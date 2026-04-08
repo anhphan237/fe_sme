@@ -1,17 +1,20 @@
 import { useState } from "react";
-import { Card, Table, Tag, Select, DatePicker, Tabs } from "antd";
+import { Card, Table, Tag, Select, DatePicker, Tabs, Skeleton } from "antd";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, Cpu, HardDrive, Activity } from "lucide-react";
 import dayjs from "dayjs";
 import {
   apiGetSystemHealth,
   apiGetSystemErrorLog,
   apiGetSystemActivityLog,
+  apiGetPlatformAdminAuditLog,
+  apiGetPlatformMonitoringMetrics,
 } from "@/api/platform/platform.api";
 import { useLocale } from "@/i18n";
 import type {
   PlatformSystemErrorLogItem,
   PlatformSystemActivityLogItem,
+  PlatformAdminAuditLogItem,
 } from "@/interface/platform";
 
 const { RangePicker } = DatePicker;
@@ -47,6 +50,7 @@ const PlatformSystem = () => {
   const { t } = useLocale();
   const [errorPage, setErrorPage] = useState(1);
   const [activityPage, setActivityPage] = useState(1);
+  const [auditPage, setAuditPage] = useState(1);
   const [severity, setSeverity] = useState<string | undefined>(undefined);
   const [dateRange, setDateRange] = useState<[string, string]>([
     DEFAULT_FROM,
@@ -58,6 +62,13 @@ const PlatformSystem = () => {
     queryFn: () => apiGetSystemHealth(),
     select: (res: any) => res?.data ?? res,
     refetchInterval: 30_000,
+  });
+
+  const monitoringQuery = useQuery({
+    queryKey: ["platform-monitoring-metrics"],
+    queryFn: () => apiGetPlatformMonitoringMetrics(),
+    select: (res: any) => res?.data ?? res,
+    refetchInterval: 15_000,
   });
 
   const errorLogQuery = useQuery({
@@ -80,11 +91,24 @@ const PlatformSystem = () => {
     select: (res: any) => res?.data ?? res,
   });
 
+  const auditLogQuery = useQuery({
+    queryKey: ["platform-admin-audit-log", auditPage],
+    queryFn: () =>
+      apiGetPlatformAdminAuditLog({
+        page: auditPage - 1,
+        size: 20,
+      }),
+    select: (res: any) => res?.data ?? res,
+  });
+
   const health = healthQuery.data as any;
+  const mon = monitoringQuery.data as any;
   const errorLogs: PlatformSystemErrorLogItem[] =
     errorLogQuery.data?.items ?? [];
   const activityLogs: PlatformSystemActivityLogItem[] =
     activityLogQuery.data?.items ?? [];
+  const auditLogs: PlatformAdminAuditLogItem[] =
+    auditLogQuery.data?.items ?? [];
 
   const overallStatusColor =
     health?.status === "UP"
@@ -99,7 +123,9 @@ const PlatformSystem = () => {
       dataIndex: "severity",
       key: "severity",
       render: (v: string) => (
-        <Tag color={SEVERITY_COLOR[v] ?? "default"}>{t(SEVERITY_LABEL_KEY[v] ?? v)}</Tag>
+        <Tag color={SEVERITY_COLOR[v] ?? "default"}>
+          {t(SEVERITY_LABEL_KEY[v] ?? v)}
+        </Tag>
       ),
     },
     {
@@ -140,6 +166,38 @@ const PlatformSystem = () => {
     },
   ];
 
+  const auditColumns = [
+    {
+      title: t("platform.system.col_admin"),
+      dataIndex: "adminUserId",
+      key: "adminUserId",
+      ellipsis: true,
+    },
+    {
+      title: t("platform.system.col_action"),
+      dataIndex: "action",
+      key: "action",
+    },
+    {
+      title: t("platform.system.col_target"),
+      key: "target",
+      render: (r: PlatformAdminAuditLogItem) =>
+        r.targetType ? `${r.targetType}:${r.targetId}` : r.targetId,
+    },
+    {
+      title: t("platform.system.col_detail"),
+      dataIndex: "detail",
+      key: "detail",
+      ellipsis: true,
+    },
+    {
+      title: t("platform.system.col_timestamp"),
+      dataIndex: "createdAt",
+      key: "createdAt",
+      render: (v: string) => v ? new Date(v).toLocaleString() : "—",
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
@@ -150,6 +208,81 @@ const PlatformSystem = () => {
           {t("platform.system.subtitle")}
         </p>
       </div>
+
+      {/* Monitoring Metrics */}
+      <Card
+        title={
+          <span className="text-sm font-semibold">
+            {t("platform.system.monitoring_title")}
+          </span>
+        }>
+        {monitoringQuery.isLoading ? (
+          <Skeleton active paragraph={{ rows: 1 }} />
+        ) : mon ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="rounded-xl bg-blue-50 p-3">
+              <div className="flex items-center gap-1 mb-1">
+                <HardDrive className="h-3.5 w-3.5 text-blue-600" />
+                <span className="text-xs font-medium text-blue-700">
+                  {t("platform.system.used_memory")}
+                </span>
+              </div>
+              <p className="text-lg font-bold text-blue-700">
+                {mon.usedMemoryMb != null ? `${mon.usedMemoryMb} MB` : "—"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3">
+              <div className="flex items-center gap-1 mb-1">
+                <HardDrive className="h-3.5 w-3.5 text-slate-600" />
+                <span className="text-xs font-medium text-slate-700">
+                  {t("platform.system.heap_usage")}
+                </span>
+              </div>
+              <p className="text-lg font-bold text-slate-700">
+                {mon.heapUsagePercent != null
+                  ? `${Number(mon.heapUsagePercent).toFixed(1)}%`
+                  : "—"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-violet-50 p-3">
+              <div className="flex items-center gap-1 mb-1">
+                <Cpu className="h-3.5 w-3.5 text-violet-600" />
+                <span className="text-xs font-medium text-violet-700">
+                  {t("platform.system.cpu")}
+                </span>
+              </div>
+              <p className="text-lg font-bold text-violet-700">
+                {mon.cpuUsagePercent != null
+                  ? `${Number(mon.cpuUsagePercent).toFixed(1)}%`
+                  : "—"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-emerald-50 p-3">
+              <div className="flex items-center gap-1 mb-1">
+                <Activity className="h-3.5 w-3.5 text-emerald-600" />
+                <span className="text-xs font-medium text-emerald-700">
+                  {t("platform.system.threads")}
+                </span>
+              </div>
+              <p className="text-lg font-bold text-emerald-700">
+                {mon.threadCount ?? "—"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-amber-50 p-3">
+              <span className="text-xs font-medium text-amber-700">{t("platform.system.max_memory")}</span>
+              <p className="text-lg font-bold text-amber-700 mt-1">
+                {mon.maxMemoryMb != null ? `${mon.maxMemoryMb} MB` : "—"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-rose-50 p-3">
+              <span className="text-xs font-medium text-rose-700">{t("platform.system.cpus")}</span>
+              <p className="text-lg font-bold text-rose-700 mt-1">
+                {mon.availableProcessors ?? "—"}
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </Card>
 
       {/* System Health */}
       <Card
@@ -228,9 +361,18 @@ const PlatformSystem = () => {
                       setErrorPage(1);
                     }}
                     options={[
-                      { value: "ERROR", label: t("platform.system.severity_error") },
-                      { value: "WARN", label: t("platform.system.severity_warn") },
-                      { value: "INFO", label: t("platform.system.severity_info") },
+                      {
+                        value: "ERROR",
+                        label: t("platform.system.severity_error"),
+                      },
+                      {
+                        value: "WARN",
+                        label: t("platform.system.severity_warn"),
+                      },
+                      {
+                        value: "INFO",
+                        label: t("platform.system.severity_info"),
+                      },
                     ]}
                   />
                 </div>
@@ -277,6 +419,27 @@ const PlatformSystem = () => {
                     pageSize: 20,
                     total: activityLogQuery.data?.total ?? 0,
                     onChange: setActivityPage,
+                    showSizeChanger: false,
+                  }}
+                />
+              </Card>
+            ),
+          },
+          {
+            key: "audit",
+            label: t("platform.system.tab_audit"),
+            children: (
+              <Card>
+                <Table
+                  dataSource={auditLogs}
+                  columns={auditColumns}
+                  rowKey="logId"
+                  loading={auditLogQuery.isLoading}
+                  pagination={{
+                    current: auditPage,
+                    pageSize: 20,
+                    total: auditLogQuery.data?.total ?? 0,
+                    onChange: setAuditPage,
                     showSizeChanger: false,
                   }}
                 />

@@ -369,12 +369,12 @@ export interface PlatformFinancialDashboardRequest {
 }
 
 export interface PlatformFinancialDashboardResponse {
-  totalRevenue: number;
   mrr: number;
-  churn: number;
-  totalSubscriptions: number;
+  totalRevenue: number;
   activeSubscriptions: number;
   newSubscriptions: number;
+  churnRate: number | null;
+  failedPayments: number;
 }
 
 // ---------------------------
@@ -445,10 +445,19 @@ export interface PlatformRevenueAnalyticsRequest {
   endDate?: string;
 }
 
+export interface RevenueByPlanItem {
+  planId: string;
+  planCode: string;
+  planName: string;
+  revenue: number;
+  subscriptionCount: number;
+}
+
 export interface PlatformRevenueAnalyticsResponse {
-  totalRevenue: number;
   mrr: number;
-  revenueGrowth: number;
+  arr: number;
+  totalRevenue: number;
+  revenueByPlans: RevenueByPlanItem[];
 }
 
 // ---------------------------
@@ -464,8 +473,10 @@ export interface PlatformSubscriptionAnalyticsRequest {
 export interface PlatformSubscriptionAnalyticsResponse {
   totalSubscriptions: number;
   activeSubscriptions: number;
-  mrr: number;
-  churn: number;
+  newSubscriptions: number;
+  cancelledSubscriptions: number;
+  suspendedSubscriptions: number;
+  churnRate: number | null;
 }
 
 // ---------------------------
@@ -479,9 +490,11 @@ export interface PlatformUsageAnalyticsRequest {
 }
 
 export interface PlatformUsageAnalyticsResponse {
-  activeUsers: number;
-  totalActions: number;
-  averageSessionDuration: number;
+  totalOnboardings: number;
+  totalCompletedOnboardings: number;
+  totalSurveyResponses: number;
+  totalFeedbacks: number;
+  avgOnboardingsPerCompany: number | null;
 }
 
 // ---------------------------
@@ -496,10 +509,10 @@ export interface PlatformAdminAuditLogRequest {
 
 export interface PlatformAdminAuditLogItem {
   logId: string;
-  adminId: string;
+  adminUserId: string;
   action: string;
-  entityType: string;
-  entityId: string;
+  targetType: string;
+  targetId: string;
   detail: string;
   createdAt: string;
 }
@@ -515,9 +528,10 @@ export interface PlatformAdminAuditLogResponse {
 
 /** com.sme.platform.monitoring.metrics */
 export interface PlatformMonitoringMetricsResponse {
-  cpuUsage: number;
-  memoryUsage: number;
-  apiLatencyMs: number;
-  errorRate: number;
-  requestsPerMinute: number;
+  usedMemoryMb: number;
+  maxMemoryMb: number;
+  heapUsagePercent: number | null;
+  threadCount: number;
+  availableProcessors: number;
+  cpuUsagePercent: number | null;
 }
