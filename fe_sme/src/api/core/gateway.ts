@@ -1,4 +1,6 @@
 import { useUserStore } from "@/stores/user.store";
+import { useGlobalStore } from "@/stores/global.store";
+import { queryClient } from "@/lib/queryClient";
 import { AppRouters } from "@/constants";
 import type { GatewayRequestBody, GatewayResponse } from "@/interface/common";
 
@@ -70,6 +72,8 @@ export const gatewayRequest = async <TReq = unknown, TRes = unknown>(
 
   if (res.status === 401) {
     useUserStore.getState().logout();
+    useGlobalStore.getState().resetGlobal();
+    queryClient.clear();
     window.location.href = AppRouters.LOGIN;
     throw new Error("Session expired");
   }

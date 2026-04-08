@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "react-router-dom";
 import { IntlProvider } from "react-intl";
 import { App as AntdApp, ConfigProvider, Spin } from "antd";
@@ -10,16 +10,8 @@ import { AuthRehydrate } from "./components/auth/AuthRehydrate";
 import { useUserStore } from "./stores/user.store";
 import { useGlobalStore } from "./stores/global.store";
 import { localeConfig } from "./i18n";
+import { queryClient } from "./lib/queryClient";
 // import { WebSocketProvider } from "./contexts/WebSocketContext";
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 60_000,
-      retry: 1,
-    },
-  },
-});
 
 /** Inner component so it can read Zustand locale state */
 const AppProviders = () => {
