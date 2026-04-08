@@ -7,7 +7,6 @@ import {
   Form,
   Input,
   InputNumber,
-  Select,
   notification,
   Popconfirm,
 } from "antd";
@@ -40,7 +39,7 @@ const PlatformPlans = () => {
     queryKey: ["platform-plans"],
     queryFn: () => apiGetPlatformPlanList(),
     select: (res: any) =>
-      (res?.data?.plans ?? res?.plans ?? []) as PlatformPlanItem[],
+      (res?.data?.items ?? res?.items ?? []) as PlatformPlanItem[],
   });
 
   const createMutation = useMutation({
@@ -70,7 +69,7 @@ const PlatformPlans = () => {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (planCode: string) => apiDeletePlatformPlan({ planCode }),
+    mutationFn: (planId: string) => apiDeletePlatformPlan({ planId }),
     onSuccess: () => {
       notification.success({ message: t("platform.plans.delete_success") });
       queryClient.invalidateQueries({ queryKey: ["platform-plans"] });
@@ -90,31 +89,30 @@ const PlatformPlans = () => {
     setModalMode("edit");
     setEditingPlan(plan);
     form.setFieldsValue({
-      planCode: plan.planCode,
       name: plan.name,
-      price: plan.price,
-      billingCycle: plan.billingCycle,
-      maxEmployees: plan.maxEmployees,
-      features: plan.features?.join(", "),
+      priceVndMonthly: plan.priceVndMonthly,
+      priceVndYearly: plan.priceVndYearly,
+      employeeLimitPerMonth: plan.employeeLimitPerMonth,
     });
     setModalOpen(true);
   };
 
   const handleSubmit = (values: any) => {
-    const features =
-      (values.features as string)
-        ?.split(",")
-        .map((f: string) => f.trim())
-        .filter(Boolean) ?? [];
-
     if (modalMode === "create") {
-      createMutation.mutate({ ...values, features });
+      createMutation.mutate({
+        code: values.code,
+        name: values.name,
+        priceVndMonthly: values.priceVndMonthly,
+        priceVndYearly: values.priceVndYearly,
+        employeeLimitPerMonth: values.employeeLimitPerMonth,
+      });
     } else if (editingPlan) {
       updateMutation.mutate({
-        planCode: editingPlan.planCode,
+        planId: editingPlan.planId,
         name: values.name,
-        price: values.price,
-        features,
+        priceVndMonthly: values.priceVndMonthly,
+        priceVndYearly: values.priceVndYearly,
+        employeeLimitPerMonth: values.employeeLimitPerMonth,
       });
     }
   };
@@ -124,8 +122,8 @@ const PlatformPlans = () => {
   const columns = [
     {
       title: t("platform.plans.col_code"),
-      dataIndex: "planCode",
-      key: "planCode",
+      dataIndex: "code",
+      key: "code",
       render: (v: string) => (
         <span className="font-mono text-sm font-semibold text-violet-700">
           {v}
@@ -139,27 +137,19 @@ const PlatformPlans = () => {
     },
     {
       title: t("platform.plans.col_price"),
-      dataIndex: "price",
       key: "price",
-      render: (v: number) => `$${v}`,
-    },
-    {
-      title: t("platform.plans.col_billing"),
-      dataIndex: "billingCycle",
-      key: "billingCycle",
+      render: (_: unknown, record: PlatformPlanItem) =>
+        `${(record.priceVndMonthly ?? 0).toLocaleString()} / ${(record.priceVndYearly ?? 0).toLocaleString()} VND`,
     },
     {
       title: t("platform.plans.col_max_employees"),
-      dataIndex: "maxEmployees",
-      key: "maxEmployees",
+      dataIndex: "employeeLimitPerMonth",
+      key: "employeeLimitPerMonth",
     },
     {
-      title: t("platform.plans.col_features"),
-      dataIndex: "features",
-      key: "features",
-      render: (v: string[]) => (
-        <span className="text-sm text-slate-500">{v?.join(", ") ?? "—"}</span>
-      ),
+      title: t("platform.plans.col_status"),
+      dataIndex: "status",
+      key: "status",
     },
     {
       title: "",
@@ -174,7 +164,7 @@ const PlatformPlans = () => {
           </Button>
           <Popconfirm
             title={t("platform.plans.delete_confirm")}
-            onConfirm={() => deleteMutation.mutate(record.planCode)}
+            onConfirm={() => deleteMutation.mutate(record.planId)}
             okText={t("global.confirm")}
             cancelText={t("global.cancel")}>
             <Button
@@ -213,7 +203,7 @@ const PlatformPlans = () => {
         <Table
           dataSource={plans}
           columns={columns}
-          rowKey="planCode"
+          rowKey="planId"
           loading={isLoading}
           pagination={false}
         />
@@ -238,7 +228,7 @@ const PlatformPlans = () => {
           className="mt-4">
           {modalMode === "create" && (
             <Form.Item
-              name="planCode"
+              name="code"
               label={t("platform.plans.field_code")}
               rules={[{ required: true }]}>
               <Input placeholder="BASIC" />
@@ -251,37 +241,22 @@ const PlatformPlans = () => {
             <Input />
           </Form.Item>
           <Form.Item
-            name="price"
-            label={t("platform.plans.field_price")}
+            name="priceVndMonthly"
+            label={t("platform.plans.field_price_monthly")}
             rules={[{ required: true, type: "number", min: 0 }]}>
-            <InputNumber min={0} style={{ width: "100%" }} prefix="$" />
+            <InputNumber min={0} style={{ width: "100%" }} />
           </Form.Item>
-          {modalMode === "create" && (
-            <>
-              <Form.Item
-                name="billingCycle"
-                label={t("platform.plans.field_billing_cycle")}
-                rules={[{ required: true }]}>
-                <Select
-                  options={[
-                    { value: "MONTHLY", label: "Monthly" },
-                    { value: "YEARLY", label: "Yearly" },
-                  ]}
-                />
-              </Form.Item>
-              <Form.Item
-                name="maxEmployees"
-                label={t("platform.plans.field_max_employees")}
-                rules={[{ required: true, type: "number", min: 1 }]}>
-                <InputNumber min={1} style={{ width: "100%" }} />
-              </Form.Item>
-            </>
-          )}
           <Form.Item
-            name="features"
-            label={t("platform.plans.field_features")}
-            extra={t("platform.plans.field_features_hint")}>
-            <Input.TextArea rows={2} placeholder="SSO, API Access, Reports" />
+            name="priceVndYearly"
+            label={t("platform.plans.field_price_yearly")}
+            rules={[{ required: true, type: "number", min: 0 }]}>
+            <InputNumber min={0} style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item
+            name="employeeLimitPerMonth"
+            label={t("platform.plans.field_max_employees")}
+            rules={[{ required: true, type: "number", min: 1 }]}>
+            <InputNumber min={1} style={{ width: "100%" }} />
           </Form.Item>
         </Form>
       </Modal>

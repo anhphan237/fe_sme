@@ -28,7 +28,7 @@ import { extractList } from "@/api/core/types";
 import {
   apiGetTaskDetailFull,
   apiListInstances,
-  apiListTasks,
+  apiListTasksByAssignee,
   apiUpdateTaskStatus,
   apiAcknowledgeTask,
 } from "@/api/onboarding/onboarding.api";
@@ -96,11 +96,12 @@ const MyJourney = () => {
 
   const onboardingId = latestInstance?.id;
 
+  // Employee uses task.listByAssignee (all roles) instead of listByOnboarding (HR/Manager only)
   const { data: tasks = [], isLoading: loadingTasks } = useQuery({
-    queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
+    queryKey: ["employee-onboarding-tasks-assignee", userId ?? ""],
     queryFn: () =>
-      apiListTasks(onboardingId!, { sortBy: "due_date", sortOrder: "ASC" }),
-    enabled: Boolean(onboardingId),
+      apiListTasksByAssignee({ sortBy: "due_date", sortOrder: "ASC" }),
+    enabled: Boolean(userId),
     select: (res: unknown) =>
       extractList(
         res as Record<string, unknown>,
@@ -137,7 +138,7 @@ const MyJourney = () => {
     mutationFn: (taskId: string) => apiAcknowledgeTask({ taskId }),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
+        queryKey: ["employee-onboarding-tasks-assignee", userId ?? ""],
       });
       queryClient.invalidateQueries({
         queryKey: ["employee-onboarding-task-detail", selectedTaskId],
@@ -235,7 +236,7 @@ const MyJourney = () => {
       try {
         await updateTaskStatus.mutateAsync({ taskId: task.id, status: "TODO" });
         queryClient.invalidateQueries({
-          queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
+          queryKey: ["employee-onboarding-tasks-assignee", userId ?? ""],
         });
         notify.success(t("onboarding.employee.home.toast.task_todo"));
       } catch {
@@ -244,7 +245,21 @@ const MyJourney = () => {
       return;
     }
 
-    // Respect requiresManagerApproval: submit for approval instead of direct DONE
+    // requireAck: employee must acknowledge first (→ WAIT_ACK) before completing
+    if (
+      task.requireAck &&
+      task.rawStatus !== "WAIT_ACK" &&
+      task.rawStatus !== "DONE"
+    ) {
+      try {
+        await acknowledgeTaskMutation.mutateAsync(task.id);
+      } catch {
+        // error handled by mutation's onError
+      }
+      return;
+    }
+
+    // requiresManagerApproval: submit for approval instead of direct DONE
     if (task.requiresManagerApproval) {
       try {
         await updateTaskStatus.mutateAsync({
@@ -252,7 +267,7 @@ const MyJourney = () => {
           status: "PENDING_APPROVAL",
         });
         queryClient.invalidateQueries({
-          queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
+          queryKey: ["employee-onboarding-tasks-assignee", userId ?? ""],
         });
         notify.success(t("onboarding.task.toast.submitted_approval"));
       } catch {
@@ -267,7 +282,7 @@ const MyJourney = () => {
         status: STATUS_DONE_API,
       });
       queryClient.invalidateQueries({
-        queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
+        queryKey: ["employee-onboarding-tasks-assignee", userId ?? ""],
       });
       queryClient.invalidateQueries({
         queryKey: ["employee-onboarding-instances", userId ?? ""],
@@ -816,8 +831,8 @@ const MyJourney = () => {
                           onSuccess: () => {
                             queryClient.invalidateQueries({
                               queryKey: [
-                                "employee-onboarding-tasks",
-                                onboardingId ?? "",
+                                "employee-onboarding-tasks-assignee",
+                                userId ?? "",
                               ],
                             });
                             queryClient.invalidateQueries({
@@ -859,8 +874,8 @@ const MyJourney = () => {
                             onSuccess: () => {
                               queryClient.invalidateQueries({
                                 queryKey: [
-                                  "employee-onboarding-tasks",
-                                  onboardingId ?? "",
+                                  "employee-onboarding-tasks-assignee",
+                                  userId ?? "",
                                 ],
                               });
                               queryClient.invalidateQueries({
@@ -901,8 +916,8 @@ const MyJourney = () => {
                             onSuccess: () => {
                               queryClient.invalidateQueries({
                                 queryKey: [
-                                  "employee-onboarding-tasks",
-                                  onboardingId ?? "",
+                                  "employee-onboarding-tasks-assignee",
+                                  userId ?? "",
                                 ],
                               });
                               queryClient.invalidateQueries({

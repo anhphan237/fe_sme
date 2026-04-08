@@ -34,9 +34,9 @@ const usePlatformCompanyList = (params: {
     queryFn: () =>
       apiGetPlatformCompanyList({
         page: params.page,
-        pageSize: PAGE_SIZE,
+        size: PAGE_SIZE,
         search: params.search || undefined,
-        plan: params.plan || undefined,
+        planCode: params.plan || undefined,
         status: params.status || undefined,
       }),
     select: (res: any) => ({
@@ -99,10 +99,10 @@ const CompanyList = () => {
             setPage(1);
           }}
           options={[
-            { label: "Free", value: "FREE" },
-            { label: "Basic", value: "BASIC" },
-            { label: "Pro", value: "PRO" },
-            { label: "Enterprise", value: "ENTERPRISE" },
+            { label: t("platform.companies.plan_free"), value: "FREE" },
+            { label: t("platform.companies.plan_basic"), value: "BASIC" },
+            { label: t("platform.companies.plan_pro"), value: "PRO" },
+            { label: t("platform.companies.plan_enterprise"), value: "ENTERPRISE" },
           ]}
         />
         <Select
@@ -115,10 +115,10 @@ const CompanyList = () => {
             setPage(1);
           }}
           options={[
-            { label: "Active", value: "ACTIVE" },
-            { label: "Trial", value: "TRIAL" },
-            { label: "Suspended", value: "SUSPENDED" },
-            { label: "Inactive", value: "INACTIVE" },
+            { label: t("platform.companies.status_active"), value: "ACTIVE" },
+            { label: t("platform.companies.status_trial"), value: "TRIAL" },
+            { label: t("platform.companies.status_suspended"), value: "SUSPENDED" },
+            { label: t("platform.companies.status_inactive"), value: "INACTIVE" },
           ]}
         />
       </div>
@@ -190,12 +190,14 @@ const CompanyList = () => {
                     <td className="px-5 py-3 font-medium text-slate-800">
                       {c.name}
                     </td>
-                    <td className="px-5 py-3 text-slate-500">{c.industry}</td>
-                    <td className="px-5 py-3 text-slate-500">{c.size}</td>
+                    <td className="px-5 py-3 text-slate-500">
+                      {c.subscriptionStatus ?? "—"}
+                    </td>
+                    <td className="px-5 py-3 text-slate-500">{c.userCount}</td>
                     <td className="px-5 py-3">
                       <span
-                        className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${PLAN_TAG[c.plan] ?? "bg-slate-100 text-slate-600"}`}>
-                        {c.plan}
+                        className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${PLAN_TAG[c.planCode] ?? "bg-slate-100 text-slate-600"}`}>
+                        {c.planCode}
                       </span>
                     </td>
                     <td className="px-5 py-3">
@@ -204,22 +206,13 @@ const CompanyList = () => {
                         {c.status}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-slate-600">
-                      {c.activeOnboardings}
-                    </td>
+                    <td className="px-5 py-3 text-slate-600">—</td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
                         <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className="h-full rounded-full bg-violet-500"
-                            style={{
-                              width: `${Math.min(c.completionRate ?? 0, 100)}%`,
-                            }}
-                          />
+                          <div className="h-full w-0 rounded-full bg-violet-500" />
                         </div>
-                        <span className="text-xs text-slate-500">
-                          {(c.completionRate ?? 0).toFixed(0)}%
-                        </span>
+                        <span className="text-xs text-slate-500">—</span>
                       </div>
                     </td>
                     <td className="px-5 py-3 text-slate-400 text-xs">

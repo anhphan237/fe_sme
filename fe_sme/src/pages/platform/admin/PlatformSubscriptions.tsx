@@ -17,6 +17,14 @@ const STATUS_COLOR: Record<string, string> = {
   SUSPENDED: "orange",
 };
 
+const STATUS_LABEL_KEY: Record<string, string> = {
+  ACTIVE: "platform.subscriptions.status_active",
+  TRIAL: "platform.subscriptions.status_trial",
+  PAST_DUE: "platform.subscriptions.status_past_due",
+  CANCELLED: "platform.subscriptions.status_cancelled",
+  SUSPENDED: "platform.subscriptions.status_suspended",
+};
+
 const PlatformSubscriptions = () => {
   const { t } = useLocale();
   const queryClient = useQueryClient();
@@ -30,7 +38,7 @@ const PlatformSubscriptions = () => {
     queryFn: () =>
       apiGetPlatformSubscriptionList({
         page,
-        pageSize: 20,
+        size: 20,
         status: statusFilter,
       }),
     select: (res: any) => res?.data ?? res,
@@ -70,15 +78,15 @@ const PlatformSubscriptions = () => {
     },
     {
       title: t("platform.subscriptions.col_plan"),
-      dataIndex: "plan",
-      key: "plan",
+      dataIndex: "planCode",
+      key: "planCode",
     },
     {
       title: t("platform.subscriptions.col_status"),
       dataIndex: "status",
       key: "status",
       render: (v: string) => (
-        <Tag color={STATUS_COLOR[v] ?? "default"}>{v}</Tag>
+        <Tag color={STATUS_COLOR[v] ?? "default"}>{t(STATUS_LABEL_KEY[v] ?? v)}</Tag>
       ),
     },
     {
@@ -88,20 +96,14 @@ const PlatformSubscriptions = () => {
     },
     {
       title: t("platform.subscriptions.col_renewal"),
-      dataIndex: "nextRenewal",
-      key: "nextRenewal",
-    },
-    {
-      title: t("platform.subscriptions.col_amount"),
-      dataIndex: "amount",
-      key: "amount",
-      render: (v: number) => `$${v?.toLocaleString() ?? "—"}`,
+      dataIndex: "currentPeriodEnd",
+      key: "currentPeriodEnd",
     },
     {
       title: "",
       key: "actions",
       render: (_: unknown, record: PlatformSubscriptionItem) =>
-        record.status === "PAST_DUE" ? (
+        record.status !== "ACTIVE" ? (
           <Button
             size="small"
             icon={<RefreshCw className="h-3.5 w-3.5" />}
@@ -140,11 +142,11 @@ const PlatformSubscriptions = () => {
             setPage(1);
           }}
           options={[
-            { value: "ACTIVE", label: "Active" },
-            { value: "TRIAL", label: "Trial" },
-            { value: "PAST_DUE", label: "Past Due" },
-            { value: "CANCELLED", label: "Cancelled" },
-            { value: "SUSPENDED", label: "Suspended" },
+            { value: "ACTIVE", label: t("platform.subscriptions.status_active") },
+            { value: "TRIAL", label: t("platform.subscriptions.status_trial") },
+            { value: "PAST_DUE", label: t("platform.subscriptions.status_past_due") },
+            { value: "CANCELLED", label: t("platform.subscriptions.status_cancelled") },
+            { value: "SUSPENDED", label: t("platform.subscriptions.status_suspended") },
           ]}
         />
       </div>

@@ -25,6 +25,12 @@ const SEVERITY_COLOR: Record<string, string> = {
   INFO: "blue",
 };
 
+const SEVERITY_LABEL_KEY: Record<string, string> = {
+  ERROR: "platform.system.severity_error",
+  WARN: "platform.system.severity_warn",
+  INFO: "platform.system.severity_info",
+};
+
 const HealthStatusIcon = ({
   status,
 }: {
@@ -59,10 +65,7 @@ const PlatformSystem = () => {
     queryFn: () =>
       apiGetSystemErrorLog({
         page: errorPage,
-        pageSize: 20,
-        severity,
-        from: dateRange[0],
-        to: dateRange[1],
+        size: 20,
       }),
     select: (res: any) => res?.data ?? res,
   });
@@ -72,9 +75,7 @@ const PlatformSystem = () => {
     queryFn: () =>
       apiGetSystemActivityLog({
         page: activityPage,
-        pageSize: 20,
-        from: dateRange[0],
-        to: dateRange[1],
+        size: 20,
       }),
     select: (res: any) => res?.data ?? res,
   });
@@ -98,7 +99,7 @@ const PlatformSystem = () => {
       dataIndex: "severity",
       key: "severity",
       render: (v: string) => (
-        <Tag color={SEVERITY_COLOR[v] ?? "default"}>{v}</Tag>
+        <Tag color={SEVERITY_COLOR[v] ?? "default"}>{t(SEVERITY_LABEL_KEY[v] ?? v)}</Tag>
       ),
     },
     {
@@ -227,9 +228,9 @@ const PlatformSystem = () => {
                       setErrorPage(1);
                     }}
                     options={[
-                      { value: "ERROR", label: "Error" },
-                      { value: "WARN", label: "Warning" },
-                      { value: "INFO", label: "Info" },
+                      { value: "ERROR", label: t("platform.system.severity_error") },
+                      { value: "WARN", label: t("platform.system.severity_warn") },
+                      { value: "INFO", label: t("platform.system.severity_info") },
                     ]}
                   />
                 </div>
@@ -268,7 +269,7 @@ const PlatformSystem = () => {
                   dataSource={activityLogs}
                   columns={activityColumns}
                   rowKey={(r: PlatformSystemActivityLogItem) =>
-                    `${r.actorId}-${r.timestamp}`
+                    `${r.userId}-${r.createdAt}`
                   }
                   loading={activityLogQuery.isLoading}
                   pagination={{

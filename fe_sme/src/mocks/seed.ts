@@ -264,6 +264,48 @@ export const checklistTemplates: ChecklistTemplate[] = [
 
 export const templates: OnboardingTemplate[] = [
   {
+    id: 'template-2',
+    name: 'Operations Essentials',
+    description: 'Core onboarding checklist for operations and admin roles.',
+    updatedAt: '2025-02-10',
+    companyId,
+    stages: [
+      {
+        id: 'stage-ops-1',
+        name: 'Pre-boarding',
+        tasks: [
+          {
+            id: 'task-ops-1',
+            title: 'Send welcome email',
+            ownerRole: 'HR',
+            dueOffset: 'Day 0',
+            required: true,
+          },
+        ],
+      },
+      {
+        id: 'stage-ops-2',
+        name: 'Day 1',
+        tasks: [
+          {
+            id: 'task-ops-2',
+            title: 'Office tour and introductions',
+            ownerRole: 'MANAGER',
+            dueOffset: 'Day 1',
+            required: true,
+          },
+          {
+            id: 'task-ops-3',
+            title: 'Read company handbook',
+            ownerRole: 'EMPLOYEE',
+            dueOffset: 'Day 1',
+            required: true,
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: 'template-1',
     name: 'Acme New Hire Journey',
     description: 'Standard onboarding for new hires at Acme Co.',

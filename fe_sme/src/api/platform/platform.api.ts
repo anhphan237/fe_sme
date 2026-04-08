@@ -1,12 +1,12 @@
 import { gatewayRequest } from "../core/gateway";
 import type {
-  PlatformDashboardOverviewRequest,
+  PlatformCompanyAnalyticsRequest,
   PlatformCompanyListRequest,
-  PlatformCompanyGetRequest,
+  PlatformCompanyDetailRequest,
   PlatformCompanyActivateRequest,
   PlatformCompanyDeactivateRequest,
   PlatformCompanyDeleteRequest,
-  PlatformOnboardingOverviewRequest,
+  PlatformOnboardingAnalyticsRequest,
   PlatformTemplateListRequest,
   PlatformTemplateCreateRequest,
   PlatformTemplateUpdateRequest,
@@ -24,16 +24,32 @@ import type {
   PlatformSystemErrorLogRequest,
   PlatformSystemActivityLogRequest,
   PlatformDunningRetryRequest,
+  PlatformFinancialDashboardRequest,
+  PlatformInvoiceListRequest,
+  PlatformPaymentListRequest,
+  PlatformRevenueAnalyticsRequest,
+  PlatformSubscriptionAnalyticsRequest,
+  PlatformUsageAnalyticsRequest,
+  PlatformAdminAuditLogRequest,
 } from "@/interface/platform";
 
-// ── Platform Dashboard ─────────────────────────────────────────
+// ── Platform Analytics ─────────────────────────────────────────
 
-/** com.sme.platform.dashboard.overview */
-export const apiGetPlatformDashboardOverview = (
-  payload: PlatformDashboardOverviewRequest,
+/** com.sme.platform.analytics.company – company KPI overview */
+export const apiGetPlatformCompanyAnalytics = (
+  payload: PlatformCompanyAnalyticsRequest,
 ) =>
-  gatewayRequest<PlatformDashboardOverviewRequest, unknown>(
-    "com.sme.platform.dashboard.overview",
+  gatewayRequest<PlatformCompanyAnalyticsRequest, unknown>(
+    "com.sme.platform.analytics.company",
+    payload,
+  );
+
+/** com.sme.platform.analytics.onboarding – platform-wide onboarding stats */
+export const apiGetPlatformOnboardingAnalytics = (
+  payload: PlatformOnboardingAnalyticsRequest,
+) =>
+  gatewayRequest<PlatformOnboardingAnalyticsRequest, unknown>(
+    "com.sme.platform.analytics.onboarding",
     payload,
   );
 
@@ -48,71 +64,60 @@ export const apiGetPlatformCompanyList = (
     payload,
   );
 
-/** com.sme.platform.company.get */
+/** com.sme.platform.company.detail */
 export const apiGetPlatformCompanyDetail = (
-  payload: PlatformCompanyGetRequest,
+  payload: PlatformCompanyDetailRequest,
 ) =>
-  gatewayRequest<PlatformCompanyGetRequest, unknown>(
-    "com.sme.platform.company.get",
-    payload,
-  );
-
-// ── Onboarding Monitor ─────────────────────────────────────────
-
-/** com.sme.platform.onboarding.overview */
-export const apiGetPlatformOnboardingOverview = (
-  payload: PlatformOnboardingOverviewRequest,
-) =>
-  gatewayRequest<PlatformOnboardingOverviewRequest, unknown>(
-    "com.sme.platform.onboarding.overview",
+  gatewayRequest<PlatformCompanyDetailRequest, unknown>(
+    "com.sme.platform.company.detail",
     payload,
   );
 
 // ── Platform Template Library ──────────────────────────────────
 
-/** com.sme.platform.template.list */
+/** com.sme.onboarding.template.list */
 export const apiGetPlatformTemplateList = (
   payload: PlatformTemplateListRequest,
 ) =>
   gatewayRequest<PlatformTemplateListRequest, unknown>(
-    "com.sme.platform.template.list",
+    "com.sme.onboarding.template.list",
     payload,
   );
 
-/** com.sme.platform.template.create */
+/** com.sme.onboarding.template.create */
 export const apiCreatePlatformTemplate = (
   payload: PlatformTemplateCreateRequest,
 ) =>
   gatewayRequest<PlatformTemplateCreateRequest, unknown>(
-    "com.sme.platform.template.create",
+    "com.sme.onboarding.template.create",
     payload,
   );
 
-/** com.sme.platform.template.update */
+/** com.sme.onboarding.template.update */
 export const apiUpdatePlatformTemplate = (
   payload: PlatformTemplateUpdateRequest,
 ) =>
   gatewayRequest<PlatformTemplateUpdateRequest, unknown>(
-    "com.sme.platform.template.update",
+    "com.sme.onboarding.template.update",
     payload,
   );
 
-/** com.sme.platform.template.publish */
+/** com.sme.onboarding.template.update – status: "PUBLISHED" */
 export const apiPublishPlatformTemplate = (
   payload: PlatformTemplatePublishRequest,
 ) =>
-  gatewayRequest<PlatformTemplatePublishRequest, unknown>(
-    "com.sme.platform.template.publish",
-    payload,
+  gatewayRequest<PlatformTemplateUpdateRequest, unknown>(
+    "com.sme.onboarding.template.update",
+    { templateId: payload.templateId, status: "PUBLISHED" },
   );
 
-/** com.sme.platform.template.archive */
+/** com.sme.onboarding.template.update – status: "ARCHIVED" */
 export const apiArchivePlatformTemplate = (
   payload: PlatformTemplateArchiveRequest,
 ) =>
-  gatewayRequest<PlatformTemplateArchiveRequest, unknown>(
-    "com.sme.platform.template.archive",
-    payload,
+  gatewayRequest<PlatformTemplateUpdateRequest, unknown>(
+    "com.sme.onboarding.template.update",
+    { templateId: payload.templateId, status: "ARCHIVED" },
   );
 
 // ── Company Actions ────────────────────────────────────────────
@@ -251,4 +256,86 @@ export const apiRetryDunning = (payload: PlatformDunningRetryRequest) =>
   gatewayRequest<PlatformDunningRetryRequest, unknown>(
     "com.sme.billing.dunning.retry",
     payload,
+  );
+
+// ── Financial Dashboard ─────────────────────────────────────────
+
+/** com.sme.platform.dashboard.financial */
+export const apiGetPlatformFinancialDashboard = (
+  payload: PlatformFinancialDashboardRequest,
+) =>
+  gatewayRequest<PlatformFinancialDashboardRequest, unknown>(
+    "com.sme.platform.dashboard.financial",
+    payload,
+  );
+
+// ── Invoice Management ──────────────────────────────────────────
+
+/** com.sme.platform.invoice.list */
+export const apiGetPlatformInvoiceList = (
+  payload: PlatformInvoiceListRequest,
+) =>
+  gatewayRequest<PlatformInvoiceListRequest, unknown>(
+    "com.sme.platform.invoice.list",
+    payload,
+  );
+
+// ── Platform Payment Management ────────────────────────────────
+
+/** com.sme.platform.payment.list */
+export const apiGetPlatformPaymentList = (
+  payload: PlatformPaymentListRequest,
+) =>
+  gatewayRequest<PlatformPaymentListRequest, unknown>(
+    "com.sme.platform.payment.list",
+    payload,
+  );
+
+// ── Additional Platform Analytics ──────────────────────────────
+
+/** com.sme.platform.analytics.revenue */
+export const apiGetPlatformRevenueAnalytics = (
+  payload: PlatformRevenueAnalyticsRequest,
+) =>
+  gatewayRequest<PlatformRevenueAnalyticsRequest, unknown>(
+    "com.sme.platform.analytics.revenue",
+    payload,
+  );
+
+/** com.sme.platform.analytics.subscription */
+export const apiGetPlatformSubscriptionAnalytics = (
+  payload: PlatformSubscriptionAnalyticsRequest,
+) =>
+  gatewayRequest<PlatformSubscriptionAnalyticsRequest, unknown>(
+    "com.sme.platform.analytics.subscription",
+    payload,
+  );
+
+/** com.sme.platform.analytics.usage */
+export const apiGetPlatformUsageAnalytics = (
+  payload: PlatformUsageAnalyticsRequest,
+) =>
+  gatewayRequest<PlatformUsageAnalyticsRequest, unknown>(
+    "com.sme.platform.analytics.usage",
+    payload,
+  );
+
+// ── Admin Audit Log ─────────────────────────────────────────────
+
+/** com.sme.platform.audit.adminLog */
+export const apiGetPlatformAdminAuditLog = (
+  payload: PlatformAdminAuditLogRequest,
+) =>
+  gatewayRequest<PlatformAdminAuditLogRequest, unknown>(
+    "com.sme.platform.audit.adminLog",
+    payload,
+  );
+
+// ── Monitoring ──────────────────────────────────────────────────
+
+/** com.sme.platform.monitoring.metrics */
+export const apiGetPlatformMonitoringMetrics = () =>
+  gatewayRequest<Record<string, never>, unknown>(
+    "com.sme.platform.monitoring.metrics",
+    {},
   );
