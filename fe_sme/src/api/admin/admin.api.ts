@@ -1,22 +1,10 @@
 import { gatewayRequest } from "../core/gateway";
 import type {
-  PlatformSubscriptionMetricsRequest,
   CompanyOnboardingSummaryRequest,
   CompanyOnboardingFunnelRequest,
   CompanyOnboardingByDepartmentRequest,
   CompanyTaskCompletionRequest,
 } from "@/interface/admin";
-
-// ── Platform Analytics ────────────────────────────────────────
-
-/** com.sme.analytics.platform.subscription.metrics */
-export const apiGetPlatformSubscriptionMetrics = (
-  payload: PlatformSubscriptionMetricsRequest,
-) =>
-  gatewayRequest<PlatformSubscriptionMetricsRequest, unknown>(
-    "com.sme.analytics.platform.subscription.metrics",
-    payload,
-  );
 
 // ── Company Analytics ────────────────────────────────────────
 

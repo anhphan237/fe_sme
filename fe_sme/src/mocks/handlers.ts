@@ -194,7 +194,9 @@ const authorize = (
   return payload;
 };
 
-const requireCompany = (payload: AuthTokenPayload): string | HttpResponse<{ message: string }> => {
+const requireCompany = (
+  payload: AuthTokenPayload,
+): string | HttpResponse<{ message: string }> => {
   if (!payload.company_id) {
     return HttpResponse.json({ message: "Forbidden" }, { status: 403 });
   }
@@ -1265,8 +1267,7 @@ export const handlers = [
       let result = [...templates];
       if (status) {
         result = result.filter(
-          (t) =>
-            (t.status ?? "ACTIVE").toUpperCase() === status.toUpperCase(),
+          (t) => (t.status ?? "ACTIVE").toUpperCase() === status.toUpperCase(),
         );
       }
       if (search) {

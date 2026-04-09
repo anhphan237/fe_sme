@@ -89,7 +89,9 @@ const PlatformFeedback = () => {
       dataIndex: "status",
       key: "status",
       render: (v: string) => (
-        <Tag color={STATUS_COLOR[v] ?? "default"}>{t(STATUS_LABEL_KEY[v] ?? v)}</Tag>
+        <Tag color={STATUS_COLOR[v] ?? "default"}>
+          {t(STATUS_LABEL_KEY[v] ?? v)}
+        </Tag>
       ),
     },
     {
@@ -139,7 +141,10 @@ const PlatformFeedback = () => {
           }}
           options={[
             { value: "OPEN", label: t("platform.feedback.status_open") },
-            { value: "RESOLVED", label: t("platform.feedback.status_resolved") },
+            {
+              value: "RESOLVED",
+              label: t("platform.feedback.status_resolved"),
+            },
             { value: "CLOSED", label: t("platform.feedback.status_closed") },
           ]}
         />

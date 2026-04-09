@@ -1,7 +1,8 @@
-﻿import { useNavigate, Link, matchPath } from "react-router-dom";
+﻿import { Link, matchPath } from "react-router-dom";
 import { Menu } from "lucide-react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import "dayjs/locale/vi";
 import {
   Avatar,
   Badge,
@@ -27,6 +28,8 @@ import { useGlobalStore } from "@/stores/global.store";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { NAV_SECTIONS } from "../nav.config";
 import { useNotifications } from "@/hooks/useNotifications";
+import { queryClient } from "@/lib/queryClient";
+import { AppRouters } from "@/constants";
 import "./TopBarBreadcrumb.css";
 
 dayjs.extend(relativeTime);
@@ -84,18 +87,22 @@ type Props = {
 
 export const TopBar = ({ pathname, onMenuClick }: Props) => {
   const { t } = useLocale();
-  const navigate = useNavigate();
   const logoutStore = useUserStore((s) => s.logout);
+  const resetGlobal = useGlobalStore((s) => s.resetGlobal);
   const currentUser = useUserStore((s) => s.currentUser);
+  const locale = useUserStore((s) => s.locale);
   const breadcrumbs = useGlobalStore((s) => s.breadcrumbs);
   const { notifications, unreadCount, markAsRead } = useNotifications();
+  const dayjsLocale = locale === "vi_VN" ? "vi" : "en";
 
   const handleLogout = async () => {
     try {
       await apiLogout();
     } finally {
       logoutStore();
-      navigate("/login", { replace: true });
+      resetGlobal();
+      queryClient.clear();
+      window.location.href = AppRouters.LOGIN;
     }
   };
 
@@ -260,7 +267,7 @@ export const TopBar = ({ pathname, onMenuClick }: Props) => {
                 <Typography.Text
                   type="secondary"
                   style={{ fontSize: 11, marginTop: 2, display: "block" }}>
-                  {dayjs(n.createdAt).fromNow()}
+                  {dayjs(n.createdAt).locale(dayjsLocale).fromNow()}
                 </Typography.Text>
               </div>
             </div>
@@ -274,9 +281,7 @@ export const TopBar = ({ pathname, onMenuClick }: Props) => {
           padding: "8px 16px",
           textAlign: "center",
         }}>
-        <Link
-          to="/settings/notifications"
-          style={{ fontSize: 12, color: "#0078ff" }}>
+        <Link to="/notifications" style={{ fontSize: 12, color: "#0078ff" }}>
           {t("layout.topbar.view_all_notifications")}
         </Link>
       </div>

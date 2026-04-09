@@ -11,6 +11,8 @@ export const AppRouters = {
   ADMIN_USERS: "/admin/users",
   ADMIN_ROLES: "/admin/roles",
   ADMIN_KNOWLEDGE_BASE: "/admin/knowledge-base",
+  // Notifications
+  NOTIFICATIONS: "/notifications",
   // Settings
   SETTINGS_NOTIFICATIONS: "/settings/notifications",
   // Onboarding - flat role-aware routes

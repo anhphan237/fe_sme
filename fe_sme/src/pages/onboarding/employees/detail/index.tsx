@@ -85,7 +85,13 @@ const useTemplateDetailQuery = (templateId?: string) =>
     queryKey: ["template-detail", templateId ?? ""],
     queryFn: () => apiGetTemplate(templateId!),
     enabled: Boolean(templateId),
-    select: (res: unknown) => mapTemplate(res as Record<string, unknown>),
+    select: (res: unknown) => {
+      const r = res as Record<string, unknown>;
+      const raw = r?.template ?? r?.data ?? r?.result ?? r?.payload ?? res;
+      return mapTemplate(
+        raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {},
+      );
+    },
   });
 
 const useInstancesQuery = (filters?: InstancesFilter, enabled = true) =>

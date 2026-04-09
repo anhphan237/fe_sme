@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
-import { Eye, EyeOff, Copy, RefreshCw, UserPlus } from "lucide-react";
-import { Button, Drawer, Form, Input, Space } from "antd";
+import { useState, useMemo } from "react";
+import { UserPlus } from "lucide-react";
+import { Drawer, Form } from "antd";
 import BaseButton from "@/components/button";
 import BaseInput from "@core/components/Input/InputWithLabel";
 import BaseSelect from "@core/components/Select/BaseSelect";
@@ -15,18 +15,7 @@ interface InviteForm {
   roleCode: string;
   departmentId: string;
   managerUserId: string;
-  tempPassword: string;
 }
-
-type InviteFormFields = Omit<InviteForm, "tempPassword">;
-
-const generatePassword = (): string => {
-  const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#";
-  return Array.from(
-    { length: 12 },
-    () => chars[Math.floor(Math.random() * chars.length)],
-  ).join("");
-};
 
 const SectionLabel = ({
   label,
@@ -61,10 +50,7 @@ export const InviteUserDrawer = ({
   departments,
 }: InviteUserDrawerProps) => {
   const { t } = useLocale();
-  const [form] = Form.useForm<InviteFormFields>();
-  const [tempPassword, setTempPassword] = useState(generatePassword);
-  const [showPassword, setShowPassword] = useState(true);
-  const [copied, setCopied] = useState(false);
+  const [form] = Form.useForm<InviteForm>();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -77,24 +63,8 @@ export const InviteUserDrawer = ({
     return filtered.map((u) => ({ value: u.id, label: u.name || u.email }));
   }, [users, selectedDeptId]);
 
-  // Auto-copy password when drawer opens
-  useEffect(() => {
-    if (!open) return;
-    navigator.clipboard
-      .writeText(tempPassword)
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
   const reset = () => {
     form.resetFields();
-    setTempPassword(generatePassword());
-    setShowPassword(true);
-    setCopied(false);
     setError(null);
   };
 
@@ -103,27 +73,11 @@ export const InviteUserDrawer = ({
     onClose();
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(tempPassword).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  };
-
-  const handleRegen = () => {
-    const pw = generatePassword();
-    setTempPassword(pw);
-    navigator.clipboard.writeText(pw).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  };
-
-  const handleFinish = async (values: InviteFormFields) => {
+  const handleFinish = async (values: InviteForm) => {
     setError(null);
     setSubmitting(true);
     try {
-      await onSubmit({ ...values, tempPassword });
+      await onSubmit(values);
       reset();
     } catch (err) {
       setError(
@@ -266,51 +220,9 @@ export const InviteUserDrawer = ({
           />
         </div>
 
-        {/* Temporary Password */}
-        <SectionLabel label={t("user.section.password")} className="mt-2" />
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">
-            {t("user.invite.temp_password")}
-          </label>
-          <Space.Compact className="w-full">
-            <Input
-              readOnly
-              type={showPassword ? "text" : "password"}
-              value={tempPassword}
-              className="font-mono text-sm"
-            />
-            <Button
-              icon={
-                showPassword ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )
-              }
-              title={
-                showPassword ? t("user.invite.hide") : t("user.invite.show")
-              }
-              onClick={() => setShowPassword((v) => !v)}
-            />
-            <Button
-              icon={<Copy className="h-4 w-4" />}
-              title={t("user.invite.copy")}
-              onClick={handleCopy}
-            />
-            <Button
-              icon={<RefreshCw className="h-4 w-4" />}
-              title={t("user.invite.regen")}
-              onClick={handleRegen}
-            />
-          </Space.Compact>
-          {copied && (
-            <p className="mt-1 text-xs text-emerald-600">
-              {t("user.invite.copied")}
-            </p>
-          )}
-          <p className="mt-1 text-xs text-slate-400">
-            {t("user.invite.password_hint")}
-          </p>
+        {/* Email invite info */}
+        <div className="mt-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          {t("user.invite.email_link_hint")}
         </div>
       </Form>
     </Drawer>

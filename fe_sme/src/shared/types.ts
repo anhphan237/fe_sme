@@ -60,6 +60,7 @@ export interface OnboardingStage {
 export interface OnboardingTask {
   id: string;
   title: string;
+  description?: string;
   ownerRole: Role;
   dueOffset: string;
   required: boolean;

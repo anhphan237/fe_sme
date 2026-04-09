@@ -1,4 +1,6 @@
 import { useUserStore } from "@/stores/user.store";
+import { useGlobalStore } from "@/stores/global.store";
+import { queryClient } from "@/lib/queryClient";
 import { AppRouters } from "@/constants";
 import type { GatewayRequestBody, GatewayResponse } from "@/interface/common";
 
@@ -23,6 +25,15 @@ export interface GatewayRequestOptions {
   flatPayload?: boolean;
 }
 
+const getLocale = (): string => {
+  const locale =
+    typeof window !== "undefined" ? localStorage.getItem("locale") : null;
+  // Map stored locale to Accept-Language header value
+  if (locale === "vi_VN" || locale === "vi-VN") return "vi-VN";
+  if (locale === "en_US" || locale === "en-US") return "en-US";
+  return "vi-VN"; // default
+};
+
 export const gatewayRequest = async <TReq = unknown, TRes = unknown>(
   operationType: string,
   payload: TReq,
@@ -45,6 +56,7 @@ export const gatewayRequest = async <TReq = unknown, TRes = unknown>(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "Accept-Language": getLocale(),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(body),
@@ -60,6 +72,8 @@ export const gatewayRequest = async <TReq = unknown, TRes = unknown>(
 
   if (res.status === 401) {
     useUserStore.getState().logout();
+    useGlobalStore.getState().resetGlobal();
+    queryClient.clear();
     window.location.href = AppRouters.LOGIN;
     throw new Error("Session expired");
   }

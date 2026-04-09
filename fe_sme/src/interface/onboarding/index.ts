@@ -197,6 +197,10 @@ export interface OnboardingInstanceListResponse {
 /** com.sme.onboarding.task.generate */
 export interface OnboardingTaskGenerateRequest {
   instanceId: string;
+  /** Used for tasks with ownerType=MANAGER */
+  managerId?: string;
+  /** Used for tasks with ownerType=IT_STAFF */
+  itStaffUserId?: string;
 }
 
 /** com.sme.onboarding.task.assign */
@@ -336,7 +340,8 @@ export interface TaskAttachmentItem {
   fileType?: string;
   fileSizeBytes?: number;
   uploadedBy?: string;
-  createdAt?: string;
+  uploadedByName?: string;
+  uploadedAt?: string;
 }
 
 /** Activity log entry in task detail */
@@ -406,7 +411,8 @@ export interface ListTasksByOnboardingOptions {
 
 /** com.sme.onboarding.task.listByOnboarding */
 export interface TaskListByOnboardingRequest {
-  instanceId: string;
+  /** BE field name is `onboardingId` — NOT `instanceId` */
+  onboardingId: string;
   status?: string;
 }
 

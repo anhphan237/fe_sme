@@ -1,5 +1,10 @@
 ﻿import { Suspense, lazy } from "react";
-import { Navigate, Outlet, createBrowserRouter, useParams } from "react-router-dom";
+import {
+  Navigate,
+  Outlet,
+  createBrowserRouter,
+  useParams,
+} from "react-router-dom";
 import { Skeleton } from "antd";
 import AppLayout from "@/layouts/AppLayout";
 import AuthLayout from "@/layouts/AuthLayout";
@@ -10,6 +15,7 @@ const LandingPage = lazy(() => import("@/pages/landing/LandingPage"));
 const Login = lazy(() => import("@/pages/auth/Login"));
 const RegisterCompany = lazy(() => import("@/pages/auth/RegisterCompany"));
 const InviteAccept = lazy(() => import("@/pages/auth/InviteAccept"));
+const InviteSetPassword = lazy(() => import("@/pages/auth/InviteSetPassword"));
 const DashboardRouter = lazy(() => import("@/pages/dashboard/DashboardRouter"));
 const HRDashboard = lazy(() => import("@/pages/dashboard/HRDashboard"));
 const ManagerDashboard = lazy(
@@ -24,6 +30,9 @@ const AdminKnowledgeBase = lazy(() => import("@/pages/knowledge-base"));
 const AdminDepartments = lazy(() => import("@/pages/departments"));
 const Profile = lazy(() => import("@/pages/profile/Profile"));
 const Notifications = lazy(() => import("@/pages/settings/Notifications"));
+const NotificationsPage = lazy(
+  () => import("@/pages/notifications/NotificationsPage"),
+);
 const OnboardingDashboard = lazy(() => import("@/pages/onboarding/dashboard"));
 const MyJourney = lazy(() => import("@/pages/onboarding/my-journey"));
 const Templates = lazy(() => import("@/pages/onboarding/Templates"));
@@ -130,6 +139,10 @@ export const router = createBrowserRouter([
       { path: "/login", element: suspense(<Login />) },
       { path: "/register-company", element: suspense(<RegisterCompany />) },
       { path: "/invite/accept", element: suspense(<InviteAccept />) },
+      {
+        path: "/invite/set-password",
+        element: suspense(<InviteSetPassword />),
+      },
     ],
   },
   {
@@ -172,6 +185,12 @@ export const router = createBrowserRouter([
       },
       { path: "/profile", element: suspense(<Profile />) },
       { path: "/settings/notifications", element: suspense(<Notifications />) },
+      {
+        path: "/notifications",
+        element: suspense(
+          withRoles(<NotificationsPage />, ["HR", "MANAGER", "EMPLOYEE"]),
+        ),
+      },
       // Onboarding - flat structure
       {
         path: "/onboarding",

@@ -29,7 +29,6 @@ import {
   apiGetTaskDetailFull,
   apiListInstances,
   apiListTasks,
-  apiListTasksByAssignee,
   apiListTaskComments,
   apiUpdateTaskStatus,
   apiAcknowledgeTask,
@@ -53,28 +52,13 @@ type StatusFilter = "all" | "pending" | "done";
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
-// HR/Manager: list tasks by onboarding instance
+// All roles use task.listByOnboarding (PUBLIC — accessible to EMPLOYEE, HR, MANAGER, IT).
+// task.listByAssignee is restricted to IT/HR/MANAGER and therefore cannot be used for employees.
 const useTasksQuery = (onboardingId?: string) =>
   useQuery({
     queryKey: ["onboarding-tasks-by-instance", onboardingId ?? ""],
     queryFn: () => apiListTasks(onboardingId!),
     enabled: Boolean(onboardingId),
-    select: (res: unknown) =>
-      extractList(
-        res as Record<string, unknown>,
-        "tasks",
-        "content",
-        "items",
-        "list",
-      ).map(mapTask) as OnboardingTask[],
-  });
-
-// Employee: list tasks assigned to self (task.listByAssignee — all roles)
-const useEmployeeTasksQuery = (userId?: string) =>
-  useQuery({
-    queryKey: ["employee-tasks-by-assignee", userId ?? ""],
-    queryFn: () => apiListTasksByAssignee(),
-    enabled: Boolean(userId),
     select: (res: unknown) =>
       extractList(
         res as Record<string, unknown>,
@@ -347,11 +331,9 @@ const Tasks = () => {
     : (selectedInstanceId ?? instances[0]?.id);
 
   // ── Tasks loading ─────────────────────────────────────────────────────────
-  // Employee uses task.listByAssignee (all roles);
-  // HR/Manager uses task.listByOnboarding (HR/Manager only).
-
-  const managerHRTasksQuery = useTasksQuery(!isEmployee ? onboardingId : undefined);
-  const employeeTasksQuery = useEmployeeTasksQuery(isEmployee ? userId : undefined);
+  // task.listByOnboarding is a PUBLIC operation — accessible to all roles including EMPLOYEE.
+  // For employees, onboardingId comes from their own instance (auto-selected).
+  // For HR/Manager, onboardingId comes from the dropdown.
 
   const {
     data: tasks = [],
@@ -359,7 +341,7 @@ const Tasks = () => {
     isError,
     error,
     refetch,
-  } = isEmployee ? employeeTasksQuery : managerHRTasksQuery;
+  } = useTasksQuery(onboardingId);
 
   const updateStatus = useUpdateTaskStatus();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -373,9 +355,7 @@ const Tasks = () => {
     mutationFn: (taskId: string) => apiAcknowledgeTask({ taskId }),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: isEmployee
-          ? ["employee-tasks-by-assignee", userId ?? ""]
-          : ["onboarding-tasks-by-instance"],
+        queryKey: ["onboarding-tasks-by-instance", onboardingId ?? ""],
       });
       queryClient.invalidateQueries({
         queryKey: ["onboarding-task-detail", selectedTaskId],
@@ -477,9 +457,7 @@ const Tasks = () => {
 
   const handleToggleTask = async (task: OnboardingTask) => {
     const isDone = task.status === STATUS_DONE;
-    const taskQueryKey = isEmployee
-      ? ["employee-tasks-by-assignee", userId ?? ""]
-      : ["onboarding-tasks-by-instance"];
+    const taskQueryKey = ["onboarding-tasks-by-instance", onboardingId ?? ""];
 
     if (isDone) {
       // Uncheck: revert to TODO (Manager/HR only or simple task)
@@ -805,7 +783,10 @@ const Tasks = () => {
                         status: STATUS_DONE_API,
                       });
                       queryClient.invalidateQueries({
-                        queryKey: ["employee-tasks-by-assignee", userId ?? ""],
+                        queryKey: [
+                          "onboarding-tasks-by-instance",
+                          onboardingId ?? "",
+                        ],
                       });
                       queryClient.invalidateQueries({
                         queryKey: ["onboarding-task-detail", selectedTaskId],
@@ -835,7 +816,10 @@ const Tasks = () => {
                           status: "PENDING_APPROVAL",
                         });
                         queryClient.invalidateQueries({
-                          queryKey: ["employee-tasks-by-assignee", userId ?? ""],
+                          queryKey: [
+                            "onboarding-tasks-by-instance",
+                            onboardingId ?? "",
+                          ],
                         });
                         queryClient.invalidateQueries({
                           queryKey: ["onboarding-task-detail", selectedTaskId],
