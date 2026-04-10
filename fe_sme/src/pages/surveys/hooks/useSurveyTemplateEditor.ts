@@ -328,6 +328,66 @@ export const useSurveyTemplateEditor = ({
     );
   };
 
+  type ImportMode = "APPEND" | "REPLACE_ALL";
+
+type ImportedQuestionInput = {
+  content: string;
+  type: "RATING" | "TEXT" | "SINGLE_CHOICE" | "MULTIPLE_CHOICE";
+  required?: boolean;
+  sortOrder?: number;
+  dimensionCode?: string;
+  measurable?: boolean;
+  scaleMin?: number;
+  scaleMax?: number;
+  options?: string[];
+};
+
+const createImportedLocalQuestion = (
+  item: ImportedQuestionInput,
+  index: number,
+) => ({
+  _uid: `import-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+  questionId: undefined,
+  content: item.content?.trim() || "",
+  type: item.type || "TEXT",
+  required: Boolean(item.required),
+  sortOrder: item.sortOrder ?? index + 1,
+  dimensionCode: item.dimensionCode ?? "GENERAL",
+  measurable: item.measurable ?? item.type === "RATING",
+  scaleMin: item.type === "RATING" ? (item.scaleMin ?? 1) : undefined,
+  scaleMax: item.type === "RATING" ? (item.scaleMax ?? 5) : undefined,
+  options:
+    item.type === "SINGLE_CHOICE" || item.type === "MULTIPLE_CHOICE"
+      ? (item.options ?? []).filter(Boolean)
+      : [],
+  isNew: true,
+  isDirty: true,
+});
+
+const importQuestions = (
+  items: ImportedQuestionInput[],
+  mode: ImportMode = "APPEND",
+) => {
+  setLocalQuestions((prev) => {
+    const imported = items.map((item, index) =>
+      createImportedLocalQuestion(item, index),
+    );
+
+    const next =
+      mode === "REPLACE_ALL"
+        ? imported
+        : [...prev, ...imported].map((q, idx) => ({
+            ...q,
+            sortOrder: idx + 1,
+          }));
+
+    return next.map((q, idx) => ({
+      ...q,
+      sortOrder: idx + 1,
+    }));
+  });
+};
+
   return {
     localQuestions,
     deletedQuestionIds,
@@ -340,5 +400,6 @@ export const useSurveyTemplateEditor = ({
     addOption,
     updateOption,
     deleteOption,
+    importQuestions,
   };
 };

@@ -2227,5 +2227,19 @@
   "platform.system.col_detail": "Detail",
   "platform.dashboard.avg_per_company": "Avg Onboardings / Company",
   "platform.system.max_memory": "Max Memory",
-  "platform.system.cpus": "CPUs"
+  "platform.system.cpus": "CPUs",
+  "survey.question.import_excel": "Import Excel",
+  "survey.question.download_sample": "Download sample",
+  "survey.question.import_dialog_title": "Import questions from Excel",
+  "survey.question.import_dialog_content": "Choose how to import questions into this survey template.",
+  "survey.question.import_append": "Append",
+  "survey.question.import_replace_all": "Replace all",
+  "survey.question.import_success": "Import questions successfully",
+  "survey.question.import_failed": "Import questions failed",
+  "survey.question.import_invalid_file": "Please select a valid .xlsx file",
+  "survey.question.import_need_name": "Please enter template name before importing Excel.",
+  "survey.question.import_need_stage": "Please select onboarding stage before importing Excel.",
+  "survey.question.import_need_target_role": "Please select target role before importing Excel.",
+  "survey.question.sample_download_failed": "Cannot download sample file",
+  "survey.question.empty_hint_import": "You can add questions manually or quickly import from Excel."
 }

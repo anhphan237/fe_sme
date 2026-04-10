@@ -2253,5 +2253,19 @@
   "platform.system.col_detail": "Chi tiết",
   "platform.dashboard.avg_per_company": "TB Onboarding / Công ty",
   "platform.system.max_memory": "Bộ nhớ tối đa",
-  "platform.system.cpus": "Số CPU"
+  "platform.system.cpus": "Số CPU",
+   "survey.question.import_excel": "Import Excel",
+  "survey.question.download_sample": "Tải file mẫu",
+  "survey.question.import_dialog_title": "Import câu hỏi từ Excel",
+  "survey.question.import_dialog_content": "Chọn cách import câu hỏi vào mẫu khảo sát.",
+  "survey.question.import_append": "Thêm vào mẫu hiện tại",
+  "survey.question.import_replace_all": "Thay toàn bộ câu hỏi",
+  "survey.question.import_success": "Import câu hỏi thành công",
+  "survey.question.import_failed": "Import câu hỏi thất bại",
+  "survey.question.import_invalid_file": "Vui lòng chọn file .xlsx",
+  "survey.question.import_need_name": "Vui lòng nhập tên mẫu trước khi import Excel.",
+  "survey.question.import_need_stage": "Vui lòng chọn mốc onboarding trước khi import Excel.",
+  "survey.question.import_need_target_role": "Vui lòng chọn vai trò mục tiêu trước khi import Excel.",
+  "survey.question.sample_download_failed": "Không thể tải file mẫu",
+  "survey.question.empty_hint_import": "Bạn có thể thêm thủ công hoặc import nhanh từ file Excel."
 }
