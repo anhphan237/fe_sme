@@ -80,7 +80,7 @@ function useMyTasksQuery(instanceId?: string) {
 function useMyDocumentsQuery() {
   return useQuery({
     queryKey: ["employee-documents"],
-    queryFn: apiGetDocuments,
+    queryFn: () => apiGetDocuments(),
     select: (res: unknown) =>
       extractList<DashboardDocument>(res, "items", "documents", "list"),
   });

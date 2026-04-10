@@ -535,3 +535,231 @@ export interface PlatformMonitoringMetricsResponse {
   availableProcessors: number;
   cpuUsagePercent: number | null;
 }
+
+// ============================================================
+// Platform Analytics Dashboard (admin.md APIs)
+// ============================================================
+
+// Shared
+export interface TrendPoint {
+  period: string;
+  value: number;
+  previousValue?: number;
+}
+
+// ---------------------------
+// Dashboard Overview
+// ---------------------------
+
+/** com.sme.platform.dashboard.overview */
+export interface PlatformDashboardOverviewRequest {
+  startDate: string;
+  endDate: string;
+  groupBy?: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
+  comparePrevious?: boolean;
+}
+
+export interface PlatformDashboardOverviewResponse {
+  totalCompanies: number;
+  activeCompanies: number;
+  newCompanies: number;
+  suspendedCompanies: number;
+  growthRate: number | null;
+  mrr: number;
+  arr: number;
+  totalRevenue: number;
+  activeSubscriptions: number;
+  newSubscriptions: number;
+  churnRate: number | null;
+  totalOnboardings: number;
+  completedOnboardings: number;
+  completionRate: number | null;
+  // comparison with previous period (when comparePrevious=true)
+  previousTotalCompanies?: number;
+  previousMrr?: number;
+  previousActiveSubscriptions?: number;
+}
+
+// ---------------------------
+// Company Trend
+// ---------------------------
+
+/** com.sme.platform.analytics.company.trend */
+export interface PlatformCompanyTrendRequest {
+  startDate: string;
+  endDate: string;
+  groupBy?: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
+  comparePrevious?: boolean;
+  status?: string;
+}
+
+export interface PlatformCompanyTrendResponse {
+  data: TrendPoint[];
+}
+
+// ---------------------------
+// Revenue Trend
+// ---------------------------
+
+/** com.sme.platform.analytics.revenue.trend */
+export interface PlatformRevenueTrendRequest {
+  startDate: string;
+  endDate: string;
+  groupBy?: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
+  comparePrevious?: boolean;
+}
+
+export interface PlatformRevenueTrendResponse {
+  data: TrendPoint[];
+}
+
+// ---------------------------
+// Plan Trend
+// ---------------------------
+
+/** com.sme.platform.analytics.plan.trend */
+export interface PlatformPlanTrendRequest {
+  startDate: string;
+  endDate: string;
+  groupBy?: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
+  comparePrevious?: boolean;
+}
+
+export interface PlatformPlanTrendPoint {
+  period: string;
+  planCode: string;
+  planName: string;
+  count: number;
+  previousCount?: number;
+}
+
+export interface PlatformPlanTrendResponse {
+  data: PlatformPlanTrendPoint[];
+}
+
+// ---------------------------
+// Employee Analytics
+// ---------------------------
+
+/** com.sme.platform.analytics.employee */
+export interface PlatformEmployeeAnalyticsRequest {
+  startDate: string;
+  endDate: string;
+}
+
+export interface PlatformEmployeeAnalyticsResponse {
+  totalEmployees: number;
+  activeEmployees: number;
+  newEmployees: number;
+  churnedEmployees: number;
+  avgEmployeesPerCompany: number | null;
+}
+
+// ---------------------------
+// Employee Trend
+// ---------------------------
+
+/** com.sme.platform.analytics.employee.trend */
+export interface PlatformEmployeeTrendRequest {
+  startDate: string;
+  endDate: string;
+  groupBy?: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
+  comparePrevious?: boolean;
+}
+
+export interface PlatformEmployeeTrendResponse {
+  data: TrendPoint[];
+}
+
+// ---------------------------
+// Plan Distribution
+// ---------------------------
+
+/** com.sme.platform.analytics.plan.distribution */
+export interface PlatformPlanDistributionRequest {
+  startDate: string;
+  endDate: string;
+}
+
+export interface PlanDistributionItem {
+  planCode: string;
+  planName: string;
+  companyCount: number;
+  percentage: number;
+}
+
+export interface PlatformPlanDistributionResponse {
+  items: PlanDistributionItem[];
+  total: number;
+}
+
+// ---------------------------
+// Forecast
+// ---------------------------
+
+/** com.sme.platform.analytics.forecast */
+export type ForecastMetric = "REVENUE" | "COMPANY" | "EMPLOYEE" | "ONBOARDING";
+
+export interface PlatformForecastRequest {
+  metric: ForecastMetric;
+  startDate: string;
+  endDate: string;
+  groupBy?: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
+  forecastPoints?: number;
+}
+
+export interface ForecastPoint {
+  period: string;
+  actual?: number;
+  forecast: number;
+  lowerBound?: number;
+  upperBound?: number;
+}
+
+export interface PlatformForecastResponse {
+  metric: ForecastMetric;
+  data: ForecastPoint[];
+}
+
+// ---------------------------
+// Onboarding Trend
+// ---------------------------
+
+/** com.sme.platform.analytics.onboarding.trend */
+export interface PlatformOnboardingTrendRequest {
+  startDate: string;
+  endDate: string;
+  groupBy?: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
+  comparePrevious?: boolean;
+}
+
+export interface PlatformOnboardingTrendResponse {
+  data: TrendPoint[];
+}
+
+// ---------------------------
+// Risk Dashboard
+// ---------------------------
+
+/** com.sme.platform.dashboard.risk */
+export interface PlatformRiskDashboardRequest {
+  startDate: string;
+  endDate: string;
+}
+
+export interface RiskItem {
+  companyId: string;
+  companyName: string;
+  riskType: string;
+  severity: "HIGH" | "MEDIUM" | "LOW";
+  description: string;
+  detectedAt: string;
+}
+
+export interface PlatformRiskDashboardResponse {
+  items: RiskItem[];
+  total: number;
+  highRiskCount: number;
+  mediumRiskCount: number;
+  lowRiskCount: number;
+}

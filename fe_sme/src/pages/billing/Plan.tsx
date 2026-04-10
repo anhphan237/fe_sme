@@ -11,8 +11,8 @@ import {
   apiGetSubscription,
   apiCreateSubscription,
   apiUpdateSubscription,
-  apiGenerateInvoice,
 } from "@/api/billing/billing.api";
+import type { SubscriptionUpdateResponse } from "@/interface/billing";
 import { extractList } from "@/api/core/types";
 import { mapPlan, mapSubscription, formatVnd } from "@/utils/mappers/billing";
 import { useUserStore } from "@/stores/user.store";
@@ -20,20 +20,8 @@ import { notify } from "@/utils/notify";
 import { useLocale } from "@/i18n";
 import type { Subscription, BillingPlan } from "../../shared/types";
 
-const getCurrentPeriod = () => {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth();
-  const start = new Date(y, m, 1);
-  const end = new Date(y, m + 1, 1);
-  return {
-    periodStart: start.toISOString().slice(0, 10),
-    periodEnd: end.toISOString().slice(0, 10),
-  };
-};
-
-const handleSuccess = async (
-  res: Subscription | undefined,
+const handleSuccess = (
+  res: SubscriptionUpdateResponse | undefined,
   navigate: (path: string) => void,
   addToast: (msg: string) => void,
   queryClient: ReturnType<typeof useQueryClient>,
@@ -44,41 +32,26 @@ const handleSuccess = async (
   queryClient.invalidateQueries({ queryKey: ["plans"] });
   setSelected(null);
 
-  let invoiceId = res?.invoiceId;
-  const subscriptionId = res?.subscriptionId;
-  const prorateChargeVnd = res?.prorateChargeVnd ?? 0;
-
-  if (!invoiceId && subscriptionId) {
-    try {
-      const { periodStart, periodEnd } = getCurrentPeriod();
-      const gen = await apiGenerateInvoice(
-        subscriptionId,
-        periodStart,
-        periodEnd,
-      );
-      invoiceId = (gen as { invoiceId?: string })?.invoiceId;
-    } catch {
-      /* backend may not support or invoice exists */
-    }
-  }
-
-  if (invoiceId) {
-    const amount = prorateChargeVnd > 0 ? formatVnd(prorateChargeVnd) : "0 ₫";
+  // Paid upgrade: backend tạo pending invoice → redirect đến checkout để thanh toán
+  if (res?.paymentRequired && res?.paymentInvoiceId) {
+    const amount = res.prorateChargeVnd
+      ? formatVnd(res.prorateChargeVnd)
+      : "0 ₫";
     navigate(
-      `/billing/checkout/${invoiceId}?amount=${encodeURIComponent(amount)}`,
+      `/billing/checkout/${res.paymentInvoiceId}?amount=${encodeURIComponent(amount)}`,
     );
     addToast(t("billing.plan.toast.complete_payment"));
-  } else if (prorateChargeVnd > 0) {
-    queryClient.invalidateQueries({ queryKey: ["invoices"] });
-    navigate("/billing/invoices");
-    addToast(t("billing.plan.toast.invoice_created"));
-  } else if (subscriptionId) {
-    queryClient.invalidateQueries({ queryKey: ["invoices"] });
-    navigate("/billing/invoices");
-    addToast(t("billing.plan.toast.subscription_created"));
-  } else {
-    addToast(t("billing.plan.toast.updated"));
+    return;
   }
+
+  // Free change (downgrade hoặc plan miễn phí): plan đã được cập nhật ngay lập tức
+  queryClient.invalidateQueries({ queryKey: ["invoices"] });
+  navigate("/billing/invoices");
+  addToast(
+    res?.subscriptionId
+      ? t("billing.plan.toast.subscription_created")
+      : t("billing.plan.toast.updated"),
+  );
 };
 
 const BillingPlan = () => {
@@ -133,7 +106,7 @@ const BillingPlan = () => {
         {
           onSuccess: (res) =>
             handleSuccess(
-              res as Subscription,
+              res,
               navigate,
               notify.info,
               queryClient,
@@ -149,7 +122,7 @@ const BillingPlan = () => {
         {
           onSuccess: (res) =>
             handleSuccess(
-              res as Subscription,
+              res as SubscriptionUpdateResponse,
               navigate,
               notify.info,
               queryClient,

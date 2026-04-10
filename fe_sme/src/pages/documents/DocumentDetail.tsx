@@ -1,39 +1,188 @@
-﻿import { useParams } from "react-router-dom";
-import { Card, Skeleton, Progress } from "antd";
-import BaseButton from "@/components/button";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useNavigate, useParams } from "react-router-dom";
+import { Card, Divider, Skeleton, Tag, Tooltip } from "antd";
+import {
+  ArrowLeftOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  DownloadOutlined,
+  FilePdfOutlined,
+  FileWordOutlined,
+  FileTextOutlined,
+  FilePptOutlined,
+  FileExcelOutlined,
+  FileOutlined,
+  SafetyOutlined,
+  FileProtectOutlined,
+} from "@ant-design/icons";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocale } from "@/i18n";
-import { apiAcknowledgeDocument } from "@/api/document/document.api";
+import {
+  apiGetDocuments,
+  apiAcknowledgeDocument,
+} from "@/api/document/document.api";
+import type { DocumentItem } from "@/interface/document";
 
-/** @deprecated stub — no gateway operation yet */
-const useDocumentQuery = (id?: string) =>
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+function getFileExt(url?: string): string {
+  if (!url) return "";
+  const clean = url.split("?")[0];
+  const dot = clean.lastIndexOf(".");
+  return dot >= 0 ? clean.substring(dot + 1).toLowerCase() : "";
+}
+
+const EXT_COLOR: Record<string, string> = {
+  pdf: "#ef4444",
+  doc: "#2563eb",
+  docx: "#2563eb",
+  ppt: "#f97316",
+  pptx: "#f97316",
+  xls: "#16a34a",
+  xlsx: "#16a34a",
+  txt: "#94a3b8",
+  md: "#94a3b8",
+};
+
+function getExtColor(url?: string): string {
+  return EXT_COLOR[getFileExt(url)] ?? "#94a3b8";
+}
+
+function FileIconLarge({ url }: { url?: string }) {
+  const ext = getFileExt(url);
+  const cls = "text-5xl";
+  if (ext === "pdf") return <FilePdfOutlined className={`${cls} text-red-500`} />;
+  if (["doc", "docx"].includes(ext))
+    return <FileWordOutlined className={`${cls} text-blue-600`} />;
+  if (["ppt", "pptx"].includes(ext))
+    return <FilePptOutlined className={`${cls} text-orange-500`} />;
+  if (["xls", "xlsx"].includes(ext))
+    return <FileExcelOutlined className={`${cls} text-green-600`} />;
+  if (["txt", "md"].includes(ext))
+    return <FileTextOutlined className={`${cls} text-slate-500`} />;
+  return <FileOutlined className={`${cls} text-slate-400`} />;
+}
+
+const STATUS_COLOR: Record<string, string> = {
+  ACTIVE: "green",
+  INACTIVE: "default",
+  DRAFT: "gold",
+};
+
+// ── Query / Mutation ──────────────────────────────────────────────────────────
+
+const useDocumentDetail = (documentId?: string) =>
   useQuery({
-    queryKey: ["document", id],
-    queryFn: () => Promise.resolve(null as { documentId: string } | null),
-    enabled: Boolean(id),
+    queryKey: ["documents", undefined],
+    queryFn: () => apiGetDocuments(),
+    select: (res) =>
+      res.items.find((d: DocumentItem) => d.documentId === documentId) ?? null,
+    enabled: Boolean(documentId),
   });
-const useAcknowledgeDocument = () =>
-  useMutation({ mutationFn: (documentId: string) => apiAcknowledgeDocument(documentId) });
+
+const useAcknowledgeDocument = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (documentId: string) => apiAcknowledgeDocument(documentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["acknowledgments"] });
+    },
+  });
+};
+
+// ── Preview ───────────────────────────────────────────────────────────────────
+
+function DocumentPreview({ doc }: { doc: DocumentItem }) {
+  const { t } = useLocale();
+  const ext = getFileExt(doc.fileUrl);
+  const accentColor = getExtColor(doc.fileUrl);
+
+  if (!doc.fileUrl) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-dashed border-stroke bg-slate-50">
+        <FileOutlined className="text-4xl text-slate-300" />
+        <p className="mt-3 text-sm text-muted">{t("document.detail.no_preview")}</p>
+      </div>
+    );
+  }
+
+  if (ext === "pdf") {
+    return (
+      <iframe
+        src={doc.fileUrl}
+        title={doc.name}
+        className="h-[560px] w-full rounded-xl border border-stroke"
+      />
+    );
+  }
+
+  // Non-PDF: download card
+  return (
+    <div
+      className="flex flex-col items-center justify-center gap-6 rounded-xl border border-stroke bg-slate-50 py-16">
+      <div
+        className="flex h-20 w-20 items-center justify-center rounded-2xl"
+        style={{ backgroundColor: `${accentColor}18` }}>
+        <FileIconLarge url={doc.fileUrl} />
+      </div>
+      <div className="text-center">
+        <p className="text-base font-semibold text-ink">{doc.name}</p>
+        <p className="mt-1 text-sm text-muted">
+          {t("document.detail.preview_unavailable")}
+        </p>
+      </div>
+      <a
+        href={doc.fileUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brandDark">
+        <DownloadOutlined />
+        {t("document.action.download")} ({ext.toUpperCase()})
+      </a>
+    </div>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 const DocumentDetail = () => {
   const { t } = useLocale();
+  const navigate = useNavigate();
   const { documentId } = useParams();
-  const { data, isLoading, isError, refetch } = useDocumentQuery(
-    documentId ?? "",
-  );
+  const { data: doc, isLoading, isError, refetch } = useDocumentDetail(documentId);
   const acknowledge = useAcknowledgeDocument();
+  const accentColor = getExtColor(doc?.fileUrl);
+  const ext = getFileExt(doc?.fileUrl);
 
+  // ─── Loading ───────────────────────────────────────────────────────────────
   if (isLoading) {
-    return <Skeleton active className="mt-4" />;
+    return (
+      <div className="space-y-5">
+        <Skeleton.Button active className="h-8 w-48" />
+        <Card className="border border-stroke shadow-sm">
+          <Skeleton active paragraph={{ rows: 3 }} />
+        </Card>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <Card className="border border-stroke shadow-sm">
+              <Skeleton active paragraph={{ rows: 8 }} />
+            </Card>
+          </div>
+          <Card className="border border-stroke shadow-sm">
+            <Skeleton active paragraph={{ rows: 5 }} />
+          </Card>
+        </div>
+      </div>
+    );
   }
 
+  // ─── Error ─────────────────────────────────────────────────────────────────
   if (isError) {
     return (
-      <Card>
-        <p className="text-sm text-gray-500">
+      <Card className="border border-stroke shadow-sm">
+        <p className="text-sm text-muted">
           {t("document.error.something_wrong")}{" "}
           <button
-            className="font-semibold text-blue-600 hover:underline"
+            className="font-semibold text-brand hover:underline"
             onClick={() => refetch()}>
             {t("document.error.retry")}
           </button>
@@ -42,57 +191,270 @@ const DocumentDetail = () => {
     );
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <h3 className="mb-4 text-base font-semibold text-gray-700">
-            {t("document.detail.preview")}
-          </h3>
-          <div className="h-64 rounded-xl border border-dashed border-gray-200 bg-gray-50" />
-        </Card>
-        <Card>
-          <h3 className="mb-2 text-base font-semibold text-gray-700">
-            {t("document.detail.progress_title")}
-          </h3>
-          <p className="text-sm text-gray-400">
-            {t("document.detail.time_spent")}
+  // ─── Not found ─────────────────────────────────────────────────────────────
+  if (!doc) {
+    return (
+      <Card className="border border-stroke shadow-sm">
+        <div className="flex flex-col items-center py-12 text-center">
+          <FileOutlined className="text-5xl text-slate-300" />
+          <p className="mt-4 text-base font-semibold text-ink">
+            {t("document.detail.not_found")}
           </p>
-          <Progress percent={54} className="mt-4" />
-          {data && (
-            <BaseButton
-              type="primary"
-              className="mt-6 w-full"
-              onClick={() => acknowledge.mutate(data.documentId)}>
-              {t("document.action.acknowledge")}
-            </BaseButton>
-          )}
-        </Card>
-      </div>
+          <button
+            onClick={() => navigate("/documents")}
+            className="mt-4 text-sm font-medium text-brand hover:underline">
+            {t("document.detail.back_to_list")}
+          </button>
+        </div>
+      </Card>
+    );
+  }
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <h3 className="mb-3 text-base font-semibold text-gray-700">
-            {t("document.detail.access")}
-          </h3>
-          <div className="mt-2 space-y-2 text-sm text-gray-500">
-            <p>Visibility: All departments</p>
-            <p>Required roles: HR, Manager</p>
+  // ─── Render ────────────────────────────────────────────────────────────────
+  return (
+    <div className="space-y-5">
+      {/* Back button */}
+      <button
+        onClick={() => navigate("/documents")}
+        className="flex items-center gap-1.5 text-sm font-medium text-muted transition hover:text-ink">
+        <ArrowLeftOutlined />
+        {t("document.detail.back_to_list")}
+      </button>
+
+      {/* Header card */}
+      <Card
+        className="overflow-hidden border border-stroke bg-white shadow-sm"
+        bodyStyle={{ padding: 0 }}>
+        {/* Accent top bar */}
+        <div className="h-1.5 w-full" style={{ backgroundColor: accentColor }} />
+        <div className="flex flex-wrap items-start gap-4 p-4 sm:p-5">
+          {/* File icon */}
+          <div
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
+            style={{ backgroundColor: `${accentColor}18` }}>
+            <FileIconLarge url={doc.fileUrl} />
           </div>
-        </Card>
-        <Card>
-          <h3 className="mb-3 text-base font-semibold text-gray-700">
-            {t("document.detail.versions")}
-          </h3>
-          <div className="mt-2 space-y-2 text-sm text-gray-500">
-            <p>v3 — Updated 2025-01-18</p>
-            <p>v2 — Updated 2024-12-08</p>
-            <p>v1 — Initial release</p>
+
+          {/* Name + description + badges */}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-bold text-ink">{doc.name}</h1>
+              {ext && (
+                <span
+                  className="rounded-md px-2 py-0.5 text-xs font-bold uppercase text-white"
+                  style={{ backgroundColor: accentColor }}>
+                  {ext}
+                </span>
+              )}
+              {doc.status && (
+                <Tag
+                  color={STATUS_COLOR[doc.status] ?? "default"}
+                  className="m-0">
+                  {doc.status}
+                </Tag>
+              )}
+            </div>
+            {doc.description ? (
+              <p className="mt-1.5 text-sm text-muted">{doc.description}</p>
+            ) : (
+              <p className="mt-1.5 text-sm italic text-slate-300">
+                {t("document.empty.no_description")}
+              </p>
+            )}
           </div>
-        </Card>
+
+          {/* Download button */}
+          {doc.fileUrl && (
+            <Tooltip title={t("document.action.download")}>
+              <a
+                href={doc.fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex shrink-0 items-center gap-2 rounded-xl border border-stroke px-4 py-2 text-sm font-medium text-muted transition hover:border-slate-400 hover:text-ink">
+                <DownloadOutlined />
+                {t("document.action.download")}
+              </a>
+            </Tooltip>
+          )}
+        </div>
+      </Card>
+
+      {/* Body: Preview + Sidebar */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Preview (2/3) */}
+        <div className="space-y-4 lg:col-span-2">
+          <Card className="border border-stroke bg-white shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-ink">
+                {t("document.detail.preview")}
+              </h2>
+              <span className="text-xs text-muted">
+                {ext
+                  ? ext === "pdf"
+                    ? t("document.detail.inline_preview")
+                    : t("document.detail.download_to_view")
+                  : ""}
+              </span>
+            </div>
+            <DocumentPreview doc={doc} />
+          </Card>
+        </div>
+
+        {/* Sidebar (1/3) */}
+        <div className="space-y-4">
+          {/* Acknowledge card */}
+          <Card className="border border-stroke bg-white shadow-sm">
+            <div className="flex items-center gap-2">
+              <FileProtectOutlined className="text-base text-brand" />
+              <h2 className="text-base font-semibold text-ink">
+                {t("document.detail.progress_title")}
+              </h2>
+            </div>
+            <p className="mt-1.5 text-xs text-muted">
+              {t("document.detail.ack_description")}
+            </p>
+            <Divider className="my-3" />
+
+            {acknowledge.isSuccess ? (
+              <div className="flex flex-col items-center gap-2 py-3 text-center">
+                <CheckCircleOutlined className="text-3xl text-emerald-500" />
+                <p className="text-sm font-semibold text-emerald-600">
+                  {t("document.ack.status.acknowledged")}
+                </p>
+                <p className="text-xs text-muted">
+                  {t("document.detail.ack_done_desc")}
+                </p>
+              </div>
+            ) : (
+              <button
+                className={`w-full rounded-xl py-2.5 text-sm font-semibold transition active:scale-95 ${
+                  acknowledge.isPending
+                    ? "cursor-not-allowed bg-slate-100 text-muted"
+                    : "bg-brand text-white shadow-sm hover:bg-brandDark"
+                }`}
+                disabled={acknowledge.isPending}
+                onClick={() => acknowledge.mutate(doc.documentId)}>
+                {acknowledge.isPending ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <ClockCircleOutlined className="animate-spin" />
+                    {t("global.loading")}
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <CheckCircleOutlined />
+                    {t("document.action.acknowledge")}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {acknowledge.isError && (
+              <p className="mt-2 text-center text-xs text-red-500">
+                {acknowledge.error instanceof Error
+                  ? acknowledge.error.message
+                  : t("document.upload.failed")}
+              </p>
+            )}
+          </Card>
+
+          {/* Document info */}
+          <Card className="border border-stroke bg-white shadow-sm">
+            <div className="flex items-center gap-2">
+              <SafetyOutlined className="text-base text-muted" />
+              <h2 className="text-base font-semibold text-ink">
+                {t("document.detail.access")}
+              </h2>
+            </div>
+            <Divider className="my-3" />
+            <div className="space-y-3">
+              <InfoRow
+                label={t("document.detail.file_type")}
+                value={ext ? (
+                  <span
+                    className="rounded-md px-2 py-0.5 text-xs font-bold uppercase text-white"
+                    style={{ backgroundColor: accentColor }}>
+                    {ext}
+                  </span>
+                ) : (
+                  <span className="text-sm text-muted">—</span>
+                )}
+              />
+              <InfoRow
+                label={t("document.detail.visibility")}
+                value={
+                  <span className="text-sm font-medium text-ink">
+                    {t("document.detail.visibility_tenant")}
+                  </span>
+                }
+              />
+              <InfoRow
+                label="Status"
+                value={
+                  doc.status ? (
+                    <Tag color={STATUS_COLOR[doc.status] ?? "default"} className="m-0 text-xs">
+                      {doc.status}
+                    </Tag>
+                  ) : (
+                    <span className="text-sm text-muted">—</span>
+                  )
+                }
+              />
+              <InfoRow
+                label="ID"
+                value={
+                  <Tooltip title={doc.documentId}>
+                    <span className="cursor-default font-mono text-xs text-muted">
+                      {doc.documentId.slice(0, 8)}…
+                    </span>
+                  </Tooltip>
+                }
+              />
+            </div>
+          </Card>
+
+          {/* Version info */}
+          <Card className="border border-stroke bg-white shadow-sm">
+            <h2 className="text-base font-semibold text-ink">
+              {t("document.detail.versions")}
+            </h2>
+            <Divider className="my-3" />
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">
+                  v1
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-ink">
+                    {t("document.detail.version_latest")}
+                  </p>
+                  <p className="text-xs text-muted">
+                    {t("document.detail.version_current")}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );
 };
+
+// ── Helper component ──────────────────────────────────────────────────────────
+
+function InfoRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-xs text-muted">{label}</span>
+      <div>{value}</div>
+    </div>
+  );
+}
 
 export default DocumentDetail;

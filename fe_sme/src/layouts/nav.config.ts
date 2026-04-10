@@ -38,17 +38,17 @@ export const NAV_SECTIONS: NavSection[] = [
     children: [
       {
         titleKey: "nav.organization.departments",
-        to: "/admin/departments",
+        to: "/hr/departments",
         requiredRoles: ["HR"],
       },
       {
         titleKey: "nav.organization.users",
-        to: "/admin/users",
+        to: "/hr/users",
         requiredRoles: ["HR"],
       },
       {
         titleKey: "nav.organization.roles",
-        to: "/admin/roles",
+        to: "/hr/roles",
         requiredRoles: ["HR"],
       },
     ],

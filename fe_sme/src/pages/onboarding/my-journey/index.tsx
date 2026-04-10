@@ -28,7 +28,7 @@ import { extractList } from "@/api/core/types";
 import {
   apiGetTaskDetailFull,
   apiListInstances,
-  apiListTasksByAssignee,
+  apiListTasks,
   apiUpdateTaskStatus,
   apiAcknowledgeTask,
 } from "@/api/onboarding/onboarding.api";
@@ -96,12 +96,10 @@ const MyJourney = () => {
 
   const onboardingId = latestInstance?.id;
 
-  // Employee uses task.listByAssignee (all roles) instead of listByOnboarding (HR/Manager only)
   const { data: tasks = [], isLoading: loadingTasks } = useQuery({
-    queryKey: ["employee-onboarding-tasks-assignee", userId ?? ""],
-    queryFn: () =>
-      apiListTasksByAssignee({ sortBy: "due_date", sortOrder: "ASC" }),
-    enabled: Boolean(userId),
+    queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
+    queryFn: () => apiListTasks(onboardingId!),
+    enabled: Boolean(onboardingId),
     select: (res: unknown) =>
       extractList(
         res as Record<string, unknown>,
@@ -138,7 +136,7 @@ const MyJourney = () => {
     mutationFn: (taskId: string) => apiAcknowledgeTask({ taskId }),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["employee-onboarding-tasks-assignee", userId ?? ""],
+        queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
       });
       queryClient.invalidateQueries({
         queryKey: ["employee-onboarding-task-detail", selectedTaskId],
@@ -236,7 +234,7 @@ const MyJourney = () => {
       try {
         await updateTaskStatus.mutateAsync({ taskId: task.id, status: "TODO" });
         queryClient.invalidateQueries({
-          queryKey: ["employee-onboarding-tasks-assignee", userId ?? ""],
+          queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
         });
         notify.success(t("onboarding.employee.home.toast.task_todo"));
       } catch {
@@ -267,7 +265,7 @@ const MyJourney = () => {
           status: "PENDING_APPROVAL",
         });
         queryClient.invalidateQueries({
-          queryKey: ["employee-onboarding-tasks-assignee", userId ?? ""],
+          queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
         });
         notify.success(t("onboarding.task.toast.submitted_approval"));
       } catch {
@@ -282,7 +280,7 @@ const MyJourney = () => {
         status: STATUS_DONE_API,
       });
       queryClient.invalidateQueries({
-        queryKey: ["employee-onboarding-tasks-assignee", userId ?? ""],
+        queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
       });
       queryClient.invalidateQueries({
         queryKey: ["employee-onboarding-instances", userId ?? ""],
@@ -831,8 +829,8 @@ const MyJourney = () => {
                           onSuccess: () => {
                             queryClient.invalidateQueries({
                               queryKey: [
-                                "employee-onboarding-tasks-assignee",
-                                userId ?? "",
+                                "employee-onboarding-tasks",
+                                onboardingId ?? "",
                               ],
                             });
                             queryClient.invalidateQueries({
@@ -874,8 +872,8 @@ const MyJourney = () => {
                             onSuccess: () => {
                               queryClient.invalidateQueries({
                                 queryKey: [
-                                  "employee-onboarding-tasks-assignee",
-                                  userId ?? "",
+                                  "employee-onboarding-tasks",
+                                  onboardingId ?? "",
                                 ],
                               });
                               queryClient.invalidateQueries({
@@ -916,8 +914,8 @@ const MyJourney = () => {
                             onSuccess: () => {
                               queryClient.invalidateQueries({
                                 queryKey: [
-                                  "employee-onboarding-tasks-assignee",
-                                  userId ?? "",
+                                  "employee-onboarding-tasks",
+                                  onboardingId ?? "",
                                 ],
                               });
                               queryClient.invalidateQueries({

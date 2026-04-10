@@ -41,6 +41,7 @@ export function mapUser(u: UserListItem | Record<string, unknown>): User {
     id: String(raw["userId"] ?? raw["id"] ?? ""),
     name: String(raw["fullName"] ?? raw["name"] ?? ""),
     email: String(raw["email"] ?? ""),
+    phone: (raw["phone"] as string | null) ?? null,
     roles,
     companyId:
       (raw["companyId"] as string | null) ??

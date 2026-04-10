@@ -5,7 +5,10 @@ import MyTable from "@/components/table";
 import type { ColumnsType } from "antd/es/table";
 import { useLocale } from "@/i18n";
 import { extractList } from "@/api/core/types";
-import { apiGetDocuments, apiListAcknowledgments } from "@/api/document/document.api";
+import {
+  apiGetDocuments,
+  apiListAcknowledgments,
+} from "@/api/document/document.api";
 import type { DocumentItem } from "@/interface/document";
 
 const useAcknowledgmentsQuery = () =>
@@ -18,7 +21,7 @@ const useAcknowledgmentsQuery = () =>
 const useDocumentsQuery = () =>
   useQuery({
     queryKey: ["documents"],
-    queryFn: apiGetDocuments,
+    queryFn: () => apiGetDocuments(),
     select: (res) => res.items,
   });
 

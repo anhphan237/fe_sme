@@ -117,7 +117,7 @@ function useInstancesQuery(
 function useDocumentsQuery(enabled = true) {
   return useQuery({
     queryKey: ["documents"],
-    queryFn: apiGetDocuments,
+    queryFn: () => apiGetDocuments(),
     enabled,
     select: (res: unknown) =>
       extractList<DashboardDocument>(res, "items", "documents", "list"),

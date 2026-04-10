@@ -122,4 +122,9 @@ export const mapSubscription = (s: any): Subscription => ({
   prorateCreditVnd: s.prorateCreditVnd,
   prorateChargeVnd: s.prorateChargeVnd,
   invoiceId: s.invoiceId,
+  paymentRequired: s.paymentRequired ?? false,
+  paymentInvoiceId: s.paymentInvoiceId ?? null,
+  pendingChangeId: s.pendingChangeId ?? null,
+  pendingPlanCode: s.pendingPlanCode ?? null,
+  pendingBillingCycle: s.pendingBillingCycle ?? null,
 });

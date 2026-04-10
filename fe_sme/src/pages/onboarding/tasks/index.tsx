@@ -1,7 +1,19 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Clock, Send } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Send,
+  User,
+  Calendar,
+  Paperclip,
+  CheckSquare,
+  ThumbsUp,
+  XCircle,
+  Activity,
+} from "lucide-react";
 import {
   Button,
   Card,
@@ -11,12 +23,14 @@ import {
   Empty,
   Input,
   Modal,
+  Popconfirm,
   Progress,
   Row,
   Segmented,
   Select,
   Skeleton,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 
@@ -48,12 +62,79 @@ import type { OnboardingInstance, OnboardingTask } from "@/shared/types";
 const STATUS_DONE = "Done";
 const STATUS_DONE_API = "DONE";
 
-type StatusFilter = "all" | "pending" | "done";
+type StatusFilter = "all" | "pending" | "done" | "pending_approval" | "overdue";
+
+const STATUS_TAG_COLOR: Record<string, string> = {
+  TODO: "default",
+  IN_PROGRESS: "processing",
+  ASSIGNED: "geekblue",
+  WAIT_ACK: "orange",
+  PENDING_APPROVAL: "gold",
+  DONE: "success",
+};
+
+const STAGE_TAG_COLOR: Record<string, string> = {
+  PRE_BOARDING: "purple",
+  DAY_1: "blue",
+  DAY_7: "cyan",
+  DAY_30: "lime",
+  DAY_60: "green",
+};
+
+const APPROVAL_STATUS_COLOR: Record<string, string> = {
+  NONE: "default",
+  PENDING: "gold",
+  APPROVED: "success",
+  REJECTED: "error",
+};
+
+const SCHEDULE_STATUS_COLOR: Record<string, string> = {
+  UNSCHEDULED: "default",
+  PROPOSED: "processing",
+  CONFIRMED: "success",
+  RESCHEDULED: "orange",
+  CANCELLED: "error",
+  MISSED: "volcano",
+};
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+const formatDate = (value?: string | null) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString("vi-VN");
+};
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const getStageLabel = (
+  name: string,
+  t: (key: string) => string,
+): { label: string; color: string } => {
+  const upper = name.toUpperCase().replace(/\s+/g, "_");
+  const label = t(`onboarding.task.stage.${upper}`);
+  // If translation returns the key back (key not found), use name as-is
+  const validLabel = label.startsWith("onboarding.task.stage.") ? name : label;
+  return {
+    label: validLabel,
+    color: STAGE_TAG_COLOR[upper] ?? "default",
+  };
+};
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
-// All roles use task.listByOnboarding (PUBLIC — accessible to EMPLOYEE, HR, MANAGER, IT).
-// task.listByAssignee is restricted to IT/HR/MANAGER and therefore cannot be used for employees.
 const useTasksQuery = (onboardingId?: string) =>
   useQuery({
     queryKey: ["onboarding-tasks-by-instance", onboardingId ?? ""],
@@ -102,26 +183,79 @@ const useTaskCommentsQuery = (taskId?: string) =>
     },
   });
 
-// ── Components ─────────────────────────────────────────────────────────────────
+// ── Sub-components ─────────────────────────────────────────────────────────────
 
-const ProgressSummary = ({
-  completed,
-  total,
+const StatusBadge = ({
+  rawStatus,
 }: {
-  completed: number;
-  total: number;
+  rawStatus: string | undefined;
 }) => {
   const { t } = useLocale();
-  const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+  if (!rawStatus) return null;
+  const color = STATUS_TAG_COLOR[rawStatus] ?? "default";
+  const labelKey = `onboarding.task.status.${rawStatus.toLowerCase()}`;
+  const label = t(labelKey);
+  return (
+    <Tag color={color} style={{ margin: 0 }}>
+      {label.startsWith("onboarding.task.status.") ? rawStatus : label}
+    </Tag>
+  );
+};
+
+const ProgressStats = ({
+  tasks,
+}: {
+  tasks: OnboardingTask[];
+}) => {
+  const { t } = useLocale();
+  const total = tasks.length;
+  const done = tasks.filter((tk) => tk.rawStatus === STATUS_DONE_API).length;
+  const inProgress = tasks.filter(
+    (tk) =>
+      tk.rawStatus === "IN_PROGRESS" || tk.rawStatus === "ASSIGNED",
+  ).length;
+  const overdue = tasks.filter(
+    (tk) =>
+      tk.dueDate &&
+      tk.rawStatus !== STATUS_DONE_API &&
+      new Date(tk.dueDate) < new Date(),
+  ).length;
+  const pendingApproval = tasks.filter(
+    (tk) => tk.rawStatus === "PENDING_APPROVAL",
+  ).length;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+  const stats = [
+    { label: t("onboarding.task.stat.total"), value: total, color: "text-gray-700" },
+    { label: t("onboarding.task.stat.done"), value: done, color: "text-emerald-600" },
+    { label: t("onboarding.task.stat.in_progress"), value: inProgress, color: "text-blue-600" },
+    { label: t("onboarding.task.stat.overdue"), value: overdue, color: "text-amber-600" },
+    { label: t("onboarding.task.stat.pending_approval"), value: pendingApproval, color: "text-yellow-600" },
+  ];
+
   return (
     <Card>
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-sm text-gray-500">
-          {t("onboarding.task.progress", { completed, total })}
-        </p>
-        <span className="text-sm font-semibold text-gray-800">{pct}%</span>
+      <Row gutter={[8, 8]} align="middle" className="mb-3">
+        {stats.map((s) => (
+          <Col key={s.label} flex="1" className="min-w-0">
+            <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-center">
+              <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
+              <div className="truncate text-xs text-gray-500">{s.label}</div>
+            </div>
+          </Col>
+        ))}
+      </Row>
+      <div className="flex items-center gap-3">
+        <Progress
+          percent={pct}
+          showInfo
+          strokeColor={{ from: "#108ee9", to: "#87d068" }}
+          className="flex-1"
+        />
+        <span className="shrink-0 text-xs text-gray-500">
+          {t("onboarding.task.progress", { completed: done, total })}
+        </span>
       </div>
-      <Progress percent={pct} showInfo={false} />
     </Card>
   );
 };
@@ -131,55 +265,153 @@ const TaskItem = ({
   isUpdating,
   onChange,
   onInspect,
+  onApprove,
+  onReject,
+  canManage,
 }: {
   task: OnboardingTask;
   isUpdating: boolean;
   onChange: (task: OnboardingTask) => void;
   onInspect: (task: OnboardingTask) => void;
+  onApprove?: (task: OnboardingTask) => void;
+  onReject?: (task: OnboardingTask) => void;
+  canManage: boolean;
 }) => {
   const { t } = useLocale();
   const isDone = task.status === STATUS_DONE;
   const isOverdue =
     task.dueDate && !isDone && new Date(task.dueDate) < new Date();
+  const isPendingApproval = task.rawStatus === "PENDING_APPROVAL";
 
   return (
-    <li className="flex flex-col gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50 sm:flex-row sm:items-center sm:gap-4">
-      <label className="flex flex-1 cursor-pointer items-center gap-3">
-        <input
-          type="checkbox"
-          checked={isDone}
-          onChange={() => onChange(task)}
-          disabled={isUpdating}
-          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500/20"
-        />
-        <span
-          className={
-            isDone
-              ? "text-sm text-gray-400 line-through"
-              : "text-sm font-medium text-gray-800"
-          }>
-          {task.title}
-        </span>
-      </label>
+    <li className="transition-colors hover:bg-slate-50">
+      <div className="flex flex-col gap-0 px-4 py-3 sm:flex-row sm:items-start sm:gap-3">
+        {/* Checkbox */}
+        <div className="mt-0.5 shrink-0">
+          <input
+            type="checkbox"
+            checked={isDone}
+            onChange={() => onChange(task)}
+            disabled={isUpdating}
+            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500/20"
+          />
+        </div>
 
-      <div className="flex items-center justify-between gap-2 sm:justify-end">
-        {task.dueDate ? (
-          <span
-            className={`flex items-center gap-1 text-xs ${
-              isOverdue ? "font-medium text-amber-600" : "text-gray-400"
-            }`}>
-            <Clock className="h-3 w-3" />
-            {t("onboarding.task.due", { date: task.dueDate })}
-          </span>
-        ) : (
-          <span className="text-xs text-gray-400">
-            {t("onboarding.task.no_due_date")}
-          </span>
-        )}
+        {/* Content */}
+        <div className="flex flex-1 flex-col gap-1 min-w-0">
+          {/* Row 1: title + flags + status */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={
+                isDone
+                  ? "text-sm text-gray-400 line-through"
+                  : "text-sm font-medium text-gray-800"
+              }>
+              {task.title}
+            </span>
 
-        <Button size="small" onClick={() => onInspect(task)}>
-          {t("onboarding.task.detail.view")}
-        </Button>
+            {/* Flags */}
+            {task.requireAck && !isDone && (
+              <Tooltip title={t("onboarding.task.flag.requires_ack")}>
+                <Tag
+                  color="orange"
+                  style={{ margin: 0, fontSize: 10, padding: "0 4px" }}>
+                  <CheckSquare className="mr-0.5 inline h-2.5 w-2.5" />
+                  Ack
+                </Tag>
+              </Tooltip>
+            )}
+            {task.requiresManagerApproval && !isDone && (
+              <Tooltip title={t("onboarding.task.flag.requires_approval")}>
+                <Tag
+                  color="gold"
+                  style={{ margin: 0, fontSize: 10, padding: "0 4px" }}>
+                  <ThumbsUp className="mr-0.5 inline h-2.5 w-2.5" />
+                  Duyệt
+                </Tag>
+              </Tooltip>
+            )}
+
+            {/* Status badge */}
+            {task.rawStatus && (
+              <StatusBadge rawStatus={task.rawStatus} />
+            )}
+
+            {/* Overdue */}
+            {isOverdue && (
+              <Tag
+                color="error"
+                style={{ margin: 0, fontSize: 10, padding: "0 4px" }}>
+                {t("onboarding.task.stat.overdue")}
+              </Tag>
+            )}
+          </div>
+
+          {/* Row 2: description preview */}
+          {task.description && !isDone && (
+            <p className="line-clamp-1 text-xs text-gray-400">
+              {task.description}
+            </p>
+          )}
+
+          {/* Row 3: meta (due date + assignee) + action */}
+          <div className="flex flex-wrap items-center gap-3">
+            {task.dueDate ? (
+              <span
+                className={`flex items-center gap-1 text-xs ${
+                  isOverdue ? "font-medium text-amber-600" : "text-gray-400"
+                }`}>
+                <Clock className="h-3 w-3" />
+                {t("onboarding.task.due", { date: formatDate(task.dueDate) })}
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-xs text-gray-300">
+                <Clock className="h-3 w-3" />
+                {t("onboarding.task.no_due_date")}
+              </span>
+            )}
+
+            {canManage && task.assignedUserId && (
+              <Tooltip title={t("onboarding.task.field.assignee")}>
+                <span className="flex items-center gap-1 text-xs text-gray-400">
+                  <User className="h-3 w-3" />
+                  {task.assignedUserId}
+                </span>
+              </Tooltip>
+            )}
+
+            <div className="ml-auto flex items-center gap-2">
+              {/* HR inline approve/reject for PENDING_APPROVAL tasks */}
+              {canManage && isPendingApproval && onApprove && onReject && (
+                <>
+                  <Popconfirm
+                    title={t("onboarding.task.action.approve")}
+                    description={t("onboarding.task.action.approve_confirm_desc")}
+                    okText={t("onboarding.task.action.approve")}
+                    cancelText={t("global.close")}
+                    onConfirm={() => onApprove(task)}>
+                    <Button
+                      size="small"
+                      type="primary"
+                      icon={<ThumbsUp className="h-3 w-3" />}>
+                      {t("onboarding.task.action.approve")}
+                    </Button>
+                  </Popconfirm>
+                  <Button
+                    size="small"
+                    danger
+                    icon={<XCircle className="h-3 w-3" />}
+                    onClick={() => onReject(task)}>
+                    {t("onboarding.task.action.reject")}
+                  </Button>
+                </>
+              )}
+              <Button size="small" onClick={() => onInspect(task)}>
+                {t("onboarding.task.detail.view")}
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
     </li>
   );
@@ -191,34 +423,45 @@ const StageSection = ({
   isUpdating,
   onToggle,
   onInspect,
+  onApprove,
+  onReject,
+  canManage,
 }: {
   title: string;
   tasks: OnboardingTask[];
   isUpdating: boolean;
   onToggle: (task: OnboardingTask) => void;
   onInspect: (task: OnboardingTask) => void;
+  onApprove?: (task: OnboardingTask) => void;
+  onReject?: (task: OnboardingTask) => void;
+  canManage: boolean;
 }) => {
-  const done = tasks.filter((t) => t.status === STATUS_DONE).length;
+  const { t } = useLocale();
+  const done = tasks.filter((tk) => tk.status === STATUS_DONE).length;
   const total = tasks.length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   const allDone = done === total && total > 0;
+  const stageInfo = getStageLabel(title, t);
 
   return (
     <Card className="overflow-hidden" styles={{ body: { padding: 0 } }}>
-      <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/80 px-5 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 bg-gray-50/80 px-4 py-3">
         <div className="flex items-center gap-2">
           {allDone ? (
-            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
           ) : (
-            <div className="h-4 w-4 rounded-full border-2 border-blue-300" />
+            <div className="h-4 w-4 shrink-0 rounded-full border-2 border-blue-300" />
           )}
           <span className="text-sm font-semibold text-gray-700">{title}</span>
+          <Tag color={stageInfo.color} style={{ margin: 0, fontSize: 11 }}>
+            {stageInfo.label}
+          </Tag>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400">
             {done}/{total}
           </span>
-          <div className="w-24">
+          <div className="w-20">
             <Progress percent={pct} size="small" showInfo={false} />
           </div>
           <span className="w-8 text-right text-xs font-semibold text-gray-600">
@@ -234,6 +477,9 @@ const StageSection = ({
             isUpdating={isUpdating}
             onChange={onToggle}
             onInspect={onInspect}
+            onApprove={onApprove}
+            onReject={onReject}
+            canManage={canManage}
           />
         ))}
       </ul>
@@ -248,15 +494,16 @@ const LoadingState = () => (
         key={i}
         className="overflow-hidden"
         styles={{ body: { padding: 0 } }}>
-        <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/80 px-5 py-3">
+        <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/80 px-4 py-3">
           <Skeleton.Input active size="small" style={{ width: 140 }} />
           <Skeleton.Input active size="small" style={{ width: 100 }} />
         </div>
         <div className="divide-y divide-gray-100">
           {[0, 1, 2].map((j) => (
-            <div key={j} className="flex items-center gap-3 px-5 py-3.5">
+            <div key={j} className="flex items-center gap-3 px-4 py-3.5">
               <Skeleton.Avatar active size="small" shape="square" />
               <Skeleton.Input active size="small" style={{ flex: 1 }} />
+              <Skeleton.Button active size="small" />
             </div>
           ))}
         </div>
@@ -265,14 +512,24 @@ const LoadingState = () => (
   </div>
 );
 
-// ── Page ───────────────────────────────────────────────────────────────────────
+// ── Detail Drawer Sections ─────────────────────────────────────────────────────
 
-const formatDate = (value?: string) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleDateString("vi-VN");
-};
+const InfoField = ({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) => (
+  <div>
+    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+      {label}
+    </Typography.Text>
+    <div className="mt-0.5 text-sm font-medium text-gray-800">{children}</div>
+  </div>
+);
+
+// ── Page ───────────────────────────────────────────────────────────────────────
 
 const Tasks = () => {
   const navigate = useNavigate();
@@ -317,11 +574,10 @@ const Tasks = () => {
         (i) => i.employeeUserId === userId || i.employeeId === userId,
       );
     }
-    return allInstances; // HR sees all
+    return allInstances;
   }, [allInstances, isManager, isEmployee, userId]);
 
   // ── Selected instance ─────────────────────────────────────────────────────
-  // Employees auto-select; managers/HR get a dropdown.
 
   const [selectedInstanceId, setSelectedInstanceId] = useState<
     string | undefined
@@ -331,9 +587,6 @@ const Tasks = () => {
     : (selectedInstanceId ?? instances[0]?.id);
 
   // ── Tasks loading ─────────────────────────────────────────────────────────
-  // task.listByOnboarding is a PUBLIC operation — accessible to all roles including EMPLOYEE.
-  // For employees, onboardingId comes from their own instance (auto-selected).
-  // For HR/Manager, onboardingId comes from the dropdown.
 
   const {
     data: tasks = [],
@@ -429,11 +682,6 @@ const Tasks = () => {
     selectedTaskId ?? undefined,
   );
 
-  const completedCount = tasks.filter(
-    (task) => task.status === STATUS_DONE,
-  ).length;
-  const totalCount = tasks.length;
-
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
       const matchKeyword = task.title
@@ -442,6 +690,14 @@ const Tasks = () => {
       if (!matchKeyword) return false;
       if (statusFilter === "all") return true;
       if (statusFilter === "done") return task.status === STATUS_DONE;
+      if (statusFilter === "pending_approval")
+        return task.rawStatus === "PENDING_APPROVAL";
+      if (statusFilter === "overdue")
+        return (
+          Boolean(task.dueDate) &&
+          task.rawStatus !== STATUS_DONE_API &&
+          new Date(task.dueDate!) < new Date()
+        );
       return task.status !== STATUS_DONE;
     });
   }, [tasks, keyword, statusFilter]);
@@ -460,7 +716,6 @@ const Tasks = () => {
     const taskQueryKey = ["onboarding-tasks-by-instance", onboardingId ?? ""];
 
     if (isDone) {
-      // Uncheck: revert to TODO (Manager/HR only or simple task)
       try {
         await updateStatus.mutateAsync({ taskId: task.id, status: "TODO" });
         queryClient.invalidateQueries({ queryKey: taskQueryKey });
@@ -471,7 +726,6 @@ const Tasks = () => {
       return;
     }
 
-    // For employees: requireAck tasks must be acknowledged first (→ WAIT_ACK)
     if (
       isEmployee &&
       task.requireAck &&
@@ -482,7 +736,6 @@ const Tasks = () => {
       return;
     }
 
-    // For employees: respect requiresManagerApproval
     if (isEmployee && task.requiresManagerApproval) {
       try {
         await updateStatus.mutateAsync({
@@ -497,7 +750,6 @@ const Tasks = () => {
       return;
     }
 
-    // Normal toggle
     try {
       await updateStatus.mutateAsync({
         taskId: task.id,
@@ -510,19 +762,41 @@ const Tasks = () => {
     }
   };
 
-  const instanceSelectOptions = instances.map((inst) => ({
-    label: `#${inst.id.slice(-8)} — ${inst.employeeId ?? t("onboarding.task.instance.unknown_employee")} (${inst.status})`,
-    value: inst.id,
-  }));
+  const instanceSelectOptions = instances.map((inst) => {
+    const progressLabel = inst.progress > 0 ? ` · ${inst.progress}%` : "";
+    const managerLabel = inst.managerName ? ` · ${inst.managerName}` : "";
+    const displayName =
+      inst.employeeName ??
+      inst.employeeId ??
+      t("onboarding.task.instance.unknown_employee");
+    return {
+      label: `${displayName} — ${inst.status}${progressLabel}${managerLabel}`,
+      value: inst.id,
+    };
+  });
+
+  const selectedInstance = useMemo(
+    () => instances.find((i) => i.id === onboardingId),
+    [instances, onboardingId],
+  );
+
+  const handleInlineApprove = (task: OnboardingTask) => {
+    approveMutation.mutate(task.id);
+  };
+
+  const handleInlineReject = (task: OnboardingTask) => {
+    setSelectedTaskId(task.id);
+    setRejectModalOpen(true);
+  };
 
   return (
-    <div className="space-y-6">
-      {/* ── Filters & Instance Selector ─────────────────────────────── */}
+    <div className="space-y-5">
+      {/* ── Filters & Instance Selector ─────────────────────────── */}
       <Card>
         <Row gutter={[16, 12]} align="middle">
           {canManage && (
             <Col xs={24} md={8}>
-              <p className="mb-1 text-sm font-semibold text-gray-700">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
                 {t("onboarding.task.instance.select_label")}
               </p>
               {loadingInstances ? (
@@ -542,24 +816,21 @@ const Tasks = () => {
                   }
                 />
               )}
-              {isHr && (
-                <p className="mt-1 text-xs text-gray-400">
-                  {t("onboarding.task.instance.hr_hint", {
-                    total: instances.length,
-                  })}
-                </p>
-              )}
-              {isManager && (
-                <p className="mt-1 text-xs text-gray-400">
-                  {t("onboarding.task.instance.manager_hint", {
-                    total: instances.length,
-                  })}
-                </p>
-              )}
+              <p className="mt-1 text-xs text-gray-400">
+                {isHr
+                  ? t("onboarding.task.instance.hr_hint", {
+                      total: instances.length,
+                    })
+                  : isManager
+                    ? t("onboarding.task.instance.manager_hint", {
+                        total: instances.length,
+                      })
+                    : null}
+              </p>
             </Col>
           )}
           <Col xs={24} md={canManage ? 8 : 12}>
-            <p className="mb-1 text-sm font-semibold text-gray-700">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
               {t("onboarding.task.quickview.search_placeholder")}
             </p>
             <Input
@@ -570,7 +841,7 @@ const Tasks = () => {
             />
           </Col>
           <Col xs={24} md={canManage ? 8 : 12}>
-            <p className="mb-1 text-sm font-semibold text-gray-700">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
               {t("onboarding.task.quickview.title")}
             </p>
             <Segmented
@@ -589,22 +860,68 @@ const Tasks = () => {
                   label: t("onboarding.task.quickview.filter_done"),
                   value: "done",
                 },
+                ...(canManage
+                  ? [
+                      {
+                        label: t("onboarding.task.quickview.filter_pending_approval"),
+                        value: "pending_approval",
+                      },
+                      {
+                        label: t("onboarding.task.quickview.filter_overdue"),
+                        value: "overdue",
+                      },
+                    ]
+                  : []),
               ]}
             />
             <p className="mt-1 text-xs text-gray-500">
               {t("onboarding.task.quickview.result", {
                 visible: filteredTasks.length,
-                total: totalCount,
+                total: tasks.length,
               })}
             </p>
           </Col>
         </Row>
       </Card>
 
-      {/* ── Progress summary ─────────────────────────────────── */}
-      {totalCount > 0 && (
-        <ProgressSummary completed={completedCount} total={totalCount} />
+      {/* ── Instance Info Banner (HR/Manager) ──────────────────────── */}
+      {canManage && selectedInstance && (
+        <Card size="small" className="border-blue-100 bg-blue-50/30">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <div className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+              <User className="h-4 w-4 text-blue-400" />
+              {selectedInstance.employeeName ??
+                selectedInstance.employeeId ??
+                t("onboarding.task.instance.unknown_employee")}
+              {selectedInstance.templateName && (
+                <span className="ml-1 text-xs font-normal text-gray-400">
+                  · {selectedInstance.templateName}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <Calendar className="h-3.5 w-3.5" />
+              {formatDate(selectedInstance.startDate)}
+            </div>
+            {selectedInstance.managerName && (
+              <div className="flex items-center gap-1 text-xs text-gray-500">
+                <User className="h-3.5 w-3.5" />
+                {selectedInstance.managerName}
+              </div>
+            )}
+            <div className="ml-auto flex items-center gap-2">
+              <Progress
+                percent={selectedInstance.progress}
+                size="small"
+                style={{ width: 120, marginBottom: 0 }}
+              />
+            </div>
+          </div>
+        </Card>
       )}
+
+      {/* ── Progress Stats ──────────────────────────────────────── */}
+      {tasks.length > 0 && <ProgressStats tasks={tasks} />}
 
       {/* ── Task list ─────────────────────────────────────────── */}
       {isLoading ? (
@@ -635,6 +952,9 @@ const Tasks = () => {
               isUpdating={updateStatus.isPending}
               onToggle={handleToggleTask}
               onInspect={(task) => setSelectedTaskId(task.id)}
+              onApprove={canManage ? handleInlineApprove : undefined}
+              onReject={canManage ? handleInlineReject : undefined}
+              canManage={canManage}
             />
           ))}
         </div>
@@ -665,88 +985,276 @@ const Tasks = () => {
 
       {/* ── Task Detail Drawer ─────────────────────────────────── */}
       <Drawer
-        title={t("onboarding.task.detail.title")}
-        width={560}
+        title={
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-blue-500" />
+            <span>{t("onboarding.task.detail.title")}</span>
+          </div>
+        }
+        width={canManage ? 720 : 600}
         open={Boolean(selectedTaskId)}
         onClose={() => setSelectedTaskId(null)}>
         {taskDetailLoading ? (
-          <Skeleton active paragraph={{ rows: 6 }} />
+          <Skeleton active paragraph={{ rows: 8 }} />
         ) : taskDetail ? (
-          <div className="space-y-4">
-            <div>
-              <Typography.Text type="secondary">
-                {t("onboarding.employee.home.task_detail.field_title")}
-              </Typography.Text>
-              <Typography.Paragraph className="!mb-0 !mt-1" strong>
-                {String(taskDetail.title ?? "-")}
-              </Typography.Paragraph>
+          <div className="space-y-5">
+            {/* ── Employee context (HR/Manager view) ───────────────── */}
+            {canManage && selectedInstance && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-blue-100 bg-blue-50/40 px-3 py-2 text-xs text-gray-500">
+                <span className="flex items-center gap-1 font-medium text-gray-700">
+                  <User className="h-3.5 w-3.5 text-blue-400" />
+                  {selectedInstance.employeeName ?? selectedInstance.employeeId ?? "-"}
+                </span>
+                {selectedInstance.managerName && (
+                  <span>Manager: {selectedInstance.managerName}</span>
+                )}
+                <span>
+                  <Progress
+                    percent={selectedInstance.progress}
+                    size="small"
+                    style={{ width: 100, marginBottom: 0 }}
+                  />
+                </span>
+              </div>
+            )}
+
+            {/* ── Header: Title + Stage ─────────────────────────── */}
+            <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+              <div className="mb-2 flex flex-wrap items-start gap-2">
+                <Typography.Title
+                  level={5}
+                  className="!mb-0 flex-1 !text-gray-800">
+                  {String(taskDetail.title ?? "-")}
+                </Typography.Title>
+                <StatusBadge rawStatus={taskDetail.status} />
+              </div>
+              {taskDetail.checklistName && (
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span className="text-xs text-gray-500">{t("onboarding.task.field.checklist")}:</span>
+                  {(() => {
+                    const info = getStageLabel(taskDetail.checklistName, t);
+                    return (
+                      <Tag color={info.color} style={{ margin: 0, fontSize: 11 }}>
+                        {info.label}
+                      </Tag>
+                    );
+                  })()}
+                </div>
+              )}
+              {taskDetail.overdue && (
+                <div className="mt-2 flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">
+                  <AlertTriangle className="h-3 w-3" />
+                  {t("onboarding.task.stat.overdue")}
+                  {taskDetail.dueInHours != null &&
+                    ` — ${Math.abs(Math.round(taskDetail.dueInHours))}h`}
+                </div>
+              )}
             </div>
 
-            {!!taskDetail.description && (
-              <div>
-                <Typography.Text type="secondary">
-                  {t("onboarding.employee.home.task_detail.field_description")}
-                </Typography.Text>
-                <Typography.Paragraph className="!mb-0 !mt-1">
-                  {String(taskDetail.description)}
-                </Typography.Paragraph>
-              </div>
-            )}
-
+            {/* ── Info Grid ───────────────────────────────────────── */}
             <Row gutter={[12, 12]}>
               <Col span={12}>
-                <div className="rounded-lg border border-gray-200 p-3">
-                  <Typography.Text type="secondary">
-                    {t("onboarding.employee.home.task_detail.field_status")}
-                  </Typography.Text>
-                  <div className="mt-1">
-                    <Tag
-                      color={
-                        taskDetail.status === STATUS_DONE_API
-                          ? "success"
-                          : taskDetail.status === "PENDING_APPROVAL"
-                            ? "warning"
-                            : taskDetail.status === "WAIT_ACK"
-                              ? "orange"
-                              : "processing"
-                      }>
-                      {taskDetail.status === "PENDING_APPROVAL"
-                        ? t("onboarding.task.status.pending_approval")
-                        : taskDetail.status === "WAIT_ACK"
-                          ? t("onboarding.task.status.wait_ack")
-                          : taskDetail.status === "DONE"
-                            ? t("onboarding.task.status.done")
-                            : taskDetail.status === "IN_PROGRESS"
-                              ? t("onboarding.task.status.in_progress")
-                              : taskDetail.status === "TODO"
-                                ? t("onboarding.task.status.todo")
-                                : String(taskDetail.status ?? "-")}
-                    </Tag>
-                  </div>
+                <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                  <InfoField label={t("onboarding.employee.home.task_detail.field_due_date")}>
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3.5 w-3.5 text-gray-400" />
+                      {formatDate(taskDetail.dueDate)}
+                    </span>
+                  </InfoField>
                 </div>
               </Col>
               <Col span={12}>
-                <div className="rounded-lg border border-gray-200 p-3">
-                  <Typography.Text type="secondary">
-                    {t("onboarding.employee.home.task_detail.field_due_date")}
-                  </Typography.Text>
-                  <div className="mt-1">
-                    {formatDate(String(taskDetail.dueDate ?? ""))}
-                  </div>
+                <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                  <InfoField label={t("onboarding.task.field.completed_at")}>
+                    <span className="flex items-center gap-1">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-gray-400" />
+                      {formatDate(taskDetail.completedAt)}
+                    </span>
+                  </InfoField>
                 </div>
               </Col>
+              {taskDetail.assignedUserName || taskDetail.assignedUserId ? (
+                <Col span={12}>
+                  <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                    <InfoField label={t("onboarding.task.field.assignee")}>
+                      <span className="flex items-center gap-1">
+                        <User className="h-3.5 w-3.5 text-gray-400" />
+                        {taskDetail.assignedUserName ?? taskDetail.assignedUserId}
+                      </span>
+                    </InfoField>
+                  </div>
+                </Col>
+              ) : null}
+              {taskDetail.createdAt ? (
+                <Col span={taskDetail.assignedUserName || taskDetail.assignedUserId ? 12 : 24}>
+                  <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                    <InfoField label={t("onboarding.task.field.created_at")}>
+                      {formatDateTime(taskDetail.createdAt)}
+                    </InfoField>
+                  </div>
+                </Col>
+              ) : null}
             </Row>
 
-            {/* ── Rejection reason if rejected ─────────────────── */}
-            {taskDetail.rejectionReason && (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                <Typography.Text type="danger">
-                  {t("onboarding.task.rejection_reason", {
-                    reason: taskDetail.rejectionReason,
-                  })}
+            {/* ── Description ─────────────────────────────────────── */}
+            {taskDetail.description && (
+              <div>
+                <Typography.Text
+                  type="secondary"
+                  style={{ fontSize: 12 }}>
+                  {t("onboarding.employee.home.task_detail.field_description")}
                 </Typography.Text>
+                <div className="mt-1.5 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-700">
+                  {String(taskDetail.description)}
+                </div>
               </div>
             )}
+
+            {/* ── Acknowledgment Section ──────────────────────────── */}
+            {taskDetail.requireAck && (
+              <>
+                <Divider orientationMargin={0}>
+                  <span className="flex items-center gap-1 text-xs text-gray-400">
+                    <CheckSquare className="h-3 w-3" />
+                    {t("onboarding.task.ack.section_title")}
+                  </span>
+                </Divider>
+                <div className="rounded-lg border border-orange-100 bg-orange-50/40 p-3">
+                  {taskDetail.acknowledgedAt ? (
+                    <Row gutter={[12, 8]}>
+                      <Col span={12}>
+                        <InfoField label={t("onboarding.task.field.acknowledged_by")}>
+                          {taskDetail.acknowledgedBy ?? "-"}
+                        </InfoField>
+                      </Col>
+                      <Col span={12}>
+                        <InfoField label={t("onboarding.task.field.acknowledged_at")}>
+                          {formatDateTime(taskDetail.acknowledgedAt)}
+                        </InfoField>
+                      </Col>
+                    </Row>
+                  ) : (
+                    <span className="text-sm text-orange-600">
+                      {t("onboarding.task.ack.not_yet")}
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* ── Approval Section ────────────────────────────────── */}
+            {taskDetail.requiresManagerApproval && (
+              <>
+                <Divider orientationMargin={0}>
+                  <span className="flex items-center gap-1 text-xs text-gray-400">
+                    <ThumbsUp className="h-3 w-3" />
+                    {t("onboarding.task.approval.section_title")}
+                  </span>
+                </Divider>
+                <div
+                  className={`rounded-lg border p-3 ${
+                    taskDetail.approvalStatus === "REJECTED"
+                      ? "border-red-100 bg-red-50/40"
+                      : taskDetail.approvalStatus === "APPROVED"
+                        ? "border-emerald-100 bg-emerald-50/40"
+                        : "border-yellow-100 bg-yellow-50/40"
+                  }`}>
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="text-xs text-gray-500">
+                      {t("onboarding.employee.home.task_detail.field_status")}:
+                    </span>
+                    <Tag
+                      color={
+                        APPROVAL_STATUS_COLOR[
+                          taskDetail.approvalStatus ?? "NONE"
+                        ] ?? "default"
+                      }
+                      style={{ margin: 0 }}>
+                      {t(
+                        `onboarding.task.approval.status.${(taskDetail.approvalStatus ?? "NONE").toLowerCase()}`,
+                      )}
+                    </Tag>
+                  </div>
+                  {(taskDetail.approvedBy || taskDetail.approvedAt) && (
+                    <Row gutter={[12, 8]}>
+                      {taskDetail.approvedBy && (
+                        <Col span={12}>
+                          <InfoField label={t("onboarding.task.field.approved_by")}>
+                            {taskDetail.approvedBy}
+                          </InfoField>
+                        </Col>
+                      )}
+                      {taskDetail.approvedAt && (
+                        <Col span={12}>
+                          <InfoField label={t("onboarding.task.field.approved_at")}>
+                            {formatDateTime(taskDetail.approvedAt)}
+                          </InfoField>
+                        </Col>
+                      )}
+                    </Row>
+                  )}
+                  {taskDetail.rejectionReason && (
+                    <div className="mt-2 rounded-md border border-red-200 bg-red-50 p-2">
+                      <Typography.Text type="danger" style={{ fontSize: 12 }}>
+                        <XCircle className="mr-1 inline h-3 w-3" />
+                        <span className="font-medium">
+                          {t("onboarding.task.rejection_reason_label")}:
+                        </span>{" "}
+                        {taskDetail.rejectionReason}
+                      </Typography.Text>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* ── Schedule Section ────────────────────────────────── */}
+            {taskDetail.scheduleStatus &&
+              taskDetail.scheduleStatus !== "UNSCHEDULED" && (
+                <>
+                  <Divider orientationMargin={0}>
+                    <span className="flex items-center gap-1 text-xs text-gray-400">
+                      <Calendar className="h-3 w-3" />
+                      {t("onboarding.task.schedule.section_title")}
+                    </span>
+                  </Divider>
+                  <div className="rounded-lg border border-blue-100 bg-blue-50/30 p-3">
+                    <div className="mb-2 flex items-center gap-2">
+                      <span className="text-xs text-gray-500">
+                        {t("onboarding.employee.home.task_detail.field_status")}:
+                      </span>
+                      <Tag
+                        color={
+                          SCHEDULE_STATUS_COLOR[taskDetail.scheduleStatus] ??
+                          "default"
+                        }
+                        style={{ margin: 0 }}>
+                        {t(
+                          `onboarding.task.schedule.status.${taskDetail.scheduleStatus}`,
+                        )}
+                      </Tag>
+                    </div>
+                    <Row gutter={[12, 8]}>
+                      {taskDetail.scheduledStartAt && (
+                        <Col span={12}>
+                          <InfoField
+                            label={t("onboarding.task.schedule.field.start")}>
+                            {formatDateTime(taskDetail.scheduledStartAt)}
+                          </InfoField>
+                        </Col>
+                      )}
+                      {taskDetail.scheduledEndAt && (
+                        <Col span={12}>
+                          <InfoField
+                            label={t("onboarding.task.schedule.field.end")}>
+                            {formatDateTime(taskDetail.scheduledEndAt)}
+                          </InfoField>
+                        </Col>
+                      )}
+                    </Row>
+                  </div>
+                </>
+              )}
 
             {/* ── Role-aware action buttons ─────────────────────── */}
             <Divider orientationMargin={0}>
@@ -756,13 +1264,14 @@ const Tasks = () => {
             </Divider>
 
             <div className="flex flex-wrap gap-2">
-              {/* Employee: Acknowledge (requireAck=true, status TODO or IN_PROGRESS) */}
+              {/* Employee: Acknowledge */}
               {isEmployee &&
                 taskDetail.requireAck &&
                 (taskDetail.status === "TODO" ||
                   taskDetail.status === "IN_PROGRESS") && (
                   <Button
                     type="primary"
+                    icon={<CheckSquare className="h-3.5 w-3.5" />}
                     loading={acknowledgeMutation.isPending}
                     onClick={() =>
                       acknowledgeMutation.mutate(taskDetail.taskId)
@@ -771,10 +1280,11 @@ const Tasks = () => {
                   </Button>
                 )}
 
-              {/* Employee: Confirm Complete after WAIT_ACK */}
+              {/* Employee: Confirm Complete (WAIT_ACK) */}
               {isEmployee && taskDetail.status === "WAIT_ACK" && (
                 <Button
                   type="primary"
+                  icon={<CheckCircle2 className="h-3.5 w-3.5" />}
                   loading={updateStatus.isPending}
                   onClick={async () => {
                     try {
@@ -801,13 +1311,14 @@ const Tasks = () => {
                 </Button>
               )}
 
-              {/* Employee: Submit for Approval (requiresManagerApproval=true, status TODO or IN_PROGRESS) */}
+              {/* Employee: Submit for Approval */}
               {isEmployee &&
                 taskDetail.requiresManagerApproval &&
                 (taskDetail.status === "TODO" ||
                   taskDetail.status === "IN_PROGRESS") && (
                   <Button
                     type="primary"
+                    icon={<Send className="h-3.5 w-3.5" />}
                     loading={updateStatus.isPending}
                     onClick={async () => {
                       try {
@@ -836,7 +1347,7 @@ const Tasks = () => {
                   </Button>
                 )}
 
-              {/* Employee: Normal done (no requireAck, no requiresManagerApproval, status TODO or IN_PROGRESS) */}
+              {/* Employee: Normal done */}
               {isEmployee &&
                 !taskDetail.requireAck &&
                 !taskDetail.requiresManagerApproval &&
@@ -844,9 +1355,10 @@ const Tasks = () => {
                   taskDetail.status === "IN_PROGRESS") && (
                   <Button
                     type="primary"
+                    icon={<CheckCircle2 className="h-3.5 w-3.5" />}
                     loading={updateStatus.isPending}
                     onClick={async () => {
-                      const task = tasks.find((t) => t.id === selectedTaskId);
+                      const task = tasks.find((tk) => tk.id === selectedTaskId);
                       if (task) await handleToggleTask(task);
                       setSelectedTaskId(null);
                     }}>
@@ -854,20 +1366,22 @@ const Tasks = () => {
                   </Button>
                 )}
 
-              {/* Manager/HR: Approve (status PENDING_APPROVAL) */}
+              {/* Manager/HR: Approve */}
               {canManage && taskDetail.status === "PENDING_APPROVAL" && (
                 <Button
                   type="primary"
+                  icon={<ThumbsUp className="h-3.5 w-3.5" />}
                   loading={approveMutation.isPending}
                   onClick={() => approveMutation.mutate(taskDetail.taskId)}>
                   {t("onboarding.task.action.approve")}
                 </Button>
               )}
 
-              {/* Manager/HR: Reject (status PENDING_APPROVAL) */}
+              {/* Manager/HR: Reject */}
               {canManage && taskDetail.status === "PENDING_APPROVAL" && (
                 <Button
                   danger
+                  icon={<XCircle className="h-3.5 w-3.5" />}
                   loading={rejectMutation.isPending}
                   onClick={() => setRejectModalOpen(true)}>
                   {t("onboarding.task.action.reject")}
@@ -878,6 +1392,75 @@ const Tasks = () => {
                 {t("global.close")}
               </Button>
             </div>
+
+            {/* ── Activity Logs ──────────────────────────────────── */}
+            {taskDetail.activityLogs && taskDetail.activityLogs.length > 0 && (
+              <>
+                <Divider orientationMargin={0}>
+                  <span className="flex items-center gap-1 text-xs text-gray-400">
+                    <Activity className="h-3 w-3" />
+                    {t("onboarding.task.activity.section_title")}
+                  </span>
+                </Divider>
+                <div className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
+                  {taskDetail.activityLogs.map((log) => (
+                    <div
+                      key={log.logId}
+                      className="flex items-start gap-2 rounded-md bg-gray-50 px-3 py-2 text-xs">
+                      <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-blue-400" />
+                      <div className="flex-1">
+                        <span className="font-medium text-gray-700">
+                          {log.action}
+                        </span>
+                        {log.newValue && (
+                          <span className="ml-1 text-gray-500">
+                            → {log.newValue}
+                          </span>
+                        )}
+                        {log.actorName && (
+                          <span className="ml-1 text-gray-400">
+                            · {log.actorName}
+                          </span>
+                        )}
+                      </div>
+                      <span className="shrink-0 text-gray-400">
+                        {formatDate(log.createdAt)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* ── Attachments placeholder ─────────────────────────── */}
+            {taskDetail.attachments && taskDetail.attachments.length > 0 && (
+              <>
+                <Divider orientationMargin={0}>
+                  <span className="flex items-center gap-1 text-xs text-gray-400">
+                    <Paperclip className="h-3 w-3" />
+                    {t("onboarding.employee.home.task_detail.field_attachments")}
+                  </span>
+                </Divider>
+                <div className="space-y-1.5">
+                  {taskDetail.attachments.map((att) => (
+                    <a
+                      key={att.attachmentId}
+                      href={att.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-blue-600 transition-colors hover:bg-blue-50">
+                      <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                      <span className="flex-1 truncate">{att.fileName}</span>
+                      {att.fileSizeBytes && (
+                        <span className="shrink-0 text-xs text-gray-400">
+                          {(att.fileSizeBytes / 1024).toFixed(0)} KB
+                        </span>
+                      )}
+                    </a>
+                  ))}
+                </div>
+              </>
+            )}
 
             {/* ── Comments ─────────────────────────────────── */}
             <Divider orientationMargin={0}>
@@ -908,7 +1491,7 @@ const Tasks = () => {
                       <p className="text-sm text-gray-600">{c.message}</p>
                       {c.createdAt && (
                         <p className="mt-1 text-[11px] text-gray-400">
-                          {formatDate(c.createdAt)}
+                          {formatDateTime(c.createdAt)}
                         </p>
                       )}
                     </div>

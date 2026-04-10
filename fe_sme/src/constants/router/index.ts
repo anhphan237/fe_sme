@@ -6,11 +6,11 @@ export const AppRouters = {
   DASHBOARD: "/dashboard",
   PROFILE: "/profile",
   FORBIDDEN: "/403",
-  // Admin
-  ADMIN_DEPARTMENTS: "/admin/departments",
-  ADMIN_USERS: "/admin/users",
-  ADMIN_ROLES: "/admin/roles",
-  ADMIN_KNOWLEDGE_BASE: "/admin/knowledge-base",
+  // HR (formerly Admin)
+  ADMIN_DEPARTMENTS: "/hr/departments",
+  ADMIN_USERS: "/hr/users",
+  ADMIN_ROLES: "/hr/roles",
+  ADMIN_KNOWLEDGE_BASE: "/hr/knowledge-base",
   // Notifications
   NOTIFICATIONS: "/notifications",
   // Settings

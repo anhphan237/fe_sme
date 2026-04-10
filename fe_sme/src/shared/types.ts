@@ -13,6 +13,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  phone?: string | null;
   roles: Role[];
   companyId: string | null;
   department: string;
@@ -99,9 +100,11 @@ export interface OnboardingTemplate {
 export interface OnboardingInstance {
   id: string;
   employeeId: string;
+  employeeName?: string | null;
   employeeUserId?: string | null;
   managerUserId?: string | null;
   managerName?: string | null;
+  templateName?: string | null;
   templateId: string;
   startDate: string;
   progress: number;
@@ -315,6 +318,13 @@ export interface Subscription {
   prorateCreditVnd?: number;
   prorateChargeVnd?: number;
   invoiceId?: string;
+  /** true khi subscription.update trả về yêu cầu thanh toán */
+  paymentRequired?: boolean;
+  /** invoiceId của invoice chờ thanh toán (chỉ có khi paymentRequired=true) */
+  paymentInvoiceId?: string | null;
+  pendingChangeId?: string | null;
+  pendingPlanCode?: string | null;
+  pendingBillingCycle?: string | null;
 }
 
 export interface Invoice {
