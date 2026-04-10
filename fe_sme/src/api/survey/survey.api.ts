@@ -16,6 +16,7 @@ import type {
   SurveySubmitRequest,
   SurveyResponseListRequest,
   SurveyAnalyticsReportRequest,
+  ImportSurveyQuestionsRequest,
 } from "@/interface/survey";
 
 // ── Template ────────────────────────────────────────────────
@@ -75,7 +76,6 @@ export const apiListSurveyQuestions = (
     params,
   );
 
-
 export const apiUpdateSurveyQuestion = (payload: SurveyQuestionUpdateRequest) =>
   gatewayRequest<SurveyQuestionUpdateRequest, unknown>(
     "com.sme.survey.question.update",
@@ -87,6 +87,43 @@ export const apiDeleteSurveyQuestion = (payload: SurveyQuestionDeleteRequest) =>
     "com.sme.survey.question.delete",
     payload,
   );
+
+/** helper: convert file -> base64 */
+const fileToBase64 = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      const base64 = result.includes(",") ? result.split(",")[1] : result;
+      resolve(base64);
+    };
+
+    reader.onerror = () => reject(new Error("Read file failed"));
+    reader.readAsDataURL(file);
+  });
+
+/** com.sme.survey.question.import */
+export const apiImportSurveyQuestions = async (params: {
+  templateId: string;
+  mode?: "APPEND" | "REPLACE_ALL";
+  file: File;
+}) => {
+  const fileBase64 = await fileToBase64(params.file);
+
+  const payload: ImportSurveyQuestionsRequest = {
+    templateId: params.templateId,
+    mode: params.mode ?? "APPEND",
+    fileName: params.file.name,
+    fileBase64,
+  };
+
+  return gatewayRequest<ImportSurveyQuestionsRequest, unknown>(
+    "com.sme.survey.question.import",
+    payload,
+  );
+};
+
 // ── Instance ────────────────────────────────────────────────
 
 /** com.sme.survey.instance.list */
@@ -146,19 +183,19 @@ export const apiGetSurveyAnalyticsReport = (
     params ?? {},
   );
 
-  export const apiGetSurveyInstance = (payload: { instanceId: string }) =>
+export const apiGetSurveyInstance = (payload: { instanceId: string }) =>
   gatewayRequest<typeof payload, unknown>(
     "com.sme.survey.instance.get",
     payload,
   );
 
-  export const apiSaveSurveyDraft = (payload: {
-    instanceId: string;
-    answers: Array<{
-      questionId: string;
-      value: string | number | string[] | null;
-    }>;
-  }) =>
+export const apiSaveSurveyDraft = (payload: {
+  instanceId: string;
+  answers: Array<{
+    questionId: string;
+    value: string | number | string[] | null;
+  }>;
+}) =>
   gatewayRequest<typeof payload, unknown>(
     "com.sme.survey.response.saveDraft",
     payload,

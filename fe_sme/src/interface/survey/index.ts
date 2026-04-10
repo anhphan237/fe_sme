@@ -252,3 +252,28 @@ export interface SurveyQuestionFullUpdateRequest {
   scaleMin?: number;
   scaleMax?: number;
 }
+
+
+export interface ImportSurveyQuestionsRequest {
+  templateId: string;
+  mode?: "APPEND" | "REPLACE_ALL";
+  fileName: string;
+  fileBase64: string;
+}
+
+export interface ImportSurveyQuestionError {
+  row: number;
+  field: string;
+  message: string;
+}
+
+export interface ImportSurveyQuestionsResponse {
+  success: boolean;
+  message?: string;
+  templateId?: string;
+  mode?: string;
+  totalRows?: number;
+  successRows?: number;
+  failedRows?: number;
+  errors?: ImportSurveyQuestionError[];
+}
