@@ -195,7 +195,8 @@ const AdminUsers = () => {
         .filter((u) => statusFilter === "ALL" || u.status === statusFilter)
         .filter((u) => !deptFilter || u.departmentId === deptFilter);
 
-  const hasActiveFilters = roleFilter !== "ALL" || deptFilter || statusFilter !== "ALL";
+  const hasActiveFilters =
+    roleFilter !== "ALL" || deptFilter || statusFilter !== "ALL";
 
   const handleInvite = async (form: InviteForm) => {
     await apiCreateUser({
@@ -328,28 +329,36 @@ const AdminUsers = () => {
             <span className="text-sm font-semibold text-slate-700">
               {stats.total}
             </span>
-            <span className="text-xs text-slate-400">{t("user.stats.total")}</span>
+            <span className="text-xs text-slate-400">
+              {t("user.stats.total")}
+            </span>
           </div>
           <div className="flex items-center gap-1.5 rounded-lg border border-green-100 bg-green-50 px-3 py-2">
             <span className="h-2 w-2 rounded-full bg-green-500" />
             <span className="text-sm font-semibold text-green-700">
               {stats.active}
             </span>
-            <span className="text-xs text-green-600">{t("user.stats.active")}</span>
+            <span className="text-xs text-green-600">
+              {t("user.stats.active")}
+            </span>
           </div>
           <div className="flex items-center gap-1.5 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
             <span className="h-2 w-2 rounded-full bg-amber-400" />
             <span className="text-sm font-semibold text-amber-700">
               {stats.invited}
             </span>
-            <span className="text-xs text-amber-600">{t("user.stats.invited")}</span>
+            <span className="text-xs text-amber-600">
+              {t("user.stats.invited")}
+            </span>
           </div>
           <div className="flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2">
             <span className="h-2 w-2 rounded-full bg-red-400" />
             <span className="text-sm font-semibold text-red-700">
               {stats.inactive}
             </span>
-            <span className="text-xs text-red-600">{t("user.stats.inactive")}</span>
+            <span className="text-xs text-red-600">
+              {t("user.stats.inactive")}
+            </span>
           </div>
         </div>
       )}

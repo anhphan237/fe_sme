@@ -1,7 +1,7 @@
 ﻿import { Card, Progress } from "antd";
 import { useLocale } from "@/i18n";
 import { ROLE_LABELS, getPrimaryRole } from "@/shared/rbac";
-import { InstanceStatusBadge } from "../InstanceStatusBadge";
+import { InstanceStatusBadge } from "../../InstanceStatusBadge";
 import type { OnboardingInstance, User } from "@/shared/types";
 
 interface InfoCardProps {
