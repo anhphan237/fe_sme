@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Card, Input, Modal, Skeleton, Tabs } from "antd";
+import { Button, Card, Input, Modal, Skeleton, Tabs, Tag } from "antd";
+import {
+  CheckCircle2,
+  Circle,
+  Clock,
+  HourglassIcon,
+  Loader2,
+  Send,
+  CheckSquare,
+} from "lucide-react";
 import BaseModal from "@core/components/Modal/BaseModal";
 import { notify } from "@/utils/notify";
 import { isOnboardingEmployee, canManageOnboarding } from "@/shared/rbac";
@@ -36,8 +46,140 @@ import { InfoCard } from "./components/InfoCard";
 import { TaskListPanel } from "./components/TaskListPanel";
 import { TaskDrawer } from "./components/TaskDrawer";
 import { StageProgressCard } from "./components/StageProgressCard";
-import { STATUS_DONE, STATUS_DONE_API } from "./constants";
+import { STATUS_DONE, STATUS_DONE_API, STATUS_TAG_COLOR } from "./constants";
 import type { OnboardingTask } from "@/shared/types";
+
+// ── Activity Feed ─────────────────────────────────────────────────────────────
+
+const ACTIVITY_STATUS_ICON: Record<string, ReactNode> = {
+  DONE: <CheckCircle2 className="h-4 w-4 text-emerald-500" />,
+  IN_PROGRESS: <Loader2 className="h-4 w-4 animate-spin text-blue-500" />,
+  PENDING_APPROVAL: <HourglassIcon className="h-4 w-4 text-amber-500" />,
+  WAIT_ACK: <CheckSquare className="h-4 w-4 text-orange-500" />,
+  ASSIGNED: <Send className="h-4 w-4 text-indigo-400" />,
+};
+
+const ActivityFeed = ({
+  tasks,
+  t,
+}: {
+  tasks: OnboardingTask[];
+  t: (key: string, params?: Record<string, unknown>) => string;
+}) => {
+  // Group by checklistName / stage
+  const groups = useMemo(() => {
+    const map = new Map<string, OnboardingTask[]>();
+    for (const task of tasks) {
+      const key = task.checklistName ?? "—";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(task);
+    }
+    return Array.from(map.entries());
+  }, [tasks]);
+
+  if (tasks.length === 0) {
+    return (
+      <Card>
+        <p className="py-4 text-center text-sm text-muted">
+          {t("onboarding.detail.activity.empty")}
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <h3 className="mb-5 text-base font-semibold text-gray-800">
+        {t("onboarding.detail.activity.title")}
+      </h3>
+      <div className="space-y-6">
+        {groups.map(([group, groupTasks]) => {
+          const doneCount = groupTasks.filter(
+            (tk) => tk.rawStatus === "DONE",
+          ).length;
+          return (
+            <div key={group}>
+              {/* Stage header */}
+              <div className="mb-3 flex items-center gap-2 border-b border-gray-100 pb-1.5">
+                <Clock className="h-3.5 w-3.5 text-blue-400" />
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  {group}
+                </span>
+                <span className="ml-auto rounded-full bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-500">
+                  {doneCount}/{groupTasks.length}
+                </span>
+              </div>
+
+              {/* Tasks in stage */}
+              <div className="space-y-2 pl-1">
+                {groupTasks.map((task, idx) => {
+                  const raw = task.rawStatus ?? "TODO";
+                  const isDone = raw === "DONE";
+                  const icon = ACTIVITY_STATUS_ICON[raw] ?? (
+                    <Circle className="h-4 w-4 text-gray-300" />
+                  );
+                  const isLast = idx === groupTasks.length - 1;
+
+                  return (
+                    <div key={task.id} className="flex gap-3">
+                      {/* Connector + icon */}
+                      <div className="flex flex-col items-center">
+                        <div
+                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${
+                            isDone
+                              ? "border-emerald-200 bg-emerald-50"
+                              : raw === "IN_PROGRESS"
+                                ? "border-blue-200 bg-blue-50"
+                                : raw === "PENDING_APPROVAL" || raw === "WAIT_ACK"
+                                  ? "border-amber-200 bg-amber-50"
+                                  : "border-gray-100 bg-gray-50"
+                          }`}>
+                          {icon}
+                        </div>
+                        {!isLast && (
+                          <div
+                            className={`mt-0.5 w-0.5 flex-1 min-h-[1rem] ${
+                              isDone ? "bg-emerald-100" : "bg-gray-100"
+                            }`}
+                          />
+                        )}
+                      </div>
+
+                      {/* Task content */}
+                      <div className="mb-1 flex min-w-0 flex-1 items-start justify-between gap-2 pb-1">
+                        <div className="min-w-0">
+                          <span
+                            className={`text-sm leading-snug ${
+                              isDone
+                                ? "font-normal text-gray-400 line-through"
+                                : "font-medium text-gray-800"
+                            }`}>
+                            {task.title}
+                          </span>
+                          {task.dueDate && (
+                            <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-400">
+                              <Clock className="h-3 w-3" />
+                              {task.dueDate}
+                            </p>
+                          )}
+                        </div>
+                        <Tag
+                          color={STATUS_TAG_COLOR[raw] ?? "default"}
+                          style={{ margin: 0, fontSize: 11, flexShrink: 0 }}>
+                          {t(`onboarding.task.status.${raw.toLowerCase()}`)}
+                        </Tag>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+};
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -99,7 +241,7 @@ const EmployeeDetail = () => {
 
   const { data: templateDetail } = useQuery({
     queryKey: ["template-detail", instance?.templateId ?? ""],
-    queryFn: () => apiGetTemplate(instance?.templateId!),
+    queryFn: () => apiGetTemplate(instance!.templateId),
     enabled: Boolean(instance?.templateId),
     select: (res: unknown) => {
       const r = res as Record<string, unknown>;
@@ -112,14 +254,14 @@ const EmployeeDetail = () => {
 
   const { data: employeeDetail } = useQuery({
     queryKey: ["user-detail", instance?.employeeUserId ?? ""],
-    queryFn: () => apiGetUserById(instance?.employeeUserId!),
+    queryFn: () => apiGetUserById(instance!.employeeUserId as string),
     enabled: Boolean(instance?.employeeUserId),
     select: (res: unknown) => mapUserDetail(res as GetUserResponse),
   });
 
   const { data: managerDetail } = useQuery({
     queryKey: ["user-detail", instance?.managerUserId ?? ""],
-    queryFn: () => apiGetUserById(instance?.managerUserId!),
+    queryFn: () => apiGetUserById(instance!.managerUserId as string),
     enabled: Boolean(instance?.managerUserId),
     select: (res: unknown) => mapUserDetail(res as GetUserResponse),
   });
@@ -250,7 +392,7 @@ const EmployeeDetail = () => {
         percent: Math.round((done / total) * 100),
       };
     });
-  }, [templateDetail?.stages, tasks]);
+  }, [templateDetail, tasks]);
 
   const instanceStatus = instance?.status?.toUpperCase() ?? "";
   const isActioning =
@@ -449,6 +591,7 @@ const EmployeeDetail = () => {
         template={templateDetail}
         employeeDisplayName={employeeDisplayName}
         employeeDisplayEmail={employeeDisplayEmail}
+        employeeDetail={employeeDetail}
         managerDisplayName={managerDisplayName}
         completedCount={completedCount}
         totalTasks={totalTasks}
@@ -489,30 +632,7 @@ const EmployeeDetail = () => {
 
       {/* ── Activity tab ─────────────────────────────────────────────────────── */}
       {tab === "activity" && (
-        <Card>
-          <h3 className="text-lg font-semibold">
-            {t("onboarding.detail.activity.title")}
-          </h3>
-          <div className="mt-4 space-y-3 text-sm">
-            {completedCount > 0 ? (
-              tasks
-                .filter((task) => task.status === STATUS_DONE)
-                .map((task) => (
-                  <div
-                    key={task.id}
-                    className="rounded-lg border border-stroke bg-slate-50 p-4">
-                    {t("onboarding.detail.activity.task_completed", {
-                      title: task.title,
-                    })}
-                  </div>
-                ))
-            ) : (
-              <p className="text-muted">
-                {t("onboarding.detail.activity.empty")}
-              </p>
-            )}
-          </div>
-        </Card>
+        <ActivityFeed tasks={tasks} t={t} />
       )}
 
       {/* ── Task detail drawer ───────────────────────────────────────────────── */}
