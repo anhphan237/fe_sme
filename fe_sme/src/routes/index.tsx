@@ -47,6 +47,7 @@ const EmployeeDetail = lazy(
   () => import("@/pages/onboarding/employees/detail"),
 );
 const OnboardingTasks = lazy(() => import("@/pages/onboarding/tasks"));
+const OnboardingApprovals = lazy(() => import("@/pages/onboarding/approvals"));
 const OnboardingAutomation = lazy(
   () => import("@/pages/onboarding/automation"),
 );
@@ -184,10 +185,16 @@ export const router = createBrowserRouter([
         element: suspense(withRoles(<AdminKnowledgeBase />, ["HR"])),
       },
       // Legacy redirects for old /admin/* HR routes
-      { path: "/admin/departments", element: <Navigate to="/hr/departments" replace /> },
+      {
+        path: "/admin/departments",
+        element: <Navigate to="/hr/departments" replace />,
+      },
       { path: "/admin/users", element: <Navigate to="/hr/users" replace /> },
       { path: "/admin/roles", element: <Navigate to="/hr/roles" replace /> },
-      { path: "/admin/knowledge-base", element: <Navigate to="/hr/knowledge-base" replace /> },
+      {
+        path: "/admin/knowledge-base",
+        element: <Navigate to="/hr/knowledge-base" replace />,
+      },
       { path: "/profile", element: suspense(<Profile />) },
       { path: "/settings/notifications", element: suspense(<Notifications />) },
       {
@@ -233,6 +240,12 @@ export const router = createBrowserRouter([
         path: "/onboarding/tasks",
         element: suspense(
           withRoles(<OnboardingTasks />, ["HR", "MANAGER", "EMPLOYEE"]),
+        ),
+      },
+      {
+        path: "/onboarding/approvals",
+        element: suspense(
+          withRoles(<OnboardingApprovals />, ["HR", "MANAGER"]),
         ),
       },
       {
