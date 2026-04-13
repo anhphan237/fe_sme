@@ -73,7 +73,16 @@ const SelectOnboardingModal = ({
   );
 
   const users = extractList<UserListItem>(usersRaw, "users", "items");
-
+  const managerUser = useMemo(
+    () =>
+      users.find((user) => {
+        if (!Array.isArray(user.roles)) return false;
+        return user.roles.some(
+          (role) => role?.toUpperCase() === "MANAGER",
+        );
+      }),
+    [users],
+  );
   const employeeUsers = useMemo(
     () =>
       users.filter((user) => {
@@ -88,35 +97,50 @@ const SelectOnboardingModal = ({
     [employeeUsers],
   );
 
-  const rows: SelectedOnboardingItem[] = useMemo(
-    () =>
-      onboardingInstances
-        .filter((item) => {
-          if (!item.instanceId || !item.employeeUserId) return false;
-          return employeeUserMap.has(item.employeeUserId);
-        })
-        .map((item) => {
-          const employee = employeeUserMap.get(item.employeeUserId as string);
+ const rows: SelectedOnboardingItem[] = useMemo(
+  () =>
+    onboardingInstances
+      .filter((item) => {
+        if (!item.instanceId || !item.employeeUserId) return false;
+        return employeeUserMap.has(item.employeeUserId);
+      })
+      .map((item) => {
+        const employee = employeeUserMap.get(item.employeeUserId as string);
 
-          return {
-            onboardingId: item.instanceId,
-            instanceId: item.instanceId,
+   
+        const isSameDepartment =
+          managerUser?.departmentId &&
+          employee?.departmentId &&
+          managerUser.departmentId === employee.departmentId;
 
-            employeeUserId: item.employeeUserId,
-            managerUserId: item.managerUserId,
-            employeeName:
-              employee?.fullName ||
-              item.employeeId ||
-              item.employeeUserId ||
-              item.instanceId,
-            email: employee?.email,
-            managerName: item.managerName,
-            startDate: item.startDate,
-            status: item.status,
-          };
-        }),
-    [onboardingInstances, employeeUserMap],
-  );
+        return {
+          onboardingId: item.instanceId,
+          instanceId: item.instanceId,
+
+          employeeUserId: item.employeeUserId,
+
+     
+          managerUserId: isSameDepartment
+            ? managerUser?.userId
+            : undefined,
+
+          managerName: isSameDepartment
+            ? managerUser?.fullName
+            : undefined,
+
+          employeeName:
+            employee?.fullName ||
+            item.employeeId ||
+            item.employeeUserId ||
+            item.instanceId,
+
+          email: employee?.email,
+          startDate: item.startDate,
+          status: item.status,
+        };
+      }),
+  [onboardingInstances, employeeUserMap, managerUser],
+);
 
   const normalizedKeyword = keyword.trim().toLowerCase();
 

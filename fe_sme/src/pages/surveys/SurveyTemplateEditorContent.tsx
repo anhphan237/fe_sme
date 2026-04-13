@@ -1,15 +1,10 @@
 import { Form, Modal, Switch } from "antd";
-import { Download, Plus, Upload } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
-import * as XLSX from "xlsx";
 
 import BaseButton from "@/components/button";
 import BaseInput from "@core/components/Input/InputWithLabel";
 import BaseSelect from "@core/components/Select/BaseSelect";
 import BaseTextArea from "@core/components/TextArea/BaseTextArea";
-
-import QuestionCard from "@/pages/surveys/components/QuestionCard";
 import { useLocale } from "@/i18n";
 import { notify } from "@/utils/notify";
 import {
@@ -36,6 +31,8 @@ import {
   resequenceQuestions,
   useSurveyTemplateEditor,
 } from "./hooks/useSurveyTemplateEditor";
+import SurveyQuestionBuilder from "./components/SurveyQuestionBuilder";
+import { useSurveyExcelImport } from "./hooks/useSurveyExcelImport";
 
 type Props = {
   templateId?: string;
@@ -49,18 +46,6 @@ type SaveTemplatePayload = {
   forceReplaceDefault?: boolean;
 };
 
-type ParsedExcelQuestion = {
-  content: string;
-  type: "RATING" | "TEXT" | "SINGLE_CHOICE" | "MULTIPLE_CHOICE";
-  required: boolean;
-  sortOrder: number;
-  dimensionCode: string;
-  measurable: boolean;
-  scaleMin?: number;
-  scaleMax?: number;
-  options?: string[];
-};
-
 const SurveyTemplateEditorContent = ({
   templateId,
   initialValues,
@@ -71,10 +56,6 @@ const SurveyTemplateEditorContent = ({
   const { t } = useLocale();
   const queryClient = useQueryClient();
   const [templateForm] = Form.useForm<TemplateFormValues>();
-  const importInputRef = useRef<HTMLInputElement | null>(null);
-
-  // Đặt file này trong public/files/survey_questions_template.xlsx
-  const SAMPLE_TEMPLATE_URL = "/files/survey_questions_template.xlsx";
 
   const stageOptions = getStageOptions(t);
   const statusOptions = getStatusOptions(t);
@@ -99,83 +80,15 @@ const SurveyTemplateEditorContent = ({
     isEdit: isEditMode,
   });
 
-  const normalizeQuestionType = (
-    value?: unknown,
-  ): ParsedExcelQuestion["type"] => {
-    const v = String(value ?? "")
-      .trim()
-      .toUpperCase();
-
-    if (v === "RATING" || v === "ĐÁNH GIÁ") return "RATING";
-    if (v === "TEXT" || v === "TỰ LUẬN") return "TEXT";
-    if (v === "SINGLE_CHOICE" || v === "MỘT LỰA CHỌN")
-      return "SINGLE_CHOICE";
-    if (v === "MULTIPLE_CHOICE" || v === "NHIỀU LỰA CHỌN")
-      return "MULTIPLE_CHOICE";
-
-    return "TEXT";
-  };
-
-  const toBoolean = (value: unknown, defaultValue = false) => {
-    if (typeof value === "boolean") return value;
-
-    const v = String(value ?? "")
-      .trim()
-      .toLowerCase();
-
-    if (["true", "1", "yes", "y", "x"].includes(v)) return true;
-    if (["false", "0", "no", "n"].includes(v)) return false;
-
-    return defaultValue;
-  };
-
-  const toNumber = (value: unknown, defaultValue?: number) => {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : defaultValue;
-  };
-
-  const parseOptions = (value: unknown) =>
-    String(value ?? "")
-      .split("|")
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-  const parseExcelQuestions = async (
-    file: File,
-  ): Promise<ParsedExcelQuestion[]> => {
-    const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: "array" });
-    const firstSheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[firstSheetName];
-
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
-      defval: "",
-    });
-
-    return rows
-      .map((row, index) => {
-        const type = normalizeQuestionType(row.Type);
-
-        return {
-          content: String(row.Content ?? "").trim(),
-          type,
-          required: toBoolean(row.Required, false),
-          sortOrder: toNumber(row.SortOrder, index + 1) ?? index + 1,
-          dimensionCode:
-            String(row.DimensionCode ?? "GENERAL")
-              .trim()
-              .toUpperCase() || "GENERAL",
-          measurable: toBoolean(row.Measurable, type === "RATING"),
-          scaleMin: type === "RATING" ? toNumber(row.ScaleMin, 1) : undefined,
-          scaleMax: type === "RATING" ? toNumber(row.ScaleMax, 5) : undefined,
-          options:
-            type === "SINGLE_CHOICE" || type === "MULTIPLE_CHOICE"
-              ? parseOptions(row.Options)
-              : [],
-        };
-      })
-      .filter((item) => item.content);
-  };
+  const {
+    importInputRef,
+    handleDownloadSample,
+    handleChooseImportFile,
+    handleImportFileChange,
+  } = useSurveyExcelImport({
+    onImportQuestions: importQuestions,
+    sampleTemplateUrl: "/files/survey_questions_template.xlsx",
+  });
 
   const buildTemplatePayload = (
     values: TemplateFormValues,
@@ -320,85 +233,6 @@ const SurveyTemplateEditorContent = ({
     },
   });
 
-  const handleDownloadSample = () => {
-    try {
-      const link = document.createElement("a");
-      link.href = SAMPLE_TEMPLATE_URL;
-      link.download = "survey_questions_template.xlsx";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch {
-      notify.error(
-        t("survey.question.sample_download_failed") ||
-          "Cannot download sample file",
-      );
-    }
-  };
-
-  const handleChooseImportFile = () => {
-    importInputRef.current?.click();
-  };
-
-  const handleImportFileChange = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-
-    if (!file) return;
-
-    if (!file.name.toLowerCase().endsWith(".xlsx")) {
-      notify.error(
-        t("survey.question.import_invalid_file") ||
-          "Please select a valid .xlsx file",
-      );
-      return;
-    }
-
-    try {
-      const importedRows = await parseExcelQuestions(file);
-
-      if (!importedRows.length) {
-        notify.error(
-          t("survey.question.import_failed") || "Import questions failed",
-        );
-        return;
-      }
-
-      Modal.confirm({
-        title:
-          t("survey.question.import_dialog_title") ||
-          "Import questions from Excel",
-        content:
-          t("survey.question.import_dialog_content") ||
-          "Choose how to import questions into this survey template.",
-        okText: t("survey.question.import_append") || "Append",
-        cancelText: t("survey.question.import_replace_all") || "Replace all",
-        onOk: async () => {
-          importQuestions(importedRows, "APPEND");
-          notify.success(
-            t("survey.question.import_success") ||
-              "Import questions successfully",
-          );
-        },
-        onCancel: async () => {
-          importQuestions(importedRows, "REPLACE_ALL");
-          notify.success(
-            t("survey.question.import_success") ||
-              "Import questions successfully",
-          );
-        },
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : t("survey.question.import_failed") || "Import questions failed";
-      notify.error(message);
-    }
-  };
-
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
@@ -519,102 +353,25 @@ const SurveyTemplateEditorContent = ({
           </Form>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
-                {t("survey.question.section_title") || "Questions"}
-              </h2>
-              <p className="mt-0.5 text-xs text-slate-400">
-                {localQuestions.length}{" "}
-                {localQuestions.length === 1
-                  ? t("survey.question.count_singular") || "question"
-                  : t("survey.question.count_plural") || "questions"}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                ref={importInputRef}
-                type="file"
-                accept=".xlsx"
-                className="hidden"
-                onChange={handleImportFileChange}
-              />
-
-              <BaseButton
-                size="small"
-                icon={<Download className="h-4 w-4" />}
-                label="survey.question.download_sample"
-                onClick={handleDownloadSample}
-              />
-
-              <BaseButton
-                size="small"
-                icon={<Upload className="h-4 w-4" />}
-                label="survey.question.import_excel"
-                onClick={handleChooseImportFile}
-              />
-
-              <BaseButton
-                size="small"
-                type="primary"
-                icon={<Plus className="h-4 w-4" />}
-                label="survey.question.add"
-                onClick={addQuestion}
-              />
-            </div>
-          </div>
-
-          {validationErrors.length > 0 && (
-            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-              <div className="font-medium">
-                {t("survey.template.validation.fix_before_save") ||
-                  "Please fix these issues before saving:"}
-              </div>
-              <ul className="mt-2 list-disc pl-5">
-                {validationErrors.map((error) => (
-                  <li key={error}>{error}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {localQuestions.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-                <Plus className="h-5 w-5 text-slate-400" />
-              </div>
-              <p className="text-sm text-slate-400">
-                {t("survey.question.empty_hint") || "No questions yet."}
-              </p>
-              <p className="mt-2 text-xs text-slate-400">
-                {t("survey.question.empty_hint_import") ||
-                  "You can add questions manually or quickly import from Excel."}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {localQuestions.map((question, index) => (
-                <QuestionCard
-                  key={question._uid}
-                  question={question}
-                  index={index}
-                  questionTypeOptions={questionTypeOptions}
-                  dimensionOptions={dimensionOptions}
-                  onChange={updateQuestion}
-                  onDelete={deleteQuestion}
-                  onDuplicate={duplicateQuestion}
-                  onMoveUp={(uid) => moveQuestion(uid, "up")}
-                  onMoveDown={(uid) => moveQuestion(uid, "down")}
-                  onAddOption={addOption}
-                  onDeleteOption={deleteOption}
-                  onUpdateOption={updateOption}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+        <SurveyQuestionBuilder
+          t={t}
+          localQuestions={localQuestions}
+          validationErrors={validationErrors}
+          questionTypeOptions={questionTypeOptions}
+          dimensionOptions={dimensionOptions}
+          importInputRef={importInputRef}
+          onChooseImportFile={handleChooseImportFile}
+          onImportFileChange={handleImportFileChange}
+          onDownloadSample={handleDownloadSample}
+          onAddQuestion={addQuestion}
+          onUpdateQuestion={updateQuestion}
+          onDeleteQuestion={deleteQuestion}
+          onDuplicateQuestion={duplicateQuestion}
+          onMoveQuestion={moveQuestion}
+          onAddOption={addOption}
+          onDeleteOption={deleteOption}
+          onUpdateOption={updateOption}
+        />
       </div>
 
       <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-4">

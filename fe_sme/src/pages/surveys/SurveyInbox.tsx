@@ -20,11 +20,15 @@ const SurveyInbox = () => {
   const navigate = useNavigate();
   const { t } = useLocale();
   const currentUser = useUserStore((state) => state.currentUser);
+
+  const currentUserId = currentUser?.id;
   const roles = currentUser?.roles ?? [];
-  const isManager = roles.includes("MANAGER");
+
   const isHR = roles.includes("HR");
+  const isManager = roles.includes("MANAGER");
   const employeeOnlyView = isOnboardingEmployee(roles);
-  const canSendSurvey = roles.includes("HR");
+  const canSendSurvey = isHR;
+
   const [statusFilter, setStatusFilter] = useState("");
   const [sendOpen, setSendOpen] = useState(false);
 
@@ -47,12 +51,13 @@ const SurveyInbox = () => {
     queryKey: [
       "survey-instances",
       statusFilter || "ALL",
-      employeeOnlyView ? currentUser?.id : "ALL",
+      employeeOnlyView ? currentUserId : "ALL",
+      isHR ? "HR" : isManager ? "MANAGER" : "EMPLOYEE",
     ],
     queryFn: () =>
       apiGetSurveyInstances({
         status: statusFilter || undefined,
-        responderUserId: employeeOnlyView ? currentUser?.id : undefined,
+        responderUserId: employeeOnlyView ? currentUserId : undefined,
         targetRole: !isHR && isManager ? "MANAGER" : undefined,
         limit: 20,
         offset: 0,
@@ -66,30 +71,29 @@ const SurveyInbox = () => {
   );
 
   const filtered = useMemo(() => {
-  if (!instances) return [];
+    if (!instances) return [];
 
+    if (isHR) {
+      return instances;
+    }
 
-  if (isHR) return instances;
+    if (employeeOnlyView) {
+      return instances.filter(
+        (item) => item.responderUserId === currentUserId,
+      );
+    }
 
-  if (employeeOnlyView) {
-    return instances.filter(
-      (item) =>
-        item.responderUserId === currentUser?.id ||
-        item.userId === currentUser?.id,
-    );
-  }
+    if (isManager) {
+      return instances.filter(
+        (item) =>
+          item.responderUserId === currentUserId ||
+          item.receiverRole === "MANAGER" ||
+          item.targetRole === "MANAGER",
+      );
+    }
 
-
-  if (isManager) {
-    return instances.filter(
-      (item) =>
-        item.receiverRole === "MANAGER" ||
-        item.targetRole === "MANAGER",
-    );
-  }
-
-  return instances;
-}, [instances, employeeOnlyView, isManager, isHR, currentUser?.id]);
+    return instances;
+  }, [instances, employeeOnlyView, isManager, isHR, currentUserId]);
 
   const goDetail = (id?: string) => {
     if (!id) return;
@@ -105,7 +109,7 @@ const SurveyInbox = () => {
         <button
           type="button"
           className="text-left font-medium text-[#223A59] hover:text-[#3684DB] hover:underline"
-          onClick={() => goDetail(row.id)}
+          onClick={() => goDetail(row.id || row.instanceId)}
         >
           {name}
         </button>
@@ -156,13 +160,19 @@ const SurveyInbox = () => {
       key: "actions",
       width: 140,
       render: (_, row) => {
-        if (row.status === "PENDING" || row.status === "SENT") {
+        const recordId = row.id || row.instanceId;
+
+        const isResponder = row.responderUserId === currentUserId;
+        const isTakeableStatus =
+          row.status === "PENDING" || row.status === "SENT";
+
+        if (!isHR && isResponder && isTakeableStatus) {
           return (
             <BaseButton
               size="small"
               type="primary"
               label="survey.inbox.take"
-              onClick={() => goDetail(row.id)}
+              onClick={() => goDetail(recordId)}
             />
           );
         }
@@ -171,7 +181,7 @@ const SurveyInbox = () => {
           <BaseButton
             size="small"
             label="survey.inbox.open"
-            onClick={() => goDetail(row.id)}
+            onClick={() => goDetail(recordId)}
           />
         );
       },
@@ -189,6 +199,7 @@ const SurveyInbox = () => {
             {t("survey.inbox.subtitle")}
           </p>
         </div>
+
         {canSendSurvey ? (
           <BaseButton
             type="primary"
@@ -209,6 +220,7 @@ const SurveyInbox = () => {
             allowClear
           />
         </div>
+
         <div className="ml-auto text-xs text-slate-400">
           {filtered.length} {filtered.length === 1 ? "survey" : "surveys"}
         </div>
@@ -218,7 +230,7 @@ const SurveyInbox = () => {
         <MyTable
           columns={columns}
           dataSource={isError ? [] : filtered}
-          rowKey="id"
+          rowKey={(row) => row.id || row.instanceId || ""}
           wrapClassName="w-full"
           loading={isLoading}
           pagination={{ showSizeChanger: true }}
@@ -228,12 +240,9 @@ const SurveyInbox = () => {
         />
       </div>
 
-        {canSendSurvey && sendOpen && (
-      <SurveySendDrawer
-        open={sendOpen}
-        onClose={() => setSendOpen(false)}
-      />
-    )}
+      {canSendSurvey && sendOpen && (
+        <SurveySendDrawer open={sendOpen} onClose={() => setSendOpen(false)} />
+      )}
     </div>
   );
 };
