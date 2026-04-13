@@ -93,15 +93,6 @@ const ManagerDashboard = () => {
 
   return (
     <div className="space-y-6 p-6">
-      <div>
-        <Title level={3} className="!mb-1">
-          {t("onboarding.manager.dashboard.title")}
-        </Title>
-        <Text type="secondary">
-          {t("onboarding.manager.dashboard.subtitle")}
-        </Text>
-      </div>
-
       {/* Stats row */}
       <Row gutter={[16, 16]}>
         <Col xs={12} sm={6}>
@@ -201,7 +192,7 @@ const ManagerDashboard = () => {
                 <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 transition-colors hover:bg-blue-100">
                   <Users className="mb-2 h-5 w-5 text-blue-600" />
                   <Text strong className="block text-sm">
-                    {t("onboarding.manager.dashboard.action.view_employees")}
+                    {t("onboarding.manager.dashboard.action.employees")}
                   </Text>
                 </div>
               </Link>
@@ -209,7 +200,7 @@ const ManagerDashboard = () => {
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 transition-colors hover:bg-amber-100">
                   <Clock className="mb-2 h-5 w-5 text-amber-600" />
                   <Text strong className="block text-sm">
-                    {t("onboarding.manager.dashboard.action.view_tasks")}
+                    {t("onboarding.manager.dashboard.action.tasks")}
                   </Text>
                 </div>
               </Link>

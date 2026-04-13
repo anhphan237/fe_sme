@@ -80,13 +80,6 @@ const HrDashboard = () => {
 
   return (
     <div className="space-y-6 p-6">
-      <div>
-        <Title level={3} className="!mb-1">
-          {t("onboarding.hr.dashboard.title")}
-        </Title>
-        <Text type="secondary">{t("onboarding.hr.dashboard.subtitle")}</Text>
-      </div>
-
       {/* Stats row */}
       <Row gutter={[16, 16]}>
         <Col xs={12} sm={6}>
@@ -194,7 +187,7 @@ const HrDashboard = () => {
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 transition-colors hover:bg-emerald-100">
                   <ClipboardList className="mb-2 h-5 w-5 text-emerald-600" />
                   <Text strong className="block text-sm">
-                    {t("onboarding.hr.dashboard.action.manage_templates")}
+                    {t("onboarding.hr.dashboard.action.templates")}
                   </Text>
                 </div>
               </Link>
@@ -210,7 +203,7 @@ const HrDashboard = () => {
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 transition-colors hover:bg-amber-100">
                   <Clock className="mb-2 h-5 w-5 text-amber-600" />
                   <Text strong className="block text-sm">
-                    {t("onboarding.hr.dashboard.action.view_tasks")}
+                    {t("onboarding.hr.dashboard.action.tasks")}
                   </Text>
                 </div>
               </Link>
@@ -218,7 +211,7 @@ const HrDashboard = () => {
                 <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 transition-colors hover:bg-sky-100">
                   <Users className="mb-2 h-5 w-5 text-sky-600" />
                   <Text strong className="block text-sm">
-                    {t("onboarding.hr.dashboard.action.view_employees")}
+                    {t("onboarding.hr.dashboard.action.employees")}
                   </Text>
                 </div>
               </Link>
