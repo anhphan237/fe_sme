@@ -2,7 +2,7 @@
 import { useNavigate } from "react-router-dom";
 import { Empty } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { Archive, Plus, Search } from "lucide-react";
+import { Archive, Plus, Search, Trash2 } from "lucide-react";
 import MyTable from "@/components/table";
 import BaseButton from "@/components/button";
 import BaseInput from "@core/components/Input/InputWithLabel";
@@ -16,12 +16,12 @@ import { useLocale } from "@/i18n";
 import { notify } from "@/utils/notify";
 import {
   apiArchiveSurveyTemplate,
+  apiDeleteSurveyTemplate,
   apiListSurveyTemplates,
 } from "@/api/survey/survey.api";
 import { extractList } from "@/api/core/types";
 import type { SurveyTemplateSummary } from "@/interface/survey";
 import { StageTag, TemplateStatusTag } from "./components/SurveyStatusTag";
-
 
 const normalizeStage = (stage?: string | null) => {
   const value = String(stage ?? "")
@@ -54,7 +54,9 @@ const STATUS_OPTIONS = [
 const SurveyTemplates = () => {
   const navigate = useNavigate();
   const { t } = useLocale();
-  const confirmRef = useRef<ConfirmModalHandles>(null);
+  const archiveConfirmRef = useRef<ConfirmModalHandles>(null);
+  const deleteConfirmRef = useRef<ConfirmModalHandles>(null);
+
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -69,27 +71,90 @@ const SurveyTemplates = () => {
     queryKey: ["survey-templates"],
     queryFn: () => apiListSurveyTemplates(),
   });
+
   const templates = extractList<SurveyTemplateSummary>(
     templatesRaw,
     "items",
     "templates",
   );
+
+  const refetchTemplates = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["survey-templates"] });
+    await queryClient.refetchQueries({ queryKey: ["survey-templates"] });
+  };
+
   const archiveMutation = useMutation({
     mutationFn: (templateId: string) =>
       apiArchiveSurveyTemplate({ templateId }),
-    onSuccess: () => {
-      notify.success(t("survey.template.archive_success"));
-      queryClient.invalidateQueries({ queryKey: ["survey-templates"] });
+    onSuccess: async () => {
+      notify.success(
+        t("survey.template.archive_success") || "Archive template successfully",
+      );
+      await refetchTemplates();
     },
-    onError: () => notify.error(t("global.save_failed")),
+    onError: (error: unknown) => {
+      const message =
+        error instanceof Error ? error.message : t("global.save_failed");
+
+      if (message.includes("survey template not found")) {
+        notify.error(
+          "Template không tồn tại hoặc không thuộc công ty hiện tại.",
+        );
+        return;
+      }
+
+      notify.error(message);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (templateId: string) => apiDeleteSurveyTemplate({ templateId }),
+    onSuccess: async () => {
+      notify.success("Xóa mẫu khảo sát thành công");
+      await refetchTemplates();
+    },
+    onError: (error: unknown) => {
+      const message =
+        error instanceof Error ? error.message : t("global.save_failed");
+
+      if (
+        message.includes("template already used") ||
+        message.includes("template already sent")
+      ) {
+        notify.error("Mẫu này đã được gửi, chỉ có thể lưu trữ.");
+        return;
+      }
+
+      if (message.includes("survey template not found")) {
+        notify.error(
+          "Template không tồn tại hoặc không thuộc công ty hiện tại.",
+        );
+        return;
+      }
+
+      notify.error(message);
+    },
   });
 
   const handleArchive = async (row: SurveyTemplateSummary) => {
-    const result = await confirmRef.current?.open({
-      message: t("survey.template.archive_confirm", { name: row.name }),
+    const result = await archiveConfirmRef.current?.open({
+      message:
+        t("survey.template.archive_confirm", { name: row.name }) ||
+        `Archive template "${row.name}"?`,
     });
+
     if (result?.code === CONFIRM_CODE.CONFIRMED) {
       archiveMutation.mutate(row.templateId);
+    }
+  };
+
+  const handleDelete = async (row: SurveyTemplateSummary) => {
+    const result = await deleteConfirmRef.current?.open({
+      message: `Bạn có chắc muốn xóa mẫu khảo sát "${row.name}"? Nếu mẫu đã từng được gửi, hệ thống sẽ không cho xóa và bạn cần dùng chức năng lưu trữ.`,
+    });
+
+    if (result?.code === CONFIRM_CODE.CONFIRMED) {
+      deleteMutation.mutate(row.templateId);
     }
   };
 
@@ -98,7 +163,7 @@ const SurveyTemplates = () => {
     return templates.filter((tmpl) => {
       const matchSearch = !kw || tmpl.name.toLowerCase().includes(kw);
       const matchStage =
-        !stageFilter || String(tmpl.stage).toUpperCase() === stageFilter;
+        !stageFilter || normalizeStage(tmpl.stage) === stageFilter;
       const matchStatus = !statusFilter || tmpl.status === statusFilter;
       return matchSearch && matchStage && matchStatus;
     });
@@ -142,7 +207,7 @@ const SurveyTemplates = () => {
         if (stage === "CUSTOM") return "-";
 
         return row.isDefault ? (
-          <span className="text-emerald-600 font-medium">Default</span>
+          <span className="font-medium text-emerald-600">Default</span>
         ) : (
           <span className="text-slate-400">-</span>
         );
@@ -151,32 +216,49 @@ const SurveyTemplates = () => {
     {
       title: t("global.action"),
       key: "actions",
-      width: 160,
-      render: (_, row) => (
-        <div className="flex items-center gap-2">
-          <BaseButton
-            size="small"
-            label="global.edit"
-            onClick={() => navigate(`/surveys/templates/${row.templateId}`)}
-          />
-          {row.status !== "ARCHIVED" && (
+      width: 240,
+      render: (_, row) => {
+        const status = String(row.status ?? "").toUpperCase();
+        const canArchive = status !== "ARCHIVED";
+        const canDelete = status !== "ARCHIVED";
+
+        return (
+          <div className="flex items-center gap-2">
             <BaseButton
               size="small"
-              danger
-              icon={<Archive className="h-3 w-3" />}
-              label="survey.template.archive"
-              loading={archiveMutation.isPending}
-              onClick={() => handleArchive(row)}
+              label="global.edit"
+              onClick={() => navigate(`/surveys/templates/${row.templateId}`)}
             />
-          )}
-        </div>
-      ),
+
+            {canArchive && (
+              <BaseButton
+                size="small"
+                danger
+                icon={<Archive className="h-3 w-3" />}
+                label="survey.template.archive"
+                loading={archiveMutation.isPending}
+                onClick={() => handleArchive(row)}
+              />
+            )}
+
+            {canDelete && (
+              <BaseButton
+                size="small"
+                danger
+                icon={<Trash2 className="h-3 w-3" />}
+                label="global.delete"
+                loading={deleteMutation.isPending}
+                onClick={() => handleDelete(row)}
+              />
+            )}
+          </div>
+        );
+      },
     },
   ];
 
   return (
     <div className="space-y-5">
-      {/* ── Filter toolbar ── */}
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <div className="w-60">
           <BaseInput
@@ -187,24 +269,27 @@ const SurveyTemplates = () => {
             allowClear
           />
         </div>
+
         <div className="w-36">
           <BaseSelect
             name="stage"
             options={STAGE_OPTIONS}
             placeholder={t("survey.template.col.stage")}
-            onChange={(v) => setStageFilter(v as string)}
+            onChange={(v) => setStageFilter((v as string) || "")}
             allowClear
           />
         </div>
+
         <div className="w-36">
           <BaseSelect
             name="status"
             options={STATUS_OPTIONS}
             placeholder={t("survey.template.col.status")}
-            onChange={(v) => setStatusFilter(v as string)}
+            onChange={(v) => setStatusFilter((v as string) || "")}
             allowClear
           />
         </div>
+
         <div className="ml-auto flex items-center gap-3">
           <span className="text-xs text-slate-400">
             {filtered.length} {filtered.length === 1 ? "template" : "templates"}
@@ -218,7 +303,6 @@ const SurveyTemplates = () => {
         </div>
       </div>
 
-      {/* ── Table ── */}
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <MyTable
           columns={columns}
@@ -237,7 +321,14 @@ const SurveyTemplates = () => {
         />
       </div>
 
-      <ConfirmModal ref={confirmRef} title={t("survey.template.archive")} />
+      <ConfirmModal
+        ref={archiveConfirmRef}
+        title={t("survey.template.archive") || "Archive"}
+      />
+      <ConfirmModal
+        ref={deleteConfirmRef}
+        title={t("global.delete") || "Delete"}
+      />
     </div>
   );
 };
