@@ -42,6 +42,12 @@ export const mapTemplate = (t: any): OnboardingTemplate => {
 export const mapInstance = (i: any): OnboardingInstance => ({
   id: i.instanceId ?? i.id ?? "",
   employeeId: i.employeeId ?? "",
+  employeeName:
+    i.employeeName ??
+    i.employee_name ??
+    i.employee?.fullName ??
+    i.employee?.name ??
+    null,
   employeeUserId:
     i.employeeUserId ??
     i.employeeUserID ??
@@ -52,6 +58,7 @@ export const mapInstance = (i: any): OnboardingInstance => ({
   managerUserId: i.managerUserId ?? i.manager_user_id ?? null,
   managerName: i.managerName ?? i.manager_name ?? null,
   templateId: i.templateId ?? "",
+  templateName: i.templateName ?? i.template_name ?? i.template?.name ?? null,
   startDate: i.startDate ?? i.createdAt ?? "",
   progress: i.progressPercent ?? i.progress ?? 0,
   status:
@@ -90,6 +97,7 @@ export const mapTaskStatus = (
 export const mapTask = (t: any): OnboardingTask => ({
   id: t.taskId ?? t.id ?? "",
   title: t.title ?? t.name ?? "",
+  description: t.description ?? undefined,
   ownerRole: (t.ownerRefId ?? t.ownerRole ?? "EMPLOYEE") as any,
   dueOffset: String(t.dueDaysOffset ?? t.dueOffset ?? 0),
   required: t.requireAck ?? t.required ?? false,

@@ -3,6 +3,7 @@ import type {
   PlanListResponse,
   PlanGetResponse,
   SubscriptionUpdateRequest,
+  SubscriptionUpdateResponse,
   PaymentCreateIntentResponse,
 } from "@/interface/billing";
 
@@ -25,7 +26,7 @@ export const apiCreateSubscription = (
 
 /** com.sme.billing.subscription.update */
 export const apiUpdateSubscription = (payload: SubscriptionUpdateRequest) =>
-  gatewayRequest<SubscriptionUpdateRequest, unknown>(
+  gatewayRequest<SubscriptionUpdateRequest, SubscriptionUpdateResponse>(
     "com.sme.billing.subscription.update",
     {
       subscriptionId: payload.subscriptionId,

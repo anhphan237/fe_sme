@@ -25,6 +25,25 @@ export interface SubscriptionUpdateRequest {
   status?: string;
 }
 
+/** com.sme.billing.subscription.update → response data */
+export interface SubscriptionUpdateResponse {
+  subscriptionId: string;
+  planCode: string;
+  status: string;
+  billingCycle: string;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+  autoRenew: boolean | null;
+  /** true khi upgrade trả phí — cần gọi payment.createIntent với paymentInvoiceId */
+  paymentRequired: boolean;
+  /** invoiceId của invoice chờ thanh toán (chỉ có khi paymentRequired=true) */
+  paymentInvoiceId: string | null;
+  pendingChangeId: string | null;
+  pendingPlanCode: string | null;
+  pendingBillingCycle: string | null;
+  prorateChargeVnd: number | null;
+}
+
 /** com.sme.billing.subscription.getCurrent */
 export interface SubscriptionGetCurrentRequest {
   tenantId?: string;
@@ -168,7 +187,13 @@ export interface PaymentCreateIntentRequest {
 /** com.sme.billing.payment.createIntent → response data */
 export interface PaymentCreateIntentResponse {
   clientSecret: string;
-  intentId: string;
+  paymentIntentId: string;
+  paymentTransactionId?: string;
+  gateway?: string;
+  amount?: number;
+  currency?: string;
+  status?: string;
+  invoiceId?: string;
 }
 
 /** com.sme.billing.payment.connect */

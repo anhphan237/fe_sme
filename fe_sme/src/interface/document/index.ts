@@ -15,6 +15,7 @@ export interface DocumentItem {
   fileUrl: string;
   description: string;
   status: string;
+  documentCategoryId?: string;
 }
 
 /** com.sme.content.document.list → response data */

@@ -6,7 +6,7 @@ import {
   CalendarClock,
   CircleDashed,
   ClipboardCheck,
-  Sparkles,
+  Layers,
   UserCheck,
 } from "lucide-react";
 import {
@@ -28,7 +28,7 @@ import { extractList } from "@/api/core/types";
 import {
   apiGetTaskDetailFull,
   apiListInstances,
-  apiListTasksByAssignee,
+  apiListTasks,
   apiUpdateTaskStatus,
   apiAcknowledgeTask,
 } from "@/api/onboarding/onboarding.api";
@@ -96,12 +96,10 @@ const MyJourney = () => {
 
   const onboardingId = latestInstance?.id;
 
-  // Employee uses task.listByAssignee (all roles) instead of listByOnboarding (HR/Manager only)
   const { data: tasks = [], isLoading: loadingTasks } = useQuery({
-    queryKey: ["employee-onboarding-tasks-assignee", userId ?? ""],
-    queryFn: () =>
-      apiListTasksByAssignee({ sortBy: "due_date", sortOrder: "ASC" }),
-    enabled: Boolean(userId),
+    queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
+    queryFn: () => apiListTasks(onboardingId!),
+    enabled: Boolean(onboardingId),
     select: (res: unknown) =>
       extractList(
         res as Record<string, unknown>,
@@ -138,7 +136,7 @@ const MyJourney = () => {
     mutationFn: (taskId: string) => apiAcknowledgeTask({ taskId }),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["employee-onboarding-tasks-assignee", userId ?? ""],
+        queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
       });
       queryClient.invalidateQueries({
         queryKey: ["employee-onboarding-task-detail", selectedTaskId],
@@ -168,11 +166,6 @@ const MyJourney = () => {
     const day = 1000 * 60 * 60 * 24;
     return ms >= 0 && ms <= day * 3;
   });
-  const unassignedTasks = tasks.filter((task) => !task.assignedUserId);
-  const autoAssignmentRate =
-    totalCount > 0
-      ? Math.round(((totalCount - unassignedTasks.length) / totalCount) * 100)
-      : 0;
 
   const urgentTasks = useMemo(() => {
     const scoreTask = (task: OnboardingTask) => {
@@ -185,6 +178,38 @@ const MyJourney = () => {
       .sort((a, b) => scoreTask(a) - scoreTask(b))
       .slice(0, 5);
   }, [pendingTasks]);
+
+  // Task status breakdown
+  const tasksByStatus = useMemo(
+    () => ({
+      todo: tasks.filter(
+        (t) => !t.rawStatus || ["TODO", "ASSIGNED"].includes(t.rawStatus),
+      ).length,
+      inProgress: tasks.filter((t) => t.rawStatus === "IN_PROGRESS").length,
+      waitAck: tasks.filter((t) => t.rawStatus === "WAIT_ACK").length,
+      pendingApproval: tasks.filter((t) => t.rawStatus === "PENDING_APPROVAL")
+        .length,
+      done: tasks.filter((t) => t.rawStatus === "DONE").length,
+    }),
+    [tasks],
+  );
+
+  // Stage/checklist progress grouping
+  const stageProgress = useMemo(() => {
+    const groups: Record<
+      string,
+      { name: string; total: number; done: number }
+    > = {};
+    for (const task of tasks) {
+      const key =
+        task.checklistName ??
+        t("onboarding.employee.home.stage_progress.unassigned");
+      if (!groups[key]) groups[key] = { name: key, total: 0, done: 0 };
+      groups[key].total++;
+      if (task.rawStatus === "DONE") groups[key].done++;
+    }
+    return Object.values(groups);
+  }, [tasks, t]);
 
   const milestoneTimeline = useMemo(() => {
     const daysFromStart = getDaysDiff(latestInstance?.startDate);
@@ -236,7 +261,7 @@ const MyJourney = () => {
       try {
         await updateTaskStatus.mutateAsync({ taskId: task.id, status: "TODO" });
         queryClient.invalidateQueries({
-          queryKey: ["employee-onboarding-tasks-assignee", userId ?? ""],
+          queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
         });
         notify.success(t("onboarding.employee.home.toast.task_todo"));
       } catch {
@@ -245,7 +270,6 @@ const MyJourney = () => {
       return;
     }
 
-    // requireAck: employee must acknowledge first (→ WAIT_ACK) before completing
     if (
       task.requireAck &&
       task.rawStatus !== "WAIT_ACK" &&
@@ -259,7 +283,6 @@ const MyJourney = () => {
       return;
     }
 
-    // requiresManagerApproval: submit for approval instead of direct DONE
     if (task.requiresManagerApproval) {
       try {
         await updateTaskStatus.mutateAsync({
@@ -267,7 +290,7 @@ const MyJourney = () => {
           status: "PENDING_APPROVAL",
         });
         queryClient.invalidateQueries({
-          queryKey: ["employee-onboarding-tasks-assignee", userId ?? ""],
+          queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
         });
         notify.success(t("onboarding.task.toast.submitted_approval"));
       } catch {
@@ -282,7 +305,7 @@ const MyJourney = () => {
         status: STATUS_DONE_API,
       });
       queryClient.invalidateQueries({
-        queryKey: ["employee-onboarding-tasks-assignee", userId ?? ""],
+        queryKey: ["employee-onboarding-tasks", onboardingId ?? ""],
       });
       queryClient.invalidateQueries({
         queryKey: ["employee-onboarding-instances", userId ?? ""],
@@ -300,14 +323,6 @@ const MyJourney = () => {
   if (!latestInstance) {
     return (
       <div className="space-y-4 p-6">
-        <div>
-          <Typography.Title level={3} className="!mb-1">
-            {t("onboarding.employee.home.title")}
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            {t("onboarding.employee.home.empty_description")}
-          </Typography.Text>
-        </div>
         <Card>
           <Empty description={t("onboarding.employee.home.empty_description")}>
             <Link to="/onboarding/tasks">
@@ -323,15 +338,7 @@ const MyJourney = () => {
 
   return (
     <div className="space-y-6 p-6">
-      <div>
-        <Typography.Title level={3} className="!mb-1">
-          {t("onboarding.employee.home.title")}
-        </Typography.Title>
-        <Typography.Text type="secondary">
-          {t("onboarding.employee.home.subtitle")}
-        </Typography.Text>
-      </div>
-
+      {/* Row 1: Overview + Task Status Breakdown */}
       <Row gutter={[16, 16]}>
         <Col xs={24} xl={12}>
           <Card className="h-full">
@@ -390,78 +397,64 @@ const MyJourney = () => {
           </Card>
         </Col>
 
+        {/* Task Status Breakdown */}
         <Col xs={24} xl={12}>
           <Card className="h-full">
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div>
-                <Typography.Title level={5} className="!mb-1">
-                  {t("onboarding.employee.home.automation.title")}
-                </Typography.Title>
-                <Typography.Text type="secondary">
-                  {t("onboarding.employee.home.automation.subtitle")}
-                </Typography.Text>
-              </div>
-              <Sparkles className="h-5 w-5 text-sky-500" />
-            </div>
+            <Typography.Title level={5} className="!mb-3">
+              {t("onboarding.employee.home.task_status.title")}
+            </Typography.Title>
 
-            <div className="space-y-3">
-              <div className="rounded-lg border border-gray-200 p-3">
-                <div className="mb-1 flex items-center justify-between">
-                  <Typography.Text strong>Auto-generate task</Typography.Text>
-                  <Tag color={totalCount > 0 ? "success" : "default"}>
-                    {totalCount > 0
-                      ? t("onboarding.employee.home.automation.generated")
-                      : t("onboarding.employee.home.automation.waiting")}
-                  </Tag>
+            {loadingTasks ? (
+              <Skeleton active paragraph={{ rows: 3 }} />
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-center">
+                  <p className="text-xs text-gray-500">
+                    {t("onboarding.employee.home.task_status.todo")}
+                  </p>
+                  <p className="mt-1 text-2xl font-bold text-gray-800">
+                    {tasksByStatus.todo}
+                  </p>
                 </div>
-                <Typography.Text type="secondary">
-                  {t("onboarding.employee.home.automation.generated_desc", {
-                    total: totalCount,
-                  })}
-                </Typography.Text>
-              </div>
-
-              <div className="rounded-lg border border-gray-200 p-3">
-                <div className="mb-1 flex items-center justify-between">
-                  <Typography.Text strong>
-                    {t("onboarding.employee.home.automation.auto_assignment")}
-                  </Typography.Text>
-                  <Typography.Text>{autoAssignmentRate}%</Typography.Text>
+                <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-center">
+                  <p className="text-xs text-blue-600">
+                    {t("onboarding.employee.home.task_status.in_progress")}
+                  </p>
+                  <p className="mt-1 text-2xl font-bold text-blue-800">
+                    {tasksByStatus.inProgress}
+                  </p>
                 </div>
-                <Progress
-                  percent={autoAssignmentRate}
-                  showInfo={false}
-                  size="small"
-                />
-                <Typography.Text type="secondary">
-                  {unassignedTasks.length === 0
-                    ? t("onboarding.employee.home.automation.assignment_ok")
-                    : t(
-                        "onboarding.employee.home.automation.assignment_missing",
-                        { total: unassignedTasks.length },
-                      )}
-                </Typography.Text>
-              </div>
-
-              <div className="rounded-lg border border-gray-200 p-3">
-                <div className="mb-1 flex items-center gap-2">
-                  <CalendarClock className="h-4 w-4 text-violet-500" />
-                  <Typography.Text strong>
-                    {t("onboarding.employee.home.automation.reminder")}
-                  </Typography.Text>
+                <div className="rounded-lg border border-orange-100 bg-orange-50 p-3 text-center">
+                  <p className="text-xs text-orange-600">
+                    {t("onboarding.employee.home.task_status.wait_ack")}
+                  </p>
+                  <p className="mt-1 text-2xl font-bold text-orange-800">
+                    {tasksByStatus.waitAck}
+                  </p>
                 </div>
-                <Typography.Text type="secondary">
-                  {t("onboarding.employee.home.automation.reminder_desc", {
-                    overdue: overdueTasks.length,
-                    dueSoon: dueSoonTasks.length,
-                  })}
-                </Typography.Text>
+                <div className="rounded-lg border border-amber-100 bg-amber-50 p-3 text-center">
+                  <p className="text-xs text-amber-600">
+                    {t("onboarding.employee.home.task_status.pending_approval")}
+                  </p>
+                  <p className="mt-1 text-2xl font-bold text-amber-800">
+                    {tasksByStatus.pendingApproval}
+                  </p>
+                </div>
+                <div className="col-span-2 rounded-lg border border-emerald-100 bg-emerald-50 p-3 text-center sm:col-span-2">
+                  <p className="text-xs text-emerald-600">
+                    {t("onboarding.employee.home.task_status.done")}
+                  </p>
+                  <p className="mt-1 text-2xl font-bold text-emerald-800">
+                    {tasksByStatus.done}
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
           </Card>
         </Col>
       </Row>
 
+      {/* Row 2: Today's Actions + Milestone */}
       <Row gutter={[16, 16]}>
         <Col xs={24} xl={14}>
           <Card className="h-full">
@@ -614,6 +607,48 @@ const MyJourney = () => {
         </Col>
       </Row>
 
+      {/* Row 3: Stage / Checklist Progress */}
+      {stageProgress.length > 0 && (
+        <Card>
+          <div className="mb-3 flex items-center gap-2">
+            <Layers className="h-4 w-4 text-violet-500" />
+            <Typography.Title level={5} className="!mb-0">
+              {t("onboarding.employee.home.stage_progress.title")}
+            </Typography.Title>
+          </div>
+          {loadingTasks ? (
+            <Skeleton active paragraph={{ rows: 3 }} />
+          ) : (
+            <div className="space-y-3">
+              {stageProgress.map((stage) => {
+                const pct =
+                  stage.total > 0
+                    ? Math.round((stage.done / stage.total) * 100)
+                    : 0;
+                return (
+                  <div key={stage.name}>
+                    <div className="mb-1 flex items-center justify-between">
+                      <Typography.Text strong className="text-sm">
+                        {stage.name}
+                      </Typography.Text>
+                      <Typography.Text type="secondary" className="text-xs">
+                        {stage.done}/{stage.total}
+                      </Typography.Text>
+                    </div>
+                    <Progress
+                      percent={pct}
+                      size="small"
+                      strokeColor={pct === 100 ? "#10b981" : undefined}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Row 4: Reminder Stream */}
       <Row gutter={[16, 16]}>
         <Col span={24}>
           <Card>
@@ -658,19 +693,28 @@ const MyJourney = () => {
                   </div>
                 ))}
 
-                {unassignedTasks.slice(0, 2).map((task) => (
-                  <div
-                    key={`unassigned-${task.id}`}
-                    className="flex items-center justify-between rounded-lg border border-sky-200 bg-sky-50 p-3">
-                    <div className="flex items-center gap-2">
-                      <UserCheck className="h-4 w-4 text-sky-500" />
-                      <Typography.Text>{task.title}</Typography.Text>
+                {tasks
+                  .filter(
+                    (task) =>
+                      task.rawStatus === "WAIT_ACK" ||
+                      task.rawStatus === "PENDING_APPROVAL",
+                  )
+                  .slice(0, 3)
+                  .map((task) => (
+                    <div
+                      key={`action-${task.id}`}
+                      className="flex items-center justify-between rounded-lg border border-sky-200 bg-sky-50 p-3">
+                      <div className="flex items-center gap-2">
+                        <CalendarClock className="h-4 w-4 text-sky-500" />
+                        <Typography.Text>{task.title}</Typography.Text>
+                      </div>
+                      <Tag color="processing">
+                        {task.rawStatus === "WAIT_ACK"
+                          ? t("onboarding.task.status.wait_ack")
+                          : t("onboarding.task.status.pending_approval")}
+                      </Tag>
                     </div>
-                    <Tag color="processing">
-                      {t("onboarding.employee.home.reminder.need_assign")}
-                    </Tag>
-                  </div>
-                ))}
+                  ))}
               </div>
             )}
           </Card>
@@ -797,10 +841,8 @@ const MyJourney = () => {
               </Col>
             </Row>
 
-            {/* Employee action buttons */}
             {selectedTaskDetail.status !== "DONE" && (
               <div className="space-y-2 pt-2">
-                {/* requireAck: employee must acknowledge before completing */}
                 {selectedTaskDetail.requireAck &&
                   ["TODO", "IN_PROGRESS", "ASSIGNED"].includes(
                     selectedTaskDetail.status ?? "",
@@ -818,7 +860,6 @@ const MyJourney = () => {
                     </Button>
                   )}
 
-                {/* WAIT_ACK: confirm completion after manager ack */}
                 {selectedTaskDetail.status === "WAIT_ACK" && (
                   <Button
                     type="primary"
@@ -831,8 +872,8 @@ const MyJourney = () => {
                           onSuccess: () => {
                             queryClient.invalidateQueries({
                               queryKey: [
-                                "employee-onboarding-tasks-assignee",
-                                userId ?? "",
+                                "employee-onboarding-tasks",
+                                onboardingId ?? "",
                               ],
                             });
                             queryClient.invalidateQueries({
@@ -854,7 +895,6 @@ const MyJourney = () => {
                   </Button>
                 )}
 
-                {/* requiresManagerApproval: submit for approval */}
                 {!selectedTaskDetail.requireAck &&
                   selectedTaskDetail.requiresManagerApproval &&
                   ["TODO", "IN_PROGRESS", "ASSIGNED"].includes(
@@ -874,8 +914,8 @@ const MyJourney = () => {
                             onSuccess: () => {
                               queryClient.invalidateQueries({
                                 queryKey: [
-                                  "employee-onboarding-tasks-assignee",
-                                  userId ?? "",
+                                  "employee-onboarding-tasks",
+                                  onboardingId ?? "",
                                 ],
                               });
                               queryClient.invalidateQueries({
@@ -897,7 +937,6 @@ const MyJourney = () => {
                     </Button>
                   )}
 
-                {/* Normal task: mark done directly */}
                 {!selectedTaskDetail.requireAck &&
                   !selectedTaskDetail.requiresManagerApproval &&
                   selectedTaskDetail.status !== "WAIT_ACK" &&
@@ -916,8 +955,8 @@ const MyJourney = () => {
                             onSuccess: () => {
                               queryClient.invalidateQueries({
                                 queryKey: [
-                                  "employee-onboarding-tasks-assignee",
-                                  userId ?? "",
+                                  "employee-onboarding-tasks",
+                                  onboardingId ?? "",
                                 ],
                               });
                               queryClient.invalidateQueries({

@@ -38,17 +38,17 @@ export const NAV_SECTIONS: NavSection[] = [
     children: [
       {
         titleKey: "nav.organization.departments",
-        to: "/admin/departments",
+        to: "/hr/departments",
         requiredRoles: ["HR"],
       },
       {
         titleKey: "nav.organization.users",
-        to: "/admin/users",
+        to: "/hr/users",
         requiredRoles: ["HR"],
       },
       {
         titleKey: "nav.organization.roles",
-        to: "/admin/roles",
+        to: "/hr/roles",
         requiredRoles: ["HR"],
       },
     ],
@@ -78,6 +78,11 @@ export const NAV_SECTIONS: NavSection[] = [
         requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
       },
       {
+        titleKey: "nav.onboarding.approvals",
+        to: "/onboarding/approvals",
+        requiredRoles: ["HR", "MANAGER"],
+      },
+      {
         titleKey: "nav.onboarding.automation",
         to: "/onboarding/automation",
         requiredRoles: ["HR"],
@@ -86,11 +91,6 @@ export const NAV_SECTIONS: NavSection[] = [
         titleKey: "nav.onboarding.my_journey",
         to: "/onboarding/my-journey",
         requiredRoles: ["EMPLOYEE"],
-      },
-      {
-        titleKey: "nav.onboarding.knowledge_base",
-        to: "/documents",
-        requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
       },
     ],
   },

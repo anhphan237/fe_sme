@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import { AlertCircle, Plus, Upload } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { AlertCircle, Phone, Plus, Upload, Users } from "lucide-react";
 import { clsx } from "clsx";
 import { Empty, Select, Tag } from "antd";
 import { notify } from "@/utils/notify";
@@ -17,7 +17,10 @@ import { ROLE_LABELS, getPrimaryRole } from "@/shared/rbac";
 import { ROLE_OPTIONS, ROLE_BADGE_STYLES } from "./constants";
 import { useUsersQuery, useDepartmentsQuery } from "@/hooks/adminHooks";
 import { UserStatusTag } from "@core/components/Status/StatusTag";
-import { InviteUserDrawer } from "./components/InviteUserDrawer";
+import {
+  InviteUserDrawer,
+  type InviteForm,
+} from "./components/InviteUserDrawer";
 import { UserDetailDrawer } from "./components/UserDetailDrawer";
 import { BulkImportModal } from "@/components/bulk-import";
 import { apiBulkCreateUsers } from "@/api/identity/identity.api";
@@ -26,6 +29,13 @@ import type {
   ImportRowResult,
 } from "@/components/bulk-import";
 import type { User } from "@/shared/types";
+
+const STATUS_FILTER_OPTIONS = [
+  { value: "ALL", labelKey: "user.filter.all" },
+  { value: "Active", labelKey: "user.filter.status_active" },
+  { value: "Invited", labelKey: "user.filter.status_invited" },
+  { value: "Inactive", labelKey: "user.filter.status_inactive" },
+];
 
 const buildUserColumns = ({
   t,
@@ -64,6 +74,12 @@ const buildUserColumns = ({
             <p className="mt-0.5 truncate text-xs text-[#758BA5]">
               {user.email}
             </p>
+            {user.phone && (
+              <p className="mt-0.5 flex items-center gap-1 text-xs text-[#9BAEC2]">
+                <Phone className="h-3 w-3" />
+                {user.phone}
+              </p>
+            )}
           </div>
         </div>
       ),
@@ -143,12 +159,23 @@ const AdminUsers = () => {
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [deptFilter, setDeptFilter] = useState<string>("");
   const [disablingId, setDisablingId] = useState<string | null>(null);
   const [enablingId, setEnablingId] = useState<string | null>(null);
 
   const { data: users, isLoading, isError, refetch } = useUsersQuery();
   const { data: departments = [] } = useDepartmentsQuery();
+
+  const stats = useMemo(() => {
+    const all = users ?? [];
+    return {
+      total: all.length,
+      active: all.filter((u) => u.status === "Active").length,
+      invited: all.filter((u) => u.status === "Invited").length,
+      inactive: all.filter((u) => u.status === "Inactive").length,
+    };
+  }, [users]);
 
   const q = search.trim().toLowerCase();
   const filtered = !users
@@ -159,26 +186,32 @@ const AdminUsers = () => {
             !q ||
             u.name.toLowerCase().includes(q) ||
             u.email.toLowerCase().includes(q) ||
-            (u.department ?? "").toLowerCase().includes(q),
+            (u.department ?? "").toLowerCase().includes(q) ||
+            (u.phone ?? "").toLowerCase().includes(q),
         )
         .filter(
           (u) => roleFilter === "ALL" || getPrimaryRole(u.roles) === roleFilter,
         )
+        .filter((u) => statusFilter === "ALL" || u.status === statusFilter)
         .filter((u) => !deptFilter || u.departmentId === deptFilter);
 
-  const handleInvite = async (form: {
-    email: string;
-    name: string;
-    roleCode: string;
-    departmentId: string;
-    managerUserId: string;
-  }) => {
+  const hasActiveFilters =
+    roleFilter !== "ALL" || deptFilter || statusFilter !== "ALL";
+
+  const handleInvite = async (form: InviteForm) => {
     await apiCreateUser({
       email: form.email,
       fullName: form.name,
       roleCode: form.roleCode,
       departmentId: form.departmentId || undefined,
       managerUserId: form.managerUserId || undefined,
+      phone: form.phone || undefined,
+      jobTitle: form.jobTitle || undefined,
+      employeeCode: form.employeeCode || undefined,
+      startDate: form.startDate || undefined,
+      workLocation: form.workLocation || undefined,
+      password:
+        form.createMode === "direct" ? form.password || undefined : undefined,
     });
     notify.success(t("user.invite.success", { email: form.email }));
     await refetch();
@@ -288,6 +321,48 @@ const AdminUsers = () => {
 
   return (
     <div className="flex h-full flex-col p-4">
+      {/* Stats strip */}
+      {!isLoading && !isError && (
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5 rounded-lg border border-slate-100 bg-white px-3 py-2">
+            <Users className="h-4 w-4 text-slate-400" />
+            <span className="text-sm font-semibold text-slate-700">
+              {stats.total}
+            </span>
+            <span className="text-xs text-slate-400">
+              {t("user.stats.total")}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 rounded-lg border border-green-100 bg-green-50 px-3 py-2">
+            <span className="h-2 w-2 rounded-full bg-green-500" />
+            <span className="text-sm font-semibold text-green-700">
+              {stats.active}
+            </span>
+            <span className="text-xs text-green-600">
+              {t("user.stats.active")}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
+            <span className="h-2 w-2 rounded-full bg-amber-400" />
+            <span className="text-sm font-semibold text-amber-700">
+              {stats.invited}
+            </span>
+            <span className="text-xs text-amber-600">
+              {t("user.stats.invited")}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2">
+            <span className="h-2 w-2 rounded-full bg-red-400" />
+            <span className="text-sm font-semibold text-red-700">
+              {stats.inactive}
+            </span>
+            <span className="text-xs text-red-600">
+              {t("user.stats.inactive")}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="mb-3 flex items-center justify-between gap-3">
         <BaseSearch
@@ -311,7 +386,7 @@ const AdminUsers = () => {
         </div>
       </div>
 
-      {/* Filter row: role tabs + department select */}
+      {/* Filter row */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {/* Role filter chips */}
         <div className="flex items-center gap-1">
@@ -333,6 +408,27 @@ const AdminUsers = () => {
           )}
         </div>
 
+        {/* Divider */}
+        <div className="h-5 w-px bg-slate-200" />
+
+        {/* Status filter chips */}
+        <div className="flex items-center gap-1">
+          {STATUS_FILTER_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setStatusFilter(opt.value)}
+              className={clsx(
+                "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                statusFilter === opt.value
+                  ? "bg-slate-700 text-white"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+              )}>
+              {t(opt.labelKey)}
+            </button>
+          ))}
+        </div>
+
         {/* Department filter */}
         <Select
           allowClear
@@ -347,19 +443,28 @@ const AdminUsers = () => {
           }))}
         />
 
-        {/* Active filter summary */}
-        {(roleFilter !== "ALL" || deptFilter) && (
+        {/* Clear filters */}
+        {hasActiveFilters && (
           <button
             type="button"
             onClick={() => {
               setRoleFilter("ALL");
+              setStatusFilter("ALL");
               setDeptFilter("");
             }}
             className="text-xs text-[#758BA5] underline hover:text-[#3684DB]">
             {t("user.filter.clear")}
           </button>
         )}
+
+        {/* Result count when filtered */}
+        {(hasActiveFilters || q) && (
+          <span className="ml-auto text-xs text-slate-400">
+            {filtered.length} / {stats.total}
+          </span>
+        )}
       </div>
+
       <MyTable
         columns={userColumns}
         dataSource={isError ? [] : filtered}

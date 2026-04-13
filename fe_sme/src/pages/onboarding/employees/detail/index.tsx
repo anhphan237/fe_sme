@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button, Card, Drawer, Progress, Skeleton, Tabs, Tag } from "antd";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button, Card, Input, Modal, Skeleton, Tabs, Tag } from "antd";
+import {
+  CheckCircle2,
+  Circle,
+  Clock,
+  HourglassIcon,
+  Loader2,
+  Send,
+  CheckSquare,
+} from "lucide-react";
 import BaseModal from "@core/components/Modal/BaseModal";
 import { notify } from "@/utils/notify";
 import { isOnboardingEmployee, canManageOnboarding } from "@/shared/rbac";
@@ -14,37 +24,195 @@ import {
   apiActivateInstance,
   apiCancelInstance,
   apiCompleteInstance,
-  apiListInstances,
-  apiListTemplates,
   apiListTasks,
   apiUpdateTaskStatus,
+  apiGetTaskDetailFull,
+  apiListTaskComments,
+  apiAcknowledgeTask,
+  apiApproveTask,
+  apiRejectTask,
+  apiAddTaskComment,
 } from "@/api/onboarding/onboarding.api";
-import { apiGetUserById, apiSearchUsers } from "@/api/identity/identity.api";
+import { apiGetUserById } from "@/api/identity/identity.api";
 import { extractList } from "@/api/core/types";
 import { mapInstance, mapTask, mapTemplate } from "@/utils/mappers/onboarding";
-import { mapUser, mapUserDetail } from "@/utils/mappers/identity";
+import { mapUserDetail } from "@/utils/mappers/identity";
 import type { GetUserResponse } from "@/interface/identity";
-import { InfoCard } from "./InfoCard";
-import { TaskListPanel } from "./TaskListPanel";
 import type {
-  OnboardingInstance,
-  OnboardingTask,
-  OnboardingTemplate,
-  User,
-} from "@/shared/types";
+  CommentResponse,
+  TaskDetailResponse,
+} from "@/interface/onboarding";
+import { InfoCard } from "./components/InfoCard";
+import { TaskListPanel } from "./components/TaskListPanel";
+import { TaskDrawer } from "./components/TaskDrawer";
+import { StageProgressCard } from "./components/StageProgressCard";
+import { STATUS_DONE, STATUS_DONE_API, STATUS_TAG_COLOR } from "./constants";
+import type { OnboardingTask } from "@/shared/types";
 
-// ── Inline hooks (from ./hooks + ../hooks) ──────────────────────────────────────────────
+// ── Activity Feed ─────────────────────────────────────────────────────────────
 
-const STATUS_DONE = "Done";
-const STATUS_DONE_API = "DONE";
+const ACTIVITY_STATUS_ICON: Record<string, ReactNode> = {
+  DONE: <CheckCircle2 className="h-4 w-4 text-emerald-500" />,
+  IN_PROGRESS: <Loader2 className="h-4 w-4 animate-spin text-blue-500" />,
+  PENDING_APPROVAL: <HourglassIcon className="h-4 w-4 text-amber-500" />,
+  WAIT_ACK: <CheckSquare className="h-4 w-4 text-orange-500" />,
+  ASSIGNED: <Send className="h-4 w-4 text-indigo-400" />,
+};
 
-interface InstancesFilter {
-  employeeId?: string;
-  status?: string;
-}
+const ActivityFeed = ({
+  tasks,
+  t,
+}: {
+  tasks: OnboardingTask[];
+  t: (key: string, params?: Record<string, unknown>) => string;
+}) => {
+  // Group by checklistName / stage
+  const groups = useMemo(() => {
+    const map = new Map<string, OnboardingTask[]>();
+    for (const task of tasks) {
+      const key = task.checklistName ?? "—";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(task);
+    }
+    return Array.from(map.entries());
+  }, [tasks]);
 
-const useInstanceQuery = (instanceId?: string) =>
-  useQuery({
+  if (tasks.length === 0) {
+    return (
+      <Card>
+        <p className="py-4 text-center text-sm text-muted">
+          {t("onboarding.detail.activity.empty")}
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <h3 className="mb-5 text-base font-semibold text-gray-800">
+        {t("onboarding.detail.activity.title")}
+      </h3>
+      <div className="space-y-6">
+        {groups.map(([group, groupTasks]) => {
+          const doneCount = groupTasks.filter(
+            (tk) => tk.rawStatus === "DONE",
+          ).length;
+          return (
+            <div key={group}>
+              {/* Stage header */}
+              <div className="mb-3 flex items-center gap-2 border-b border-gray-100 pb-1.5">
+                <Clock className="h-3.5 w-3.5 text-blue-400" />
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  {group}
+                </span>
+                <span className="ml-auto rounded-full bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-500">
+                  {doneCount}/{groupTasks.length}
+                </span>
+              </div>
+
+              {/* Tasks in stage */}
+              <div className="space-y-2 pl-1">
+                {groupTasks.map((task, idx) => {
+                  const raw = task.rawStatus ?? "TODO";
+                  const isDone = raw === "DONE";
+                  const icon = ACTIVITY_STATUS_ICON[raw] ?? (
+                    <Circle className="h-4 w-4 text-gray-300" />
+                  );
+                  const isLast = idx === groupTasks.length - 1;
+
+                  return (
+                    <div key={task.id} className="flex gap-3">
+                      {/* Connector + icon */}
+                      <div className="flex flex-col items-center">
+                        <div
+                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${
+                            isDone
+                              ? "border-emerald-200 bg-emerald-50"
+                              : raw === "IN_PROGRESS"
+                                ? "border-blue-200 bg-blue-50"
+                                : raw === "PENDING_APPROVAL" || raw === "WAIT_ACK"
+                                  ? "border-amber-200 bg-amber-50"
+                                  : "border-gray-100 bg-gray-50"
+                          }`}>
+                          {icon}
+                        </div>
+                        {!isLast && (
+                          <div
+                            className={`mt-0.5 w-0.5 flex-1 min-h-[1rem] ${
+                              isDone ? "bg-emerald-100" : "bg-gray-100"
+                            }`}
+                          />
+                        )}
+                      </div>
+
+                      {/* Task content */}
+                      <div className="mb-1 flex min-w-0 flex-1 items-start justify-between gap-2 pb-1">
+                        <div className="min-w-0">
+                          <span
+                            className={`text-sm leading-snug ${
+                              isDone
+                                ? "font-normal text-gray-400 line-through"
+                                : "font-medium text-gray-800"
+                            }`}>
+                            {task.title}
+                          </span>
+                          {task.dueDate && (
+                            <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-400">
+                              <Clock className="h-3 w-3" />
+                              {task.dueDate}
+                            </p>
+                          )}
+                        </div>
+                        <Tag
+                          color={STATUS_TAG_COLOR[raw] ?? "default"}
+                          style={{ margin: 0, fontSize: 11, flexShrink: 0 }}>
+                          {t(`onboarding.task.status.${raw.toLowerCase()}`)}
+                        </Tag>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+};
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+const EmployeeDetail = () => {
+  const { employeeId: instanceId } = useParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { t } = useLocale();
+  const currentUser = useUserStore((state) => state.currentUser);
+  const setBreadcrumbs = useGlobalStore((state) => state.setBreadcrumbs);
+  const isEmployee = isOnboardingEmployee(currentUser?.roles ?? []);
+  const canManage = canManageOnboarding(currentUser?.roles ?? []);
+
+  // ── Local state ─────────────────────────────────────────────────────────────
+
+  const [tab, setTab] = useState("checklist");
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [drawerTab, setDrawerTab] = useState("info");
+  const [commentInput, setCommentInput] = useState("");
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [confirmAction, setConfirmAction] = useState<
+    "cancel" | "complete" | null
+  >(null);
+
+  // ── Queries ──────────────────────────────────────────────────────────────────
+
+  const {
+    data: instance,
+    isLoading: instanceLoading,
+    isError: instanceError,
+    refetch: refetchInstance,
+  } = useQuery({
     queryKey: ["instance", instanceId],
     queryFn: () => apiGetInstance(instanceId!),
     enabled: Boolean(instanceId),
@@ -57,70 +225,10 @@ const useInstanceQuery = (instanceId?: string) =>
     },
   });
 
-const useUserDetailQuery = (userId?: string) =>
-  useQuery({
-    queryKey: ["user-detail", userId],
-    queryFn: () => apiGetUserById(userId!),
-    enabled: Boolean(userId),
-    select: (res: unknown) => mapUserDetail(res as GetUserResponse),
-  });
-
-const useActivateInstance = () =>
-  useMutation({
-    mutationFn: (instanceId: string) => apiActivateInstance(instanceId),
-  });
-
-const useCancelInstance = () =>
-  useMutation({
-    mutationFn: (instanceId: string) => apiCancelInstance(instanceId),
-  });
-
-const useCompleteInstance = () =>
-  useMutation({
-    mutationFn: (instanceId: string) => apiCompleteInstance(instanceId),
-  });
-
-const useTemplateDetailQuery = (templateId?: string) =>
-  useQuery({
-    queryKey: ["template-detail", templateId ?? ""],
-    queryFn: () => apiGetTemplate(templateId!),
-    enabled: Boolean(templateId),
-    select: (res: unknown) => {
-      const r = res as Record<string, unknown>;
-      const raw = r?.template ?? r?.data ?? r?.result ?? r?.payload ?? res;
-      return mapTemplate(
-        raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {},
-      );
-    },
-  });
-
-const useInstancesQuery = (filters?: InstancesFilter, enabled = true) =>
-  useQuery({
-    queryKey: [
-      "instances",
-      filters?.employeeId ?? "",
-      filters?.status ?? "ACTIVE",
-    ],
-    queryFn: () =>
-      apiListInstances({
-        employeeId: filters?.employeeId,
-        status: filters?.status ?? "ACTIVE",
-      }),
-    enabled,
-    select: (res: unknown) =>
-      extractList(
-        res as Record<string, unknown>,
-        "instances",
-        "items",
-        "list",
-      ).map(mapInstance) as OnboardingInstance[],
-  });
-
-const useTasksQuery = (onboardingId?: string) =>
-  useQuery({
-    queryKey: ["onboarding-tasks-by-instance", onboardingId ?? ""],
-    queryFn: () => apiListTasks(onboardingId!),
-    enabled: Boolean(onboardingId),
+  const { data: tasks = [], isLoading: tasksLoading } = useQuery({
+    queryKey: ["onboarding-tasks-by-instance", instance?.id ?? instanceId ?? ""],
+    queryFn: () => apiListTasks(instance?.id ?? instanceId!),
+    enabled: Boolean(instance?.id ?? instanceId),
     select: (res: unknown) =>
       extractList(
         res as Record<string, unknown>,
@@ -131,133 +239,140 @@ const useTasksQuery = (onboardingId?: string) =>
       ).map(mapTask) as OnboardingTask[],
   });
 
-const useUpdateTaskStatus = () =>
-  useMutation({
+  const { data: templateDetail } = useQuery({
+    queryKey: ["template-detail", instance?.templateId ?? ""],
+    queryFn: () => apiGetTemplate(instance!.templateId),
+    enabled: Boolean(instance?.templateId),
+    select: (res: unknown) => {
+      const r = res as Record<string, unknown>;
+      const raw = r?.template ?? r?.data ?? r?.result ?? r?.payload ?? res;
+      return mapTemplate(
+        raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {},
+      );
+    },
+  });
+
+  const { data: employeeDetail } = useQuery({
+    queryKey: ["user-detail", instance?.employeeUserId ?? ""],
+    queryFn: () => apiGetUserById(instance!.employeeUserId as string),
+    enabled: Boolean(instance?.employeeUserId),
+    select: (res: unknown) => mapUserDetail(res as GetUserResponse),
+  });
+
+  const { data: managerDetail } = useQuery({
+    queryKey: ["user-detail", instance?.managerUserId ?? ""],
+    queryFn: () => apiGetUserById(instance!.managerUserId as string),
+    enabled: Boolean(instance?.managerUserId),
+    select: (res: unknown) => mapUserDetail(res as GetUserResponse),
+  });
+
+  const { data: taskDetail, isLoading: taskDetailLoading } = useQuery({
+    queryKey: ["onboarding-task-detail", selectedTaskId ?? ""],
+    queryFn: () => apiGetTaskDetailFull(selectedTaskId!),
+    enabled: Boolean(selectedTaskId),
+    select: (res: unknown) => {
+      const r = res as Record<string, unknown>;
+      return (r?.task ?? r?.data ?? r?.result ?? r?.payload ?? res) as TaskDetailResponse;
+    },
+  });
+
+  const { data: comments, isLoading: commentsLoading } = useQuery({
+    queryKey: ["onboarding-task-comments", selectedTaskId ?? ""],
+    queryFn: () => apiListTaskComments(selectedTaskId!),
+    enabled: Boolean(selectedTaskId),
+    select: (res: unknown) => {
+      const r = res as Record<string, unknown>;
+      const list = r?.comments ?? r?.data ?? [];
+      return (Array.isArray(list) ? list : []) as CommentResponse[];
+    },
+  });
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+
+  const invalidateTasks = () => {
+    queryClient.invalidateQueries({
+      queryKey: ["onboarding-tasks-by-instance"],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["onboarding-task-detail", selectedTaskId],
+    });
+  };
+
+  // ── Mutations ────────────────────────────────────────────────────────────────
+
+  const updateTaskStatus = useMutation({
     mutationFn: ({ taskId, status }: { taskId: string; status: string }) =>
       apiUpdateTaskStatus(taskId, status),
   });
 
-const useUsersQuery = () =>
-  useQuery({
-    queryKey: ["users"],
-    queryFn: () => apiSearchUsers(),
-    select: (res: unknown) =>
-      extractList(res as Record<string, unknown>, "users", "items").map((u) =>
-        mapUser(u as Record<string, unknown>),
-      ) as User[],
+  const activateInstance = useMutation({
+    mutationFn: (id: string) => apiActivateInstance(id),
+  });
+  const cancelInstance = useMutation({
+    mutationFn: (id: string) => apiCancelInstance(id),
+  });
+  const completeInstance = useMutation({
+    mutationFn: (id: string) => apiCompleteInstance(id),
   });
 
-const useTemplatesQuery = (status?: string) =>
-  useQuery({
-    queryKey: ["templates", status ?? ""],
-    queryFn: () => apiListTemplates({ status }),
-    select: (res: unknown) =>
-      extractList(
-        res as Record<string, unknown>,
-        "templates",
-        "items",
-        "list",
-      ).map(mapTemplate) as OnboardingTemplate[],
+  const acknowledgeMutation = useMutation({
+    mutationFn: (taskId: string) => apiAcknowledgeTask({ taskId }),
+    onSuccess: () => {
+      invalidateTasks();
+      notify.success(t("onboarding.task.toast.acknowledged"));
+    },
+    onError: () => notify.error(t("onboarding.task.toast.failed")),
   });
 
-const EmployeeDetail = () => {
-  const { employeeId: instanceId } = useParams();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { t } = useLocale();
-  const currentUser = useUserStore((state) => state.currentUser);
-  const setBreadcrumbs = useGlobalStore((state) => state.setBreadcrumbs);
-  const isEmployee = isOnboardingEmployee(currentUser?.roles ?? []);
-  const backToEmployees = "/onboarding/employees";
-  const canManage = canManageOnboarding(currentUser?.roles ?? []);
+  const approveMutation = useMutation({
+    mutationFn: (taskId: string) => apiApproveTask({ taskId }),
+    onSuccess: () => {
+      invalidateTasks();
+      setSelectedTaskId(null);
+      notify.success(t("onboarding.task.toast.approved"));
+    },
+    onError: () => notify.error(t("onboarding.task.toast.failed")),
+  });
 
-  // ── Queries ──────────────────────────────────────────────────────────────────
+  const rejectMutation = useMutation({
+    mutationFn: ({ taskId, reason }: { taskId: string; reason?: string }) =>
+      apiRejectTask({ taskId, reason }),
+    onSuccess: () => {
+      invalidateTasks();
+      setSelectedTaskId(null);
+      setRejectModalOpen(false);
+      setRejectReason("");
+      notify.success(t("onboarding.task.toast.rejected"));
+    },
+    onError: () => notify.error(t("onboarding.task.toast.failed")),
+  });
 
-  const {
-    data: instance,
-    isLoading: instanceLoading,
-    isError: instanceError,
-    refetch: refetchInstance,
-  } = useInstanceQuery(instanceId);
-
-  const { data: instances } = useInstancesQuery(
-    isEmployee && currentUser?.id
-      ? { employeeId: currentUser.id, status: "ACTIVE" }
-      : undefined,
-    Boolean(isEmployee && currentUser?.id && !instance),
-  );
-
-  const { data: templates } = useTemplatesQuery("ACTIVE");
-  const { data: users } = useUsersQuery();
-  const { data: tasks = [], isLoading: tasksLoading } = useTasksQuery(
-    instance?.id || instanceId,
-  );
-  const updateTaskStatus = useUpdateTaskStatus();
-  const activateInstance = useActivateInstance();
-  const cancelInstance = useCancelInstance();
-  const completeInstance = useCompleteInstance();
-  const { data: templateDetail } = useTemplateDetailQuery(instance?.templateId);
-
-  // ── Local state ──────────────────────────────────────────────────────────────
-
-  const [tab, setTab] = useState("checklist");
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<OnboardingTask | null>(null);
-  const [confirmAction, setConfirmAction] = useState<
-    "cancel" | "complete" | null
-  >(null);
+  const addCommentMutation = useMutation({
+    mutationFn: ({ taskId, message }: { taskId: string; message: string }) =>
+      apiAddTaskComment(taskId, message),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-comments", selectedTaskId],
+      });
+      setCommentInput("");
+      notify.success(t("onboarding.task.comments.toast_added"));
+    },
+    onError: () => notify.error(t("onboarding.task.toast.failed")),
+  });
 
   // ── Derived data ─────────────────────────────────────────────────────────────
 
-  const effectiveInstance =
-    instance ?? instances?.find((i) => i.id === instanceId);
-  const employee = users?.find(
-    (u) =>
-      u.id === effectiveInstance?.employeeUserId ||
-      u.id === effectiveInstance?.employeeId ||
-      u.employeeId === effectiveInstance?.employeeId,
-  );
-  const employeeUserId = effectiveInstance?.employeeUserId || employee?.id;
-  const { data: employeeDetail } = useUserDetailQuery(employeeUserId);
-  const employeeDetailData =
-    employeeDetail && "userId" in employeeDetail ? employeeDetail : null;
-  const resolvedManagerUserId =
-    effectiveInstance?.managerUserId ??
-    employeeDetailData?.managerUserId ??
-    employee?.managerUserId;
-  const { data: managerDetail } = useUserDetailQuery(
-    resolvedManagerUserId ?? undefined,
-  );
-  const managerDetailData =
-    managerDetail && "userId" in managerDetail ? managerDetail : null;
-
-  const employeeDisplayName =
-    employeeDetailData?.fullName || employee?.name || "-";
-  const employeeDisplayEmail =
-    employeeDetailData?.email || employee?.email || null;
+  const employeeDisplayName = employeeDetail?.fullName || instance?.employeeName || "-";
+  const employeeDisplayEmail = employeeDetail?.email ?? null;
   const managerDisplayName =
-    managerDetailData?.fullName ||
-    effectiveInstance?.managerName ||
-    employee?.manager ||
-    "—";
-  const template =
-    templateDetail ??
-    templates?.find((tpl) => tpl.id === effectiveInstance?.templateId);
+    managerDetail?.fullName || instance?.managerName || "—";
 
-  useEffect(() => {
-    if (instanceId && employeeDisplayName !== "-") {
-      setBreadcrumbs({ [instanceId]: employeeDisplayName });
-    }
-  }, [instanceId, employeeDisplayName, setBreadcrumbs]);
-
-  const completedCount = tasks.filter(
-    (task) => task.status === STATUS_DONE,
-  ).length;
+  const completedCount = tasks.filter((t) => t.status === STATUS_DONE).length;
   const totalTasks = tasks.length;
   const progressPercent =
     totalTasks > 0
       ? Math.round((completedCount / totalTasks) * 100)
-      : (effectiveInstance?.progress ?? 0);
+      : (instance?.progress ?? 0);
 
   const stageProgress = useMemo(() => {
     if (!templateDetail?.stages?.length) return [];
@@ -277,23 +392,33 @@ const EmployeeDetail = () => {
         percent: Math.round((done / total) * 100),
       };
     });
-  }, [templateDetail?.stages, tasks]);
+  }, [templateDetail, tasks]);
 
-  const instanceStatus = effectiveInstance?.status?.toUpperCase() ?? "";
-
-  // ── Handlers ─────────────────────────────────────────────────────────────────
-
+  const instanceStatus = instance?.status?.toUpperCase() ?? "";
   const isActioning =
     activateInstance.isPending ||
     cancelInstance.isPending ||
     completeInstance.isPending;
+
+  const taskIndex = selectedTaskId
+    ? tasks.findIndex((tk) => tk.id === selectedTaskId)
+    : -1;
+
+  // ── Side effects ─────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (instanceId && employeeDisplayName !== "-") {
+      setBreadcrumbs({ [instanceId]: employeeDisplayName });
+    }
+  }, [instanceId, employeeDisplayName, setBreadcrumbs]);
+
+  // ── Handlers ─────────────────────────────────────────────────────────────────
 
   const handleActivate = async () => {
     if (!instanceId) return;
     try {
       await activateInstance.mutateAsync(instanceId);
       queryClient.invalidateQueries({ queryKey: ["instance", instanceId] });
-      queryClient.invalidateQueries({ queryKey: ["instances"] });
       notify.success(t("onboarding.detail.toast.activated"));
     } catch {
       notify.error(t("onboarding.detail.toast.action_failed"));
@@ -305,7 +430,6 @@ const EmployeeDetail = () => {
     try {
       await cancelInstance.mutateAsync(instanceId);
       queryClient.invalidateQueries({ queryKey: ["instance", instanceId] });
-      queryClient.invalidateQueries({ queryKey: ["instances"] });
       notify.success(t("onboarding.detail.toast.cancelled"));
       setConfirmAction(null);
     } catch {
@@ -318,7 +442,6 @@ const EmployeeDetail = () => {
     try {
       await completeInstance.mutateAsync(instanceId);
       queryClient.invalidateQueries({ queryKey: ["instance", instanceId] });
-      queryClient.invalidateQueries({ queryKey: ["instances"] });
       notify.success(t("onboarding.detail.toast.completed"));
       setConfirmAction(null);
     } catch {
@@ -330,14 +453,10 @@ const EmployeeDetail = () => {
     const isDone = task.status === STATUS_DONE;
     const nextStatus = isDone ? "TODO" : STATUS_DONE_API;
     try {
-      await updateTaskStatus.mutateAsync({
-        taskId: task.id,
-        status: nextStatus,
-      });
+      await updateTaskStatus.mutateAsync({ taskId: task.id, status: nextStatus });
       queryClient.invalidateQueries({
         queryKey: ["onboarding-tasks-by-instance"],
       });
-      queryClient.invalidateQueries({ queryKey: ["instance"] });
       notify.success(
         isDone
           ? t("onboarding.detail.toast.task_undone")
@@ -349,17 +468,30 @@ const EmployeeDetail = () => {
   };
 
   const openTaskDrawer = (task: OnboardingTask) => {
-    setSelectedTask(task);
-    setDrawerOpen(true);
+    setSelectedTaskId(task.id);
+    setDrawerTab("info");
   };
 
-  // ── Loading / Error / Not Found states ──────────────────────────────────────
+  const closeTaskDrawer = () => {
+    setSelectedTaskId(null);
+    setCommentInput("");
+  };
 
-  if (instanceLoading && !effectiveInstance) {
+  const handleAddComment = () => {
+    if (!selectedTaskId || !commentInput.trim()) return;
+    addCommentMutation.mutate({
+      taskId: selectedTaskId,
+      message: commentInput.trim(),
+    });
+  };
+
+  // ── Loading / Error states ───────────────────────────────────────────────────
+
+  if (instanceLoading && !instance) {
     return <Skeleton.Input active block style={{ height: 256 }} />;
   }
 
-  if (instanceError && !effectiveInstance) {
+  if (instanceError && !instance) {
     return (
       <div className="space-y-6">
         <div>
@@ -384,7 +516,7 @@ const EmployeeDetail = () => {
     );
   }
 
-  if (!instanceId || !effectiveInstance) {
+  if (!instanceId || !instance) {
     return (
       <div className="space-y-6">
         <div>
@@ -399,7 +531,7 @@ const EmployeeDetail = () => {
           <p className="text-sm text-muted">
             {t("onboarding.detail.not_found")}
           </p>
-          <Button className="mt-4" onClick={() => navigate(backToEmployees)}>
+          <Button className="mt-4" onClick={() => navigate("/onboarding/employees")}>
             {t("onboarding.detail.back_to_list")}
           </Button>
         </Card>
@@ -407,23 +539,24 @@ const EmployeeDetail = () => {
     );
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
+      {/* ── Page header ──────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-ink">
             {employeeDisplayName !== "-"
               ? employeeDisplayName
-              : (template?.name ?? t("onboarding.detail.title_fallback"))}
+              : (templateDetail?.name ?? t("onboarding.detail.title_fallback"))}
           </h1>
           <p className="mt-0.5 text-sm text-muted">
-            {template?.name ?? t("onboarding.detail.subtitle")}
+            {templateDetail?.name ?? t("onboarding.detail.subtitle")}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Button onClick={() => navigate(backToEmployees)}>
+          <Button onClick={() => navigate("/onboarding/employees")}>
             {t("global.back")}
           </Button>
           {canManage && instanceStatus === "DRAFT" && (
@@ -452,18 +585,20 @@ const EmployeeDetail = () => {
         </div>
       </div>
 
+      {/* ── Info card ────────────────────────────────────────────────────────── */}
       <InfoCard
-        instance={effectiveInstance}
-        template={template}
+        instance={instance}
+        template={templateDetail}
         employeeDisplayName={employeeDisplayName}
         employeeDisplayEmail={employeeDisplayEmail}
-        employee={employee}
+        employeeDetail={employeeDetail}
         managerDisplayName={managerDisplayName}
         completedCount={completedCount}
         totalTasks={totalTasks}
         progressPercent={progressPercent}
       />
 
+      {/* ── Tabs ─────────────────────────────────────────────────────────────── */}
       <Tabs
         activeKey={tab}
         onChange={setTab}
@@ -473,109 +608,147 @@ const EmployeeDetail = () => {
         ]}
       />
 
+      {/* ── Checklist tab ────────────────────────────────────────────────────── */}
       {tab === "checklist" && (
         <div className="grid gap-4 lg:grid-cols-2">
-          <Card>
-            <h3 className="text-lg font-semibold">
-              {t("onboarding.detail.stage.title")}
-            </h3>
-            <div className="mt-4 space-y-4">
-              {stageProgress.length > 0 ? (
-                stageProgress.map((s) => (
-                  <div key={s.name} className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-semibold">{s.name}</span>
-                      <span className="text-muted">
-                        {s.done}/{s.total}
-                      </span>
-                    </div>
-                    <Progress
-                      percent={s.percent}
-                      showInfo={false}
-                      size="small"
-                    />
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted">
-                  {t("onboarding.detail.stage.empty")}
-                </p>
-              )}
-            </div>
-          </Card>
+          <StageProgressCard stageProgress={stageProgress} />
           <TaskListPanel
             tasks={tasks}
             isLoading={tasksLoading}
             isUpdating={updateTaskStatus.isPending}
+            canManage={canManage}
             onToggle={handleToggleTask}
             onOpenDrawer={openTaskDrawer}
+            onApprove={(task) => approveMutation.mutate(task.id)}
+            onReject={(task) => {
+              setSelectedTaskId(task.id);
+              setRejectModalOpen(true);
+            }}
+            isApproving={approveMutation.isPending}
+            isRejecting={rejectMutation.isPending}
           />
         </div>
       )}
 
+      {/* ── Activity tab ─────────────────────────────────────────────────────── */}
       {tab === "activity" && (
-        <Card>
-          <h3 className="text-lg font-semibold">
-            {t("onboarding.detail.activity.title")}
-          </h3>
-          <div className="mt-4 space-y-3 text-sm">
-            {completedCount > 0 ? (
-              tasks
-                .filter((task) => task.status === STATUS_DONE)
-                .map((task) => (
-                  <div
-                    key={task.id}
-                    className="rounded-lg border border-stroke bg-slate-50 p-4">
-                    {t("onboarding.detail.activity.task_completed", {
-                      title: task.title,
-                    })}
-                  </div>
-                ))
-            ) : (
-              <p className="text-muted">
-                {t("onboarding.detail.activity.empty")}
-              </p>
-            )}
-          </div>
-        </Card>
+        <ActivityFeed tasks={tasks} t={t} />
       )}
 
-      <Drawer
-        open={drawerOpen}
-        title={selectedTask?.title ?? t("onboarding.detail.task.title")}
-        onClose={() => {
-          setDrawerOpen(false);
-          setSelectedTask(null);
-        }}>
-        <div className="space-y-4">
-          {selectedTask ? (
-            <>
-              <p className="text-sm text-muted">
-                {t("onboarding.detail.task.due", {
-                  date: selectedTask.dueDate ?? "—",
-                })}
-              </p>
-              <Tag>
-                {selectedTask.required
-                  ? t("onboarding.detail.task.required")
-                  : t("onboarding.detail.task.optional")}
-              </Tag>
-              <Button
-                onClick={() => handleToggleTask(selectedTask)}
-                disabled={updateTaskStatus.isPending}>
-                {selectedTask.status === STATUS_DONE
-                  ? t("onboarding.detail.task.mark_incomplete")
-                  : t("onboarding.detail.task.mark_done")}
-              </Button>
-            </>
-          ) : (
-            <p className="text-sm text-muted">
-              {t("onboarding.detail.task.empty")}
-            </p>
-          )}
-        </div>
-      </Drawer>
+      {/* ── Task detail drawer ───────────────────────────────────────────────── */}
+      <TaskDrawer
+        open={Boolean(selectedTaskId)}
+        taskDetail={taskDetail}
+        taskDetailLoading={taskDetailLoading}
+        tasks={tasks}
+        selectedTaskId={selectedTaskId}
+        comments={comments}
+        commentsLoading={commentsLoading}
+        commentInput={commentInput}
+        drawerTab={drawerTab}
+        isEmployee={isEmployee}
+        canManage={canManage}
+        isAcknowledging={acknowledgeMutation.isPending}
+        isUpdatingStatus={updateTaskStatus.isPending}
+        isApproving={approveMutation.isPending}
+        isRejecting={rejectMutation.isPending}
+        isAddingComment={addCommentMutation.isPending}
+        onClose={closeTaskDrawer}
+        onDrawerTabChange={setDrawerTab}
+        onCommentChange={setCommentInput}
+        onAddComment={handleAddComment}
+        onAcknowledge={() =>
+          taskDetail && acknowledgeMutation.mutate(taskDetail.taskId)
+        }
+        onConfirmComplete={async () => {
+          if (!taskDetail) return;
+          try {
+            await updateTaskStatus.mutateAsync({
+              taskId: taskDetail.taskId,
+              status: STATUS_DONE_API,
+            });
+            invalidateTasks();
+            closeTaskDrawer();
+            notify.success(t("onboarding.task.toast.done"));
+          } catch {
+            notify.error(t("onboarding.task.toast.failed"));
+          }
+        }}
+        onSubmitApproval={async () => {
+          if (!taskDetail) return;
+          try {
+            await updateTaskStatus.mutateAsync({
+              taskId: taskDetail.taskId,
+              status: "PENDING_APPROVAL",
+            });
+            invalidateTasks();
+            closeTaskDrawer();
+            notify.success(t("onboarding.task.toast.submitted_approval"));
+          } catch {
+            notify.error(t("onboarding.task.toast.failed"));
+          }
+        }}
+        onMarkDone={async () => {
+          const task = tasks.find((tk) => tk.id === selectedTaskId);
+          if (task) await handleToggleTask(task);
+          closeTaskDrawer();
+        }}
+        onApprove={() =>
+          taskDetail && approveMutation.mutate(taskDetail.taskId)
+        }
+        onReject={() => setRejectModalOpen(true)}
+        onNavigatePrev={() => {
+          if (taskIndex > 0) {
+            setSelectedTaskId(tasks[taskIndex - 1].id);
+            setDrawerTab("info");
+          }
+        }}
+        onNavigateNext={() => {
+          if (taskIndex >= 0 && taskIndex < tasks.length - 1) {
+            setSelectedTaskId(tasks[taskIndex + 1].id);
+            setDrawerTab("info");
+          }
+        }}
+      />
 
+      {/* ── Reject reason modal ──────────────────────────────────────────────── */}
+      <Modal
+        title={t("onboarding.task.action.reject")}
+        open={rejectModalOpen}
+        onCancel={() => {
+          setRejectModalOpen(false);
+          setRejectReason("");
+        }}
+        onOk={() => {
+          if (selectedTaskId) {
+            rejectMutation.mutate({
+              taskId: selectedTaskId,
+              reason: rejectReason.trim() || undefined,
+            });
+          }
+        }}
+        okText={t("onboarding.task.action.reject")}
+        cancelText={t("global.cancel_action")}
+        okButtonProps={{ danger: true, loading: rejectMutation.isPending }}>
+        <div className="py-2">
+          <p className="mb-3 text-sm text-gray-600">
+            {t("onboarding.task.reject.desc") ??
+              "Lý do từ chối (không bắt buộc):"}
+          </p>
+          <Input.TextArea
+            rows={3}
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder={
+              t("onboarding.task.reject.placeholder") ??
+              "Nhập lý do từ chối..."
+            }
+            maxLength={500}
+          />
+        </div>
+      </Modal>
+
+      {/* ── Confirm cancel modal ─────────────────────────────────────────────── */}
       <BaseModal
         open={confirmAction === "cancel"}
         title={t("onboarding.detail.action.confirm_cancel_title")}
@@ -598,6 +771,7 @@ const EmployeeDetail = () => {
         </div>
       </BaseModal>
 
+      {/* ── Confirm complete modal ───────────────────────────────────────────── */}
       <BaseModal
         open={confirmAction === "complete"}
         title={t("onboarding.detail.action.confirm_complete_title")}

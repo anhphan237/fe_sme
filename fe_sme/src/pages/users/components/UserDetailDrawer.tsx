@@ -49,21 +49,22 @@ const SectionLabel = ({
   </div>
 );
 
+// Always renders — shows "—" when empty
 const DetailRow = ({
   label,
   value,
 }: {
   label: string;
   value: string | null | undefined;
-}) => {
-  if (!value) return null;
-  return (
-    <div className="flex justify-between gap-4 border-b border-slate-100 py-2.5 text-sm last:border-0">
-      <span className="shrink-0 text-slate-500">{label}</span>
-      <span className="text-right font-medium text-slate-800">{value}</span>
-    </div>
-  );
-};
+}) => (
+  <div className="flex justify-between gap-4 border-b border-slate-100 py-2.5 text-sm last:border-0">
+    <span className="shrink-0 text-slate-500">{label}</span>
+    <span
+      className={`text-right font-medium ${value ? "text-slate-800" : "text-slate-300"}`}>
+      {value || "—"}
+    </span>
+  </div>
+);
 
 export interface UserDetailDrawerProps {
   userId: string | null;
@@ -90,7 +91,6 @@ export const UserDetailDrawer = ({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [toggling, setToggling] = useState(false);
 
-  // tracks which userId we've already initialized the form for
   const initializedRef = useRef<string | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
@@ -109,14 +109,12 @@ export const UserDetailDrawer = ({
     return filtered.map((u) => ({ value: u.id, label: u.name || u.email }));
   }, [users, selectedDeptId]);
 
-  // Reset mode when modal opens for a different user
   useEffect(() => {
     setMode("view");
     setSaveError(null);
     initializedRef.current = null;
   }, [userId]);
 
-  // Populate edit form once per userId when data + users are ready
   useEffect(() => {
     if (!data || !userId || initializedRef.current === userId) return;
     const listUser = users.find((u) => u.id === userId);
@@ -134,7 +132,6 @@ export const UserDetailDrawer = ({
     initializedRef.current = userId;
   }, [data, users, userId, form]);
 
-  // Resolved display values for view mode
   const deptName =
     departments.find((d) => d.departmentId === data?.departmentId)?.name ??
     data?.departmentId;
@@ -145,6 +142,8 @@ export const UserDetailDrawer = ({
   const listUser = users.find((u) => u.id === userId);
   const currentRole = listUser ? getPrimaryRole(listUser.roles) : null;
   const isActive = data?.status === "ACTIVE" || data?.status === "INVITED";
+  // Get createdAt from the list data
+  const createdAt = listUser?.createdAt;
 
   const handleEdit = () => {
     setSaveError(null);
@@ -265,22 +264,27 @@ export const UserDetailDrawer = ({
       footer={footer}>
       {isLoading ? (
         <div className="py-2">
-          <Skeleton active paragraph={{ rows: 6 }} />
+          <Skeleton active paragraph={{ rows: 8 }} />
         </div>
       ) : data ? (
         <div data-testid="user-detail-content">
-          {/* Header: avatar + name + status + role */}
-          <div className="mb-4 flex items-center gap-4 rounded-xl border border-[#E8EDF3] bg-[#F5F8FC] p-4">
+          {/* Header: avatar + name + meta */}
+          <div className="mb-5 flex items-start gap-4 rounded-xl border border-[#E8EDF3] bg-[#F5F8FC] p-4">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#3684DB]/10 text-2xl font-bold text-[#3684DB]">
               {(data.fullName?.[0] ?? data.email?.[0] ?? "?").toUpperCase()}
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="truncate text-base font-semibold text-[#223A59]">
                 {data.fullName}
               </p>
               <p className="mt-0.5 truncate text-sm text-[#758BA5]">
                 {data.email}
               </p>
+              {(data.jobTitle || deptName) && (
+                <p className="mt-0.5 truncate text-xs text-[#9BAEC2]">
+                  {[data.jobTitle, deptName].filter(Boolean).join(" · ")}
+                </p>
+              )}
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <UserStatusTag status={data.status} />
                 {currentRole && (
@@ -288,6 +292,11 @@ export const UserDetailDrawer = ({
                     className={`text-xs ${ROLE_BADGE_STYLES[currentRole] ?? ROLE_BADGE_STYLES.EMPLOYEE}`}>
                     {ROLE_LABELS[currentRole]}
                   </Tag>
+                )}
+                {data.employeeCode && (
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-mono text-slate-500">
+                    {data.employeeCode}
+                  </span>
                 )}
               </div>
             </div>
@@ -311,6 +320,12 @@ export const UserDetailDrawer = ({
                   label={t("user.detail.start_date")}
                   value={data.startDate?.slice(0, 10)}
                 />
+                {createdAt && (
+                  <DetailRow
+                    label={t("user.detail.created_at")}
+                    value={createdAt.slice(0, 10)}
+                  />
+                )}
               </div>
 
               {/* Organization */}

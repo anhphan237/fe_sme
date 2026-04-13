@@ -1,23 +1,41 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Card, DatePicker, Select, Skeleton, Tag } from "antd";
+import {
+  Card,
+  DatePicker,
+  Progress,
+  Select,
+  Skeleton,
+  Tag,
+  Tooltip as AntTooltip,
+} from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Legend,
   Line,
   LineChart,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { CheckCircle2, ClipboardList, TrendingUp, Users } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  ClipboardList,
+  MessageSquare,
+  Star,
+  TrendingUp,
+  UserCheck,
+  Users,
+} from "lucide-react";
 import { useUserStore } from "@/stores/user.store";
 import {
   apiGetCompanyOnboardingByDepartment,
@@ -26,11 +44,14 @@ import {
   apiGetCompanyTaskCompletion,
 } from "@/api/admin/admin.api";
 import { apiListInstances } from "@/api/onboarding/onboarding.api";
+import { apiGetSurveyAnalyticsReport } from "@/api/survey/survey.api";
+import { apiSearchUsers } from "@/api/identity/identity.api";
 import { extractList } from "@/api/core/types";
 import { mapInstance } from "@/utils/mappers/onboarding";
 import type { OnboardingInstance } from "@/shared/types";
+import { AppRouters } from "@/constants/router";
 
-// ── types ─────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type DashboardSummary = {
   totalEmployees?: number;
@@ -61,9 +82,78 @@ type DashboardDepartmentStat = {
   completedTasks: number;
 };
 
+type SurveyAnalytics = {
+  sentCount?: number;
+  submittedCount?: number;
+  responseRate?: number;
+  overallSatisfactionScore?: number;
+  stageTrends?: Array<{
+    stage: string;
+    submittedCount: number;
+    averageOverall: number;
+  }>;
+  timeTrends?: Array<{
+    bucket: string;
+    submittedCount: number;
+    averageScore: number;
+  }>;
+  dimensionStats?: Array<{
+    dimensionCode: string;
+    questionCount: number;
+    responseCount: number;
+    averageScore: number;
+  }>;
+};
+
+type UserListItem = {
+  userId: string;
+  fullName?: string;
+  email?: string;
+  status?: string;
+  roles?: string[];
+  departmentName?: string;
+  departmentId?: string;
+};
+
 type StageVolume = { stage: string; value: number };
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
 const FUNNEL_COLORS = ["#0f766e", "#2563eb", "#f59e0b", "#ef4444"];
+const SURVEY_COLORS = ["#6366f1", "#a78bfa", "#c4b5fd", "#818cf8", "#4f46e5"];
+const STAGE_LABELS: Record<string, string> = {
+  PRE_BOARDING: "Pre-boarding",
+  DAY_1: "Ngày 1",
+  DAY_7: "Ngày 7",
+  DAY_30: "Ngày 30",
+  DAY_60: "Ngày 60",
+};
+
+const DATE_PRESETS = [
+  {
+    label: "Tháng này",
+    getValue: (): [Dayjs, Dayjs] => [dayjs().startOf("month"), dayjs()],
+  },
+  {
+    label: "Tháng trước",
+    getValue: (): [Dayjs, Dayjs] => [
+      dayjs().subtract(1, "month").startOf("month"),
+      dayjs().subtract(1, "month").endOf("month"),
+    ],
+  },
+  {
+    label: "3 tháng",
+    getValue: (): [Dayjs, Dayjs] => [dayjs().subtract(3, "month"), dayjs()],
+  },
+  {
+    label: "6 tháng",
+    getValue: (): [Dayjs, Dayjs] => [dayjs().subtract(6, "month"), dayjs()],
+  },
+  {
+    label: "Năm nay",
+    getValue: (): [Dayjs, Dayjs] => [dayjs().startOf("year"), dayjs()],
+  },
+] as const;
 
 // ── Query hooks ────────────────────────────────────────────────────────────────
 
@@ -165,29 +255,70 @@ function useByDepartmentQuery(
   });
 }
 
+function useSurveyAnalyticsQuery(
+  startDate?: string,
+  endDate?: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ["hr-survey-analytics", startDate ?? "", endDate ?? ""],
+    queryFn: () => apiGetSurveyAnalyticsReport({ startDate, endDate }),
+    enabled: enabled && Boolean(startDate) && Boolean(endDate),
+    select: (res: unknown) => res as SurveyAnalytics,
+  });
+}
+
+function useEmployeeListQuery(enabled = true) {
+  return useQuery({
+    queryKey: ["hr-employees"],
+    queryFn: () => apiSearchUsers(),
+    enabled,
+    select: (res: unknown) => {
+      const raw = res as Record<string, unknown>;
+      const arr: UserListItem[] =
+        (raw?.users as UserListItem[]) ?? (Array.isArray(raw) ? raw : []);
+      return arr;
+    },
+  });
+}
+
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 function KpiCard({
   label,
   value,
+  sub,
   icon,
   tone,
 }: {
   label: string;
   value: string;
+  sub?: string;
   icon: React.ReactNode;
-  tone: "teal" | "emerald" | "amber" | "indigo";
+  tone:
+    | "teal"
+    | "emerald"
+    | "amber"
+    | "indigo"
+    | "violet"
+    | "purple"
+    | "rose"
+    | "sky";
 }) {
   const toneClass: Record<typeof tone, string> = {
     teal: "bg-teal-50 text-teal-700",
     emerald: "bg-emerald-50 text-emerald-700",
     amber: "bg-amber-50 text-amber-700",
     indigo: "bg-indigo-50 text-indigo-700",
+    violet: "bg-violet-50 text-violet-700",
+    purple: "bg-purple-50 text-purple-700",
+    rose: "bg-rose-50 text-rose-700",
+    sky: "bg-sky-50 text-sky-700",
   };
   return (
     <Card
       size="small"
-      className="overflow-hidden border border-stroke bg-white shadow-sm transition-colors hover:border-slate-300">
+      className="overflow-hidden border border-stroke bg-white shadow-sm transition-shadow hover:shadow-md">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">
@@ -196,12 +327,45 @@ function KpiCard({
           <p className="mt-2 text-2xl font-bold tabular-nums text-ink">
             {value}
           </p>
+          {sub && <p className="mt-0.5 text-xs text-muted">{sub}</p>}
         </div>
         <div className={`rounded-xl p-2.5 ${toneClass[tone]}`}>{icon}</div>
       </div>
     </Card>
   );
 }
+
+/** Thẻ hiển thị instance cần chú ý (progress thấp) */
+function AttentionCard({ inst }: { inst: OnboardingInstance }) {
+  const progress = inst.progress ?? 0;
+  const progressColor =
+    progress < 10 ? "exception" : progress < 30 ? "active" : "normal";
+  return (
+    <Link to={`${AppRouters.ONBOARDING_EMPLOYEES}/${inst.id}`}>
+      <div className="flex items-center gap-3 rounded-lg border border-stroke bg-white px-3 py-2.5 transition-colors hover:border-amber-300 hover:bg-amber-50/40">
+        <div className="flex-1 min-w-0">
+          <p className="truncate text-sm font-medium text-ink">
+            {inst.employeeName || inst.employeeId || "—"}
+          </p>
+          {inst.managerName && (
+            <p className="truncate text-xs text-muted">
+              Manager: {inst.managerName}
+            </p>
+          )}
+          <Progress
+            percent={progress}
+            size="small"
+            status={progressColor}
+            className="mt-1"
+          />
+        </div>
+        <ArrowRight className="h-4 w-4 shrink-0 text-muted" />
+      </div>
+    </Link>
+  );
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
 function parseDate(value?: string) {
   if (!value) return null;
@@ -231,6 +395,31 @@ function instanceStatusColor(status?: string) {
   }
 }
 
+/** Label renderer cho recharts BarChart — hiển thị % hoàn thành */
+function DeptCompletionLabel(props: {
+  x?: number;
+  y?: number;
+  width?: number;
+  value?: number;
+  index?: number;
+  data?: DashboardDepartmentStat[];
+}) {
+  const { x = 0, y = 0, width = 0, index = 0, data = [] } = props;
+  const stat = data[index];
+  if (!stat || stat.totalTasks === 0) return null;
+  const pct = Math.round((stat.completedTasks / stat.totalTasks) * 100);
+  return (
+    <text
+      x={x + width / 2}
+      y={y - 4}
+      textAnchor="middle"
+      fontSize={10}
+      fill="#6b7280">
+      {pct}%
+    </text>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function HRDashboard() {
@@ -238,10 +427,12 @@ export default function HRDashboard() {
   const currentUser = useUserStore((s) => s.currentUser);
   const companyId = currentTenant?.id ?? currentUser?.companyId ?? undefined;
 
+  // Default: this month
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([
-    null,
-    null,
+    dayjs().startOf("month"),
+    dayjs(),
   ]);
+  const [activePreset, setActivePreset] = useState<string>("Tháng này");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [departmentFilter, setDepartmentFilter] = useState<string>("");
 
@@ -250,6 +441,12 @@ export default function HRDashboard() {
   const hasDateRange = Boolean(startDate && endDate);
   const analyticsEnabled = Boolean(companyId) && hasDateRange;
 
+  function applyPreset(label: string, getValue: () => [Dayjs, Dayjs]) {
+    setActivePreset(label);
+    setDateRange(getValue());
+  }
+
+  // ── Queries ──────────────────────────────────────────────────────────────
   const { data: instances = [], isLoading: instancesLoading } =
     useInstancesQuery(
       statusFilter ? { status: statusFilter } : undefined,
@@ -281,6 +478,13 @@ export default function HRDashboard() {
   const { data: byDepartmentRaw, isLoading: byDepartmentLoading } =
     useByDepartmentQuery(companyId, startDate, endDate, analyticsEnabled);
 
+  const { data: surveyAnalytics, isLoading: surveyLoading } =
+    useSurveyAnalyticsQuery(startDate, endDate, analyticsEnabled);
+
+  const { data: employeeList = [], isLoading: employeeLoading } =
+    useEmployeeListQuery(true);
+
+  // ── Data derivation ──────────────────────────────────────────────────────
   const summary = (summaryRaw ?? {}) as DashboardSummary;
   const funnel = (funnelRaw ?? {}) as DashboardFunnel;
   const taskCompletion = (taskCompletionRaw ?? {}) as DashboardTaskCompletion;
@@ -303,6 +507,8 @@ export default function HRDashboard() {
     typeof summary.completedCount === "number"
       ? summary.completedCount
       : completedInstances;
+  const totalEmployees =
+    typeof summary.totalEmployees === "number" ? summary.totalEmployees : null;
 
   const completionTotal =
     typeof taskCompletion.totalTasks === "number"
@@ -324,7 +530,64 @@ export default function HRDashboard() {
       ? Math.round(completionRateRaw * 100)
       : Math.round(completionRateRaw);
 
-  const kpis = [
+  // ── Survey metrics ────────────────────────────────────────────────────────
+  const surveySentCount = surveyAnalytics?.sentCount ?? 0;
+  const surveySubmittedCount = surveyAnalytics?.submittedCount ?? 0;
+  const surveyResponseRate = surveyAnalytics?.responseRate
+    ? Math.round(
+        surveyAnalytics.responseRate <= 1
+          ? surveyAnalytics.responseRate * 100
+          : surveyAnalytics.responseRate,
+      )
+    : surveySentCount > 0
+      ? Math.round((surveySubmittedCount / surveySentCount) * 100)
+      : 0;
+  const satisfactionScore = surveyAnalytics?.overallSatisfactionScore ?? 0;
+
+  // ── Survey stage trend data ───────────────────────────────────────────────
+  const stageTrendData = useMemo(
+    () =>
+      (surveyAnalytics?.stageTrends ?? []).map((s) => ({
+        stage: STAGE_LABELS[s.stage] ?? s.stage,
+        "Phản hồi": s.submittedCount,
+        "Điểm TB": Number(s.averageOverall.toFixed(2)),
+      })),
+    [surveyAnalytics],
+  );
+
+  // ── Survey time trend data ────────────────────────────────────────────────
+  const surveyTimeTrendData = useMemo(
+    () =>
+      (surveyAnalytics?.timeTrends ?? []).map((t) => ({
+        label: t.bucket,
+        "Phản hồi": t.submittedCount,
+        "Điểm TB": Number(t.averageScore.toFixed(2)),
+      })),
+    [surveyAnalytics],
+  );
+
+  // ── Employee stats ────────────────────────────────────────────────────────
+  const activeEmployees = employeeList.filter(
+    (u) => u.status?.toUpperCase() === "ACTIVE",
+  ).length;
+  const inactiveEmployees = employeeList.filter(
+    (u) => u.status?.toUpperCase() !== "ACTIVE",
+  ).length;
+
+  const roleBreakdown = useMemo(() => {
+    const counts: Record<string, number> = {};
+    employeeList.forEach((u) => {
+      (u.roles ?? []).forEach((r) => {
+        counts[r] = (counts[r] ?? 0) + 1;
+      });
+    });
+    return Object.entries(counts)
+      .map(([role, count]) => ({ role, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [employeeList]);
+
+  // ── KPIs ─────────────────────────────────────────────────────────────────
+  const kpisRow1 = [
     {
       label: "Đang onboarding",
       value: String(summaryActive),
@@ -334,6 +597,7 @@ export default function HRDashboard() {
     {
       label: "Hoàn thành",
       value: String(summaryCompleted),
+      sub: hasDateRange ? "trong kỳ" : undefined,
       icon: <CheckCircle2 className="h-4 w-4" />,
       tone: "emerald" as const,
     },
@@ -349,8 +613,46 @@ export default function HRDashboard() {
       icon: <TrendingUp className="h-4 w-4" />,
       tone: "indigo" as const,
     },
+    {
+      label: "Tổng nhân viên",
+      value:
+        totalEmployees !== null
+          ? String(totalEmployees)
+          : String(employeeList.length || "—"),
+      sub: hasDateRange ? "trong kỳ đã chọn" : "chọn kỳ để xem",
+      icon: <UserCheck className="h-4 w-4" />,
+      tone: "violet" as const,
+    },
   ];
 
+  const kpisRow2 = [
+    {
+      label: "Khảo sát đã gửi",
+      value: surveySentCount > 0 ? String(surveySentCount) : "—",
+      sub: hasDateRange ? "trong kỳ" : undefined,
+      icon: <MessageSquare className="h-4 w-4" />,
+      tone: "sky" as const,
+    },
+    {
+      label: "Tỉ lệ phản hồi",
+      value: surveySentCount > 0 ? `${surveyResponseRate}%` : "—",
+      sub:
+        surveySentCount > 0
+          ? `${surveySubmittedCount}/${surveySentCount} phản hồi`
+          : undefined,
+      icon: <TrendingUp className="h-4 w-4" />,
+      tone: "purple" as const,
+    },
+    {
+      label: "Điểm hài lòng",
+      value: satisfactionScore > 0 ? satisfactionScore.toFixed(1) : "—",
+      sub: satisfactionScore > 0 ? "/ 5.0" : undefined,
+      icon: <Star className="h-4 w-4" />,
+      tone: "rose" as const,
+    },
+  ];
+
+  // ── Funnel BarChart data ──────────────────────────────────────────────────
   const funnelData: StageVolume[] = [
     {
       stage: "Đang hoạt động",
@@ -376,6 +678,7 @@ export default function HRDashboard() {
     },
   ].filter((s) => s.value > 0);
 
+  // ── Trend data (instances by month) ──────────────────────────────────────
   const trendData = useMemo(() => {
     const bucket = new Map<string, number>();
     filteredInstances.forEach((item) => {
@@ -390,6 +693,7 @@ export default function HRDashboard() {
     }));
   }, [filteredInstances]);
 
+  // ── Department data ───────────────────────────────────────────────────────
   const departmentStats = (byDepartment.departments ?? []).filter((item) =>
     departmentFilter ? item.departmentId === departmentFilter : true,
   );
@@ -399,43 +703,70 @@ export default function HRDashboard() {
     label: item.departmentName,
   }));
 
-  const recentInstances = [...filteredInstances]
-    .sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? ""))
-    .slice(0, 10);
+  // ── Attention needed — ACTIVE instances with progress < 30% ──────────────
+  const attentionInstances = useMemo(
+    () =>
+      filteredInstances
+        .filter((i) => i.status === "ACTIVE" && (i.progress ?? 0) < 30)
+        .sort((a, b) => (a.progress ?? 0) - (b.progress ?? 0))
+        .slice(0, 8),
+    [filteredInstances],
+  );
+
+  // ── Recent table ─────────────────────────────────────────────────────────
+  const recentInstances = useMemo(
+    () =>
+      [...filteredInstances]
+        .sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? ""))
+        .slice(0, 10),
+    [filteredInstances],
+  );
 
   const isKpiLoading = summaryLoading || taskCompletionLoading;
   const isProgressLoading = instancesLoading || funnelLoading;
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold text-ink">Dashboard HR</h1>
-        <p className="text-sm text-muted">
-          Tổng quan quản lý onboarding toàn công ty
-        </p>
-      </div>
-
       {/* Filter Panel */}
       <Card className="border border-stroke bg-white shadow-sm">
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="flex flex-wrap items-end gap-4">
           <div>
             <p className="mb-1 text-xs font-semibold uppercase text-muted">
               Khoảng thời gian
             </p>
-            <DatePicker.RangePicker
-              className="w-full"
-              value={dateRange}
-              format="DD/MM/YYYY"
-              onChange={(value) => setDateRange(value ?? [null, null])}
-            />
+            <div className="flex items-center gap-2">
+              <Select
+                className="w-36"
+                value={activePreset}
+                onChange={(value) => {
+                  const preset = DATE_PRESETS.find((p) => p.label === value);
+                  if (preset) {
+                    applyPreset(preset.label, preset.getValue);
+                  } else {
+                    setActivePreset("Tùy chỉnh");
+                  }
+                }}
+                options={[
+                  ...DATE_PRESETS.map((p) => ({ value: p.label, label: p.label })),
+                  { value: "Tùy chỉnh", label: "Tùy chỉnh" },
+                ]}
+              />
+              <DatePicker.RangePicker
+                value={dateRange}
+                format="DD/MM/YYYY"
+                onChange={(value) => {
+                  setDateRange(value ?? [null, null]);
+                  setActivePreset("Tùy chỉnh");
+                }}
+              />
+            </div>
           </div>
           <div>
             <p className="mb-1 text-xs font-semibold uppercase text-muted">
               Trạng thái
             </p>
             <Select
-              className="w-full"
+              className="w-44"
               value={statusFilter || undefined}
               allowClear
               onChange={(value) => setStatusFilter(value ?? "")}
@@ -445,7 +776,7 @@ export default function HRDashboard() {
                 { value: "COMPLETED", label: "Hoàn thành" },
                 { value: "CANCELLED", label: "Đã huỷ" },
               ]}
-              placeholder="Tất cả"
+              placeholder="Tất cả trạng thái"
             />
           </div>
           <div>
@@ -453,117 +784,102 @@ export default function HRDashboard() {
               Phòng ban
             </p>
             <Select
-              className="w-full"
+              className="w-44"
               value={departmentFilter || undefined}
               allowClear
               options={departmentOptions}
               onChange={(value) => setDepartmentFilter(value ?? "")}
-              placeholder="Tất cả"
+              placeholder="Tất cả phòng ban"
               disabled={!hasDateRange}
             />
           </div>
         </div>
-        {!hasDateRange && (
-          <Alert
-            className="mt-3"
-            type="info"
-            showIcon
-            message="Chọn khoảng thời gian để xem dữ liệu analytics."
-          />
-        )}
       </Card>
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 lg:grid-cols-4">
-        {isKpiLoading
-          ? Array.from({ length: 4 }, (_, i) => (
-              <Card
-                key={`kpi-sk-${i}`}
-                size="small"
-                className="border border-stroke bg-white shadow-sm">
-                <Skeleton active paragraph={{ rows: 2 }} title={false} />
-              </Card>
-            ))
-          : kpis.map((kpi) => <KpiCard key={kpi.label} {...kpi} />)}
+      {/* KPI Row 1 — Onboarding KPIs */}
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+          Onboarding
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {isKpiLoading || employeeLoading
+            ? Array.from({ length: 5 }, (_, i) => (
+                <Card
+                  key={`kpi-sk-${i}`}
+                  size="small"
+                  className="border border-stroke bg-white shadow-sm">
+                  <Skeleton active paragraph={{ rows: 2 }} title={false} />
+                </Card>
+              ))
+            : kpisRow1.map((kpi) => <KpiCard key={kpi.label} {...kpi} />)}
+        </div>
       </div>
 
-      {/* Funnel + Progress */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="border border-stroke bg-white shadow-sm lg:col-span-2">
-          <h2 className="text-base font-semibold text-ink">
-            Tiến độ onboarding
-          </h2>
-          <p className="text-sm text-muted">
-            Phân bổ trạng thái các onboarding
-          </p>
-          <div className="mt-6 h-64">
-            {isProgressLoading ? (
-              <Skeleton active paragraph={{ rows: 5 }} title={false} />
-            ) : funnelData.length === 0 ? (
-              <p className="text-sm text-muted">
-                Chưa có dữ liệu trong khoảng thời gian đã chọn.
-              </p>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={funnelData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="stage" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="value" fill="#0f766e" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </Card>
-
-        <Card className="border border-stroke bg-white shadow-sm">
-          <h2 className="text-base font-semibold text-ink">Phân tích funnel</h2>
-          <p className="text-sm text-muted">
-            Tỉ lệ chuyển đổi giữa các giai đoạn
-          </p>
-          <div className="mt-6 h-64">
-            {!hasDateRange ? (
-              <p className="text-sm text-muted">
-                Chọn khoảng thời gian để xem funnel.
-              </p>
-            ) : isProgressLoading ? (
-              <Skeleton active paragraph={{ rows: 5 }} title={false} />
-            ) : funnelData.length === 0 ? (
-              <p className="text-sm text-muted">Không có dữ liệu.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={funnelData}
-                    dataKey="value"
-                    nameKey="stage"
-                    innerRadius={45}
-                    outerRadius={82}>
-                    {funnelData.map((_, index) => (
-                      <Cell
-                        key={`funnel-cell-${index}`}
-                        fill={FUNNEL_COLORS[index % FUNNEL_COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </Card>
+      {/* KPI Row 2 — Survey KPIs */}
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+          Khảo sát nhân viên
+        </p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {surveyLoading
+            ? Array.from({ length: 3 }, (_, i) => (
+                <Card
+                  key={`survey-kpi-sk-${i}`}
+                  size="small"
+                  className="border border-stroke bg-white shadow-sm">
+                  <Skeleton active paragraph={{ rows: 2 }} title={false} />
+                </Card>
+              ))
+            : kpisRow2.map((kpi) => <KpiCard key={kpi.label} {...kpi} />)}
+        </div>
       </div>
 
-      {/* Department + Trend */}
+      {/* Trạng thái onboarding */}
+      <Card className="border border-stroke bg-white shadow-sm">
+        <h2 className="text-base font-semibold text-ink">
+          Tiến độ onboarding
+        </h2>
+        <p className="text-sm text-muted">
+          Phân bổ trạng thái các onboarding trong kỳ
+        </p>
+        <div className="mt-6 h-64">
+          {isProgressLoading ? (
+            <Skeleton active paragraph={{ rows: 5 }} title={false} />
+          ) : funnelData.length === 0 ? (
+            <p className="text-sm text-muted">
+              Chưa có dữ liệu trong khoảng thời gian đã chọn.
+            </p>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={funnelData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="stage" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="value" name="Số lượng" radius={[6, 6, 0, 0]}>
+                  {funnelData.map((_, index) => (
+                    <Cell
+                      key={`funnel-bar-${index}`}
+                      fill={FUNNEL_COLORS[index % FUNNEL_COLORS.length]}
+                    />
+                  ))}
+                  <LabelList dataKey="value" position="top" fontSize={12} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </Card>
+
+      {/* Department stats + Attention needed */}
       <div className="grid gap-4 lg:grid-cols-2">
+        {/* Department bar chart */}
         <Card className="border border-stroke bg-white shadow-sm">
           <h2 className="text-base font-semibold text-ink">
             Thống kê theo phòng ban
           </h2>
           <p className="text-sm text-muted">
-            Tổng task và task hoàn thành mỗi phòng ban
+            Task hoàn thành — nhãn % là tỉ lệ hoàn thành mỗi phòng ban
           </p>
           <div className="mt-6 h-72">
             {!hasDateRange ? (
@@ -580,7 +896,14 @@ export default function HRDashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={departmentStats}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="departmentName" />
+                  <XAxis
+                    dataKey="departmentName"
+                    tick={{ fontSize: 11 }}
+                    interval={0}
+                    angle={-15}
+                    textAnchor="end"
+                    height={50}
+                  />
                   <YAxis />
                   <Tooltip />
                   <Legend />
@@ -594,7 +917,121 @@ export default function HRDashboard() {
                     dataKey="completedTasks"
                     name="Hoàn thành"
                     fill="#0f766e"
-                    radius={[4, 4, 0, 0]}
+                    radius={[4, 4, 0, 0]}>
+                    <LabelList
+                      content={(props: any) => (
+                        <DeptCompletionLabel
+                          {...props}
+                          data={departmentStats}
+                        />
+                      )}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </Card>
+
+        {/* Attention needed panel */}
+        <Card className="border border-stroke bg-white shadow-sm">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <h2 className="text-base font-semibold text-ink">Cần chú ý</h2>
+          </div>
+          <p className="text-sm text-muted">
+            Onboarding đang hoạt động nhưng tiến độ dưới 30%
+          </p>
+          <div className="mt-4 space-y-2">
+            {!hasDateRange ? (
+              <p className="text-sm text-muted">
+                Chọn khoảng thời gian để xem.
+              </p>
+            ) : instancesLoading ? (
+              <Skeleton active paragraph={{ rows: 4 }} title={false} />
+            ) : attentionInstances.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-6 text-center">
+                <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+                <p className="text-sm font-medium text-ink">
+                  Tất cả onboarding đều ổn
+                </p>
+                <p className="text-xs text-muted">
+                  Không có onboarding nào dưới 30% tiến độ.
+                </p>
+              </div>
+            ) : (
+              <div className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
+                {attentionInstances.map((inst) => (
+                  <AttentionCard key={inst.id} inst={inst} />
+                ))}
+              </div>
+            )}
+          </div>
+          {attentionInstances.length > 0 && (
+            <div className="mt-3 border-t border-stroke pt-2">
+              <Link
+                to={AppRouters.ONBOARDING_EMPLOYEES}
+                className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
+                Xem tất cả nhân viên
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Survey Insights */}
+      <div className={`grid gap-4 ${surveyTimeTrendData.length > 0 ? "lg:grid-cols-2" : ""}`}>
+        {/* Survey Stage Trends */}
+        <Card className="border border-stroke bg-white shadow-sm">
+          <h2 className="text-base font-semibold text-ink">
+            Khảo sát theo giai đoạn onboarding
+          </h2>
+          <p className="text-sm text-muted">
+            Số phản hồi và điểm hài lòng trung bình theo từng giai đoạn
+          </p>
+          <div className="mt-4 h-64">
+            {surveyLoading ? (
+              <Skeleton active paragraph={{ rows: 5 }} title={false} />
+            ) : stageTrendData.length === 0 ? (
+              <p className="text-sm text-muted">
+                {hasDateRange
+                  ? "Chưa có dữ liệu khảo sát trong kỳ."
+                  : "Chọn khoảng thời gian để xem."}
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stageTrendData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="stage" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="left" orientation="left" />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    domain={[0, 5]}
+                    tickFormatter={(v) => v.toFixed(1)}
+                  />
+                  <Tooltip />
+                  <Legend />
+                  <Bar
+                    yAxisId="left"
+                    dataKey="Phản hồi"
+                    fill="#6366f1"
+                    radius={[4, 4, 0, 0]}>
+                    {stageTrendData.map((_, i) => (
+                      <Cell
+                        key={`stage-cell-${i}`}
+                        fill={SURVEY_COLORS[i % SURVEY_COLORS.length]}
+                      />
+                    ))}
+                  </Bar>
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="Điểm TB"
+                    stroke="#f59e0b"
+                    strokeWidth={2}
+                    dot={{ r: 4 }}
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -602,50 +1039,218 @@ export default function HRDashboard() {
           </div>
         </Card>
 
-        <Card className="border border-stroke bg-white shadow-sm">
-          <h2 className="text-base font-semibold text-ink">
-            Xu hướng onboarding
-          </h2>
-          <p className="text-sm text-muted">
-            Số lượng onboarding khởi tạo theo tháng
-          </p>
-          <div className="mt-6 h-72">
-            {instancesLoading ? (
-              <Skeleton active paragraph={{ rows: 5 }} title={false} />
-            ) : trendData.length === 0 ? (
-              <p className="text-sm text-muted">Không có dữ liệu xu hướng.</p>
-            ) : (
+        {/* Survey time trend */}
+        {surveyTimeTrendData.length > 0 && (
+          <Card className="border border-stroke bg-white shadow-sm">
+            <h2 className="text-base font-semibold text-ink">
+              Xu hướng khảo sát theo thời gian
+            </h2>
+            <p className="text-sm text-muted">
+              Số phản hồi và điểm hài lòng trung bình theo tháng
+            </p>
+            <div className="mt-4 h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trendData}>
+                <LineChart data={surveyTimeTrendData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="label" />
-                  <YAxis allowDecimals={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="left" orientation="left" />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    domain={[0, 5]}
+                    tickFormatter={(v) => v.toFixed(1)}
+                  />
                   <Tooltip />
+                  <Legend />
                   <Line
+                    yAxisId="left"
                     type="monotone"
-                    dataKey="value"
-                    name="Số onboarding"
-                    stroke="#2563eb"
+                    dataKey="Phản hồi"
+                    stroke="#6366f1"
                     strokeWidth={2}
+                    dot={{ r: 3 }}
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="Điểm TB"
+                    stroke="#f59e0b"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
                   />
                 </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        )}
+      </div>
+
+      {/* Team Overview */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Employee status stats */}
+        <Card className="border border-stroke bg-white shadow-sm">
+          <h2 className="text-base font-semibold text-ink">
+            Tổng quan nhân sự
+          </h2>
+          <p className="text-sm text-muted">
+            Tình trạng nhân viên trong hệ thống
+          </p>
+          {employeeLoading ? (
+            <Skeleton
+              active
+              paragraph={{ rows: 4 }}
+              title={false}
+              className="mt-4"
+            />
+          ) : (
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center justify-between rounded-lg border border-stroke bg-emerald-50/50 px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <span className="text-sm text-ink">Đang hoạt động</span>
+                </div>
+                <span className="text-base font-bold text-emerald-700">
+                  {activeEmployees}
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-stroke bg-gray-50 px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-muted" />
+                  <span className="text-sm text-ink">Không hoạt động</span>
+                </div>
+                <span className="text-base font-bold text-muted">
+                  {inactiveEmployees}
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-stroke bg-teal-50/50 px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="h-4 w-4 text-teal-600" />
+                  <span className="text-sm font-medium text-ink">
+                    Tổng cộng
+                  </span>
+                </div>
+                <span className="text-base font-bold text-teal-700">
+                  {employeeList.length}
+                </span>
+              </div>
+              <div className="mt-2 border-t border-stroke pt-2 text-right">
+                <Link
+                  to={AppRouters.ADMIN_USERS}
+                  className="flex items-center justify-end gap-1 text-xs font-medium text-blue-600 hover:underline">
+                  Quản lý nhân viên
+                  <ArrowRight className="h-3 w-3" />
+                </Link>
+              </div>
+            </div>
+          )}
+        </Card>
+
+        {/* Role breakdown chart */}
+        <Card className="border border-stroke bg-white shadow-sm lg:col-span-2">
+          <h2 className="text-base font-semibold text-ink">
+            Phân bổ theo vai trò
+          </h2>
+          <p className="text-sm text-muted">
+            Số lượng nhân viên theo từng role trong hệ thống
+          </p>
+          <div className="mt-4 h-60">
+            {employeeLoading ? (
+              <Skeleton active paragraph={{ rows: 4 }} title={false} />
+            ) : roleBreakdown.length === 0 ? (
+              <p className="text-sm text-muted">Không có dữ liệu.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={roleBreakdown}
+                  layout="vertical"
+                  margin={{ left: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" allowDecimals={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="role"
+                    tick={{ fontSize: 12 }}
+                    width={80}
+                  />
+                  <Tooltip />
+                  <Bar dataKey="count" name="Nhân viên" radius={[0, 4, 4, 0]}>
+                    {roleBreakdown.map((_, i) => (
+                      <Cell
+                        key={`role-cell-${i}`}
+                        fill={SURVEY_COLORS[i % SURVEY_COLORS.length]}
+                      />
+                    ))}
+                    <LabelList dataKey="count" position="right" fontSize={12} />
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             )}
           </div>
         </Card>
       </div>
 
+      {/* Onboarding Trend — full width */}
+      <Card className="border border-stroke bg-white shadow-sm">
+        <h2 className="text-base font-semibold text-ink">
+          Xu hướng onboarding
+        </h2>
+        <p className="text-sm text-muted">
+          Số lượng onboarding khởi tạo theo tháng
+        </p>
+        <div className="mt-6 h-64">
+          {instancesLoading ? (
+            <Skeleton active paragraph={{ rows: 5 }} title={false} />
+          ) : trendData.length === 0 ? (
+            <p className="text-sm text-muted">
+              {hasDateRange
+                ? "Không có dữ liệu xu hướng trong kỳ đã chọn."
+                : "Chọn khoảng thời gian để xem xu hướng."}
+            </p>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trendData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="label" />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  name="Số onboarding"
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  dot={{ r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </Card>
+
       {/* Recent Onboardings Table */}
       <Card className="border border-stroke bg-white shadow-sm">
-        <h2 className="text-base font-semibold text-ink">Onboarding gần đây</h2>
-        <p className="text-sm text-muted">
-          10 onboarding mới nhất trong khoảng thời gian đã chọn
-        </p>
-        <div className="mt-4 overflow-x-auto">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-ink">
+              Onboarding gần đây
+            </h2>
+            <p className="text-sm text-muted">
+              10 onboarding mới nhất trong kỳ đã chọn
+            </p>
+          </div>
+          <Link
+            to={AppRouters.ONBOARDING_EMPLOYEES}
+            className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
+            Xem tất cả
+            <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
+        <div className="overflow-x-auto">
           {instancesLoading ? (
             <Skeleton active paragraph={{ rows: 5 }} title={false} />
           ) : recentInstances.length === 0 ? (
-            <p className="text-sm text-muted py-4">
+            <p className="py-4 text-sm text-muted">
               {hasDateRange
                 ? "Không có onboarding nào trong khoảng thời gian đã chọn."
                 : "Chọn khoảng thời gian để xem danh sách."}
@@ -655,8 +1260,11 @@ export default function HRDashboard() {
               <thead>
                 <tr className="border-b border-stroke text-left text-xs font-semibold uppercase text-muted">
                   <th className="pb-3 pr-4">Nhân viên</th>
+                  <th className="pb-3 pr-4">Manager</th>
                   <th className="pb-3 pr-4">Ngày bắt đầu</th>
-                  <th className="pb-3">Trạng thái</th>
+                  <th className="pb-3 pr-4">Trạng thái</th>
+                  <th className="pb-3 pr-4">Tiến độ</th>
+                  <th className="pb-3" />
                 </tr>
               </thead>
               <tbody>
@@ -665,17 +1273,49 @@ export default function HRDashboard() {
                     key={inst.id}
                     className="border-b border-stroke/50 last:border-0">
                     <td className="py-3 pr-4 font-medium text-ink">
-                      {inst.employeeId ?? "—"}
+                      {inst.employeeName || inst.employeeId || "—"}
+                    </td>
+                    <td className="py-3 pr-4 text-muted">
+                      <AntTooltip title={inst.managerName ?? undefined}>
+                        <span className="max-w-[120px] truncate block">
+                          {inst.managerName ?? "—"}
+                        </span>
+                      </AntTooltip>
                     </td>
                     <td className="py-3 pr-4 text-muted">
                       {inst.startDate
                         ? dayjs(inst.startDate).format("DD/MM/YYYY")
                         : "—"}
                     </td>
-                    <td className="py-3">
+                    <td className="py-3 pr-4">
                       <Tag color={instanceStatusColor(inst.status)}>
                         {inst.status ?? "—"}
                       </Tag>
+                    </td>
+                    <td className="py-3 pr-4 min-w-[100px]">
+                      <Progress
+                        percent={inst.progress ?? 0}
+                        size="small"
+                        showInfo={false}
+                        strokeColor={
+                          (inst.progress ?? 0) >= 70
+                            ? "#0f766e"
+                            : (inst.progress ?? 0) >= 30
+                              ? "#2563eb"
+                              : "#f59e0b"
+                        }
+                      />
+                      <span className="text-xs text-muted">
+                        {inst.progress ?? 0}%
+                      </span>
+                    </td>
+                    <td className="py-3 text-right">
+                      <Link
+                        to={`${AppRouters.ONBOARDING_EMPLOYEES}/${inst.id}`}
+                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                        Chi tiết
+                        <ArrowRight className="h-3 w-3" />
+                      </Link>
                     </td>
                   </tr>
                 ))}
