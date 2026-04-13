@@ -1,7 +1,7 @@
 import { Drawer, Form, DatePicker } from "antd";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import dayjs, { type Dayjs } from "dayjs";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import BaseButton from "@/components/button";
 import BaseSelect from "@core/components/Select/BaseSelect";
@@ -39,11 +39,29 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
     SelectedOnboardingItem[]
   >([]);
 
-  const { data: templatesRaw, isLoading: isTemplatesLoading } = useQuery({
+  const {
+    data: templatesRaw,
+    isLoading: isTemplatesLoading,
+    refetch: refetchTemplates,
+  } = useQuery({
     queryKey: ["survey-templates-for-send"],
     queryFn: () => apiListSurveyTemplates(),
     enabled: open,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: false,
   });
+
+  useEffect(() => {
+    if (open) {
+      queryClient.removeQueries({
+        queryKey: ["survey-templates-for-send"],
+        exact: true,
+      });
+      refetchTemplates();
+    }
+  }, [open, queryClient, refetchTemplates]);
 
   const templates = extractList<SurveyTemplateSummary>(
     templatesRaw,
@@ -68,6 +86,7 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
 
     return stage === "CUSTOM" && status === "ACTIVE";
   });
+
   const templateOptions = manualTemplates.map((template) => ({
     value: template.templateId,
     label: template.name,
@@ -102,49 +121,36 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
       ) {
         throw new Error("Vui lòng chọn onboarding");
       }
+      const buildScheduledAt = (value?: Dayjs) => {
+        if (!value) return undefined;
 
+        const now = dayjs();
+
+        if (value.isSame(now, "day")) {
+          return now.toISOString();
+        }
+
+        return value.startOf("day").toISOString();
+      };
       const results = await Promise.allSettled(
-        values.selectedOnboardings.flatMap((item) => {
-          const payloads = [];
+        values.selectedOnboardings.map((item) => {
           const rawRole = selectedTemplate.targetRole;
           const role =
             rawRole === "EMPLOYEE" || rawRole === "MANAGER"
               ? rawRole
               : "EMPLOYEE";
 
-          if (role === "EMPLOYEE") {
-            if (!item.employeeUserId) {
-              throw new Error("Employee user not found");
-            }
-
-            payloads.push(
-              apiScheduleSurvey({
-                onboardingId: item.onboardingId,
-                templateId: values.templateId,
-                scheduledAt: values.scheduledAt?.toISOString(),
-                responderUserId: item.employeeUserId,
-                targetRole: "EMPLOYEE",
-              }),
-            );
+          if (!item.employeeUserId) {
+            throw new Error("Employee user not found");
           }
 
-          if (role === "MANAGER") {
-            if (!item.managerUserId) {
-              throw new Error("Manager user not found");
-            }
-
-            payloads.push(
-              apiScheduleSurvey({
-                onboardingId: item.onboardingId,
-                templateId: values.templateId,
-                scheduledAt: values.scheduledAt?.toISOString(),
-                responderUserId: item.managerUserId,
-                targetRole: "MANAGER",
-              }),
-            );
-          }
-
-          return payloads;
+          return apiScheduleSurvey({
+            onboardingId: item.onboardingId,
+            templateId: values.templateId,
+            scheduledAt: buildScheduledAt(values.scheduledAt),
+            responderUserId: item.employeeUserId,
+            targetRole: role,
+          });
         }),
       );
 
@@ -202,9 +208,13 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
       form.resetFields();
       setSelectedOnboardings([]);
 
-      await queryClient.invalidateQueries({
-        queryKey: ["survey-instances"],
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["survey-instances"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["survey-templates-for-send"],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["survey-templates"] }),
+      ]);
 
       onClose();
     },
@@ -342,6 +352,10 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
                         {item.startDate
                           ? dayjs(item.startDate).format("DD-MM-YYYY")
                           : "-"}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {t("survey.send.manager_column")}:{" "}
+                        {item.managerName || "-"}
                       </div>
                     </div>
                   ))}
