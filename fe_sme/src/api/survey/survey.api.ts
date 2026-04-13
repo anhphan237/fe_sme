@@ -200,3 +200,9 @@ export const apiSaveSurveyDraft = (payload: {
     "com.sme.survey.response.saveDraft",
     payload,
   );
+
+  export const apiDeleteSurveyTemplate = (payload: { templateId: string }) =>
+  gatewayRequest<typeof payload, unknown>(
+    "com.sme.survey.template.delete",
+    payload,
+  );
