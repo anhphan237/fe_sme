@@ -540,11 +540,12 @@ export interface PlatformMonitoringMetricsResponse {
 // Platform Analytics Dashboard (admin.md APIs)
 // ============================================================
 
-// Shared
-export interface TrendPoint {
-  period: string;
+// Shared trend item (matched to BE TrendItem DTO)
+export interface TrendItem {
+  bucket: string;
   value: number;
   previousValue?: number;
+  growthRate?: number | null;
 }
 
 // ---------------------------
@@ -556,28 +557,22 @@ export interface PlatformDashboardOverviewRequest {
   startDate: string;
   endDate: string;
   groupBy?: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
-  comparePrevious?: boolean;
 }
 
 export interface PlatformDashboardOverviewResponse {
+  startDate: string;
+  endDate: string;
+  groupBy: string;
   totalCompanies: number;
-  activeCompanies: number;
-  newCompanies: number;
-  suspendedCompanies: number;
-  growthRate: number | null;
+  companyGrowthRate: number | null;
   mrr: number;
-  arr: number;
-  totalRevenue: number;
-  activeSubscriptions: number;
-  newSubscriptions: number;
-  churnRate: number | null;
-  totalOnboardings: number;
-  completedOnboardings: number;
-  completionRate: number | null;
-  // comparison with previous period (when comparePrevious=true)
-  previousTotalCompanies?: number;
-  previousMrr?: number;
-  previousActiveSubscriptions?: number;
+  mrrGrowthRate: number | null;
+  activeOnboardings: number;
+  activeOnboardingsGrowthRate: number | null;
+  riskOnboardings: number;
+  riskOnboardingsGrowthRate: number | null;
+  totalEmployees: number;
+  employeeGrowthRate: number | null;
 }
 
 // ---------------------------
@@ -589,12 +584,13 @@ export interface PlatformCompanyTrendRequest {
   startDate: string;
   endDate: string;
   groupBy?: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
-  comparePrevious?: boolean;
-  status?: string;
 }
 
 export interface PlatformCompanyTrendResponse {
-  data: TrendPoint[];
+  startDate: string;
+  endDate: string;
+  groupBy: string;
+  items: TrendItem[];
 }
 
 // ---------------------------
@@ -606,11 +602,13 @@ export interface PlatformRevenueTrendRequest {
   startDate: string;
   endDate: string;
   groupBy?: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
-  comparePrevious?: boolean;
 }
 
 export interface PlatformRevenueTrendResponse {
-  data: TrendPoint[];
+  startDate: string;
+  endDate: string;
+  groupBy: string;
+  items: TrendItem[];
 }
 
 // ---------------------------
@@ -622,11 +620,10 @@ export interface PlatformPlanTrendRequest {
   startDate: string;
   endDate: string;
   groupBy?: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
-  comparePrevious?: boolean;
 }
 
 export interface PlatformPlanTrendPoint {
-  period: string;
+  bucket: string;
   planCode: string;
   planName: string;
   count: number;
@@ -664,11 +661,13 @@ export interface PlatformEmployeeTrendRequest {
   startDate: string;
   endDate: string;
   groupBy?: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
-  comparePrevious?: boolean;
 }
 
 export interface PlatformEmployeeTrendResponse {
-  data: TrendPoint[];
+  startDate: string;
+  endDate: string;
+  groupBy: string;
+  items: TrendItem[];
 }
 
 // ---------------------------
@@ -730,11 +729,23 @@ export interface PlatformOnboardingTrendRequest {
   startDate: string;
   endDate: string;
   groupBy?: "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
-  comparePrevious?: boolean;
+}
+
+export interface PlatformOnboardingTrendItem {
+  bucket: string;
+  total: number;
+  active: number;
+  completed: number;
+  risk: number;
+  previousTotal?: number;
+  growthRate?: number | null;
 }
 
 export interface PlatformOnboardingTrendResponse {
-  data: TrendPoint[];
+  startDate: string;
+  endDate: string;
+  groupBy: string;
+  items: PlatformOnboardingTrendItem[];
 }
 
 // ---------------------------
@@ -747,19 +758,18 @@ export interface PlatformRiskDashboardRequest {
   endDate: string;
 }
 
-export interface RiskItem {
+export interface LowCompletionCompanyItem {
   companyId: string;
   companyName: string;
-  riskType: string;
-  severity: "HIGH" | "MEDIUM" | "LOW";
-  description: string;
-  detectedAt: string;
+  completionRate: number;
 }
 
 export interface PlatformRiskDashboardResponse {
-  items: RiskItem[];
-  total: number;
-  highRiskCount: number;
-  mediumRiskCount: number;
-  lowRiskCount: number;
+  riskOnboardings: number;
+  failedPayments: number;
+  suspendedCompanies: number;
+  companiesNearPlanLimit: number;
+  expiringSubscriptions: number;
+  lowCompletionCompanies: number;
+  lowCompletionCompanyItems: LowCompletionCompanyItem[];
 }

@@ -31,6 +31,11 @@ import type {
   PlatformSubscriptionAnalyticsRequest,
   PlatformUsageAnalyticsRequest,
   PlatformAdminAuditLogRequest,
+  PlatformDashboardOverviewRequest,
+  PlatformRiskDashboardRequest,
+  PlatformRevenueTrendRequest,
+  PlatformCompanyTrendRequest,
+  PlatformOnboardingTrendRequest,
 } from "@/interface/platform";
 
 // ── Platform Analytics ─────────────────────────────────────────
@@ -338,4 +343,53 @@ export const apiGetPlatformMonitoringMetrics = () =>
   gatewayRequest<Record<string, never>, unknown>(
     "com.sme.platform.monitoring.metrics",
     {},
+  );
+
+// ── Dashboard (Overview + Risk) ─────────────────────────────────
+
+/** com.sme.platform.dashboard.overview */
+export const apiGetPlatformDashboardOverview = (
+  payload: PlatformDashboardOverviewRequest,
+) =>
+  gatewayRequest<PlatformDashboardOverviewRequest, unknown>(
+    "com.sme.platform.dashboard.overview",
+    payload,
+  );
+
+/** com.sme.platform.dashboard.risk */
+export const apiGetPlatformRiskDashboard = (
+  payload: PlatformRiskDashboardRequest,
+) =>
+  gatewayRequest<PlatformRiskDashboardRequest, unknown>(
+    "com.sme.platform.dashboard.risk",
+    payload,
+  );
+
+// ── Trend Analytics ─────────────────────────────────────────────
+
+/** com.sme.platform.analytics.revenue.trend */
+export const apiGetPlatformRevenueTrend = (
+  payload: PlatformRevenueTrendRequest,
+) =>
+  gatewayRequest<PlatformRevenueTrendRequest, unknown>(
+    "com.sme.platform.analytics.revenue.trend",
+    payload,
+  );
+
+/** com.sme.platform.analytics.company.trend */
+export const apiGetPlatformCompanyTrend = (
+  payload: PlatformCompanyTrendRequest,
+) =>
+  gatewayRequest<PlatformCompanyTrendRequest, unknown>(
+    "com.sme.platform.analytics.company.trend",
+    payload,
+  );
+
+/** com.sme.platform.analytics.onboarding.trend */
+export const apiGetPlatformOnboardingTrend = (
+  payload: PlatformOnboardingTrendRequest,
+) =>
+  gatewayRequest<PlatformOnboardingTrendRequest, unknown>(
+    "com.sme.platform.analytics.onboarding.trend",
+    payload,
   );
