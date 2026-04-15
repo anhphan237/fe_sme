@@ -1,7 +1,7 @@
 import { Modal, Input, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import dayjs from "dayjs";
 
 import BaseButton from "@/components/button";
@@ -53,16 +53,12 @@ const SelectOnboardingModal = ({
   onConfirm,
 }: Props) => {
   const { t } = useLocale();
+
+  // Modal đang được mount/unmount theo selectModalOpen,
+  // nên init state từ props là đủ, không cần useEffect setState.
   const [keyword, setKeyword] = useState("");
   const [localSelectedIds, setLocalSelectedIds] =
     useState<string[]>(selectedIds);
-
-  useEffect(() => {
-    if (open) {
-      setLocalSelectedIds(selectedIds);
-      setKeyword("");
-    }
-  }, [open, selectedIds]);
 
   const { data: onboardingRaw, isLoading: isOnboardingLoading } = useQuery({
     queryKey: ["onboarding-instances-for-survey-select"],
@@ -99,38 +95,44 @@ const SelectOnboardingModal = ({
   );
 
   const rows = useMemo<SelectedOnboardingItem[]>(() => {
-    const mapped = onboardingInstances.map((item) => {
-      const employee = item.employeeUserId
-        ? userMap.get(item.employeeUserId)
-        : undefined;
+    const result: SelectedOnboardingItem[] = [];
 
-      if (targetRole === "MANAGER") {
-        if (!managerUser?.userId) {
-          return null;
-        }
-
-        const row: SelectedOnboardingItem = {
-          onboardingId: item.instanceId,
-          instanceId: item.instanceId,
-          employeeUserId: item.employeeUserId ?? null,
-          managerUserId: managerUser.userId,
-          recipientUserId: managerUser.userId,
-          recipientRole: "MANAGER",
-          employeeName: managerUser.fullName || "Manager",
-          email: managerUser.email ?? null,
-          managerName: managerUser.fullName || "Manager",
-          startDate: item.startDate ?? null,
-          status: item.status ?? null,
-        };
-
-        return row;
+    if (targetRole === "MANAGER") {
+      // Công ty nhỏ chỉ có 1 manager -> chỉ hiện 1 dòng duy nhất
+      if (!managerUser?.userId) {
+        return result;
       }
 
-      if (!item.employeeUserId) {
-        return null;
+      const firstOnboarding = onboardingInstances[0];
+      if (!firstOnboarding?.instanceId) {
+        return result;
       }
 
-      const row: SelectedOnboardingItem = {
+      result.push({
+        onboardingId: managerUser.userId,
+        instanceId: firstOnboarding.instanceId,
+        employeeUserId: firstOnboarding.employeeUserId ?? null,
+        managerUserId: managerUser.userId,
+        recipientUserId: managerUser.userId,
+        recipientRole: "MANAGER",
+        employeeName: managerUser.fullName || "Manager",
+        email: managerUser.email ?? null,
+        managerName: managerUser.fullName || "Manager",
+        startDate: firstOnboarding.startDate ?? null,
+        status: firstOnboarding.status ?? null,
+      });
+
+      return result;
+    }
+
+    onboardingInstances.forEach((item) => {
+      if (!item.instanceId || !item.employeeUserId) {
+        return;
+      }
+
+      const employee = userMap.get(item.employeeUserId);
+
+      result.push({
         onboardingId: item.instanceId,
         instanceId: item.instanceId,
         employeeUserId: item.employeeUserId,
@@ -146,14 +148,10 @@ const SelectOnboardingModal = ({
         managerName: managerUser?.fullName ?? "Manager",
         startDate: item.startDate ?? null,
         status: item.status ?? null,
-      };
-
-      return row;
+      });
     });
 
-    return mapped.filter(
-      (item): item is SelectedOnboardingItem => item !== null,
-    );
+    return result;
   }, [onboardingInstances, userMap, managerUser, targetRole]);
 
   const normalizedKeyword = keyword.trim().toLowerCase();
