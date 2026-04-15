@@ -1,6 +1,19 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Card, Skeleton, Tabs, Button, Modal, notification } from "antd";
+import {
+  Card,
+  Skeleton,
+  Tabs,
+  Button,
+  Modal,
+  notification,
+  Select,
+  Input,
+  Divider,
+  Tag,
+} from "antd";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import dayjs from "dayjs";
 import {
   ArrowLeft,
   Building2,
@@ -12,6 +25,16 @@ import {
   PowerOff,
   Power,
   Trash2,
+  AlertTriangle,
+  RefreshCw,
+  Users,
+  CreditCard,
+  Calendar,
+  MapPin,
+  Hash,
+  FileText,
+  RotateCcw,
+  CalendarDays,
 } from "lucide-react";
 import {
   BarChart,
@@ -28,9 +51,14 @@ import {
 } from "recharts";
 import {
   apiGetPlatformCompanyDetail,
+  apiGetPlatformSubscriptionDetail,
   apiActivateCompany,
   apiDeactivateCompany,
   apiDeleteCompany,
+  apiSuspendCompany,
+  apiChangePlanCompany,
+  apiGetSubscriptionHistory,
+  apiGetPlatformPlanList,
 } from "@/api/platform/platform.api";
 import {
   apiGetCompanyOnboardingFunnel,
@@ -38,25 +66,83 @@ import {
   apiGetCompanyTaskCompletion,
 } from "@/api/admin/admin.api";
 import { useLocale } from "@/i18n";
-import type { PlatformCompanyDetailResponse } from "@/interface/platform";
+import type {
+  PlatformCompanyDetailResponse,
+  PlatformSubscriptionDetailResponse,
+  PlatformSubscriptionHistoryResponse,
+  PlatformPlanListResponse,
+} from "@/interface/platform";
 import type {
   CompanyOnboardingFunnelResponse,
   CompanyOnboardingByDepartmentResponse,
   CompanyTaskCompletionResponse,
 } from "@/interface/admin";
 
-const STATUS_COLOR: Record<string, string> = {
-  ACTIVE: "bg-green-100 text-green-700",
-  TRIAL: "bg-yellow-100 text-yellow-700",
-  SUSPENDED: "bg-red-100 text-red-700",
+// ── Status maps ──────────────────────────────────────────────────
+
+const COMPANY_STATUS_STYLE: Record<
+  string,
+  { bg: string; text: string; ring: string; dot: string }
+> = {
+  ACTIVE: {
+    bg: "bg-emerald-50",
+    text: "text-emerald-700",
+    ring: "ring-emerald-200",
+    dot: "bg-emerald-500",
+  },
+  TRIAL: {
+    bg: "bg-amber-50",
+    text: "text-amber-700",
+    ring: "ring-amber-200",
+    dot: "bg-amber-400",
+  },
+  SUSPENDED: {
+    bg: "bg-red-50",
+    text: "text-red-700",
+    ring: "ring-red-200",
+    dot: "bg-red-500",
+  },
+  INACTIVE: {
+    bg: "bg-slate-100",
+    text: "text-slate-500",
+    ring: "ring-slate-200",
+    dot: "bg-slate-400",
+  },
+};
+
+const SUB_STATUS_STYLE: Record<string, { bg: string; text: string }> = {
+  ACTIVE: { bg: "bg-emerald-50", text: "text-emerald-700" },
+  TRIAL: { bg: "bg-amber-50", text: "text-amber-700" },
+  PAST_DUE: { bg: "bg-orange-50", text: "text-orange-700" },
+  EXPIRED: { bg: "bg-red-50", text: "text-red-700" },
+  CANCELLED: { bg: "bg-slate-100", text: "text-slate-500" },
+  SUSPENDED: { bg: "bg-rose-50", text: "text-rose-700" },
+};
+
+// i18n key maps for status enums
+const COMPANY_STATUS_I18N: Record<string, string> = {
+  ACTIVE: "platform.companies.status_active",
+  TRIAL: "platform.companies.status_trial",
+  SUSPENDED: "platform.companies.status_suspended",
+  INACTIVE: "platform.companies.status_inactive",
+};
+
+const SUB_STATUS_I18N: Record<string, string> = {
+  ACTIVE: "platform.subscriptions.status_active",
+  TRIAL: "platform.subscriptions.status_trial",
+  PAST_DUE: "platform.subscriptions.status_past_due",
+  CANCELLED: "platform.subscriptions.status_cancelled",
+  SUSPENDED: "platform.subscriptions.status_suspended",
+  EXPIRED: "platform.subscriptions.status_expired",
 };
 
 const PIE_COLORS = ["#6366f1", "#22c55e", "#ef4444", "#94a3b8"];
-
 const TODAY = new Date().toISOString().slice(0, 10);
 const START_DEFAULT = new Date(Date.now() - 90 * 86400000)
   .toISOString()
   .slice(0, 10);
+
+// ── Hooks ────────────────────────────────────────────────────────
 
 const useCompanyDetail = (companyId: string) =>
   useQuery({
@@ -64,6 +150,16 @@ const useCompanyDetail = (companyId: string) =>
     queryFn: () => apiGetPlatformCompanyDetail({ companyId }),
     select: (res: any) => (res?.data ?? res) as PlatformCompanyDetailResponse,
     enabled: !!companyId,
+  });
+
+const useSubscriptionDetail = (subscriptionId?: string) =>
+  useQuery({
+    queryKey: ["platform-subscription-detail", subscriptionId],
+    queryFn: () =>
+      apiGetPlatformSubscriptionDetail({ subscriptionId: subscriptionId! }),
+    select: (res: any) =>
+      (res?.data ?? res) as PlatformSubscriptionDetailResponse,
+    enabled: !!subscriptionId,
   });
 
 const useCompanyFunnel = (companyId: string) =>
@@ -106,6 +202,25 @@ const useCompanyTaskCompletion = (companyId: string) =>
     enabled: !!companyId,
   });
 
+const useSubscriptionHistory = (subscriptionId?: string) =>
+  useQuery({
+    queryKey: ["subscription-history", subscriptionId],
+    queryFn: () =>
+      apiGetSubscriptionHistory({ subscriptionId: subscriptionId! }),
+    select: (res: any) =>
+      (res?.data ?? res) as PlatformSubscriptionHistoryResponse,
+    enabled: !!subscriptionId,
+  });
+
+const usePlanList = () =>
+  useQuery({
+    queryKey: ["platform-plan-list"],
+    queryFn: () => apiGetPlatformPlanList({}),
+    select: (res: any) => (res?.data ?? res) as PlatformPlanListResponse,
+  });
+
+// ── Sub-components ───────────────────────────────────────────────
+
 const KpiCard = ({
   icon: Icon,
   label,
@@ -117,16 +232,38 @@ const KpiCard = ({
   value: string | number;
   color: string;
 }) => (
-  <Card>
-    <div className="flex items-center justify-between">
-      <div className={`rounded-xl p-2.5 ${color}`}>
-        <Icon className="h-5 w-5 text-white" />
-      </div>
+  <Card className="hover:shadow-md transition-shadow">
+    <div className={`mb-3 inline-flex rounded-xl p-2.5 ${color}`}>
+      <Icon className="h-5 w-5 text-white" />
     </div>
-    <p className="mt-3 text-2xl font-bold text-slate-800">{value}</p>
+    <p className="text-2xl font-bold text-slate-800">{value}</p>
     <p className="mt-0.5 text-sm text-slate-500">{label}</p>
   </Card>
 );
+
+const InfoRow = ({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon?: any;
+  label: string;
+  children: React.ReactNode;
+}) => (
+  <div className="flex items-start gap-3">
+    {Icon && (
+      <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100">
+        <Icon className="h-3.5 w-3.5 text-slate-500" />
+      </div>
+    )}
+    <div className="min-w-0 flex-1">
+      <p className="text-xs font-medium text-slate-400">{label}</p>
+      <div className="mt-0.5 text-sm font-medium text-slate-800">{children}</div>
+    </div>
+  </div>
+);
+
+// ── Main Component ───────────────────────────────────────────────
 
 const CompanyDetail = () => {
   const { companyId } = useParams<{ companyId: string }>();
@@ -134,10 +271,37 @@ const CompanyDetail = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  const [suspendModalOpen, setSuspendModalOpen] = useState(false);
+  const [suspendReason, setSuspendReason] = useState("");
+  const [changePlanOpen, setChangePlanOpen] = useState(false);
+  const [changePlanData, setChangePlanData] = useState({
+    newPlanId: "",
+    billingCycle: "MONTHLY",
+    note: "",
+  });
+
   const { data: company, isLoading, isError } = useCompanyDetail(companyId!);
+  const { data: subDetail } = useSubscriptionDetail(company?.subscriptionId);
   const { data: funnel } = useCompanyFunnel(companyId!);
   const { data: deptData } = useCompanyDepartments(companyId!);
   const { data: taskCompletion } = useCompanyTaskCompletion(companyId!);
+  const { data: subHistory, isLoading: subHistoryLoading } =
+    useSubscriptionHistory(company?.subscriptionId);
+  const { data: planList } = usePlanList();
+
+  // Helpers
+  const tCompanyStatus = (s?: string) =>
+    s ? t(COMPANY_STATUS_I18N[s] ?? s) : "—";
+  const tSubStatus = (s?: string) => (s ? t(SUB_STATUS_I18N[s] ?? s) : "—");
+
+  const invalidateCompany = () => {
+    queryClient.invalidateQueries({
+      queryKey: ["platform-company-detail", companyId],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["platform-subscription-detail", company?.subscriptionId],
+    });
+  };
 
   const activateMutation = useMutation({
     mutationFn: () => apiActivateCompany({ companyId: companyId! }),
@@ -145,9 +309,7 @@ const CompanyDetail = () => {
       notification.success({
         message: t("platform.company_detail.activate_success"),
       });
-      queryClient.invalidateQueries({
-        queryKey: ["platform-company-detail", companyId],
-      });
+      invalidateCompany();
     },
     onError: () =>
       notification.error({
@@ -161,13 +323,54 @@ const CompanyDetail = () => {
       notification.success({
         message: t("platform.company_detail.deactivate_success"),
       });
-      queryClient.invalidateQueries({
-        queryKey: ["platform-company-detail", companyId],
-      });
+      invalidateCompany();
     },
     onError: () =>
       notification.error({
         message: t("platform.company_detail.deactivate_error"),
+      }),
+  });
+
+  const suspendMutation = useMutation({
+    mutationFn: () =>
+      apiSuspendCompany({ companyId: companyId!, reason: suspendReason }),
+    onSuccess: () => {
+      notification.success({
+        message: t("platform.company_detail.suspend_success"),
+      });
+      setSuspendModalOpen(false);
+      setSuspendReason("");
+      invalidateCompany();
+    },
+    onError: () =>
+      notification.error({
+        message: t("platform.company_detail.suspend_error"),
+      }),
+  });
+
+  const changePlanMutation = useMutation({
+    mutationFn: () =>
+      apiChangePlanCompany({
+        companyId: companyId!,
+        subscriptionId: company!.subscriptionId,
+        newPlanId: changePlanData.newPlanId,
+        billingCycle: changePlanData.billingCycle,
+        note: changePlanData.note,
+      }),
+    onSuccess: () => {
+      notification.success({
+        message: t("platform.company_detail.change_plan_success"),
+      });
+      setChangePlanOpen(false);
+      setChangePlanData({ newPlanId: "", billingCycle: "MONTHLY", note: "" });
+      invalidateCompany();
+      queryClient.invalidateQueries({
+        queryKey: ["subscription-history", company?.subscriptionId],
+      });
+    },
+    onError: () =>
+      notification.error({
+        message: t("platform.company_detail.change_plan_error"),
       }),
   });
 
@@ -214,6 +417,12 @@ const CompanyDetail = () => {
     : [];
 
   const departments = deptData?.departments ?? [];
+  const statusStyle =
+    COMPANY_STATUS_STYLE[company?.status ?? ""] ??
+    COMPANY_STATUS_STYLE.INACTIVE;
+  const subStyle =
+    SUB_STATUS_STYLE[company?.subscriptionStatus ?? ""] ??
+    SUB_STATUS_STYLE.CANCELLED;
 
   if (isError) {
     return (
@@ -232,74 +441,96 @@ const CompanyDetail = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Back + Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate("/platform/admin/companies")}
-          className="flex items-center gap-1.5 rounded-xl border border-stroke px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-          <ArrowLeft className="h-4 w-4" />
-          {t("global.back")}
-        </button>
-      </div>
+    <div className="space-y-5">
+      {/* ── Back ── */}
+      <button
+        onClick={() => navigate("/platform/admin/companies")}
+        className="flex items-center gap-1.5 rounded-xl border border-stroke px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+        <ArrowLeft className="h-4 w-4" />
+        {t("global.back")}
+      </button>
 
-      {/* Company header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100">
-            <Building2 className="h-7 w-7 text-violet-600" />
-          </div>
-          {isLoading ? (
-            <Skeleton active paragraph={{ rows: 1 }} title={{ width: 200 }} />
-          ) : (
-            <div>
-              <h1 className="text-2xl font-semibold text-slate-800">
-                {company?.name}
-              </h1>
-              <div className="mt-1 flex items-center gap-3 text-sm text-slate-500">
-                <span>{company?.planName ?? company?.planCode}</span>
-                <span>·</span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[company?.status ?? ""] ?? "bg-slate-100 text-slate-600"}`}>
-                  {company?.status}
-                </span>
+      {/* ── Hero Card ── */}
+      <Card className="overflow-hidden">
+        {/* violet top accent bar */}
+        <div className="-mx-6 -mt-6 mb-5 h-1.5 bg-gradient-to-r from-violet-500 to-indigo-400" />
+        {isLoading ? (
+          <Skeleton active avatar={{ size: 56 }} paragraph={{ rows: 2 }} />
+        ) : (
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            {/* Identity */}
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-violet-100 ring-4 ring-violet-50">
+                <Building2 className="h-7 w-7 text-violet-600" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xl font-bold text-slate-800">
+                    {company?.name}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${statusStyle.bg} ${statusStyle.text} ${statusStyle.ring}`}>
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${statusStyle.dot}`}
+                    />
+                    {tCompanyStatus(company?.status)}
+                  </span>
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
+                  <span className="flex items-center gap-1">
+                    <Hash className="h-3.5 w-3.5" />
+                    <span className="font-mono text-xs">{companyId}</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Calendar className="h-3.5 w-3.5" />
+                    {company?.createdAt
+                      ? dayjs(company.createdAt).format("DD MMM YYYY")
+                      : "—"}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Users className="h-3.5 w-3.5" />
+                    {company?.userCount ?? 0}{" "}
+                    {t("platform.company_detail.users")}
+                  </span>
+                </div>
               </div>
             </div>
-          )}
-        </div>
-        {!isLoading && company && (
-          <div className="flex flex-col items-end gap-3">
-            <div className="text-right text-sm text-slate-400">
-              <p>
-                {t("platform.company_detail.plan")}:{" "}
-                <span className="font-medium text-slate-700">
-                  {company.planCode}
-                </span>
-              </p>
-              <p>
-                {t("platform.company_detail.users")}:{" "}
-                <span className="font-medium text-slate-700">
-                  {company.userCount}
-                </span>
-              </p>
-            </div>
-            {/* Action buttons */}
-            <div className="flex items-center gap-2">
-              {(company.status === "INACTIVE" ||
-                company.status === "SUSPENDED") && (
+
+            {/* Actions */}
+            <div className="flex flex-wrap items-center gap-2">
+              {(company?.status === "INACTIVE" ||
+                company?.status === "SUSPENDED") && (
                 <Button
+                  type="default"
                   icon={<Power className="h-3.5 w-3.5" />}
                   loading={activateMutation.isPending}
                   onClick={() => activateMutation.mutate()}>
                   {t("platform.company_detail.activate")}
                 </Button>
               )}
-              {company.status === "ACTIVE" && (
+              {company?.status === "ACTIVE" && (
+                <>
+                  <Button
+                    icon={<AlertTriangle className="h-3.5 w-3.5" />}
+                    loading={suspendMutation.isPending}
+                    onClick={() => setSuspendModalOpen(true)}>
+                    {t("platform.company_detail.suspend")}
+                  </Button>
+                  <Button
+                    icon={<PowerOff className="h-3.5 w-3.5" />}
+                    loading={deactivateMutation.isPending}
+                    onClick={() => deactivateMutation.mutate()}>
+                    {t("platform.company_detail.deactivate")}
+                  </Button>
+                </>
+              )}
+              {company?.subscriptionId && (
                 <Button
-                  icon={<PowerOff className="h-3.5 w-3.5" />}
-                  loading={deactivateMutation.isPending}
-                  onClick={() => deactivateMutation.mutate()}>
-                  {t("platform.company_detail.deactivate")}
+                  type="primary"
+                  ghost
+                  icon={<RefreshCw className="h-3.5 w-3.5" />}
+                  onClick={() => setChangePlanOpen(true)}>
+                  {t("platform.company_detail.change_plan")}
                 </Button>
               )}
               <Button
@@ -312,9 +543,128 @@ const CompanyDetail = () => {
             </div>
           </div>
         )}
+      </Card>
+
+      {/* ── Two-column info grid ── */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        {/* Company Info */}
+        <Card>
+          <div className="mb-4 flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100">
+              <Building2 className="h-4 w-4 text-violet-600" />
+            </div>
+            <p className="text-sm font-semibold text-slate-700">
+              {t("platform.company_detail.section_company")}
+            </p>
+          </div>
+          {isLoading ? (
+            <Skeleton active paragraph={{ rows: 4 }} title={false} />
+          ) : (
+            <div className="space-y-4">
+              <InfoRow icon={Hash} label={t("platform.company_detail.company_id")}>
+                <span className="font-mono text-xs text-slate-600">
+                  {companyId}
+                </span>
+              </InfoRow>
+              {company?.taxCode && (
+                <InfoRow icon={FileText} label={t("platform.company_detail.tax_code")}>
+                  {company.taxCode}
+                </InfoRow>
+              )}
+              {company?.address && (
+                <InfoRow icon={MapPin} label={t("platform.company_detail.address")}>
+                  {company.address}
+                </InfoRow>
+              )}
+              <InfoRow icon={Users} label={t("platform.company_detail.user_count")}>
+                <span className="text-base font-bold text-violet-600">
+                  {company?.userCount ?? 0}
+                </span>
+              </InfoRow>
+              <InfoRow icon={Calendar} label={t("platform.company_detail.registered")}>
+                {company?.createdAt
+                  ? dayjs(company.createdAt).format("DD MMM YYYY")
+                  : "—"}
+              </InfoRow>
+            </div>
+          )}
+        </Card>
+
+        {/* Subscription Info */}
+        <Card>
+          <div className="mb-4 flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100">
+              <CreditCard className="h-4 w-4 text-indigo-600" />
+            </div>
+            <p className="text-sm font-semibold text-slate-700">
+              {t("platform.company_detail.section_subscription")}
+            </p>
+          </div>
+          {isLoading ? (
+            <Skeleton active paragraph={{ rows: 4 }} title={false} />
+          ) : company?.subscriptionId ? (
+            <div className="space-y-4">
+              <InfoRow icon={CreditCard} label={t("platform.company_detail.plan")}>
+                <span className="font-semibold text-slate-800">
+                  {company.planName ?? company.planCode ?? "—"}
+                </span>
+              </InfoRow>
+              <InfoRow
+                icon={CheckCircle2}
+                label={t("platform.company_detail.subscription_status")}>
+                <span
+                  className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${subStyle.bg} ${subStyle.text}`}>
+                  {tSubStatus(company.subscriptionStatus)}
+                </span>
+              </InfoRow>
+              {(subDetail?.billingCycle) && (
+                <InfoRow icon={RotateCcw} label={t("platform.company_detail.billing_cycle")}>
+                  {subDetail.billingCycle === "MONTHLY"
+                    ? t("platform.company_detail.billing_monthly")
+                    : subDetail.billingCycle === "YEARLY"
+                      ? t("platform.company_detail.billing_yearly")
+                      : subDetail.billingCycle}
+                </InfoRow>
+              )}
+              {(subDetail?.currentPeriodStart || company.currentPeriodEnd) && (
+                <InfoRow icon={CalendarDays} label={t("platform.company_detail.billing_period")}>
+                  <span>
+                    {subDetail?.currentPeriodStart
+                      ? dayjs(subDetail.currentPeriodStart).format("DD MMM YYYY")
+                      : "—"}
+                    {" → "}
+                    {company.currentPeriodEnd
+                      ? dayjs(company.currentPeriodEnd).format("DD MMM YYYY")
+                      : "—"}
+                  </span>
+                </InfoRow>
+              )}
+              {subDetail !== undefined && (
+                <InfoRow icon={RotateCcw} label={t("platform.company_detail.auto_renew")}>
+                  <Tag color={subDetail?.autoRenew ? "green" : "default"}>
+                    {subDetail?.autoRenew ? t("global.yes") : t("global.no")}
+                  </Tag>
+                </InfoRow>
+              )}
+              <Divider className="my-2" />
+              <InfoRow icon={Hash} label={t("platform.company_detail.subscription_id")}>
+                <span className="font-mono text-xs text-slate-500">
+                  {company.subscriptionId}
+                </span>
+              </InfoRow>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <CreditCard className="mb-2 h-8 w-8 text-slate-300" />
+              <p className="text-sm text-slate-400">
+                {t("platform.company_detail.no_sub_history")}
+              </p>
+            </div>
+          )}
+        </Card>
       </div>
 
-      {/* KPI row */}
+      {/* ── KPI Row ── */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <KpiCard
           icon={ClipboardCheck}
@@ -346,7 +696,7 @@ const CompanyDetail = () => {
         />
       </div>
 
-      {/* Tabs: Onboarding Funnel | Department Breakdown */}
+      {/* ── Analytics Tabs ── */}
       <Tabs
         items={[
           {
@@ -479,7 +829,6 @@ const CompanyDetail = () => {
                         />
                       </BarChart>
                     </ResponsiveContainer>
-
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
@@ -543,8 +892,188 @@ const CompanyDetail = () => {
               </Card>
             ),
           },
+          {
+            label: t("platform.company_detail.tab_subscription"),
+            key: "subscription",
+            children: (
+              <Card>
+                {subHistoryLoading ? (
+                  <Skeleton active paragraph={{ rows: 4 }} />
+                ) : !subHistory?.items?.length ? (
+                  <p className="py-10 text-center text-sm text-slate-400">
+                    {t("platform.company_detail.no_sub_history")}
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                        <tr>
+                          <th className="px-4 py-2.5">
+                            {t("platform.company_detail.sub_history_old_plan")}
+                          </th>
+                          <th className="px-4 py-2.5">
+                            {t("platform.company_detail.sub_history_new_plan")}
+                          </th>
+                          <th className="px-4 py-2.5">
+                            {t("platform.company_detail.billing_cycle")}
+                          </th>
+                          <th className="px-4 py-2.5">
+                            {t(
+                              "platform.company_detail.sub_history_changed_at",
+                            )}
+                          </th>
+                          <th className="px-4 py-2.5">
+                            {t("platform.company_detail.sub_history_effective")}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {subHistory.items.map((item) => (
+                          <tr
+                            key={item.historyId}
+                            className="border-t border-stroke hover:bg-slate-50">
+                            <td className="px-4 py-3 text-slate-500">
+                              {item.oldPlanCode || "—"}
+                            </td>
+                            <td className="px-4 py-3 font-medium text-slate-800">
+                              {item.newPlanCode}
+                            </td>
+                            <td className="px-4 py-3 text-slate-500">
+                              {item.billingCycle === "MONTHLY"
+                                ? t("platform.company_detail.billing_monthly")
+                                : item.billingCycle === "YEARLY"
+                                  ? t("platform.company_detail.billing_yearly")
+                                  : item.billingCycle}
+                            </td>
+                            <td className="px-4 py-3 text-slate-500">
+                              {item.changedAt
+                                ? dayjs(item.changedAt).format(
+                                    "DD MMM YYYY HH:mm",
+                                  )
+                                : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-slate-500">
+                              {item.effectiveFrom
+                                ? dayjs(item.effectiveFrom).format("DD MMM YYYY")
+                                : "—"}
+                              {item.effectiveTo
+                                ? ` → ${dayjs(item.effectiveTo).format("DD MMM YYYY")}`
+                                : ""}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </Card>
+            ),
+          },
         ]}
       />
+
+      {/* ── Suspend Modal ── */}
+      <Modal
+        title={t("platform.company_detail.suspend_confirm_title")}
+        open={suspendModalOpen}
+        onCancel={() => {
+          setSuspendModalOpen(false);
+          setSuspendReason("");
+        }}
+        onOk={() => suspendMutation.mutate()}
+        confirmLoading={suspendMutation.isPending}
+        okButtonProps={{ danger: true }}
+        okText={t("platform.company_detail.suspend")}
+        cancelText={t("global.cancel")}>
+        <div className="space-y-4 py-2">
+          <div className="flex items-start gap-3 rounded-xl bg-amber-50 p-3">
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
+            <p className="text-sm text-amber-700">
+              {t("platform.company_detail.suspend_confirm_body")}
+            </p>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              {t("platform.company_detail.suspend_reason")}
+            </label>
+            <Input.TextArea
+              rows={3}
+              placeholder={t(
+                "platform.company_detail.suspend_reason_placeholder",
+              )}
+              value={suspendReason}
+              onChange={(e) => setSuspendReason(e.target.value)}
+            />
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Change Plan Modal ── */}
+      <Modal
+        title={t("platform.company_detail.change_plan_modal_title")}
+        open={changePlanOpen}
+        onCancel={() => setChangePlanOpen(false)}
+        onOk={() => changePlanMutation.mutate()}
+        confirmLoading={changePlanMutation.isPending}
+        okText={t("global.save")}
+        cancelText={t("global.cancel")}
+        okButtonProps={{ disabled: !changePlanData.newPlanId }}>
+        <div className="space-y-4 py-2">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              {t("platform.company_detail.new_plan")}
+            </label>
+            <Select
+              className="w-full"
+              value={changePlanData.newPlanId || undefined}
+              placeholder={t("platform.company_detail.new_plan")}
+              onChange={(val) =>
+                setChangePlanData((d) => ({ ...d, newPlanId: val }))
+              }
+              options={
+                planList?.items?.map((p) => ({
+                  value: p.planId,
+                  label: `${p.name} (${p.code})`,
+                })) ?? []
+              }
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              {t("platform.company_detail.billing_cycle")}
+            </label>
+            <Select
+              className="w-full"
+              value={changePlanData.billingCycle}
+              onChange={(val) =>
+                setChangePlanData((d) => ({ ...d, billingCycle: val }))
+              }
+              options={[
+                {
+                  value: "MONTHLY",
+                  label: t("platform.company_detail.billing_monthly"),
+                },
+                {
+                  value: "YEARLY",
+                  label: t("platform.company_detail.billing_yearly"),
+                },
+              ]}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              {t("platform.company_detail.change_plan_note")}
+            </label>
+            <Input.TextArea
+              rows={2}
+              value={changePlanData.note}
+              onChange={(e) =>
+                setChangePlanData((d) => ({ ...d, note: e.target.value }))
+              }
+            />
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

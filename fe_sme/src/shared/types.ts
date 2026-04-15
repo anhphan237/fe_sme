@@ -67,6 +67,8 @@ export interface OnboardingTask {
   required: boolean;
   /** requireAck flag: employee must acknowledge before marking DONE */
   requireAck?: boolean;
+  /** requireDoc flag: employee must attach a document */
+  requireDoc?: boolean;
   /** requiresManagerApproval flag: employee must submit PENDING_APPROVAL; cannot set DONE directly */
   requiresManagerApproval?: boolean;
   /** UI-friendly mapped status */
@@ -301,10 +303,13 @@ export interface BillingPlan {
   name: string;
   price: string;
   priceYearly: string;
+  priceRaw: number;
+  priceYearlyRaw: number;
   employeeLimit: number;
   limits: string;
   features: string[];
   current?: boolean;
+  recommended?: boolean;
 }
 
 export interface Subscription {

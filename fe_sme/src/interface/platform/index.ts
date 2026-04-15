@@ -162,6 +162,58 @@ export interface PlatformCompanyDeleteRequest {
   companyId: string;
 }
 
+/** com.sme.platform.company.suspend */
+export interface PlatformCompanySuspendRequest {
+  companyId: string;
+  reason?: string;
+}
+
+export interface PlatformCompanySuspendResponse {
+  companyId: string;
+  status: string;
+  message: string;
+}
+
+/** com.sme.platform.company.changePlan */
+export interface PlatformCompanyChangePlanRequest {
+  companyId: string;
+  subscriptionId: string;
+  newPlanId: string;
+  billingCycle?: string;
+  note?: string;
+}
+
+export interface PlatformCompanyChangePlanResponse {
+  companyId: string;
+  subscriptionId: string;
+  oldPlanId: string;
+  newPlanId: string;
+  billingCycle: string;
+  message: string;
+}
+
+/** com.sme.billing.subscription.history */
+export interface PlatformSubscriptionHistoryRequest {
+  subscriptionId: string;
+}
+
+export interface PlatformSubscriptionHistoryItem {
+  historyId: string;
+  subscriptionId: string;
+  oldPlanCode: string;
+  newPlanCode: string;
+  billingCycle: string;
+  changedBy: string;
+  changedAt: string;
+  effectiveFrom: string;
+  effectiveTo: string;
+}
+
+export interface PlatformSubscriptionHistoryResponse {
+  items: PlatformSubscriptionHistoryItem[];
+  total: number;
+}
+
 // ---------------------------
 // Subscription Management
 // ---------------------------
@@ -172,6 +224,7 @@ export interface PlatformSubscriptionListRequest {
   size?: number;
   companyId?: string;
   status?: string;
+  planCode?: string;
 }
 
 export interface PlatformSubscriptionItem {
@@ -197,12 +250,15 @@ export interface PlatformSubscriptionDetailRequest {
 
 export interface PlatformSubscriptionDetailResponse {
   subscriptionId: string;
+  companyId: string;
   companyName: string;
   planCode: string;
+  planName: string;
   status: string;
   billingCycle: string;
   currentPeriodStart: string;
   currentPeriodEnd: string;
+  autoRenew: boolean;
 }
 
 // ---------------------------

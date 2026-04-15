@@ -6,6 +6,9 @@ import type {
   PlatformCompanyActivateRequest,
   PlatformCompanyDeactivateRequest,
   PlatformCompanyDeleteRequest,
+  PlatformCompanySuspendRequest,
+  PlatformCompanyChangePlanRequest,
+  PlatformSubscriptionHistoryRequest,
   PlatformOnboardingAnalyticsRequest,
   PlatformTemplateListRequest,
   PlatformTemplateCreateRequest,
@@ -111,7 +114,7 @@ export const apiUpdatePlatformTemplate = (
 export const apiPublishPlatformTemplate = (
   payload: PlatformTemplatePublishRequest,
 ) =>
-  gatewayRequest<PlatformTemplateUpdateRequest, unknown>(
+  gatewayRequest<Record<string, unknown>, unknown>(
     "com.sme.onboarding.template.update",
     { templateId: payload.templateId, status: "PUBLISHED" },
   );
@@ -120,7 +123,7 @@ export const apiPublishPlatformTemplate = (
 export const apiArchivePlatformTemplate = (
   payload: PlatformTemplateArchiveRequest,
 ) =>
-  gatewayRequest<PlatformTemplateUpdateRequest, unknown>(
+  gatewayRequest<Record<string, unknown>, unknown>(
     "com.sme.onboarding.template.update",
     { templateId: payload.templateId, status: "ARCHIVED" },
   );
@@ -147,6 +150,31 @@ export const apiDeactivateCompany = (
 export const apiDeleteCompany = (payload: PlatformCompanyDeleteRequest) =>
   gatewayRequest<PlatformCompanyDeleteRequest, unknown>(
     "com.sme.platform.company.delete",
+    payload,
+  );
+
+/** com.sme.platform.company.suspend */
+export const apiSuspendCompany = (payload: PlatformCompanySuspendRequest) =>
+  gatewayRequest<PlatformCompanySuspendRequest, unknown>(
+    "com.sme.platform.company.suspend",
+    payload,
+  );
+
+/** com.sme.platform.company.changePlan */
+export const apiChangePlanCompany = (
+  payload: PlatformCompanyChangePlanRequest,
+) =>
+  gatewayRequest<PlatformCompanyChangePlanRequest, unknown>(
+    "com.sme.platform.company.changePlan",
+    payload,
+  );
+
+/** com.sme.billing.subscription.history */
+export const apiGetSubscriptionHistory = (
+  payload: PlatformSubscriptionHistoryRequest,
+) =>
+  gatewayRequest<PlatformSubscriptionHistoryRequest, unknown>(
+    "com.sme.billing.subscription.history",
     payload,
   );
 

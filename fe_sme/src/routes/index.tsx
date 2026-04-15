@@ -53,7 +53,6 @@ const OnboardingAutomation = lazy(
 );
 const Documents = lazy(() => import("@/pages/documents/Documents"));
 const DocumentDetail = lazy(() => import("@/pages/documents/DocumentDetail"));
-const Acknowledgments = lazy(() => import("@/pages/documents/Acknowledgments"));
 const SurveyTemplates = lazy(() => import("@/pages/surveys/SurveyTemplates"));
 const SurveyTemplateEditor = lazy(
   () => import("@/pages/surveys/SurveyTemplateEditor"),
@@ -88,9 +87,6 @@ const PlatformTemplates = lazy(
 );
 const StaffDashboard = lazy(
   () => import("@/pages/platform/staff/StaffDashboard"),
-);
-const PlatformSubscriptions = lazy(
-  () => import("@/pages/platform/admin/PlatformSubscriptions"),
 );
 const PlatformPlans = lazy(
   () => import("@/pages/platform/admin/PlatformPlans"),
@@ -323,13 +319,7 @@ export const router = createBrowserRouter([
           withRoles(<Documents />, ["HR", "MANAGER", "EMPLOYEE"]),
         ),
       },
-      {
-        path: "/documents/acknowledgments",
-        element: suspense(
-          withRoles(<Acknowledgments />, ["HR", "MANAGER", "EMPLOYEE"]),
-        ),
-      },
-      {
+{
         path: "/documents/:documentId",
         element: suspense(
           withRoles(<DocumentDetail />, ["HR", "MANAGER", "EMPLOYEE"]),
@@ -379,7 +369,11 @@ export const router = createBrowserRouter([
       },
       {
         path: "/billing/invoices",
-        element: suspense(withRoles(<BillingInvoices />, ["HR"])),
+        element: suspense(withRoles(<BillingInvoices />, ["HR", "MANAGER"])),
+      },
+      {
+        path: "/billing/transactions",
+        element: <Navigate to="/billing/invoices?tab=transactions" replace />,
       },
       {
         path: "/billing/payment",
@@ -408,7 +402,12 @@ export const router = createBrowserRouter([
       },
       {
         path: "/platform/admin/subscriptions",
-        element: suspense(withRoles(<PlatformSubscriptions />, ["ADMIN"])),
+        element: (
+          <Navigate
+            to="/platform/admin/companies?tab=subscriptions"
+            replace
+          />
+        ),
       },
       {
         path: "/platform/admin/plans",

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronLeft,
   ChevronRight,
@@ -9,11 +9,16 @@ import {
   Loader2,
   FileText,
 } from "lucide-react";
-import { message } from "antd";
+import { message, Spin } from "antd";
 import { useLocale } from "@/i18n";
 import { useUserStore } from "@/stores/user.store";
 import type { OnboardingTemplate } from "@/shared/types";
-import { apiCreateTemplate } from "@/api/onboarding/onboarding.api";
+import {
+  apiCreateTemplate,
+  apiGetTemplate,
+  apiUpdateTemplate,
+} from "@/api/onboarding/onboarding.api";
+import { mapTemplate } from "@/utils/mappers/onboarding";
 
 import { StageSidebar } from "./StepStages";
 import { TasksPanel } from "./StepTasks";
@@ -41,6 +46,8 @@ interface SaveTemplatePayload {
       description: string;
       dueDaysOffset: number;
       requireAck: boolean;
+      requireDoc: boolean;
+      requiresManagerApproval: boolean;
       sortOrder?: number;
     }[];
   }[];
@@ -67,6 +74,9 @@ const emptyTask = (): TaskDraft => ({
   description: "",
   dueDaysOffset: 0,
   requireAck: false,
+  requireDoc: false,
+  requiresManagerApproval: false,
+  assignee: "EMPLOYEE",
 });
 
 const emptyChecklist = (): ChecklistDraft => ({
@@ -99,6 +109,9 @@ const templateToForm = (tmpl: OnboardingTemplate): EditorForm => ({
               description: task.description ?? "",
               dueDaysOffset: parseInt(String(task.dueOffset ?? "0"), 10) || 0,
               requireAck: task.required ?? false,
+              requireDoc: task.requireDoc ?? false,
+              requiresManagerApproval: task.requiresManagerApproval ?? false,
+              assignee: (task.ownerRole ?? "EMPLOYEE") as TaskDraft["assignee"],
             }))
           : [emptyTask()],
       }))
@@ -117,10 +130,34 @@ const buildPayload = (form: EditorForm, createdBy: string) => ({
     tasks: c.tasks.map((task, ti) => ({
       title: task.name,
       ownerType: "ROLE" as const,
-      ownerRefId: "EMPLOYEE" as Role,
+      ownerRefId: (task.assignee ?? "EMPLOYEE") as Role,
       description: task.description,
       dueDaysOffset: task.dueDaysOffset,
       requireAck: task.requireAck,
+      requireDoc: task.requireDoc,
+      requiresManagerApproval: task.requiresManagerApproval,
+      sortOrder: ti,
+    })),
+  })),
+});
+
+const buildUpdatePayload = (form: EditorForm, templateId: string) => ({
+  templateId,
+  name: form.name,
+  description: form.description ?? "",
+  checklists: form.checklists.map((c, ci) => ({
+    name: c.name,
+    stage: c.stageType,
+    sortOrder: ci,
+    tasks: c.tasks.map((task, ti) => ({
+      title: task.name,
+      ownerType: "ROLE" as const,
+      ownerRefId: (task.assignee ?? "EMPLOYEE") as Role,
+      description: task.description,
+      dueDaysOffset: task.dueDaysOffset,
+      requireAck: task.requireAck,
+      requireDoc: task.requireDoc,
+      requiresManagerApproval: task.requiresManagerApproval,
       sortOrder: ti,
     })),
   })),
@@ -129,6 +166,12 @@ const buildPayload = (form: EditorForm, createdBy: string) => ({
 const useSaveTemplate = () =>
   useMutation({
     mutationFn: (payload: SaveTemplatePayload) => apiCreateTemplate(payload),
+  });
+
+const useUpdateTemplate = () =>
+  useMutation({
+    mutationFn: (payload: ReturnType<typeof buildUpdatePayload>) =>
+      apiUpdateTemplate(payload),
   });
 
 const PresetEmptyState = ({
@@ -193,16 +236,16 @@ const TemplateEditor = () => {
     location.state as { duplicateFrom?: OnboardingTemplate } | null
   )?.duplicateFrom;
 
-  // The editor only supports creating new templates.
-  // Editing existing templates (structure) is not supported by the backend API.
-  // If someone navigates to /:templateId, redirect back to the list.
-  useEffect(() => {
-    if (!isCreate) {
-      navigate("/onboarding/templates", { replace: true });
-    }
-  }, [isCreate, navigate]);
+  // Load existing template when editing
+  const { data: templateRes, isLoading: isLoadingTemplate } = useQuery({
+    queryKey: ["template", templateId],
+    queryFn: () => apiGetTemplate(templateId!),
+    enabled: !isCreate && !!templateId,
+    staleTime: 0,
+  });
 
   const saveTemplate = useSaveTemplate();
+  const updateTemplate = useUpdateTemplate();
 
   const [form, setForm] = useState<EditorForm>(initialForm);
   const [activeStageIndex, setActiveStageIndex] = useState(0);
@@ -220,13 +263,22 @@ const TemplateEditor = () => {
         ? form.checklists.length > 0
         : true;
 
-  // Initialize form from duplicateFrom state (set by list page before navigating)
+  // Initialize form from duplicateFrom (duplicate mode) or loaded template (edit mode)
   useEffect(() => {
     if (duplicateFrom) {
       setForm(templateToForm(duplicateFrom));
+      return;
+    }
+    if (!isCreate && templateRes) {
+      const raw =
+        (templateRes as Record<string, unknown>)?.template ??
+        (templateRes as Record<string, unknown>)?.data ??
+        templateRes;
+      const tmpl = mapTemplate(raw as Record<string, unknown>);
+      setForm(templateToForm(tmpl));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [duplicateFrom, templateRes]);
 
   useEffect(() => {
     setActiveStageIndex((s) =>
@@ -338,6 +390,9 @@ const TemplateEditor = () => {
           description: t.description,
           dueDaysOffset: t.dueDaysOffset,
           requireAck: t.requireAck,
+          requireDoc: t.requireDoc ?? false,
+          requiresManagerApproval: t.requiresManagerApproval ?? false,
+          assignee: t.assignee ?? "EMPLOYEE",
         })),
       })),
     });
@@ -351,6 +406,9 @@ const TemplateEditor = () => {
         description: task.description,
         dueDaysOffset: task.dueDaysOffset,
         requireAck: task.requireAck,
+        requireDoc: task.requireDoc ?? false,
+        requiresManagerApproval: task.requiresManagerApproval ?? false,
+        assignee: task.assignee ?? "EMPLOYEE",
       };
       list[ci] = { ...list[ci], tasks: [...list[ci].tasks, newTask] };
       return { ...prev, checklists: list };
@@ -367,17 +425,36 @@ const TemplateEditor = () => {
       return;
     }
     try {
-      const payload = buildPayload(form, createdBy);
-      await saveTemplate.mutateAsync(payload);
+      if (isCreate) {
+        const payload = buildPayload(form, createdBy);
+        await saveTemplate.mutateAsync(payload);
+        message.success(t("onboarding.template.editor.toast.created"));
+      } else {
+        const payload = buildUpdatePayload(form, templateId!);
+        await updateTemplate.mutateAsync(payload);
+        message.success(t("onboarding.template.editor.toast.updated"));
+      }
       queryClient.invalidateQueries({ queryKey: ["templates"] });
-      message.success(t("onboarding.template.editor.toast.created"));
       navigate("/onboarding/templates");
     } catch {
-      message.error(t("onboarding.template.editor.toast.create_failed"));
+      message.error(
+        isCreate
+          ? t("onboarding.template.editor.toast.create_failed")
+          : t("onboarding.template.editor.toast.update_failed"),
+      );
     }
   };
 
   const activeStage = form.checklists[activeStageIndex];
+  const isSaving = saveTemplate.isPending || updateTemplate.isPending;
+
+  if (!isCreate && isLoadingTemplate) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 pb-24">
@@ -390,9 +467,11 @@ const TemplateEditor = () => {
           <ChevronLeft className="h-4 w-4" />
         </button>
         <h1 className="text-xl font-semibold text-ink">
-          {duplicateFrom
-            ? t("onboarding.template.editor.title_duplicate")
-            : t("onboarding.template.editor.title_create")}
+          {!isCreate
+            ? t("onboarding.template.editor.title_edit")
+            : duplicateFrom
+              ? t("onboarding.template.editor.title_duplicate")
+              : t("onboarding.template.editor.title_create")}
         </h1>
       </div>
 
@@ -661,12 +740,27 @@ const TemplateEditor = () => {
                                   "onboarding.template.editor.review.untitled_task",
                                 )}
                             </span>
+                            {task.assignee && task.assignee !== "EMPLOYEE" && (
+                              <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                                {task.assignee}
+                              </span>
+                            )}
                             <span className="shrink-0 text-xs text-muted">
                               {task.dueDaysOffset}d
                             </span>
                             {task.requireAck && (
                               <span className="shrink-0 rounded-full bg-brand/10 px-2 py-0.5 text-[11px] text-brand">
                                 {t("onboarding.template.editor.task_ack")}
+                              </span>
+                            )}
+                            {task.requireDoc && (
+                              <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-600">
+                                {t("onboarding.template.editor.task_doc")}
+                              </span>
+                            )}
+                            {task.requiresManagerApproval && (
+                              <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-600">
+                                {t("onboarding.template.editor.task_approval")}
                               </span>
                             )}
                           </li>
@@ -744,17 +838,21 @@ const TemplateEditor = () => {
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  disabled={saveTemplate.isPending || !form.name.trim()}
+                  disabled={isSaving || !form.name.trim()}
                   className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand/90 disabled:opacity-50">
-                  {saveTemplate.isPending ? (
+                  {isSaving ? (
                     <>
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      {t("onboarding.template.editor.btn.creating")}
+                      {isCreate
+                        ? t("onboarding.template.editor.btn.creating")
+                        : t("onboarding.template.editor.btn.saving")}
                     </>
                   ) : (
                     <>
                       <Check className="h-4 w-4" />
-                      {t("onboarding.template.editor.btn.create")}
+                      {isCreate
+                        ? t("onboarding.template.editor.btn.create")
+                        : t("onboarding.template.editor.btn.save")}
                     </>
                   )}
                 </button>

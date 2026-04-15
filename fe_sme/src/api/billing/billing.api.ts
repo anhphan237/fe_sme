@@ -157,10 +157,10 @@ export const apiGetPaymentStatus = (
   );
 
 /** com.sme.billing.payment.transactions */
-export const apiGetPaymentTransactions = () =>
-  gatewayRequest<Record<string, never>, unknown>(
+export const apiGetPaymentTransactions = (page = 1, pageSize = 20) =>
+  gatewayRequest<{ page: number; pageSize: number }, unknown>(
     "com.sme.billing.payment.transactions",
-    {},
+    { page, pageSize },
   );
 
 // ── Dunning ─────────────────────────────────────────────────

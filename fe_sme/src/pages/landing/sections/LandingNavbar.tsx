@@ -62,37 +62,7 @@ const LandingNavbar = () => {
           <div className="h-[68px] flex items-center justify-between gap-8">
             {/* â”€â”€ Logo â”€â”€ */}
             <a href="/" className="flex items-center gap-2.5 shrink-0 group">
-              <div className="relative w-9 h-9">
-                {/* gradient ring */}
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-brand to-brandDark opacity-90 group-hover:opacity-100 transition-opacity shadow-md shadow-brand/30" />
-                <div className="relative flex items-center justify-center w-full h-full">
-                  <svg viewBox="0 0 20 20" fill="none" className="w-4.5 h-4.5">
-                    <rect
-                      x="3"
-                      y="2"
-                      width="14"
-                      height="16"
-                      rx="2.5"
-                      stroke="white"
-                      strokeWidth="1.5"
-                    />
-                    <path
-                      d="M7 7h6M7 10.5h6M7 14h4"
-                      stroke="white"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                    />
-                    <circle cx="15" cy="15" r="3.5" fill="white" />
-                    <path
-                      d="M13.5 15l1 1 2-1.5"
-                      stroke="#6C63FF"
-                      strokeWidth="1.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-              </div>
+              <img src="/Logo.png" className="w-9 h-9 object-contain" alt="logo" />
               <div className="flex flex-col leading-none">
                 <span
                   className={`text-[17px] font-bold tracking-tight transition-colors duration-300 ${scrolled ? "text-gray-900" : "text-white"}`}>

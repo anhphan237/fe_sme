@@ -103,11 +103,6 @@ export const NAV_SECTIONS: NavSection[] = [
         to: "/documents",
         requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
       },
-      {
-        titleKey: "nav.documents.acknowledgments",
-        to: "/documents/acknowledgments",
-        requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
-      },
     ],
   },
   {
@@ -167,6 +162,11 @@ export const NAV_SECTIONS: NavSection[] = [
         to: "/billing/invoices",
         requiredRoles: ["HR"],
       },
+      {
+        titleKey: "nav.billing.transactions",
+        to: "/billing/invoices?tab=transactions",
+        requiredRoles: ["HR", "MANAGER"],
+      },
     ],
   },
 
@@ -184,11 +184,6 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         titleKey: "nav.platform.companies",
         to: "/platform/admin/companies",
-        requiredRoles: ["ADMIN"],
-      },
-      {
-        titleKey: "nav.platform.subscriptions",
-        to: "/platform/admin/subscriptions",
         requiredRoles: ["ADMIN"],
       },
       {

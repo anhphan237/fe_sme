@@ -377,6 +377,7 @@ export interface TaskDetailResponse {
   checklistName?: string;
   // Acknowledgment
   requireAck: boolean;
+  requireDoc?: boolean;
   acknowledgedAt?: string;
   acknowledgedBy?: string;
   // Approval
