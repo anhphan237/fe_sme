@@ -234,8 +234,12 @@ export const InviteUserDrawer = ({
             },
           ]}
         />
-        <p className="mt-2 rounded-lg border px-3 py-2 text-xs leading-relaxed text-[#758BA5]"
-          style={{ borderColor: createMode === "invite" ? "#dbeafe" : "#fef3c7", backgroundColor: createMode === "invite" ? "#eff6ff" : "#fffbeb" }}>
+        <p
+          className="mt-2 rounded-lg border px-3 py-2 text-xs leading-relaxed text-[#758BA5]"
+          style={{
+            borderColor: createMode === "invite" ? "#dbeafe" : "#fef3c7",
+            backgroundColor: createMode === "invite" ? "#eff6ff" : "#fffbeb",
+          }}>
           {createMode === "invite"
             ? t("user.create.mode_invite_desc")
             : t("user.create.mode_direct_desc")}
@@ -377,18 +381,12 @@ export const InviteUserDrawer = ({
             label={t("user.detail.employee_code")}
             placeholder="EMP-2026-xxxx"
           />
-          <BaseDatePicker
-            name="startDate"
-            label={t("user.detail.start_date")}
-            format="DD/MM/YYYY"
-            className="w-full"
+          <BaseInput
+            name="workLocation"
+            label={t("user.detail.work_location")}
+            placeholder={t("user.form.work_location_placeholder")}
           />
         </div>
-        <BaseInput
-          name="workLocation"
-          label={t("user.detail.work_location")}
-          placeholder={t("user.form.work_location_placeholder")}
-        />
       </Form>
     </Drawer>
   );
