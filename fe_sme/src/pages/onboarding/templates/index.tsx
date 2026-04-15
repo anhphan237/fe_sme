@@ -211,26 +211,12 @@ const Templates = () => {
     [navigate],
   );
 
-  /** Open metadata-only edit modal (stages/tasks cannot be changed via update API) */
+  /** Navigate to full template editor for editing */
   const handleEdit = useCallback(
-    async (tmpl: OnboardingTemplate) => {
-      setLoadingId(tmpl.id);
-      try {
-        const full = await fetchFull(tmpl.id);
-        setEditTarget(full);
-        editForm.setFieldsValue({
-          name: full.name,
-          description: full.description ?? "",
-          status: full.status ?? "ACTIVE",
-        });
-        setEditOpen(true);
-      } catch {
-        message.error(t("onboarding.template.error.something_wrong"));
-      } finally {
-        setLoadingId(null);
-      }
+    (tmpl: OnboardingTemplate) => {
+      navigate(`/onboarding/templates/${tmpl.id}`);
     },
-    [fetchFull, editForm, t],
+    [navigate],
   );
 
   /** Fetch full template (with stages/tasks) before navigating to wizard */

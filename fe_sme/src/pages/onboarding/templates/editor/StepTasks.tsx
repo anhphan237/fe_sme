@@ -198,6 +198,9 @@ interface FormValues {
     description: string;
     dueDaysOffset: number;
     requireAck: boolean;
+    requireDoc: boolean;
+    requiresManagerApproval: boolean;
+    assignee: string;
   }[];
 }
 
@@ -318,12 +321,54 @@ function SortableTaskCard({
               )}
             />
           </div>
+          <div>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+              {t("onboarding.template.editor.task.assignee_label")}
+            </p>
+            <Form.Item name={[field.name, "assignee"]} className="mb-0">
+              <Select
+                size="small"
+                options={[
+                  {
+                    value: "EMPLOYEE",
+                    label: t(
+                      "onboarding.template.editor.task.assignee.employee",
+                    ),
+                  },
+                  {
+                    value: "HR",
+                    label: t("onboarding.template.editor.task.assignee.hr"),
+                  },
+                  {
+                    value: "MANAGER",
+                    label: t(
+                      "onboarding.template.editor.task.assignee.manager",
+                    ),
+                  },
+                  {
+                    value: "IT",
+                    label: t("onboarding.template.editor.task.assignee.it"),
+                  },
+                ]}
+              />
+            </Form.Item>
+          </div>
         </div>
 
-        <div className="border-t border-stroke/60 pt-3">
+        <div className="flex flex-wrap gap-6 border-t border-stroke/60 pt-3">
           <BaseCheckbox
             name={[field.name, "requireAck"]}
             labelCheckbox={t("onboarding.template.editor.task.require_ack")}
+          />
+          <BaseCheckbox
+            name={[field.name, "requireDoc"]}
+            labelCheckbox={t("onboarding.template.editor.task.require_doc")}
+          />
+          <BaseCheckbox
+            name={[field.name, "requiresManagerApproval"]}
+            labelCheckbox={t(
+              "onboarding.template.editor.task.require_approval",
+            )}
           />
         </div>
       </div>
@@ -369,6 +414,9 @@ const TaskForm = memo(function TaskForm({
         description: tk.description,
         dueDaysOffset: tk.dueDaysOffset,
         requireAck: tk.requireAck,
+        requireDoc: tk.requireDoc,
+        requiresManagerApproval: tk.requiresManagerApproval,
+        assignee: tk.assignee,
       })),
     });
     const timer = setTimeout(() => {
@@ -397,6 +445,9 @@ const TaskForm = memo(function TaskForm({
               description: string;
               dueDaysOffset: number;
               requireAck: boolean;
+              requireDoc: boolean;
+              requiresManagerApproval: boolean;
+              assignee: string;
             },
             ti: number,
           ) => {
@@ -406,13 +457,19 @@ const TaskForm = memo(function TaskForm({
               tk.name !== orig.name ||
               tk.description !== orig.description ||
               tk.dueDaysOffset !== orig.dueDaysOffset ||
-              tk.requireAck !== orig.requireAck
+              tk.requireAck !== orig.requireAck ||
+              tk.requireDoc !== orig.requireDoc ||
+              tk.requiresManagerApproval !== orig.requiresManagerApproval ||
+              tk.assignee !== orig.assignee
             ) {
               onUpdateTask(ti, {
                 name: tk.name,
                 description: tk.description,
                 dueDaysOffset: tk.dueDaysOffset,
                 requireAck: tk.requireAck,
+                requireDoc: tk.requireDoc,
+                requiresManagerApproval: tk.requiresManagerApproval,
+                assignee: tk.assignee as TaskDraft["assignee"],
               });
             }
           },

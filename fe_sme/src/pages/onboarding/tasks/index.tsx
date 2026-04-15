@@ -13,11 +13,17 @@ import {
   ThumbsUp,
   XCircle,
   Activity,
+  Play,
+  UserPlus,
+  List,
+  BarChart2,
+  CalendarClock,
 } from "lucide-react";
 import {
   Button,
   Card,
   Col,
+  DatePicker,
   Divider,
   Drawer,
   Empty,
@@ -30,9 +36,11 @@ import {
   Select,
   Skeleton,
   Tag,
+  Timeline,
   Tooltip,
   Typography,
 } from "antd";
+import type { Dayjs } from "dayjs";
 
 import { notify } from "@/utils/notify";
 import { useUserStore } from "@/stores/user.store";
@@ -48,6 +56,11 @@ import {
   apiAcknowledgeTask,
   apiApproveTask,
   apiRejectTask,
+  apiAssignTask,
+  apiGetTaskTimeline,
+  apiProposeTaskSchedule,
+  apiConfirmTaskSchedule,
+  apiAddTaskAttachment,
 } from "@/api/onboarding/onboarding.api";
 import type {
   CommentResponse,
@@ -63,6 +76,7 @@ const STATUS_DONE = "Done";
 const STATUS_DONE_API = "DONE";
 
 type StatusFilter = "all" | "pending" | "done" | "pending_approval" | "overdue";
+type ViewMode = "list" | "timeline";
 
 const STATUS_TAG_COLOR: Record<string, string> = {
   TODO: "default",
@@ -125,7 +139,6 @@ const getStageLabel = (
 ): { label: string; color: string } => {
   const upper = name.toUpperCase().replace(/\s+/g, "_");
   const label = t(`onboarding.task.stage.${upper}`);
-  // If translation returns the key back (key not found), use name as-is
   const validLabel = label.startsWith("onboarding.task.stage.") ? name : label;
   return {
     label: validLabel,
@@ -153,7 +166,7 @@ const useTasksQuery = (onboardingId?: string) =>
 const useTaskDetailQuery = (taskId?: string) =>
   useQuery({
     queryKey: ["onboarding-task-detail", taskId ?? ""],
-    queryFn: () => apiGetTaskDetailFull(taskId!),
+    queryFn: () => apiGetTaskDetailFull(taskId!, { includeActivityLogs: true }),
     enabled: Boolean(taskId),
     select: (res: unknown) => {
       const record = res as Record<string, unknown>;
@@ -183,13 +196,34 @@ const useTaskCommentsQuery = (taskId?: string) =>
     },
   });
 
+const useTaskTimelineQuery = (onboardingId?: string) =>
+  useQuery({
+    queryKey: ["onboarding-task-timeline", onboardingId ?? ""],
+    queryFn: () =>
+      apiGetTaskTimeline({ onboardingId: onboardingId!, includeDone: true }),
+    enabled: Boolean(onboardingId),
+    select: (res: unknown) => {
+      const r = res as Record<string, unknown>;
+      return (r?.assignees ?? r?.data ?? []) as Array<{
+        assigneeUserId: string;
+        assigneeUserName?: string;
+        taskCount: number;
+        tasks: Array<{
+          taskId: string;
+          checklistName?: string;
+          title?: string;
+          status?: string;
+          dueDate?: string;
+          scheduledStartAt?: string;
+          scheduleStatus?: string;
+        }>;
+      }>;
+    },
+  });
+
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-const StatusBadge = ({
-  rawStatus,
-}: {
-  rawStatus: string | undefined;
-}) => {
+const StatusBadge = ({ rawStatus }: { rawStatus: string | undefined }) => {
   const { t } = useLocale();
   if (!rawStatus) return null;
   const color = STATUS_TAG_COLOR[rawStatus] ?? "default";
@@ -202,17 +236,12 @@ const StatusBadge = ({
   );
 };
 
-const ProgressStats = ({
-  tasks,
-}: {
-  tasks: OnboardingTask[];
-}) => {
+const ProgressStats = ({ tasks }: { tasks: OnboardingTask[] }) => {
   const { t } = useLocale();
   const total = tasks.length;
   const done = tasks.filter((tk) => tk.rawStatus === STATUS_DONE_API).length;
   const inProgress = tasks.filter(
-    (tk) =>
-      tk.rawStatus === "IN_PROGRESS" || tk.rawStatus === "ASSIGNED",
+    (tk) => tk.rawStatus === "IN_PROGRESS" || tk.rawStatus === "ASSIGNED",
   ).length;
   const overdue = tasks.filter(
     (tk) =>
@@ -226,11 +255,31 @@ const ProgressStats = ({
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   const stats = [
-    { label: t("onboarding.task.stat.total"), value: total, color: "text-gray-700" },
-    { label: t("onboarding.task.stat.done"), value: done, color: "text-emerald-600" },
-    { label: t("onboarding.task.stat.in_progress"), value: inProgress, color: "text-blue-600" },
-    { label: t("onboarding.task.stat.overdue"), value: overdue, color: "text-amber-600" },
-    { label: t("onboarding.task.stat.pending_approval"), value: pendingApproval, color: "text-yellow-600" },
+    {
+      label: t("onboarding.task.stat.total"),
+      value: total,
+      color: "text-gray-700",
+    },
+    {
+      label: t("onboarding.task.stat.done"),
+      value: done,
+      color: "text-emerald-600",
+    },
+    {
+      label: t("onboarding.task.stat.in_progress"),
+      value: inProgress,
+      color: "text-blue-600",
+    },
+    {
+      label: t("onboarding.task.stat.overdue"),
+      value: overdue,
+      color: "text-amber-600",
+    },
+    {
+      label: t("onboarding.task.stat.pending_approval"),
+      value: pendingApproval,
+      color: "text-yellow-600",
+    },
   ];
 
   return (
@@ -260,41 +309,195 @@ const ProgressStats = ({
   );
 };
 
+// ── TaskAction: contextual primary action button ───────────────────────────────
+
+const TaskAction = ({
+  task,
+  isEmployee,
+  canManage,
+  isUpdating,
+  onStart,
+  onAcknowledge,
+  onSubmitApproval,
+  onMarkDone,
+  onApprove,
+  onReject,
+}: {
+  task: OnboardingTask;
+  isEmployee: boolean;
+  canManage: boolean;
+  isUpdating: boolean;
+  onStart: () => void;
+  onAcknowledge: () => void;
+  onSubmitApproval: () => void;
+  onMarkDone: () => void;
+  onApprove?: () => void;
+  onReject?: () => void;
+}) => {
+  const { t } = useLocale();
+  const status = task.rawStatus;
+  const isDone = status === STATUS_DONE_API;
+
+  if (isDone) {
+    return (
+      <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
+        <CheckCircle2 className="h-3.5 w-3.5" />
+        {t("onboarding.task.action.done_label")}
+      </span>
+    );
+  }
+
+  if (status === "PENDING_APPROVAL") {
+    if (canManage && onApprove && onReject) {
+      return (
+        <div className="flex items-center gap-1.5">
+          <Popconfirm
+            title={t("onboarding.task.action.approve")}
+            description={t("onboarding.task.action.approve_confirm_desc")}
+            okText={t("onboarding.task.action.approve")}
+            cancelText={t("global.close")}
+            onConfirm={onApprove}>
+            <Button
+              size="small"
+              type="primary"
+              loading={isUpdating}
+              icon={<ThumbsUp className="h-3 w-3" />}>
+              {t("onboarding.task.action.approve")}
+            </Button>
+          </Popconfirm>
+          <Button
+            size="small"
+            danger
+            icon={<XCircle className="h-3 w-3" />}
+            onClick={onReject}>
+            {t("onboarding.task.action.reject")}
+          </Button>
+        </div>
+      );
+    }
+    return (
+      <span className="flex items-center gap-1 text-xs text-amber-600">
+        <Clock className="h-3 w-3" />
+        {t("onboarding.task.status.pending_approval")}
+      </span>
+    );
+  }
+
+  if (!isEmployee) return null;
+
+  if (status === "TODO" || status === "ASSIGNED") {
+    return (
+      <Button
+        size="small"
+        type="default"
+        loading={isUpdating}
+        icon={<Play className="h-3 w-3" />}
+        onClick={onStart}>
+        {t("onboarding.task.action.start")}
+      </Button>
+    );
+  }
+
+  if (status === "IN_PROGRESS") {
+    if (task.requireAck) {
+      return (
+        <Button
+          size="small"
+          type="primary"
+          loading={isUpdating}
+          icon={<CheckSquare className="h-3 w-3" />}
+          onClick={onAcknowledge}>
+          {t("onboarding.task.action.acknowledge")}
+        </Button>
+      );
+    }
+    if (task.requiresManagerApproval) {
+      return (
+        <Button
+          size="small"
+          type="primary"
+          loading={isUpdating}
+          icon={<Send className="h-3 w-3" />}
+          onClick={onSubmitApproval}>
+          {t("onboarding.task.action.submit_approval")}
+        </Button>
+      );
+    }
+    return (
+      <Button
+        size="small"
+        type="primary"
+        loading={isUpdating}
+        icon={<CheckCircle2 className="h-3 w-3" />}
+        onClick={onMarkDone}>
+        {t("onboarding.employee.home.today_actions.mark_done")}
+      </Button>
+    );
+  }
+
+  if (status === "WAIT_ACK") {
+    return (
+      <Button
+        size="small"
+        type="primary"
+        loading={isUpdating}
+        icon={<CheckCircle2 className="h-3 w-3" />}
+        onClick={onMarkDone}>
+        {t("onboarding.task.action.confirm_complete")}
+      </Button>
+    );
+  }
+
+  return null;
+};
+
+// ── TaskItem ───────────────────────────────────────────────────────────────────
+
 const TaskItem = ({
   task,
+  isEmployee,
+  canManage,
   isUpdating,
-  onChange,
+  onStart,
+  onAcknowledge,
+  onSubmitApproval,
+  onMarkDone,
   onInspect,
   onApprove,
   onReject,
-  canManage,
 }: {
   task: OnboardingTask;
+  isEmployee: boolean;
+  canManage: boolean;
   isUpdating: boolean;
-  onChange: (task: OnboardingTask) => void;
+  onStart: (task: OnboardingTask) => void;
+  onAcknowledge: (task: OnboardingTask) => void;
+  onSubmitApproval: (task: OnboardingTask) => void;
+  onMarkDone: (task: OnboardingTask) => void;
   onInspect: (task: OnboardingTask) => void;
   onApprove?: (task: OnboardingTask) => void;
   onReject?: (task: OnboardingTask) => void;
-  canManage: boolean;
 }) => {
   const { t } = useLocale();
   const isDone = task.status === STATUS_DONE;
   const isOverdue =
     task.dueDate && !isDone && new Date(task.dueDate) < new Date();
-  const isPendingApproval = task.rawStatus === "PENDING_APPROVAL";
 
   return (
     <li className="transition-colors hover:bg-slate-50">
       <div className="flex flex-col gap-0 px-4 py-3 sm:flex-row sm:items-start sm:gap-3">
-        {/* Checkbox */}
-        <div className="mt-0.5 shrink-0">
-          <input
-            type="checkbox"
-            checked={isDone}
-            onChange={() => onChange(task)}
-            disabled={isUpdating}
-            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500/20"
-          />
+        {/* Status indicator dot */}
+        <div className="mt-1.5 shrink-0">
+          {isDone ? (
+            <div className="h-3.5 w-3.5 rounded-full bg-emerald-400" />
+          ) : task.rawStatus === "PENDING_APPROVAL" ? (
+            <div className="h-3.5 w-3.5 rounded-full bg-amber-400" />
+          ) : task.rawStatus === "IN_PROGRESS" ||
+            task.rawStatus === "ASSIGNED" ? (
+            <div className="h-3.5 w-3.5 rounded-full border-2 border-blue-400 bg-blue-100" />
+          ) : (
+            <div className="h-3.5 w-3.5 rounded-full border-2 border-gray-300" />
+          )}
         </div>
 
         {/* Content */}
@@ -310,7 +513,6 @@ const TaskItem = ({
               {task.title}
             </span>
 
-            {/* Flags */}
             {task.requireAck && !isDone && (
               <Tooltip title={t("onboarding.task.flag.requires_ack")}>
                 <Tag
@@ -327,17 +529,13 @@ const TaskItem = ({
                   color="gold"
                   style={{ margin: 0, fontSize: 10, padding: "0 4px" }}>
                   <ThumbsUp className="mr-0.5 inline h-2.5 w-2.5" />
-                  Duyệt
+                  {t("onboarding.task.flag.approval_short")}
                 </Tag>
               </Tooltip>
             )}
 
-            {/* Status badge */}
-            {task.rawStatus && (
-              <StatusBadge rawStatus={task.rawStatus} />
-            )}
+            {task.rawStatus && <StatusBadge rawStatus={task.rawStatus} />}
 
-            {/* Overdue */}
             {isOverdue && (
               <Tag
                 color="error"
@@ -354,7 +552,7 @@ const TaskItem = ({
             </p>
           )}
 
-          {/* Row 3: meta (due date + assignee) + action */}
+          {/* Row 3: meta + actions */}
           <div className="flex flex-wrap items-center gap-3">
             {task.dueDate ? (
               <span
@@ -381,31 +579,18 @@ const TaskItem = ({
             )}
 
             <div className="ml-auto flex items-center gap-2">
-              {/* HR inline approve/reject for PENDING_APPROVAL tasks */}
-              {canManage && isPendingApproval && onApprove && onReject && (
-                <>
-                  <Popconfirm
-                    title={t("onboarding.task.action.approve")}
-                    description={t("onboarding.task.action.approve_confirm_desc")}
-                    okText={t("onboarding.task.action.approve")}
-                    cancelText={t("global.close")}
-                    onConfirm={() => onApprove(task)}>
-                    <Button
-                      size="small"
-                      type="primary"
-                      icon={<ThumbsUp className="h-3 w-3" />}>
-                      {t("onboarding.task.action.approve")}
-                    </Button>
-                  </Popconfirm>
-                  <Button
-                    size="small"
-                    danger
-                    icon={<XCircle className="h-3 w-3" />}
-                    onClick={() => onReject(task)}>
-                    {t("onboarding.task.action.reject")}
-                  </Button>
-                </>
-              )}
+              <TaskAction
+                task={task}
+                isEmployee={isEmployee}
+                canManage={canManage}
+                isUpdating={isUpdating}
+                onStart={() => onStart(task)}
+                onAcknowledge={() => onAcknowledge(task)}
+                onSubmitApproval={() => onSubmitApproval(task)}
+                onMarkDone={() => onMarkDone(task)}
+                onApprove={onApprove ? () => onApprove(task) : undefined}
+                onReject={onReject ? () => onReject(task) : undefined}
+              />
               <Button size="small" onClick={() => onInspect(task)}>
                 {t("onboarding.task.detail.view")}
               </Button>
@@ -421,20 +606,28 @@ const StageSection = ({
   title,
   tasks,
   isUpdating,
-  onToggle,
+  isEmployee,
+  canManage,
+  onStart,
+  onAcknowledge,
+  onSubmitApproval,
+  onMarkDone,
   onInspect,
   onApprove,
   onReject,
-  canManage,
 }: {
   title: string;
   tasks: OnboardingTask[];
   isUpdating: boolean;
-  onToggle: (task: OnboardingTask) => void;
+  isEmployee: boolean;
+  canManage: boolean;
+  onStart: (task: OnboardingTask) => void;
+  onAcknowledge: (task: OnboardingTask) => void;
+  onSubmitApproval: (task: OnboardingTask) => void;
+  onMarkDone: (task: OnboardingTask) => void;
   onInspect: (task: OnboardingTask) => void;
   onApprove?: (task: OnboardingTask) => void;
   onReject?: (task: OnboardingTask) => void;
-  canManage: boolean;
 }) => {
   const { t } = useLocale();
   const done = tasks.filter((tk) => tk.status === STATUS_DONE).length;
@@ -474,12 +667,16 @@ const StageSection = ({
           <TaskItem
             key={task.id}
             task={task}
-            isUpdating={isUpdating}
-            onChange={onToggle}
-            onInspect={onInspect}
-            onApprove={onApprove}
-            onReject={onReject}
+            isEmployee={isEmployee}
             canManage={canManage}
+            isUpdating={isUpdating}
+            onStart={onStart}
+            onAcknowledge={onAcknowledge}
+            onSubmitApproval={onSubmitApproval}
+            onMarkDone={onMarkDone}
+            onInspect={onInspect}
+            onApprove={canManage ? onApprove : undefined}
+            onReject={canManage ? onReject : undefined}
           />
         ))}
       </ul>
@@ -501,7 +698,7 @@ const LoadingState = () => (
         <div className="divide-y divide-gray-100">
           {[0, 1, 2].map((j) => (
             <div key={j} className="flex items-center gap-3 px-4 py-3.5">
-              <Skeleton.Avatar active size="small" shape="square" />
+              <Skeleton.Avatar active size="small" shape="circle" />
               <Skeleton.Input active size="small" style={{ flex: 1 }} />
               <Skeleton.Button active size="small" />
             </div>
@@ -511,8 +708,6 @@ const LoadingState = () => (
     ))}
   </div>
 );
-
-// ── Detail Drawer Sections ─────────────────────────────────────────────────────
 
 const InfoField = ({
   label,
@@ -529,6 +724,114 @@ const InfoField = ({
   </div>
 );
 
+// ── Timeline View ──────────────────────────────────────────────────────────────
+
+const TimelineView = ({
+  onboardingId,
+  onInspect,
+}: {
+  onboardingId: string;
+  onInspect: (taskId: string) => void;
+}) => {
+  const { t } = useLocale();
+  const { data: groups = [], isLoading } = useTaskTimelineQuery(onboardingId);
+
+  if (isLoading) return <LoadingState />;
+
+  if (groups.length === 0) {
+    return (
+      <Card>
+        <div className="py-8">
+          <Empty description={t("onboarding.task.timeline.empty")} />
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {groups.map((group) => (
+        <Card
+          key={group.assigneeUserId}
+          size="small"
+          title={
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
+                {(group.assigneeUserName ??
+                  group.assigneeUserId)[0]?.toUpperCase()}
+              </div>
+              <span className="text-sm font-semibold text-gray-700">
+                {group.assigneeUserName ?? group.assigneeUserId}
+              </span>
+              <Tag color="blue" style={{ margin: 0 }}>
+                {group.taskCount} {t("onboarding.task.timeline.tasks_count")}
+              </Tag>
+            </div>
+          }>
+          <Timeline
+            items={group.tasks.map((task) => ({
+              color:
+                task.status === "DONE"
+                  ? "green"
+                  : task.status === "PENDING_APPROVAL"
+                    ? "orange"
+                    : task.status === "IN_PROGRESS"
+                      ? "blue"
+                      : "gray",
+              children: (
+                <div
+                  className="flex cursor-pointer items-start justify-between gap-2 rounded-lg p-2 transition hover:bg-slate-50"
+                  onClick={() => onInspect(task.taskId)}>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-800">
+                      {task.title}
+                    </p>
+                    {task.checklistName && (
+                      <p className="text-xs text-gray-400">
+                        {task.checklistName}
+                      </p>
+                    )}
+                    {task.scheduledStartAt && (
+                      <p className="mt-0.5 flex items-center gap-1 text-xs text-blue-500">
+                        <CalendarClock className="h-3 w-3" />
+                        {formatDateTime(task.scheduledStartAt)}
+                        {task.scheduleStatus && (
+                          <Tag
+                            color={
+                              SCHEDULE_STATUS_COLOR[task.scheduleStatus] ??
+                              "default"
+                            }
+                            style={{ margin: 0, fontSize: 10 }}>
+                            {task.scheduleStatus}
+                          </Tag>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    {task.status && (
+                      <Tag
+                        color={STATUS_TAG_COLOR[task.status] ?? "default"}
+                        style={{ margin: 0, fontSize: 11 }}>
+                        {task.status}
+                      </Tag>
+                    )}
+                    {task.dueDate && (
+                      <span className="text-[11px] text-gray-400">
+                        {formatDate(task.dueDate)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ),
+            }))}
+          />
+        </Card>
+      ))}
+    </div>
+  );
+};
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 const Tasks = () => {
@@ -542,6 +845,9 @@ const Tasks = () => {
   const isManager = roles.includes("MANAGER") && !roles.includes("HR");
   const isHr = roles.includes("HR");
   const canManage = canManageOnboarding(roles);
+
+  // ── View mode ─────────────────────────────────────────────────────────────
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
 
   // ── Instance loading ──────────────────────────────────────────────────────
 
@@ -566,14 +872,12 @@ const Tasks = () => {
   });
 
   const instances = useMemo(() => {
-    if (isManager) {
+    if (isManager)
       return allInstances.filter((i) => i.managerUserId === userId);
-    }
-    if (isEmployee) {
+    if (isEmployee)
       return allInstances.filter(
         (i) => i.employeeUserId === userId || i.employeeId === userId,
       );
-    }
     return allInstances;
   }, [allInstances, isManager, isEmployee, userId]);
 
@@ -601,8 +905,22 @@ const Tasks = () => {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [keyword, setKeyword] = useState("");
   const [commentInput, setCommentInput] = useState("");
+  const [attFileUrl, setAttFileUrl] = useState("");
+  const [attFileName, setAttFileName] = useState("");
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+
+  // ── Assign task state ─────────────────────────────────────────────────────
+  const [assignUserId, setAssignUserId] = useState("");
+  const [assignLoading, setAssignLoading] = useState(false);
+
+  // ── Schedule propose state ─────────────────────────────────────────────────
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [scheduleDates, setScheduleDates] = useState<
+    [Dayjs | null, Dayjs | null]
+  >([null, null]);
+
+  // ── Mutations ─────────────────────────────────────────────────────────────
 
   const acknowledgeMutation = useMutation({
     mutationFn: (taskId: string) => apiAcknowledgeTask({ taskId }),
@@ -651,6 +969,49 @@ const Tasks = () => {
     onError: () => notify.error(t("onboarding.task.toast.failed")),
   });
 
+  const scheduleProposeMutation = useMutation({
+    mutationFn: ({
+      taskId,
+      startAt,
+      endAt,
+    }: {
+      taskId: string;
+      startAt: string;
+      endAt: string;
+    }) =>
+      apiProposeTaskSchedule({
+        taskId,
+        scheduledStartAt: startAt,
+        scheduledEndAt: endAt,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-detail", selectedTaskId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-timeline", onboardingId ?? ""],
+      });
+      setScheduleModalOpen(false);
+      setScheduleDates([null, null]);
+      notify.success(t("onboarding.task.schedule.toast.proposed"));
+    },
+    onError: () => notify.error(t("onboarding.task.toast.failed")),
+  });
+
+  const scheduleConfirmMutation = useMutation({
+    mutationFn: (taskId: string) => apiConfirmTaskSchedule({ taskId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-detail", selectedTaskId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-timeline", onboardingId ?? ""],
+      });
+      notify.success(t("onboarding.task.schedule.toast.confirmed"));
+    },
+    onError: () => notify.error(t("onboarding.task.toast.failed")),
+  });
+
   const { data: comments, isLoading: commentsLoading } = useTaskCommentsQuery(
     selectedTaskId ?? undefined,
   );
@@ -665,10 +1026,41 @@ const Tasks = () => {
       setCommentInput("");
       notify.success(t("onboarding.task.comments.toast_added"));
     },
-    onError: () => {
-      notify.error(t("onboarding.task.toast.failed"));
-    },
+    onError: () => notify.error(t("onboarding.task.toast.failed")),
   });
+
+  const addAttachmentMutation = useMutation({
+    mutationFn: ({
+      taskId,
+      fileUrl,
+      fileName,
+    }: {
+      taskId: string;
+      fileUrl: string;
+      fileName: string;
+    }) => apiAddTaskAttachment({ taskId, fileUrl, fileName }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-detail", selectedTaskId],
+      });
+      setAttFileUrl("");
+      setAttFileName("");
+      notify.success(t("onboarding.task.attachment.toast_added"));
+    },
+    onError: () => notify.error(t("onboarding.task.attachment.toast_failed")),
+  });
+
+  const { data: taskDetail, isLoading: taskDetailLoading } = useTaskDetailQuery(
+    selectedTaskId ?? undefined,
+  );
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+
+  const invalidateTasks = () => {
+    queryClient.invalidateQueries({
+      queryKey: ["onboarding-tasks-by-instance", onboardingId ?? ""],
+    });
+  };
 
   const handleAddComment = () => {
     if (!selectedTaskId || !commentInput.trim()) return;
@@ -678,9 +1070,86 @@ const Tasks = () => {
     });
   };
 
-  const { data: taskDetail, isLoading: taskDetailLoading } = useTaskDetailQuery(
-    selectedTaskId ?? undefined,
-  );
+  const handleStart = async (task: OnboardingTask) => {
+    try {
+      await updateStatus.mutateAsync({
+        taskId: task.id,
+        status: "IN_PROGRESS",
+      });
+      invalidateTasks();
+      notify.success(t("onboarding.task.toast.started"));
+    } catch {
+      notify.error(t("onboarding.task.toast.failed"));
+    }
+  };
+
+  const handleAcknowledge = (task: OnboardingTask) => {
+    acknowledgeMutation.mutate(task.id);
+  };
+
+  const handleSubmitApproval = async (task: OnboardingTask) => {
+    try {
+      await updateStatus.mutateAsync({
+        taskId: task.id,
+        status: "PENDING_APPROVAL",
+      });
+      invalidateTasks();
+      notify.success(t("onboarding.task.toast.submitted_approval"));
+    } catch {
+      notify.error(t("onboarding.task.toast.failed"));
+    }
+  };
+
+  const handleMarkDone = async (task: OnboardingTask) => {
+    try {
+      await updateStatus.mutateAsync({
+        taskId: task.id,
+        status: STATUS_DONE_API,
+      });
+      invalidateTasks();
+      notify.success(t("onboarding.task.toast.done"));
+    } catch {
+      notify.error(t("onboarding.task.toast.failed"));
+    }
+  };
+
+  const handleInlineApprove = (task: OnboardingTask) => {
+    approveMutation.mutate(task.id);
+  };
+
+  const handleInlineReject = (task: OnboardingTask) => {
+    setSelectedTaskId(task.id);
+    setRejectModalOpen(true);
+  };
+
+  const handleAssignTask = async () => {
+    if (!selectedTaskId || !assignUserId.trim()) return;
+    setAssignLoading(true);
+    try {
+      await apiAssignTask(selectedTaskId, assignUserId.trim());
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-detail", selectedTaskId],
+      });
+      invalidateTasks();
+      setAssignUserId("");
+      notify.success(t("onboarding.task.toast.assigned"));
+    } catch {
+      notify.error(t("onboarding.task.toast.failed"));
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
+  const handleProposeSchedule = () => {
+    if (!selectedTaskId || !scheduleDates[0] || !scheduleDates[1]) return;
+    scheduleProposeMutation.mutate({
+      taskId: selectedTaskId,
+      startAt: scheduleDates[0].toISOString(),
+      endAt: scheduleDates[1].toISOString(),
+    });
+  };
+
+  // ── Filtered tasks ────────────────────────────────────────────────────────
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
@@ -711,57 +1180,6 @@ const Tasks = () => {
     return Array.from(map.entries());
   }, [filteredTasks]);
 
-  const handleToggleTask = async (task: OnboardingTask) => {
-    const isDone = task.status === STATUS_DONE;
-    const taskQueryKey = ["onboarding-tasks-by-instance", onboardingId ?? ""];
-
-    if (isDone) {
-      try {
-        await updateStatus.mutateAsync({ taskId: task.id, status: "TODO" });
-        queryClient.invalidateQueries({ queryKey: taskQueryKey });
-        notify.success(t("onboarding.task.toast.undone"));
-      } catch {
-        notify.error(t("onboarding.task.toast.failed"));
-      }
-      return;
-    }
-
-    if (
-      isEmployee &&
-      task.requireAck &&
-      task.rawStatus !== "WAIT_ACK" &&
-      task.rawStatus !== "DONE"
-    ) {
-      acknowledgeMutation.mutate(task.id);
-      return;
-    }
-
-    if (isEmployee && task.requiresManagerApproval) {
-      try {
-        await updateStatus.mutateAsync({
-          taskId: task.id,
-          status: "PENDING_APPROVAL",
-        });
-        queryClient.invalidateQueries({ queryKey: taskQueryKey });
-        notify.success(t("onboarding.task.toast.submitted_approval"));
-      } catch {
-        notify.error(t("onboarding.task.toast.failed"));
-      }
-      return;
-    }
-
-    try {
-      await updateStatus.mutateAsync({
-        taskId: task.id,
-        status: STATUS_DONE_API,
-      });
-      queryClient.invalidateQueries({ queryKey: taskQueryKey });
-      notify.success(t("onboarding.task.toast.done"));
-    } catch {
-      notify.error(t("onboarding.task.toast.failed"));
-    }
-  };
-
   const instanceSelectOptions = instances.map((inst) => {
     const progressLabel = inst.progress > 0 ? ` · ${inst.progress}%` : "";
     const managerLabel = inst.managerName ? ` · ${inst.managerName}` : "";
@@ -779,15 +1197,6 @@ const Tasks = () => {
     () => instances.find((i) => i.id === onboardingId),
     [instances, onboardingId],
   );
-
-  const handleInlineApprove = (task: OnboardingTask) => {
-    approveMutation.mutate(task.id);
-  };
-
-  const handleInlineReject = (task: OnboardingTask) => {
-    setSelectedTaskId(task.id);
-    setRejectModalOpen(true);
-  };
 
   return (
     <div className="space-y-5">
@@ -807,7 +1216,10 @@ const Tasks = () => {
                   placeholder={t("onboarding.task.instance.select_placeholder")}
                   options={instanceSelectOptions}
                   value={onboardingId}
-                  onChange={(v) => setSelectedInstanceId(v)}
+                  onChange={(v) => {
+                    setSelectedInstanceId(v);
+                    setViewMode("list");
+                  }}
                   showSearch
                   filterOption={(input, option) =>
                     ((option?.label as string) ?? "")
@@ -838,6 +1250,7 @@ const Tasks = () => {
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               placeholder={t("onboarding.task.quickview.search_placeholder")}
+              disabled={viewMode === "timeline"}
             />
           </Col>
           <Col xs={24} md={canManage ? 8 : 12}>
@@ -847,6 +1260,7 @@ const Tasks = () => {
             <Segmented
               value={statusFilter}
               onChange={(value) => setStatusFilter(value as StatusFilter)}
+              disabled={viewMode === "timeline"}
               options={[
                 {
                   label: t("onboarding.task.quickview.filter_all"),
@@ -863,7 +1277,9 @@ const Tasks = () => {
                 ...(canManage
                   ? [
                       {
-                        label: t("onboarding.task.quickview.filter_pending_approval"),
+                        label: t(
+                          "onboarding.task.quickview.filter_pending_approval",
+                        ),
                         value: "pending_approval",
                       },
                       {
@@ -874,17 +1290,19 @@ const Tasks = () => {
                   : []),
               ]}
             />
-            <p className="mt-1 text-xs text-gray-500">
-              {t("onboarding.task.quickview.result", {
-                visible: filteredTasks.length,
-                total: tasks.length,
-              })}
-            </p>
+            {viewMode === "list" && (
+              <p className="mt-1 text-xs text-gray-500">
+                {t("onboarding.task.quickview.result", {
+                  visible: filteredTasks.length,
+                  total: tasks.length,
+                })}
+              </p>
+            )}
           </Col>
         </Row>
       </Card>
 
-      {/* ── Instance Info Banner (HR/Manager) ──────────────────────── */}
+      {/* ── Instance Info Banner + View Mode (HR/Manager) ───────── */}
       {canManage && selectedInstance && (
         <Card size="small" className="border-blue-100 bg-blue-50/30">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
@@ -909,79 +1327,115 @@ const Tasks = () => {
                 {selectedInstance.managerName}
               </div>
             )}
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-3">
               <Progress
                 percent={selectedInstance.progress}
                 size="small"
                 style={{ width: 120, marginBottom: 0 }}
               />
+              {onboardingId && (
+                <Segmented
+                  size="small"
+                  value={viewMode}
+                  onChange={(v) => setViewMode(v as ViewMode)}
+                  options={[
+                    {
+                      value: "list",
+                      icon: <List className="h-3.5 w-3.5" />,
+                      label: t("onboarding.task.view.list"),
+                    },
+                    {
+                      value: "timeline",
+                      icon: <BarChart2 className="h-3.5 w-3.5" />,
+                      label: t("onboarding.task.view.timeline"),
+                    },
+                  ]}
+                />
+              )}
             </div>
           </div>
         </Card>
       )}
 
       {/* ── Progress Stats ──────────────────────────────────────── */}
-      {tasks.length > 0 && <ProgressStats tasks={tasks} />}
-
-      {/* ── Task list ─────────────────────────────────────────── */}
-      {isLoading ? (
-        <LoadingState />
-      ) : isError ? (
-        <Card>
-          <div className="flex flex-col items-center gap-3 py-8 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-50">
-              <AlertTriangle className="h-6 w-6 text-red-400" />
-            </div>
-            <p className="text-sm font-medium text-gray-700">
-              {error instanceof Error
-                ? error.message
-                : t("onboarding.task.error.something_wrong")}
-            </p>
-            <Button onClick={() => refetch()}>
-              {t("onboarding.task.error.retry")}
-            </Button>
-          </div>
-        </Card>
-      ) : grouped.length > 0 ? (
-        <div className="space-y-4">
-          {grouped.map(([stageName, stageTasks]) => (
-            <StageSection
-              key={stageName}
-              title={stageName}
-              tasks={stageTasks}
-              isUpdating={updateStatus.isPending}
-              onToggle={handleToggleTask}
-              onInspect={(task) => setSelectedTaskId(task.id)}
-              onApprove={canManage ? handleInlineApprove : undefined}
-              onReject={canManage ? handleInlineReject : undefined}
-              canManage={canManage}
-            />
-          ))}
-        </div>
-      ) : (
-        <Card>
-          <div className="py-8">
-            <Empty
-              description={
-                onboardingId
-                  ? t("onboarding.task.empty.desc_has_instance")
-                  : t("onboarding.task.empty.desc_no_instance")
-              }>
-              {isEmployee ? (
-                <Button onClick={() => navigate("/onboarding/my-journey")}>
-                  {t("onboarding.task.empty.title")}
-                </Button>
-              ) : (
-                <Button
-                  type="primary"
-                  onClick={() => navigate("/onboarding/employees")}>
-                  {t("onboarding.task.empty.action")}
-                </Button>
-              )}
-            </Empty>
-          </div>
-        </Card>
+      {tasks.length > 0 && viewMode === "list" && (
+        <ProgressStats tasks={tasks} />
       )}
+
+      {/* ── Timeline View ────────────────────────────────────────── */}
+      {viewMode === "timeline" && onboardingId && (
+        <TimelineView
+          onboardingId={onboardingId}
+          onInspect={(taskId) => setSelectedTaskId(taskId)}
+        />
+      )}
+
+      {/* ── List View ────────────────────────────────────────────── */}
+      {viewMode === "list" &&
+        (isLoading ? (
+          <LoadingState />
+        ) : isError ? (
+          <Card>
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-50">
+                <AlertTriangle className="h-6 w-6 text-red-400" />
+              </div>
+              <p className="text-sm font-medium text-gray-700">
+                {error instanceof Error
+                  ? error.message
+                  : t("onboarding.task.error.something_wrong")}
+              </p>
+              <Button onClick={() => refetch()}>
+                {t("onboarding.task.error.retry")}
+              </Button>
+            </div>
+          </Card>
+        ) : grouped.length > 0 ? (
+          <div className="space-y-4">
+            {grouped.map(([stageName, stageTasks]) => (
+              <StageSection
+                key={stageName}
+                title={stageName}
+                tasks={stageTasks}
+                isUpdating={
+                  updateStatus.isPending || acknowledgeMutation.isPending
+                }
+                isEmployee={isEmployee}
+                canManage={canManage}
+                onStart={handleStart}
+                onAcknowledge={handleAcknowledge}
+                onSubmitApproval={handleSubmitApproval}
+                onMarkDone={handleMarkDone}
+                onInspect={(task) => setSelectedTaskId(task.id)}
+                onApprove={canManage ? handleInlineApprove : undefined}
+                onReject={canManage ? handleInlineReject : undefined}
+              />
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <div className="py-8">
+              <Empty
+                description={
+                  onboardingId
+                    ? t("onboarding.task.empty.desc_has_instance")
+                    : t("onboarding.task.empty.desc_no_instance")
+                }>
+                {isEmployee ? (
+                  <Button onClick={() => navigate("/onboarding/my-journey")}>
+                    {t("onboarding.task.empty.title")}
+                  </Button>
+                ) : (
+                  <Button
+                    type="primary"
+                    onClick={() => navigate("/onboarding/employees")}>
+                    {t("onboarding.task.empty.action")}
+                  </Button>
+                )}
+              </Empty>
+            </div>
+          </Card>
+        ))}
 
       {/* ── Task Detail Drawer ─────────────────────────────────── */}
       <Drawer
@@ -1003,7 +1457,9 @@ const Tasks = () => {
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-blue-100 bg-blue-50/40 px-3 py-2 text-xs text-gray-500">
                 <span className="flex items-center gap-1 font-medium text-gray-700">
                   <User className="h-3.5 w-3.5 text-blue-400" />
-                  {selectedInstance.employeeName ?? selectedInstance.employeeId ?? "-"}
+                  {selectedInstance.employeeName ??
+                    selectedInstance.employeeId ??
+                    "-"}
                 </span>
                 {selectedInstance.managerName && (
                   <span>Manager: {selectedInstance.managerName}</span>
@@ -1030,11 +1486,15 @@ const Tasks = () => {
               </div>
               {taskDetail.checklistName && (
                 <div className="mt-1 flex items-center gap-1.5">
-                  <span className="text-xs text-gray-500">{t("onboarding.task.field.checklist")}:</span>
+                  <span className="text-xs text-gray-500">
+                    {t("onboarding.task.field.checklist")}:
+                  </span>
                   {(() => {
                     const info = getStageLabel(taskDetail.checklistName, t);
                     return (
-                      <Tag color={info.color} style={{ margin: 0, fontSize: 11 }}>
+                      <Tag
+                        color={info.color}
+                        style={{ margin: 0, fontSize: 11 }}>
                         {info.label}
                       </Tag>
                     );
@@ -1055,7 +1515,10 @@ const Tasks = () => {
             <Row gutter={[12, 12]}>
               <Col span={12}>
                 <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-                  <InfoField label={t("onboarding.employee.home.task_detail.field_due_date")}>
+                  <InfoField
+                    label={t(
+                      "onboarding.employee.home.task_detail.field_due_date",
+                    )}>
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3.5 w-3.5 text-gray-400" />
                       {formatDate(taskDetail.dueDate)}
@@ -1073,41 +1536,77 @@ const Tasks = () => {
                   </InfoField>
                 </div>
               </Col>
-              {taskDetail.assignedUserName || taskDetail.assignedUserId ? (
+              {(taskDetail.assignedUserName || taskDetail.assignedUserId) && (
                 <Col span={12}>
                   <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
                     <InfoField label={t("onboarding.task.field.assignee")}>
                       <span className="flex items-center gap-1">
                         <User className="h-3.5 w-3.5 text-gray-400" />
-                        {taskDetail.assignedUserName ?? taskDetail.assignedUserId}
+                        {taskDetail.assignedUserName ??
+                          taskDetail.assignedUserId}
                       </span>
                     </InfoField>
                   </div>
                 </Col>
-              ) : null}
-              {taskDetail.createdAt ? (
-                <Col span={taskDetail.assignedUserName || taskDetail.assignedUserId ? 12 : 24}>
+              )}
+              {taskDetail.createdAt && (
+                <Col
+                  span={
+                    taskDetail.assignedUserName || taskDetail.assignedUserId
+                      ? 12
+                      : 24
+                  }>
                   <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
                     <InfoField label={t("onboarding.task.field.created_at")}>
                       {formatDateTime(taskDetail.createdAt)}
                     </InfoField>
                   </div>
                 </Col>
-              ) : null}
+              )}
             </Row>
 
             {/* ── Description ─────────────────────────────────────── */}
             {taskDetail.description && (
               <div>
-                <Typography.Text
-                  type="secondary"
-                  style={{ fontSize: 12 }}>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                   {t("onboarding.employee.home.task_detail.field_description")}
                 </Typography.Text>
                 <div className="mt-1.5 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-700">
                   {String(taskDetail.description)}
                 </div>
               </div>
+            )}
+
+            {/* ── Assign Task (HR/Manager only) ────────────────────── */}
+            {canManage && (
+              <>
+                <Divider orientationMargin={0}>
+                  <span className="flex items-center gap-1 text-xs text-gray-400">
+                    <UserPlus className="h-3 w-3" />
+                    {t("onboarding.task.assign.section_title")}
+                  </span>
+                </Divider>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder={t(
+                      "onboarding.task.assign.user_id_placeholder",
+                    )}
+                    value={assignUserId}
+                    onChange={(e) => setAssignUserId(e.target.value)}
+                    size="small"
+                    prefix={<User className="h-3 w-3 text-gray-400" />}
+                  />
+                  <Button
+                    size="small"
+                    type="primary"
+                    loading={assignLoading}
+                    icon={<UserPlus className="h-3 w-3" />}
+                    onClick={handleAssignTask}
+                    disabled={!assignUserId.trim()}>
+                    {t("onboarding.task.assign.action")}
+                  </Button>
+                </div>
+              </>
             )}
 
             {/* ── Acknowledgment Section ──────────────────────────── */}
@@ -1123,12 +1622,14 @@ const Tasks = () => {
                   {taskDetail.acknowledgedAt ? (
                     <Row gutter={[12, 8]}>
                       <Col span={12}>
-                        <InfoField label={t("onboarding.task.field.acknowledged_by")}>
+                        <InfoField
+                          label={t("onboarding.task.field.acknowledged_by")}>
                           {taskDetail.acknowledgedBy ?? "-"}
                         </InfoField>
                       </Col>
                       <Col span={12}>
-                        <InfoField label={t("onboarding.task.field.acknowledged_at")}>
+                        <InfoField
+                          label={t("onboarding.task.field.acknowledged_at")}>
                           {formatDateTime(taskDetail.acknowledgedAt)}
                         </InfoField>
                       </Col>
@@ -1179,14 +1680,16 @@ const Tasks = () => {
                     <Row gutter={[12, 8]}>
                       {taskDetail.approvedBy && (
                         <Col span={12}>
-                          <InfoField label={t("onboarding.task.field.approved_by")}>
+                          <InfoField
+                            label={t("onboarding.task.field.approved_by")}>
                             {taskDetail.approvedBy}
                           </InfoField>
                         </Col>
                       )}
                       {taskDetail.approvedAt && (
                         <Col span={12}>
-                          <InfoField label={t("onboarding.task.field.approved_at")}>
+                          <InfoField
+                            label={t("onboarding.task.field.approved_at")}>
                             {formatDateTime(taskDetail.approvedAt)}
                           </InfoField>
                         </Col>
@@ -1209,52 +1712,79 @@ const Tasks = () => {
             )}
 
             {/* ── Schedule Section ────────────────────────────────── */}
-            {taskDetail.scheduleStatus &&
-              taskDetail.scheduleStatus !== "UNSCHEDULED" && (
-                <>
-                  <Divider orientationMargin={0}>
-                    <span className="flex items-center gap-1 text-xs text-gray-400">
-                      <Calendar className="h-3 w-3" />
-                      {t("onboarding.task.schedule.section_title")}
+            <>
+              <Divider orientationMargin={0}>
+                <span className="flex items-center gap-1 text-xs text-gray-400">
+                  <CalendarClock className="h-3 w-3" />
+                  {t("onboarding.task.schedule.section_title")}
+                </span>
+              </Divider>
+              {taskDetail.scheduleStatus &&
+              taskDetail.scheduleStatus !== "UNSCHEDULED" ? (
+                <div className="rounded-lg border border-blue-100 bg-blue-50/30 p-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="text-xs text-gray-500">
+                      {t("onboarding.employee.home.task_detail.field_status")}:
                     </span>
-                  </Divider>
-                  <div className="rounded-lg border border-blue-100 bg-blue-50/30 p-3">
-                    <div className="mb-2 flex items-center gap-2">
-                      <span className="text-xs text-gray-500">
-                        {t("onboarding.employee.home.task_detail.field_status")}:
-                      </span>
-                      <Tag
-                        color={
-                          SCHEDULE_STATUS_COLOR[taskDetail.scheduleStatus] ??
-                          "default"
-                        }
-                        style={{ margin: 0 }}>
-                        {t(
-                          `onboarding.task.schedule.status.${taskDetail.scheduleStatus}`,
-                        )}
-                      </Tag>
-                    </div>
-                    <Row gutter={[12, 8]}>
-                      {taskDetail.scheduledStartAt && (
-                        <Col span={12}>
-                          <InfoField
-                            label={t("onboarding.task.schedule.field.start")}>
-                            {formatDateTime(taskDetail.scheduledStartAt)}
-                          </InfoField>
-                        </Col>
+                    <Tag
+                      color={
+                        SCHEDULE_STATUS_COLOR[taskDetail.scheduleStatus] ??
+                        "default"
+                      }
+                      style={{ margin: 0 }}>
+                      {t(
+                        `onboarding.task.schedule.status.${taskDetail.scheduleStatus}`,
                       )}
-                      {taskDetail.scheduledEndAt && (
-                        <Col span={12}>
-                          <InfoField
-                            label={t("onboarding.task.schedule.field.end")}>
-                            {formatDateTime(taskDetail.scheduledEndAt)}
-                          </InfoField>
-                        </Col>
-                      )}
-                    </Row>
+                    </Tag>
                   </div>
-                </>
+                  <Row gutter={[12, 8]}>
+                    {taskDetail.scheduledStartAt && (
+                      <Col span={12}>
+                        <InfoField
+                          label={t("onboarding.task.schedule.field.start")}>
+                          {formatDateTime(taskDetail.scheduledStartAt)}
+                        </InfoField>
+                      </Col>
+                    )}
+                    {taskDetail.scheduledEndAt && (
+                      <Col span={12}>
+                        <InfoField
+                          label={t("onboarding.task.schedule.field.end")}>
+                          {formatDateTime(taskDetail.scheduledEndAt)}
+                        </InfoField>
+                      </Col>
+                    )}
+                  </Row>
+                  {/* Confirm button (HR/Manager) when status is PROPOSED */}
+                  {canManage && taskDetail.scheduleStatus === "PROPOSED" && (
+                    <div className="mt-3">
+                      <Button
+                        size="small"
+                        type="primary"
+                        loading={scheduleConfirmMutation.isPending}
+                        icon={<CheckCircle2 className="h-3 w-3" />}
+                        onClick={() =>
+                          scheduleConfirmMutation.mutate(taskDetail.taskId)
+                        }>
+                        {t("onboarding.task.schedule.action.confirm")}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/40 p-3">
+                  <p className="mb-2 text-xs text-gray-400">
+                    {t("onboarding.task.schedule.not_scheduled")}
+                  </p>
+                  <Button
+                    size="small"
+                    icon={<CalendarClock className="h-3 w-3" />}
+                    onClick={() => setScheduleModalOpen(true)}>
+                    {t("onboarding.task.schedule.action.propose")}
+                  </Button>
+                </div>
               )}
+            </>
 
             {/* ── Role-aware action buttons ─────────────────────── */}
             <Divider orientationMargin={0}>
@@ -1280,6 +1810,32 @@ const Tasks = () => {
                   </Button>
                 )}
 
+              {/* Employee: Start task */}
+              {isEmployee &&
+                (taskDetail.status === "TODO" ||
+                  taskDetail.status === "ASSIGNED") && (
+                  <Button
+                    icon={<Play className="h-3.5 w-3.5" />}
+                    loading={updateStatus.isPending}
+                    onClick={async () => {
+                      try {
+                        await updateStatus.mutateAsync({
+                          taskId: taskDetail.taskId,
+                          status: "IN_PROGRESS",
+                        });
+                        invalidateTasks();
+                        queryClient.invalidateQueries({
+                          queryKey: ["onboarding-task-detail", selectedTaskId],
+                        });
+                        notify.success(t("onboarding.task.toast.started"));
+                      } catch {
+                        notify.error(t("onboarding.task.toast.failed"));
+                      }
+                    }}>
+                    {t("onboarding.task.action.start")}
+                  </Button>
+                )}
+
               {/* Employee: Confirm Complete (WAIT_ACK) */}
               {isEmployee && taskDetail.status === "WAIT_ACK" && (
                 <Button
@@ -1292,12 +1848,7 @@ const Tasks = () => {
                         taskId: taskDetail.taskId,
                         status: STATUS_DONE_API,
                       });
-                      queryClient.invalidateQueries({
-                        queryKey: [
-                          "onboarding-tasks-by-instance",
-                          onboardingId ?? "",
-                        ],
-                      });
+                      invalidateTasks();
                       queryClient.invalidateQueries({
                         queryKey: ["onboarding-task-detail", selectedTaskId],
                       });
@@ -1314,8 +1865,7 @@ const Tasks = () => {
               {/* Employee: Submit for Approval */}
               {isEmployee &&
                 taskDetail.requiresManagerApproval &&
-                (taskDetail.status === "TODO" ||
-                  taskDetail.status === "IN_PROGRESS") && (
+                taskDetail.status === "IN_PROGRESS" && (
                   <Button
                     type="primary"
                     icon={<Send className="h-3.5 w-3.5" />}
@@ -1326,12 +1876,7 @@ const Tasks = () => {
                           taskId: taskDetail.taskId,
                           status: "PENDING_APPROVAL",
                         });
-                        queryClient.invalidateQueries({
-                          queryKey: [
-                            "onboarding-tasks-by-instance",
-                            onboardingId ?? "",
-                          ],
-                        });
+                        invalidateTasks();
                         queryClient.invalidateQueries({
                           queryKey: ["onboarding-task-detail", selectedTaskId],
                         });
@@ -1351,16 +1896,26 @@ const Tasks = () => {
               {isEmployee &&
                 !taskDetail.requireAck &&
                 !taskDetail.requiresManagerApproval &&
-                (taskDetail.status === "TODO" ||
-                  taskDetail.status === "IN_PROGRESS") && (
+                taskDetail.status === "IN_PROGRESS" && (
                   <Button
                     type="primary"
                     icon={<CheckCircle2 className="h-3.5 w-3.5" />}
                     loading={updateStatus.isPending}
                     onClick={async () => {
-                      const task = tasks.find((tk) => tk.id === selectedTaskId);
-                      if (task) await handleToggleTask(task);
-                      setSelectedTaskId(null);
+                      try {
+                        await updateStatus.mutateAsync({
+                          taskId: taskDetail.taskId,
+                          status: STATUS_DONE_API,
+                        });
+                        invalidateTasks();
+                        queryClient.invalidateQueries({
+                          queryKey: ["onboarding-task-detail", selectedTaskId],
+                        });
+                        setSelectedTaskId(null);
+                        notify.success(t("onboarding.task.toast.done"));
+                      } catch {
+                        notify.error(t("onboarding.task.toast.failed"));
+                      }
                     }}>
                     {t("onboarding.employee.home.today_actions.mark_done")}
                   </Button>
@@ -1432,13 +1987,15 @@ const Tasks = () => {
               </>
             )}
 
-            {/* ── Attachments placeholder ─────────────────────────── */}
+            {/* ── Attachments ─────────────────────────────────────── */}
             {taskDetail.attachments && taskDetail.attachments.length > 0 && (
               <>
                 <Divider orientationMargin={0}>
                   <span className="flex items-center gap-1 text-xs text-gray-400">
                     <Paperclip className="h-3 w-3" />
-                    {t("onboarding.employee.home.task_detail.field_attachments")}
+                    {t(
+                      "onboarding.employee.home.task_detail.field_attachments",
+                    )}
                   </span>
                 </Divider>
                 <div className="space-y-1.5">
@@ -1462,7 +2019,7 @@ const Tasks = () => {
               </>
             )}
 
-            {/* ── Comments ─────────────────────────────────── */}
+            {/* ── Comments ─────────────────────────────────────────── */}
             <Divider orientationMargin={0}>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 {t("onboarding.task.comments.title")}
@@ -1554,6 +2111,60 @@ const Tasks = () => {
             placeholder={t("onboarding.task.action.reject_reason_placeholder")}
             maxLength={500}
           />
+        </div>
+      </Modal>
+
+      {/* ── Schedule Propose Modal ───────────────────────────────── */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2">
+            <CalendarClock className="h-4 w-4 text-blue-500" />
+            <span>{t("onboarding.task.schedule.action.propose")}</span>
+          </div>
+        }
+        open={scheduleModalOpen}
+        onCancel={() => {
+          setScheduleModalOpen(false);
+          setScheduleDates([null, null]);
+        }}
+        onOk={handleProposeSchedule}
+        okText={t("onboarding.task.schedule.action.propose")}
+        okButtonProps={{
+          loading: scheduleProposeMutation.isPending,
+          disabled: !scheduleDates[0] || !scheduleDates[1],
+        }}
+        cancelText={t("global.close")}>
+        <div className="mt-3 space-y-3">
+          <p className="text-sm text-gray-500">
+            {t("onboarding.task.schedule.propose_hint")}
+          </p>
+          <div>
+            <p className="mb-1.5 text-xs font-semibold text-gray-500">
+              {t("onboarding.task.schedule.field.start")}
+            </p>
+            <DatePicker
+              showTime
+              style={{ width: "100%" }}
+              value={scheduleDates[0]}
+              onChange={(d) => setScheduleDates([d, scheduleDates[1]])}
+            />
+          </div>
+          <div>
+            <p className="mb-1.5 text-xs font-semibold text-gray-500">
+              {t("onboarding.task.schedule.field.end")}
+            </p>
+            <DatePicker
+              showTime
+              style={{ width: "100%" }}
+              value={scheduleDates[1]}
+              onChange={(d) => setScheduleDates([scheduleDates[0], d])}
+              disabledDate={(d) =>
+                scheduleDates[0]
+                  ? d.isBefore(scheduleDates[0], "minute")
+                  : false
+              }
+            />
+          </div>
         </div>
       </Modal>
     </div>

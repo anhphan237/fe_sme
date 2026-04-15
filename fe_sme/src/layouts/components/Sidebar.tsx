@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { LifeBuoy, X, Layers, ChevronLeft, ChevronRight } from "lucide-react";
+import { LifeBuoy, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { clsx } from "clsx";
 import { Link, useLocation } from "react-router-dom";
 import { Tooltip } from "antd";
@@ -79,16 +79,12 @@ export function Sidebar({ open, onClose, collapsed }: Props) {
           )}>
           {collapsed ? (
             <Tooltip title={t("app.name")} placement="right">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand cursor-pointer">
-                <Layers className="h-4 w-4 text-white" />
-              </div>
+              <img src="/Logo.png" className="h-9 w-9 object-contain cursor-pointer" alt="logo" />
             </Tooltip>
           ) : (
             <>
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand">
-                  <Layers className="h-4 w-4 text-white" />
-                </div>
+                <img src="/Logo.png" className="h-9 w-9 object-contain" alt="logo" />
                 <div>
                   <p className="text-[14px] font-semibold tracking-tight text-white">
                     {t("app.name")}

@@ -111,7 +111,7 @@ export const apiUpdatePlatformTemplate = (
 export const apiPublishPlatformTemplate = (
   payload: PlatformTemplatePublishRequest,
 ) =>
-  gatewayRequest<PlatformTemplateUpdateRequest, unknown>(
+  gatewayRequest<Record<string, unknown>, unknown>(
     "com.sme.onboarding.template.update",
     { templateId: payload.templateId, status: "PUBLISHED" },
   );
@@ -120,7 +120,7 @@ export const apiPublishPlatformTemplate = (
 export const apiArchivePlatformTemplate = (
   payload: PlatformTemplateArchiveRequest,
 ) =>
-  gatewayRequest<PlatformTemplateUpdateRequest, unknown>(
+  gatewayRequest<Record<string, unknown>, unknown>(
     "com.sme.onboarding.template.update",
     { templateId: payload.templateId, status: "ARCHIVED" },
   );
