@@ -6,6 +6,9 @@ import type {
   PlatformCompanyActivateRequest,
   PlatformCompanyDeactivateRequest,
   PlatformCompanyDeleteRequest,
+  PlatformCompanySuspendRequest,
+  PlatformCompanyChangePlanRequest,
+  PlatformSubscriptionHistoryRequest,
   PlatformOnboardingAnalyticsRequest,
   PlatformTemplateListRequest,
   PlatformTemplateCreateRequest,
@@ -147,6 +150,31 @@ export const apiDeactivateCompany = (
 export const apiDeleteCompany = (payload: PlatformCompanyDeleteRequest) =>
   gatewayRequest<PlatformCompanyDeleteRequest, unknown>(
     "com.sme.platform.company.delete",
+    payload,
+  );
+
+/** com.sme.platform.company.suspend */
+export const apiSuspendCompany = (payload: PlatformCompanySuspendRequest) =>
+  gatewayRequest<PlatformCompanySuspendRequest, unknown>(
+    "com.sme.platform.company.suspend",
+    payload,
+  );
+
+/** com.sme.platform.company.changePlan */
+export const apiChangePlanCompany = (
+  payload: PlatformCompanyChangePlanRequest,
+) =>
+  gatewayRequest<PlatformCompanyChangePlanRequest, unknown>(
+    "com.sme.platform.company.changePlan",
+    payload,
+  );
+
+/** com.sme.billing.subscription.history */
+export const apiGetSubscriptionHistory = (
+  payload: PlatformSubscriptionHistoryRequest,
+) =>
+  gatewayRequest<PlatformSubscriptionHistoryRequest, unknown>(
+    "com.sme.billing.subscription.history",
     payload,
   );
 
