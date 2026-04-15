@@ -1,4 +1,5 @@
 import { Modal, Input, Table, Tag } from "antd";
+import type { ColumnsType } from "antd/es/table";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import dayjs from "dayjs";
@@ -25,10 +26,10 @@ type OnboardingInstanceItem = {
 export type SelectedOnboardingItem = {
   onboardingId: string;
   instanceId: string;
-
   employeeUserId?: string | null;
   managerUserId?: string | null;
-
+  recipientUserId?: string | null;
+  recipientRole?: "EMPLOYEE" | "MANAGER";
   employeeName: string;
   email?: string | null;
   managerName?: string | null;
@@ -39,6 +40,7 @@ export type SelectedOnboardingItem = {
 interface Props {
   open: boolean;
   selectedIds: string[];
+  targetRole?: "EMPLOYEE" | "MANAGER";
   onClose: () => void;
   onConfirm: (items: SelectedOnboardingItem[]) => void;
 }
@@ -46,10 +48,14 @@ interface Props {
 const SelectOnboardingModal = ({
   open,
   selectedIds,
+  targetRole = "EMPLOYEE",
   onClose,
   onConfirm,
 }: Props) => {
   const { t } = useLocale();
+
+  // Modal đang được mount/unmount theo selectModalOpen,
+  // nên init state từ props là đủ, không cần useEffect setState.
   const [keyword, setKeyword] = useState("");
   const [localSelectedIds, setLocalSelectedIds] =
     useState<string[]>(selectedIds);
@@ -74,49 +80,79 @@ const SelectOnboardingModal = ({
 
   const users = extractList<UserListItem>(usersRaw, "users", "items");
 
-  const employeeUsers = useMemo(
+  const managerUser = useMemo(
     () =>
-      users.filter((user) => {
+      users.find((user) => {
         if (!Array.isArray(user.roles)) return false;
-        return user.roles.some((role) => role?.toUpperCase() === "EMPLOYEE");
+        return user.roles.some((role) => role?.toUpperCase() === "MANAGER");
       }),
     [users],
   );
 
-  const employeeUserMap = useMemo(
-    () => new Map(employeeUsers.map((user) => [user.userId, user])),
-    [employeeUsers],
+  const userMap = useMemo(
+    () => new Map(users.map((user) => [user.userId, user])),
+    [users],
   );
 
-  const rows: SelectedOnboardingItem[] = useMemo(
-    () =>
-      onboardingInstances
-        .filter((item) => {
-          if (!item.instanceId || !item.employeeUserId) return false;
-          return employeeUserMap.has(item.employeeUserId);
-        })
-        .map((item) => {
-          const employee = employeeUserMap.get(item.employeeUserId as string);
+  const rows = useMemo<SelectedOnboardingItem[]>(() => {
+    const result: SelectedOnboardingItem[] = [];
 
-          return {
-            onboardingId: item.instanceId,
-            instanceId: item.instanceId,
+    if (targetRole === "MANAGER") {
+      // Công ty nhỏ chỉ có 1 manager -> chỉ hiện 1 dòng duy nhất
+      if (!managerUser?.userId) {
+        return result;
+      }
 
-            employeeUserId: item.employeeUserId,
-            managerUserId: item.managerUserId,
-            employeeName:
-              employee?.fullName ||
-              item.employeeId ||
-              item.employeeUserId ||
-              item.instanceId,
-            email: employee?.email,
-            managerName: item.managerName,
-            startDate: item.startDate,
-            status: item.status,
-          };
-        }),
-    [onboardingInstances, employeeUserMap],
-  );
+      const firstOnboarding = onboardingInstances[0];
+      if (!firstOnboarding?.instanceId) {
+        return result;
+      }
+
+      result.push({
+        onboardingId: managerUser.userId,
+        instanceId: firstOnboarding.instanceId,
+        employeeUserId: firstOnboarding.employeeUserId ?? null,
+        managerUserId: managerUser.userId,
+        recipientUserId: managerUser.userId,
+        recipientRole: "MANAGER",
+        employeeName: managerUser.fullName || "Manager",
+        email: managerUser.email ?? null,
+        managerName: managerUser.fullName || "Manager",
+        startDate: firstOnboarding.startDate ?? null,
+        status: firstOnboarding.status ?? null,
+      });
+
+      return result;
+    }
+
+    onboardingInstances.forEach((item) => {
+      if (!item.instanceId || !item.employeeUserId) {
+        return;
+      }
+
+      const employee = userMap.get(item.employeeUserId);
+
+      result.push({
+        onboardingId: item.instanceId,
+        instanceId: item.instanceId,
+        employeeUserId: item.employeeUserId,
+        managerUserId: managerUser?.userId ?? null,
+        recipientUserId: item.employeeUserId,
+        recipientRole: "EMPLOYEE",
+        employeeName:
+          employee?.fullName ||
+          item.employeeId ||
+          item.employeeUserId ||
+          item.instanceId,
+        email: employee?.email ?? null,
+        managerName: managerUser?.fullName ?? "Manager",
+        startDate: item.startDate ?? null,
+        status: item.status ?? null,
+      });
+    });
+
+    return result;
+  }, [onboardingInstances, userMap, managerUser, targetRole]);
 
   const normalizedKeyword = keyword.trim().toLowerCase();
 
@@ -131,6 +167,7 @@ const SelectOnboardingModal = ({
         item.onboardingId,
         item.status,
         item.startDate,
+        item.recipientRole,
       ]
         .filter(Boolean)
         .some((value) =>
@@ -144,13 +181,50 @@ const SelectOnboardingModal = ({
     [rows, localSelectedIds],
   );
 
+  const columns: ColumnsType<SelectedOnboardingItem> = [
+    {
+      title:
+        targetRole === "MANAGER"
+          ? "Tên quản lý"
+          : t("survey.send.employee_name_column"),
+      dataIndex: "employeeName",
+      key: "employeeName",
+    },
+    {
+      title: t("survey.send.email_column"),
+      dataIndex: "email",
+      key: "email",
+      render: (value: string | null | undefined) => value || "-",
+    },
+    {
+      title: t("survey.send.manager_column"),
+      dataIndex: "managerName",
+      key: "managerName",
+      render: (value: string | null | undefined) => value || "-",
+    },
+    {
+      title: t("survey.send.start_date_column"),
+      dataIndex: "startDate",
+      key: "startDate",
+      render: (value: string | null | undefined) =>
+        value ? dayjs(value).format("DD-MM-YYYY") : "-",
+    },
+    {
+      title: t("survey.send.status_column"),
+      dataIndex: "status",
+      key: "status",
+      render: (value: string | null | undefined) =>
+        value ? <Tag>{value}</Tag> : "-",
+    },
+  ];
+
   return (
     <Modal
       open={open}
       onCancel={onClose}
       title={t("survey.send.select_employee_modal_title")}
       width={980}
-      destroyOnClose
+      destroyOnHidden
       footer={
         <div className="flex justify-end gap-2">
           <BaseButton label="global.cancel" onClick={onClose} />
@@ -184,39 +258,7 @@ const SelectOnboardingModal = ({
           selectedRowKeys: localSelectedIds,
           onChange: (keys) => setLocalSelectedIds(keys as string[]),
         }}
-        columns={[
-          {
-            title: t("survey.send.employee_name_column"),
-            dataIndex: "employeeName",
-            key: "employeeName",
-          },
-          {
-            title: t("survey.send.email_column"),
-            dataIndex: "email",
-            key: "email",
-            render: (value: string | null | undefined) => value || "-",
-          },
-          {
-            title: t("survey.send.manager_column"),
-            dataIndex: "managerName",
-            key: "managerName",
-            render: (value: string | null | undefined) => value || "-",
-          },
-          {
-            title: t("survey.send.start_date_column"),
-            dataIndex: "startDate",
-            key: "startDate",
-            render: (value: string | null | undefined) =>
-              value ? dayjs(value).format("DD-MM-YYYY") : "-",
-          },
-          {
-            title: t("survey.send.status_column"),
-            dataIndex: "status",
-            key: "status",
-            render: (value: string | null | undefined) =>
-              value ? <Tag>{value}</Tag> : "-",
-          },
-        ]}
+        columns={columns}
       />
     </Modal>
   );
