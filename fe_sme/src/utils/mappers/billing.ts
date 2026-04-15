@@ -34,12 +34,16 @@ export const INVOICE_STATUS_MAP: Record<string, Invoice["status"]> = {
 
 export const mapPlan = (p: any): BillingPlan => {
   const limit = p.employeeLimitPerMonth ?? 0;
+  const priceRaw = p.priceVndMonthly ?? 0;
+  const priceYearlyRaw = p.priceVndYearly ?? 0;
   return {
     id: p.planId ?? p.id ?? "",
     code: p.code ?? "",
     name: p.name ?? "",
     price: formatVnd(p.priceVndMonthly),
     priceYearly: formatVnd(p.priceVndYearly),
+    priceRaw,
+    priceYearlyRaw,
     employeeLimit: limit,
     limits: limit > 0 ? `Tối đa ${limit} nhân viên/tháng` : "",
     features: [
@@ -47,6 +51,7 @@ export const mapPlan = (p: any): BillingPlan => {
       p.priceVndYearly ? `Gói năm: ${formatVnd(p.priceVndYearly)}` : "",
     ].filter(Boolean),
     current: false,
+    recommended: p.recommended ?? false,
   };
 };
 

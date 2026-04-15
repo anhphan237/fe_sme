@@ -303,10 +303,13 @@ export interface BillingPlan {
   name: string;
   price: string;
   priceYearly: string;
+  priceRaw: number;
+  priceYearlyRaw: number;
   employeeLimit: number;
   limits: string;
   features: string[];
   current?: boolean;
+  recommended?: boolean;
 }
 
 export interface Subscription {
