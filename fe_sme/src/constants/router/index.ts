@@ -27,7 +27,6 @@ export const AppRouters = {
   ONBOARDING_MY_JOURNEY: "/onboarding/my-journey",
   // Documents
   DOCUMENTS: "/documents",
-  DOCUMENTS_ACKNOWLEDGMENTS: "/documents/acknowledgments",
   // Surveys
   SURVEYS_TEMPLATES: "/surveys/templates",
   SURVEYS_TEMPLATES_NEW: "/surveys/templates/new",
@@ -41,6 +40,7 @@ export const AppRouters = {
   BILLING_USAGE: "/billing/usage",
   BILLING_INVOICES: "/billing/invoices",
   BILLING_PAYMENT: "/billing/payment",
+  BILLING_TRANSACTIONS: "/billing/transactions",
   // Platform
   PLATFORM_TENANTS: "/platform/tenants",
   PLATFORM_PLANS: "/platform/plans",
