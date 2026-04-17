@@ -98,7 +98,7 @@ const SelectOnboardingModal = ({
     const result: SelectedOnboardingItem[] = [];
 
     if (targetRole === "MANAGER") {
-      // Công ty nhỏ chỉ có 1 manager -> chỉ hiện 1 dòng duy nhất
+
       if (!managerUser?.userId) {
         return result;
       }
