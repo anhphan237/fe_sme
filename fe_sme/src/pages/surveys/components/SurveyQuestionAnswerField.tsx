@@ -1,9 +1,10 @@
-import { Checkbox, Radio } from "antd";
-import BaseTextArea from "@core/components/TextArea/BaseTextArea";
+import { Checkbox, Radio, Input } from "antd";
 import type {
   AnswerValue,
   SurveyAnswerQuestion,
 } from "../types/survey-detail.types";
+
+const { TextArea } = Input;
 
 type Props = {
   question: SurveyAnswerQuestion;
@@ -23,11 +24,11 @@ const SurveyQuestionAnswerField = ({
 
   if (type === "TEXT") {
     return (
-      <BaseTextArea
-        name={question.questionId}
+      <TextArea
         placeholder="Enter your answer"
-        value={(value as string) ?? ""}
+        value={typeof value === "string" ? value : value == null ? "" : String(value)}
         disabled={disabled}
+        autoSize={{ minRows: 5, maxRows: 8 }}
         onChange={(e) => {
           if (disabled) return;
           onChange(e?.target?.value ?? "");
@@ -40,7 +41,7 @@ const SurveyQuestionAnswerField = ({
     return (
       <Radio.Group
         className="flex flex-col gap-3"
-        value={(value as string) ?? undefined}
+        value={typeof value === "string" ? value : undefined}
         disabled={disabled}
         onChange={(e) => {
           if (disabled) return;
@@ -64,7 +65,7 @@ const SurveyQuestionAnswerField = ({
     return (
       <div className="flex flex-col gap-3">
         <Checkbox.Group
-          value={(value as string[]) ?? []}
+          value={Array.isArray(value) ? value : []}
           disabled={disabled}
           onChange={(vals) => {
             if (disabled) return;
@@ -92,12 +93,18 @@ const SurveyQuestionAnswerField = ({
   if (type === "RATING") {
     const min = question.scaleMin ?? 1;
     const max = question.scaleMax ?? 5;
+    const numericValue =
+      typeof value === "number"
+        ? value
+        : Number.isNaN(Number(value))
+          ? undefined
+          : Number(value);
 
     return (
       <div className="flex flex-wrap gap-3">
         {Array.from({ length: max - min + 1 }, (_, i) => min + i).map(
           (num) => {
-            const active = value === num;
+            const active = numericValue === num;
 
             return (
               <button
@@ -128,11 +135,11 @@ const SurveyQuestionAnswerField = ({
   }
 
   return (
-    <BaseTextArea
-      name={question.questionId}
+    <TextArea
       placeholder="Enter your answer"
-      value={(value as string) ?? ""}
+      value={typeof value === "string" ? value : value == null ? "" : String(value)}
       disabled={disabled}
+      autoSize={{ minRows: 5, maxRows: 8 }}
       onChange={(e) => {
         if (disabled) return;
         onChange(e?.target?.value ?? "");
