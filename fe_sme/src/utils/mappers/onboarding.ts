@@ -107,6 +107,7 @@ export const mapTask = (t: any): OnboardingTask => ({
   dueOffset: String(t.dueDaysOffset ?? t.dueOffset ?? 0),
   required: t.requireAck ?? t.required ?? false,
   requireAck: Boolean(t.requireAck ?? t.required ?? false),
+  requireDoc: Boolean(t.requireDoc ?? false),
   requiresManagerApproval: Boolean(t.requiresManagerApproval ?? false),
   status: mapTaskStatus(t.status),
   rawStatus: t.status ?? undefined,

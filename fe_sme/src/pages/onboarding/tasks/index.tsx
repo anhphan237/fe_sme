@@ -18,6 +18,7 @@ import {
   List,
   BarChart2,
   CalendarClock,
+  RefreshCw,
 } from "lucide-react";
 import {
   Button,
@@ -530,6 +531,16 @@ const TaskItem = ({
                   style={{ margin: 0, fontSize: 10, padding: "0 4px" }}>
                   <ThumbsUp className="mr-0.5 inline h-2.5 w-2.5" />
                   {t("onboarding.task.flag.approval_short")}
+                </Tag>
+              </Tooltip>
+            )}
+            {task.requireDoc && !isDone && (
+              <Tooltip title={t("onboarding.task.flag.requires_doc")}>
+                <Tag
+                  color="cyan"
+                  style={{ margin: 0, fontSize: 10, padding: "0 4px" }}>
+                  <Paperclip className="mr-0.5 inline h-2.5 w-2.5" />
+                  Doc
                 </Tag>
               </Tooltip>
             )}
@@ -1291,12 +1302,22 @@ const Tasks = () => {
               ]}
             />
             {viewMode === "list" && (
-              <p className="mt-1 text-xs text-gray-500">
-                {t("onboarding.task.quickview.result", {
-                  visible: filteredTasks.length,
-                  total: tasks.length,
-                })}
-              </p>
+              <div className="mt-1 flex items-center justify-between gap-2">
+                <p className="!mb-0 text-xs text-gray-500">
+                  {t("onboarding.task.quickview.result", {
+                    visible: filteredTasks.length,
+                    total: tasks.length,
+                  })}
+                </p>
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<RefreshCw className="h-3 w-3" />}
+                  loading={isLoading}
+                  onClick={() => refetch()}>
+                  {t("onboarding.approvals.refresh") ?? "Refresh"}
+                </Button>
+              </div>
             )}
           </Col>
         </Row>
@@ -1576,6 +1597,57 @@ const Tasks = () => {
                 </div>
               </div>
             )}
+
+            {/* ── Attachments upload (Employee / assignee) ────────── */}
+            {(isEmployee ||
+              taskDetail.assignedUserId === userId ||
+              canManage) &&
+              taskDetail.status !== "DONE" && (
+                <>
+                  <Divider orientationMargin={0}>
+                    <span className="flex items-center gap-1 text-xs text-gray-400">
+                      <Paperclip className="h-3 w-3" />
+                      {t("onboarding.task.attachment.section_title")}
+                    </span>
+                  </Divider>
+                  <div className="flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50/40 p-3">
+                    <Input
+                      size="small"
+                      placeholder={t("onboarding.task.attachment.name_placeholder")}
+                      value={attFileName}
+                      onChange={(e) => setAttFileName(e.target.value)}
+                      prefix={<Paperclip className="h-3 w-3 text-gray-400" />}
+                    />
+                    <Input
+                      size="small"
+                      placeholder={t("onboarding.task.attachment.url_placeholder")}
+                      value={attFileUrl}
+                      onChange={(e) => setAttFileUrl(e.target.value)}
+                    />
+                    <Button
+                      size="small"
+                      type="primary"
+                      icon={<Paperclip className="h-3 w-3" />}
+                      loading={addAttachmentMutation.isPending}
+                      disabled={!attFileName.trim() || !attFileUrl.trim()}
+                      onClick={() => {
+                        if (!selectedTaskId) return;
+                        addAttachmentMutation.mutate({
+                          taskId: selectedTaskId,
+                          fileName: attFileName.trim(),
+                          fileUrl: attFileUrl.trim(),
+                        });
+                      }}>
+                      {t("onboarding.task.attachment.add_action")}
+                    </Button>
+                    {taskDetail.requireDoc && (
+                      <p className="!mb-0 text-xs text-cyan-600">
+                        {t("onboarding.task.attachment.required_hint")}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
 
             {/* ── Assign Task (HR/Manager only) ────────────────────── */}
             {canManage && (

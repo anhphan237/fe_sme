@@ -395,6 +395,9 @@ export interface TaskDetailResponse {
   scheduleProposedAt?: string;
   scheduleConfirmedBy?: string;
   scheduleConfirmedAt?: string;
+  scheduleRescheduleReason?: string;
+  scheduleCancelReason?: string;
+  scheduleNoShowReason?: string;
   // Collections
   comments?: CommentResponse[];
   attachments?: TaskAttachmentItem[];

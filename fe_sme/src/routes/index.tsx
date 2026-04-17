@@ -51,6 +51,8 @@ const OnboardingApprovals = lazy(() => import("@/pages/onboarding/approvals"));
 const OnboardingAutomation = lazy(
   () => import("@/pages/onboarding/automation"),
 );
+const OnboardingReports = lazy(() => import("@/pages/onboarding/reports"));
+const OnboardingSchedule = lazy(() => import("@/pages/onboarding/schedule"));
 const Documents = lazy(() => import("@/pages/documents/Documents"));
 const DocumentDetail = lazy(() => import("@/pages/documents/DocumentDetail"));
 const SurveyTemplates = lazy(() => import("@/pages/surveys/SurveyTemplates"));
@@ -247,6 +249,16 @@ export const router = createBrowserRouter([
       {
         path: "/onboarding/automation",
         element: suspense(withRoles(<OnboardingAutomation />, ["HR"])),
+      },
+      {
+        path: "/onboarding/reports",
+        element: suspense(withRoles(<OnboardingReports />, ["HR"])),
+      },
+      {
+        path: "/onboarding/schedule",
+        element: suspense(
+          withRoles(<OnboardingSchedule />, ["HR", "MANAGER", "EMPLOYEE"]),
+        ),
       },
       {
         path: "/onboarding/my-journey",
