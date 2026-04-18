@@ -109,6 +109,15 @@ export const UserDetailDrawer = ({
     return filtered.map((u) => ({ value: u.id, label: u.name || u.email }));
   }, [users, selectedDeptId]);
 
+  const roleOptions = useMemo(
+    () =>
+      ROLE_OPTIONS.filter((o) => !o.isPlatform).map((o) => ({
+        value: o.value,
+        label: t(o.labelKey),
+      })),
+    [t],
+  );
+
   useEffect(() => {
     setMode("view");
     setSaveError(null);
@@ -399,7 +408,7 @@ export const UserDetailDrawer = ({
               <BaseSelect
                 name="roleCode"
                 label={t("user.detail.role")}
-                options={ROLE_OPTIONS as { value: string; label: string }[]}
+                options={roleOptions}
               />
               <div className="grid gap-3 sm:grid-cols-2">
                 <BaseSelect

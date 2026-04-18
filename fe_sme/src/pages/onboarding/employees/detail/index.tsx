@@ -32,16 +32,28 @@ import {
   apiApproveTask,
   apiRejectTask,
   apiAddTaskComment,
+  apiAssignTask,
+  apiAddTaskAttachment,
+  apiProposeTaskSchedule,
+  apiConfirmTaskSchedule,
+  apiRescheduleTask,
+  apiCancelTaskSchedule,
+  apiMarkTaskNoShow,
 } from "@/api/onboarding/onboarding.api";
-import { apiGetUserById } from "@/api/identity/identity.api";
+import { apiGetUserById, apiSearchUsers } from "@/api/identity/identity.api";
+import { apiUploadDocumentFile } from "@/api/document/document.api";
 import { extractList } from "@/api/core/types";
 import { mapInstance, mapTask, mapTemplate } from "@/utils/mappers/onboarding";
 import { mapUserDetail } from "@/utils/mappers/identity";
-import type { GetUserResponse } from "@/interface/identity";
+import type { GetUserResponse, UserListItem } from "@/interface/identity";
 import type {
   CommentResponse,
   TaskDetailResponse,
+  TaskScheduleProposeRequest,
+  TaskScheduleRescheduleRequest,
+  TaskAttachmentAddRequest,
 } from "@/interface/onboarding";
+import type { Dayjs } from "dayjs";
 import { InfoCard } from "./components/InfoCard";
 import { TaskListPanel } from "./components/TaskListPanel";
 import { TaskDrawer } from "./components/TaskDrawer";
@@ -130,7 +142,8 @@ const ActivityFeed = ({
                               ? "border-emerald-200 bg-emerald-50"
                               : raw === "IN_PROGRESS"
                                 ? "border-blue-200 bg-blue-50"
-                                : raw === "PENDING_APPROVAL" || raw === "WAIT_ACK"
+                                : raw === "PENDING_APPROVAL" ||
+                                    raw === "WAIT_ACK"
                                   ? "border-amber-200 bg-amber-50"
                                   : "border-gray-100 bg-gray-50"
                           }`}>
@@ -205,6 +218,18 @@ const EmployeeDetail = () => {
     "cancel" | "complete" | null
   >(null);
 
+  // Schedule state
+  const [scheduleMode, setScheduleMode] = useState<
+    null | "propose" | "reschedule"
+  >(null);
+  const [scheduleDates, setScheduleDates] = useState<
+    [Dayjs | null, Dayjs | null]
+  >([null, null]);
+  const [scheduleReason, setScheduleReason] = useState("");
+  const [cancelScheduleReason, setCancelScheduleReason] = useState("");
+  const [noShowReason, setNoShowReason] = useState("");
+  const [uploadingFile, setUploadingFile] = useState(false);
+
   // ── Queries ──────────────────────────────────────────────────────────────────
 
   const {
@@ -226,7 +251,10 @@ const EmployeeDetail = () => {
   });
 
   const { data: tasks = [], isLoading: tasksLoading } = useQuery({
-    queryKey: ["onboarding-tasks-by-instance", instance?.id ?? instanceId ?? ""],
+    queryKey: [
+      "onboarding-tasks-by-instance",
+      instance?.id ?? instanceId ?? "",
+    ],
     queryFn: () => apiListTasks(instance?.id ?? instanceId!),
     enabled: Boolean(instance?.id ?? instanceId),
     select: (res: unknown) =>
@@ -268,11 +296,16 @@ const EmployeeDetail = () => {
 
   const { data: taskDetail, isLoading: taskDetailLoading } = useQuery({
     queryKey: ["onboarding-task-detail", selectedTaskId ?? ""],
-    queryFn: () => apiGetTaskDetailFull(selectedTaskId!),
+    queryFn: () =>
+      apiGetTaskDetailFull(selectedTaskId!, { includeActivityLogs: true }),
     enabled: Boolean(selectedTaskId),
     select: (res: unknown) => {
       const r = res as Record<string, unknown>;
-      return (r?.task ?? r?.data ?? r?.result ?? r?.payload ?? res) as TaskDetailResponse;
+      return (r?.task ??
+        r?.data ??
+        r?.result ??
+        r?.payload ??
+        res) as TaskDetailResponse;
     },
   });
 
@@ -284,6 +317,21 @@ const EmployeeDetail = () => {
       const r = res as Record<string, unknown>;
       const list = r?.comments ?? r?.data ?? [];
       return (Array.isArray(list) ? list : []) as CommentResponse[];
+    },
+  });
+
+  const { data: assignableUsers = [] } = useQuery({
+    queryKey: ["onboarding-assignable-users"],
+    queryFn: () => apiSearchUsers({ status: "ACTIVE" }),
+    enabled: canManage && Boolean(selectedTaskId),
+    select: (res: unknown) => {
+      const r = res as Record<string, unknown>;
+      const list =
+        (r as { users?: unknown }).users ??
+        (r as { items?: unknown }).items ??
+        (r as { list?: unknown }).list ??
+        (Array.isArray(r) ? r : []);
+      return (Array.isArray(list) ? list : []) as UserListItem[];
     },
   });
 
@@ -360,9 +408,103 @@ const EmployeeDetail = () => {
     onError: () => notify.error(t("onboarding.task.toast.failed")),
   });
 
+  const assignMutation = useMutation({
+    mutationFn: ({
+      taskId,
+      assigneeUserId,
+    }: {
+      taskId: string;
+      assigneeUserId: string;
+    }) => apiAssignTask(taskId, assigneeUserId),
+    onSuccess: () => {
+      invalidateTasks();
+      notify.success(t("onboarding.task.toast.assigned"));
+    },
+    onError: () => notify.error(t("onboarding.task.toast.failed")),
+  });
+
+  const addAttachmentMutation = useMutation({
+    mutationFn: (payload: TaskAttachmentAddRequest) =>
+      apiAddTaskAttachment(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-detail", selectedTaskId],
+      });
+      notify.success(t("onboarding.task.toast.attachment_added"));
+    },
+    onError: () => notify.error(t("onboarding.task.toast.failed")),
+  });
+
+  const scheduleProposeMutation = useMutation({
+    mutationFn: (payload: TaskScheduleProposeRequest) =>
+      apiProposeTaskSchedule(payload),
+    onSuccess: () => {
+      invalidateTasks();
+      setScheduleMode(null);
+      setScheduleDates([null, null]);
+      notify.success(t("onboarding.task.toast.schedule_proposed"));
+    },
+    onError: () => notify.error(t("onboarding.task.toast.failed")),
+  });
+
+  const scheduleConfirmMutation = useMutation({
+    mutationFn: (taskId: string) => apiConfirmTaskSchedule({ taskId }),
+    onSuccess: () => {
+      invalidateTasks();
+      notify.success(t("onboarding.task.toast.schedule_confirmed"));
+    },
+    onError: () => notify.error(t("onboarding.task.toast.failed")),
+  });
+
+  const rescheduleMutation = useMutation({
+    mutationFn: (payload: TaskScheduleRescheduleRequest) =>
+      apiRescheduleTask(payload),
+    onSuccess: () => {
+      invalidateTasks();
+      setScheduleMode(null);
+      setScheduleDates([null, null]);
+      setScheduleReason("");
+      notify.success(t("onboarding.task.toast.rescheduled"));
+    },
+    onError: () => notify.error(t("onboarding.task.toast.failed")),
+  });
+
+  const cancelScheduleMutation = useMutation({
+    mutationFn: ({
+      taskId,
+      reason,
+    }: {
+      taskId: string;
+      reason?: string;
+    }) => apiCancelTaskSchedule({ taskId, reason }),
+    onSuccess: () => {
+      invalidateTasks();
+      setCancelScheduleReason("");
+      notify.success(t("onboarding.task.toast.schedule_cancelled"));
+    },
+    onError: () => notify.error(t("onboarding.task.toast.failed")),
+  });
+
+  const markNoShowMutation = useMutation({
+    mutationFn: ({
+      taskId,
+      reason,
+    }: {
+      taskId: string;
+      reason?: string;
+    }) => apiMarkTaskNoShow({ taskId, reason }),
+    onSuccess: () => {
+      invalidateTasks();
+      setNoShowReason("");
+      notify.success(t("onboarding.task.toast.no_show_marked"));
+    },
+    onError: () => notify.error(t("onboarding.task.toast.failed")),
+  });
+
   // ── Derived data ─────────────────────────────────────────────────────────────
 
-  const employeeDisplayName = employeeDetail?.fullName || instance?.employeeName || "-";
+  const employeeDisplayName =
+    employeeDetail?.fullName || instance?.employeeName || "-";
   const employeeDisplayEmail = employeeDetail?.email ?? null;
   const managerDisplayName =
     managerDetail?.fullName || instance?.managerName || "—";
@@ -375,24 +517,23 @@ const EmployeeDetail = () => {
       : (instance?.progress ?? 0);
 
   const stageProgress = useMemo(() => {
-    if (!templateDetail?.stages?.length) return [];
-    return templateDetail.stages.map((stage) => {
-      const stageTitles = new Set(
-        stage.tasks.map((task) => task.title.trim().toLowerCase()),
-      );
-      const matched = tasks.filter((task) =>
-        stageTitles.has(task.title.trim().toLowerCase()),
-      );
-      const done = matched.filter((task) => task.status === STATUS_DONE).length;
-      const total = stage.tasks.length || 1;
-      return {
-        name: stage.name,
-        done,
-        total,
-        percent: Math.round((done / total) * 100),
-      };
-    });
-  }, [templateDetail, tasks]);
+    const groups: Record<
+      string,
+      { name: string; done: number; total: number }
+    > = {};
+    for (const task of tasks) {
+      const key = task.checklistName ?? "—";
+      if (!groups[key]) groups[key] = { name: key, done: 0, total: 0 };
+      groups[key].total++;
+      if (task.rawStatus === "DONE") groups[key].done++;
+    }
+    return Object.values(groups).map((g) => ({
+      name: g.name,
+      done: g.done,
+      total: g.total,
+      percent: Math.round((g.done / (g.total || 1)) * 100),
+    }));
+  }, [tasks]);
 
   const instanceStatus = instance?.status?.toUpperCase() ?? "";
   const isActioning =
@@ -451,17 +592,58 @@ const EmployeeDetail = () => {
 
   const handleToggleTask = async (task: OnboardingTask) => {
     const isDone = task.status === STATUS_DONE;
-    const nextStatus = isDone ? "TODO" : STATUS_DONE_API;
+
+    // Revert DONE → TODO
+    if (isDone) {
+      try {
+        await updateTaskStatus.mutateAsync({ taskId: task.id, status: "TODO" });
+        queryClient.invalidateQueries({
+          queryKey: ["onboarding-tasks-by-instance"],
+        });
+        notify.success(t("onboarding.detail.toast.task_undone"));
+      } catch {
+        notify.error(t("onboarding.detail.toast.task_failed"));
+      }
+      return;
+    }
+
+    // Guard: requireAck — phải acknowledge trước khi DONE
+    if (task.requireAck && task.rawStatus !== "WAIT_ACK") {
+      try {
+        await acknowledgeMutation.mutateAsync(task.id);
+      } catch {
+        notify.error(t("onboarding.detail.toast.task_failed"));
+      }
+      return;
+    }
+
+    // Guard: requiresManagerApproval — phải submit để manager approve, không được set DONE trực tiếp
+    if (task.requiresManagerApproval) {
+      try {
+        await updateTaskStatus.mutateAsync({
+          taskId: task.id,
+          status: "PENDING_APPROVAL",
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["onboarding-tasks-by-instance"],
+        });
+        notify.success(t("onboarding.task.toast.submitted_approval"));
+      } catch {
+        notify.error(t("onboarding.detail.toast.task_failed"));
+      }
+      return;
+    }
+
+    // Normal: mark DONE
     try {
-      await updateTaskStatus.mutateAsync({ taskId: task.id, status: nextStatus });
+      await updateTaskStatus.mutateAsync({
+        taskId: task.id,
+        status: STATUS_DONE_API,
+      });
       queryClient.invalidateQueries({
         queryKey: ["onboarding-tasks-by-instance"],
       });
-      notify.success(
-        isDone
-          ? t("onboarding.detail.toast.task_undone")
-          : t("onboarding.detail.toast.task_done"),
-      );
+      notify.success(t("onboarding.detail.toast.task_done"));
     } catch {
       notify.error(t("onboarding.detail.toast.task_failed"));
     }
@@ -470,11 +652,21 @@ const EmployeeDetail = () => {
   const openTaskDrawer = (task: OnboardingTask) => {
     setSelectedTaskId(task.id);
     setDrawerTab("info");
+    setScheduleMode(null);
+    setScheduleDates([null, null]);
+    setScheduleReason("");
+    setCancelScheduleReason("");
+    setNoShowReason("");
   };
 
   const closeTaskDrawer = () => {
     setSelectedTaskId(null);
     setCommentInput("");
+    setScheduleMode(null);
+    setScheduleDates([null, null]);
+    setScheduleReason("");
+    setCancelScheduleReason("");
+    setNoShowReason("");
   };
 
   const handleAddComment = () => {
@@ -482,6 +674,47 @@ const EmployeeDetail = () => {
     addCommentMutation.mutate({
       taskId: selectedTaskId,
       message: commentInput.trim(),
+    });
+  };
+
+  const handleUploadAttachment = async (file: File) => {
+    if (!selectedTaskId) return;
+    setUploadingFile(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("name", file.name);
+      const uploadRes = await apiUploadDocumentFile(formData);
+      await addAttachmentMutation.mutateAsync({
+        taskId: selectedTaskId,
+        fileName: file.name,
+        fileUrl: uploadRes.fileUrl,
+        fileType: file.type,
+        fileSizeBytes: file.size,
+      });
+    } catch {
+      notify.error(t("onboarding.task.toast.failed"));
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const handleProposeSchedule = () => {
+    if (!selectedTaskId || !scheduleDates[0] || !scheduleDates[1]) return;
+    scheduleProposeMutation.mutate({
+      taskId: selectedTaskId,
+      scheduledStartAt: scheduleDates[0].toISOString(),
+      scheduledEndAt: scheduleDates[1].toISOString(),
+    });
+  };
+
+  const handleReschedule = () => {
+    if (!selectedTaskId || !scheduleDates[0] || !scheduleDates[1]) return;
+    rescheduleMutation.mutate({
+      taskId: selectedTaskId,
+      scheduledStartAt: scheduleDates[0].toISOString(),
+      scheduledEndAt: scheduleDates[1].toISOString(),
+      reason: scheduleReason || undefined,
     });
   };
 
@@ -531,7 +764,9 @@ const EmployeeDetail = () => {
           <p className="text-sm text-muted">
             {t("onboarding.detail.not_found")}
           </p>
-          <Button className="mt-4" onClick={() => navigate("/onboarding/employees")}>
+          <Button
+            className="mt-4"
+            onClick={() => navigate("/onboarding/employees")}>
             {t("onboarding.detail.back_to_list")}
           </Button>
         </Card>
@@ -631,9 +866,7 @@ const EmployeeDetail = () => {
       )}
 
       {/* ── Activity tab ─────────────────────────────────────────────────────── */}
-      {tab === "activity" && (
-        <ActivityFeed tasks={tasks} t={t} />
-      )}
+      {tab === "activity" && <ActivityFeed tasks={tasks} t={t} />}
 
       {/* ── Task detail drawer ───────────────────────────────────────────────── */}
       <TaskDrawer
@@ -653,6 +886,19 @@ const EmployeeDetail = () => {
         isApproving={approveMutation.isPending}
         isRejecting={rejectMutation.isPending}
         isAddingComment={addCommentMutation.isPending}
+        isAssigning={assignMutation.isPending}
+        uploadingFile={uploadingFile}
+        assignableUsers={assignableUsers}
+        scheduleMode={scheduleMode}
+        scheduleDates={scheduleDates}
+        scheduleReason={scheduleReason}
+        cancelScheduleReason={cancelScheduleReason}
+        noShowReason={noShowReason}
+        isProposingSchedule={scheduleProposeMutation.isPending}
+        isConfirmingSchedule={scheduleConfirmMutation.isPending}
+        isRescheduling={rescheduleMutation.isPending}
+        isCancellingSchedule={cancelScheduleMutation.isPending}
+        isMarkingNoShow={markNoShowMutation.isPending}
         onClose={closeTaskDrawer}
         onDrawerTabChange={setDrawerTab}
         onCommentChange={setCommentInput}
@@ -701,14 +947,47 @@ const EmployeeDetail = () => {
           if (taskIndex > 0) {
             setSelectedTaskId(tasks[taskIndex - 1].id);
             setDrawerTab("info");
+            setScheduleMode(null);
+            setScheduleDates([null, null]);
           }
         }}
         onNavigateNext={() => {
           if (taskIndex >= 0 && taskIndex < tasks.length - 1) {
             setSelectedTaskId(tasks[taskIndex + 1].id);
             setDrawerTab("info");
+            setScheduleMode(null);
+            setScheduleDates([null, null]);
           }
         }}
+        onAssign={(assigneeUserId) => {
+          if (selectedTaskId)
+            assignMutation.mutate({ taskId: selectedTaskId, assigneeUserId });
+        }}
+        onUploadAttachment={handleUploadAttachment}
+        onScheduleModeChange={setScheduleMode}
+        onScheduleDatesChange={setScheduleDates}
+        onScheduleReasonChange={setScheduleReason}
+        onCancelScheduleReasonChange={setCancelScheduleReason}
+        onNoShowReasonChange={setNoShowReason}
+        onProposeSchedule={handleProposeSchedule}
+        onConfirmSchedule={() =>
+          selectedTaskId && scheduleConfirmMutation.mutate(selectedTaskId)
+        }
+        onReschedule={handleReschedule}
+        onCancelSchedule={() =>
+          selectedTaskId &&
+          cancelScheduleMutation.mutate({
+            taskId: selectedTaskId,
+            reason: cancelScheduleReason || undefined,
+          })
+        }
+        onMarkNoShow={() =>
+          selectedTaskId &&
+          markNoShowMutation.mutate({
+            taskId: selectedTaskId,
+            reason: noShowReason || undefined,
+          })
+        }
       />
 
       {/* ── Reject reason modal ──────────────────────────────────────────────── */}
@@ -740,8 +1019,7 @@ const EmployeeDetail = () => {
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
             placeholder={
-              t("onboarding.task.reject.placeholder") ??
-              "Nhập lý do từ chối..."
+              t("onboarding.task.reject.placeholder") ?? "Nhập lý do từ chối..."
             }
             maxLength={500}
           />

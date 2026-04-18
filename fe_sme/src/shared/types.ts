@@ -79,6 +79,12 @@ export interface OnboardingTask {
   checklistId?: string;
   checklistName?: string;
   assignedUserId?: string;
+  assignedUserName?: string;
+  /** Whether the task is past its due date and not completed */
+  overdue?: boolean;
+  /** Raw schedule status from API: UNSCHEDULED | PROPOSED | CONFIRMED | RESCHEDULED | CANCELLED | MISSED */
+  scheduleStatus?: string;
+  approvalStatus?: string;
 }
 
 export interface OnboardingComment {

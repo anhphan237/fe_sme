@@ -9,7 +9,6 @@ export const AppRouters = {
   // HR (formerly Admin)
   ADMIN_DEPARTMENTS: "/hr/departments",
   ADMIN_USERS: "/hr/users",
-  ADMIN_ROLES: "/hr/roles",
   ADMIN_KNOWLEDGE_BASE: "/hr/knowledge-base",
   // Notifications
   NOTIFICATIONS: "/notifications",
@@ -54,7 +53,6 @@ export const AppRouters = {
   PLATFORM_DASHBOARD: "/platform/dashboard",
   PLATFORM_COMPANIES: "/platform/companies",
   PLATFORM_ONBOARDING_MONITOR: "/platform/onboarding-monitor",
-  PLATFORM_ONBOARDING_TEMPLATES: "/platform/onboarding-templates",
 } as const;
 
 export type AppRouter = (typeof AppRouters)[keyof typeof AppRouters];

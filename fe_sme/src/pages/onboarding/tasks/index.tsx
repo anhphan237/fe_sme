@@ -63,10 +63,12 @@ import {
   apiConfirmTaskSchedule,
   apiAddTaskAttachment,
 } from "@/api/onboarding/onboarding.api";
+import { apiSearchUsers } from "@/api/identity/identity.api";
 import type {
   CommentResponse,
   TaskDetailResponse,
 } from "@/interface/onboarding";
+import type { UserListItem } from "@/interface/identity";
 import { extractList } from "@/api/core/types";
 import { mapInstance, mapTask } from "@/utils/mappers/onboarding";
 import type { OnboardingInstance, OnboardingTask } from "@/shared/types";
@@ -76,8 +78,24 @@ import type { OnboardingInstance, OnboardingTask } from "@/shared/types";
 const STATUS_DONE = "Done";
 const STATUS_DONE_API = "DONE";
 
-type StatusFilter = "all" | "pending" | "done" | "pending_approval" | "overdue";
+type StatusFilter =
+  | "all"
+  | "pending"
+  | "done"
+  | "pending_approval"
+  | "overdue"
+  | "mine";
 type ViewMode = "list" | "timeline";
+
+const extractErrorMessage = (err: unknown, fallback: string): string => {
+  if (!err) return fallback;
+  if (typeof err === "string") return err;
+  if (err instanceof Error && err.message) return err.message;
+  const r = err as { message?: unknown; errorMessage?: unknown };
+  if (typeof r.message === "string") return r.message;
+  if (typeof r.errorMessage === "string") return r.errorMessage;
+  return fallback;
+};
 
 const STATUS_TAG_COLOR: Record<string, string> = {
   TODO: "default",
@@ -314,7 +332,7 @@ const ProgressStats = ({ tasks }: { tasks: OnboardingTask[] }) => {
 
 const TaskAction = ({
   task,
-  isEmployee,
+  canAct,
   canManage,
   isUpdating,
   onStart,
@@ -325,7 +343,8 @@ const TaskAction = ({
   onReject,
 }: {
   task: OnboardingTask;
-  isEmployee: boolean;
+  /** Current user can act on this task: is assignee OR has HR/MANAGER role */
+  canAct: boolean;
   canManage: boolean;
   isUpdating: boolean;
   onStart: () => void;
@@ -384,7 +403,7 @@ const TaskAction = ({
     );
   }
 
-  if (!isEmployee) return null;
+  if (!canAct) return null;
 
   if (status === "TODO" || status === "ASSIGNED") {
     return (
@@ -456,6 +475,7 @@ const TaskAction = ({
 
 const TaskItem = ({
   task,
+  currentUserId,
   isEmployee,
   canManage,
   isUpdating,
@@ -468,6 +488,7 @@ const TaskItem = ({
   onReject,
 }: {
   task: OnboardingTask;
+  currentUserId?: string;
   isEmployee: boolean;
   canManage: boolean;
   isUpdating: boolean;
@@ -483,6 +504,10 @@ const TaskItem = ({
   const isDone = task.status === STATUS_DONE;
   const isOverdue =
     task.dueDate && !isDone && new Date(task.dueDate) < new Date();
+  const isAssignee =
+    Boolean(currentUserId) && task.assignedUserId === currentUserId;
+  // HR/MANAGER bypass assignee constraint on BE; employees & IT-only must be assignee.
+  const canAct = canManage || isAssignee || (isEmployee && !task.assignedUserId);
 
   return (
     <li className="transition-colors hover:bg-slate-50">
@@ -592,7 +617,7 @@ const TaskItem = ({
             <div className="ml-auto flex items-center gap-2">
               <TaskAction
                 task={task}
-                isEmployee={isEmployee}
+                canAct={canAct}
                 canManage={canManage}
                 isUpdating={isUpdating}
                 onStart={() => onStart(task)}
@@ -617,6 +642,7 @@ const StageSection = ({
   title,
   tasks,
   isUpdating,
+  currentUserId,
   isEmployee,
   canManage,
   onStart,
@@ -630,6 +656,7 @@ const StageSection = ({
   title: string;
   tasks: OnboardingTask[];
   isUpdating: boolean;
+  currentUserId?: string;
   isEmployee: boolean;
   canManage: boolean;
   onStart: (task: OnboardingTask) => void;
@@ -678,6 +705,7 @@ const StageSection = ({
           <TaskItem
             key={task.id}
             task={task}
+            currentUserId={currentUserId}
             isEmployee={isEmployee}
             canManage={canManage}
             isUpdating={isUpdating}
@@ -925,6 +953,21 @@ const Tasks = () => {
   const [assignUserId, setAssignUserId] = useState("");
   const [assignLoading, setAssignLoading] = useState(false);
 
+  // User directory — lazy-loaded for assign dropdown (HR/Manager only)
+  const { data: assignableUsers = [], isLoading: assignUsersLoading } =
+    useQuery({
+      queryKey: ["onboarding-task-assignable-users"],
+      queryFn: () => apiSearchUsers({ status: "ACTIVE" }),
+      enabled: canManage && Boolean(selectedTaskId),
+      select: (res: unknown) =>
+        extractList(
+          res as Record<string, unknown>,
+          "users",
+          "items",
+          "list",
+        ) as UserListItem[],
+    });
+
   // ── Schedule propose state ─────────────────────────────────────────────────
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [scheduleDates, setScheduleDates] = useState<
@@ -944,7 +987,10 @@ const Tasks = () => {
       });
       notify.success(t("onboarding.task.toast.acknowledged"));
     },
-    onError: () => notify.error(t("onboarding.task.toast.failed")),
+    onError: (err: unknown) =>
+      notify.error(
+        extractErrorMessage(err, t("onboarding.task.toast.failed")),
+      ),
   });
 
   const approveMutation = useMutation({
@@ -959,7 +1005,10 @@ const Tasks = () => {
       setSelectedTaskId(null);
       notify.success(t("onboarding.task.toast.approved"));
     },
-    onError: () => notify.error(t("onboarding.task.toast.failed")),
+    onError: (err: unknown) =>
+      notify.error(
+        extractErrorMessage(err, t("onboarding.task.toast.failed")),
+      ),
   });
 
   const rejectMutation = useMutation({
@@ -977,7 +1026,10 @@ const Tasks = () => {
       setRejectReason("");
       notify.success(t("onboarding.task.toast.rejected"));
     },
-    onError: () => notify.error(t("onboarding.task.toast.failed")),
+    onError: (err: unknown) =>
+      notify.error(
+        extractErrorMessage(err, t("onboarding.task.toast.failed")),
+      ),
   });
 
   const scheduleProposeMutation = useMutation({
@@ -1006,7 +1058,10 @@ const Tasks = () => {
       setScheduleDates([null, null]);
       notify.success(t("onboarding.task.schedule.toast.proposed"));
     },
-    onError: () => notify.error(t("onboarding.task.toast.failed")),
+    onError: (err: unknown) =>
+      notify.error(
+        extractErrorMessage(err, t("onboarding.task.toast.failed")),
+      ),
   });
 
   const scheduleConfirmMutation = useMutation({
@@ -1020,7 +1075,10 @@ const Tasks = () => {
       });
       notify.success(t("onboarding.task.schedule.toast.confirmed"));
     },
-    onError: () => notify.error(t("onboarding.task.toast.failed")),
+    onError: (err: unknown) =>
+      notify.error(
+        extractErrorMessage(err, t("onboarding.task.toast.failed")),
+      ),
   });
 
   const { data: comments, isLoading: commentsLoading } = useTaskCommentsQuery(
@@ -1037,7 +1095,10 @@ const Tasks = () => {
       setCommentInput("");
       notify.success(t("onboarding.task.comments.toast_added"));
     },
-    onError: () => notify.error(t("onboarding.task.toast.failed")),
+    onError: (err: unknown) =>
+      notify.error(
+        extractErrorMessage(err, t("onboarding.task.toast.failed")),
+      ),
   });
 
   const addAttachmentMutation = useMutation({
@@ -1089,8 +1150,8 @@ const Tasks = () => {
       });
       invalidateTasks();
       notify.success(t("onboarding.task.toast.started"));
-    } catch {
-      notify.error(t("onboarding.task.toast.failed"));
+    } catch (err) {
+      notify.error(extractErrorMessage(err, t("onboarding.task.toast.failed")));
     }
   };
 
@@ -1106,8 +1167,8 @@ const Tasks = () => {
       });
       invalidateTasks();
       notify.success(t("onboarding.task.toast.submitted_approval"));
-    } catch {
-      notify.error(t("onboarding.task.toast.failed"));
+    } catch (err) {
+      notify.error(extractErrorMessage(err, t("onboarding.task.toast.failed")));
     }
   };
 
@@ -1119,8 +1180,8 @@ const Tasks = () => {
       });
       invalidateTasks();
       notify.success(t("onboarding.task.toast.done"));
-    } catch {
-      notify.error(t("onboarding.task.toast.failed"));
+    } catch (err) {
+      notify.error(extractErrorMessage(err, t("onboarding.task.toast.failed")));
     }
   };
 
@@ -1144,8 +1205,8 @@ const Tasks = () => {
       invalidateTasks();
       setAssignUserId("");
       notify.success(t("onboarding.task.toast.assigned"));
-    } catch {
-      notify.error(t("onboarding.task.toast.failed"));
+    } catch (err) {
+      notify.error(extractErrorMessage(err, t("onboarding.task.toast.failed")));
     } finally {
       setAssignLoading(false);
     }
@@ -1178,9 +1239,22 @@ const Tasks = () => {
           task.rawStatus !== STATUS_DONE_API &&
           new Date(task.dueDate!) < new Date()
         );
+      if (statusFilter === "mine")
+        return Boolean(userId) && task.assignedUserId === userId;
       return task.status !== STATUS_DONE;
     });
-  }, [tasks, keyword, statusFilter]);
+  }, [tasks, keyword, statusFilter, userId]);
+
+  const myAssignedCount = useMemo(
+    () =>
+      userId
+        ? tasks.filter(
+            (t) =>
+              t.assignedUserId === userId && t.rawStatus !== STATUS_DONE_API,
+          ).length
+        : 0,
+    [tasks, userId],
+  );
 
   const grouped = useMemo(() => {
     const map = new Map<string, OnboardingTask[]>();
@@ -1209,8 +1283,44 @@ const Tasks = () => {
     [instances, onboardingId],
   );
 
+  const roleLabel = isHr
+    ? t("onboarding.task.role.hr")
+    : isManager
+      ? t("onboarding.task.role.manager")
+      : isEmployee
+        ? t("onboarding.task.role.employee")
+        : t("onboarding.task.role.other");
+
   return (
     <div className="space-y-5">
+      {/* ── Role-aware header ───────────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 px-4 py-3">
+        <div>
+          <h1 className="text-base font-semibold text-slate-800 md:text-lg">
+            {canManage
+              ? t("onboarding.task.header.manage_title")
+              : t("onboarding.task.header.employee_title")}
+          </h1>
+          <p className="text-xs text-slate-500">
+            {canManage
+              ? t("onboarding.task.header.manage_subtitle")
+              : t("onboarding.task.header.employee_subtitle")}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Tag color="blue" style={{ margin: 0 }}>
+            {roleLabel}
+          </Tag>
+          {myAssignedCount > 0 && (
+            <Tag color="geekblue" style={{ margin: 0 }}>
+              {t("onboarding.task.header.mine_badge", {
+                count: myAssignedCount,
+              })}
+            </Tag>
+          )}
+        </div>
+      </div>
+
       {/* ── Filters & Instance Selector ─────────────────────────── */}
       <Card>
         <Row gutter={[16, 12]} align="middle">
@@ -1296,6 +1406,19 @@ const Tasks = () => {
                       {
                         label: t("onboarding.task.quickview.filter_overdue"),
                         value: "overdue",
+                      },
+                      {
+                        label: (
+                          <span className="flex items-center gap-1">
+                            {t("onboarding.task.quickview.filter_mine")}
+                            {myAssignedCount > 0 && (
+                              <span className="rounded-full bg-blue-100 px-1.5 text-[10px] font-semibold text-blue-700">
+                                {myAssignedCount}
+                              </span>
+                            )}
+                          </span>
+                        ),
+                        value: "mine",
                       },
                     ]
                   : []),
@@ -1421,6 +1544,7 @@ const Tasks = () => {
                 isUpdating={
                   updateStatus.isPending || acknowledgeMutation.isPending
                 }
+                currentUserId={userId}
                 isEmployee={isEmployee}
                 canManage={canManage}
                 onStart={handleStart}
@@ -1659,14 +1783,25 @@ const Tasks = () => {
                   </span>
                 </Divider>
                 <div className="flex gap-2">
-                  <Input
-                    placeholder={t(
-                      "onboarding.task.assign.user_id_placeholder",
-                    )}
-                    value={assignUserId}
-                    onChange={(e) => setAssignUserId(e.target.value)}
+                  <Select
+                    style={{ flex: 1 }}
                     size="small"
-                    prefix={<User className="h-3 w-3 text-gray-400" />}
+                    placeholder={t(
+                      "onboarding.task.assign.user_select_placeholder",
+                    )}
+                    value={assignUserId || undefined}
+                    onChange={(v) => setAssignUserId(v)}
+                    showSearch
+                    loading={assignUsersLoading}
+                    filterOption={(input, option) =>
+                      ((option?.label as string) ?? "")
+                        .toLowerCase()
+                        .includes(input.toLowerCase())
+                    }
+                    options={assignableUsers.map((u) => ({
+                      label: `${u.fullName || u.email} · ${(u.roles ?? []).join("/") || "USER"}`,
+                      value: u.userId,
+                    }))}
                   />
                   <Button
                     size="small"
@@ -1865,10 +2000,51 @@ const Tasks = () => {
               </Typography.Text>
             </Divider>
 
+            {(() => {
+              const isDetailAssignee =
+                Boolean(userId) && taskDetail.assignedUserId === userId;
+              const canActOnDetail =
+                canManage ||
+                isDetailAssignee ||
+                (isEmployee && !taskDetail.assignedUserId);
+              const hasAttachment =
+                (taskDetail.attachments?.length ?? 0) > 0;
+              const scheduleNeededUnmet =
+                Boolean(
+                  taskDetail.scheduleStatus &&
+                    taskDetail.scheduleStatus !== "UNSCHEDULED" &&
+                    taskDetail.scheduleStatus !== "CONFIRMED",
+                );
+              const docRequiredUnmet = Boolean(
+                taskDetail.requireDoc && !hasAttachment,
+              );
+              const ackRequiredUnmet = Boolean(
+                taskDetail.requireAck && !taskDetail.acknowledgedAt,
+              );
+              const blockMarkDone =
+                docRequiredUnmet || ackRequiredUnmet || scheduleNeededUnmet;
+              const blockSubmitApproval = docRequiredUnmet;
+              const prerequisiteHint = blockMarkDone
+                ? docRequiredUnmet
+                  ? t("onboarding.task.prereq.needs_doc")
+                  : ackRequiredUnmet
+                    ? t("onboarding.task.prereq.needs_ack")
+                    : t("onboarding.task.prereq.needs_schedule")
+                : null;
+              return (
+                <>
+                  {prerequisiteHint && canActOnDetail && (
+                    <div className="mb-1 flex items-center gap-1.5 rounded-md border border-amber-100 bg-amber-50/70 px-3 py-2 text-xs text-amber-700">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      {prerequisiteHint}
+                    </div>
+                  )}
+
             <div className="flex flex-wrap gap-2">
-              {/* Employee: Acknowledge */}
-              {isEmployee &&
+              {/* Assignee: Acknowledge */}
+              {canActOnDetail &&
                 taskDetail.requireAck &&
+                !taskDetail.acknowledgedAt &&
                 (taskDetail.status === "TODO" ||
                   taskDetail.status === "IN_PROGRESS") && (
                   <Button
@@ -1882,8 +2058,8 @@ const Tasks = () => {
                   </Button>
                 )}
 
-              {/* Employee: Start task */}
-              {isEmployee &&
+              {/* Assignee: Start task */}
+              {canActOnDetail &&
                 (taskDetail.status === "TODO" ||
                   taskDetail.status === "ASSIGNED") && (
                   <Button
@@ -1900,16 +2076,21 @@ const Tasks = () => {
                           queryKey: ["onboarding-task-detail", selectedTaskId],
                         });
                         notify.success(t("onboarding.task.toast.started"));
-                      } catch {
-                        notify.error(t("onboarding.task.toast.failed"));
+                      } catch (err) {
+                        notify.error(
+                          extractErrorMessage(
+                            err,
+                            t("onboarding.task.toast.failed"),
+                          ),
+                        );
                       }
                     }}>
                     {t("onboarding.task.action.start")}
                   </Button>
                 )}
 
-              {/* Employee: Confirm Complete (WAIT_ACK) */}
-              {isEmployee && taskDetail.status === "WAIT_ACK" && (
+              {/* Assignee: Confirm Complete (WAIT_ACK) */}
+              {canActOnDetail && taskDetail.status === "WAIT_ACK" && (
                 <Button
                   type="primary"
                   icon={<CheckCircle2 className="h-3.5 w-3.5" />}
@@ -1926,22 +2107,28 @@ const Tasks = () => {
                       });
                       setSelectedTaskId(null);
                       notify.success(t("onboarding.task.toast.done"));
-                    } catch {
-                      notify.error(t("onboarding.task.toast.failed"));
+                    } catch (err) {
+                      notify.error(
+                        extractErrorMessage(
+                          err,
+                          t("onboarding.task.toast.failed"),
+                        ),
+                      );
                     }
                   }}>
                   {t("onboarding.task.action.confirm_complete")}
                 </Button>
               )}
 
-              {/* Employee: Submit for Approval */}
-              {isEmployee &&
+              {/* Assignee: Submit for Approval */}
+              {canActOnDetail &&
                 taskDetail.requiresManagerApproval &&
                 taskDetail.status === "IN_PROGRESS" && (
                   <Button
                     type="primary"
                     icon={<Send className="h-3.5 w-3.5" />}
                     loading={updateStatus.isPending}
+                    disabled={blockSubmitApproval}
                     onClick={async () => {
                       try {
                         await updateStatus.mutateAsync({
@@ -1956,16 +2143,21 @@ const Tasks = () => {
                         notify.success(
                           t("onboarding.task.toast.submitted_approval"),
                         );
-                      } catch {
-                        notify.error(t("onboarding.task.toast.failed"));
+                      } catch (err) {
+                        notify.error(
+                          extractErrorMessage(
+                            err,
+                            t("onboarding.task.toast.failed"),
+                          ),
+                        );
                       }
                     }}>
                     {t("onboarding.task.action.submit_approval")}
                   </Button>
                 )}
 
-              {/* Employee: Normal done */}
-              {isEmployee &&
+              {/* Assignee: Normal done */}
+              {canActOnDetail &&
                 !taskDetail.requireAck &&
                 !taskDetail.requiresManagerApproval &&
                 taskDetail.status === "IN_PROGRESS" && (
@@ -1973,6 +2165,7 @@ const Tasks = () => {
                     type="primary"
                     icon={<CheckCircle2 className="h-3.5 w-3.5" />}
                     loading={updateStatus.isPending}
+                    disabled={blockMarkDone}
                     onClick={async () => {
                       try {
                         await updateStatus.mutateAsync({
@@ -1985,8 +2178,13 @@ const Tasks = () => {
                         });
                         setSelectedTaskId(null);
                         notify.success(t("onboarding.task.toast.done"));
-                      } catch {
-                        notify.error(t("onboarding.task.toast.failed"));
+                      } catch (err) {
+                        notify.error(
+                          extractErrorMessage(
+                            err,
+                            t("onboarding.task.toast.failed"),
+                          ),
+                        );
                       }
                     }}>
                     {t("onboarding.employee.home.today_actions.mark_done")}
@@ -2019,6 +2217,9 @@ const Tasks = () => {
                 {t("global.close")}
               </Button>
             </div>
+                </>
+              );
+            })()}
 
             {/* ── Activity Logs ──────────────────────────────────── */}
             {taskDetail.activityLogs && taskDetail.activityLogs.length > 0 && (

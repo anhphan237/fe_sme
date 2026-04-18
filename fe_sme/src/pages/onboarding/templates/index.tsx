@@ -2,26 +2,37 @@ import { useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
+  ChevronDown,
+  Copy,
   Eye,
   FileText,
+  LayoutGrid,
+  List as ListIcon,
   Lock,
+  Pencil,
+  Plus,
+  Search as SearchIcon,
   Sparkles,
   WandSparkles,
 } from "lucide-react";
 import {
   Alert,
   Button,
+  Dropdown,
   Empty,
   Form,
   Input,
   Modal,
   Select,
+  Skeleton,
   Tag,
+  Tooltip,
   Typography,
   message,
 } from "antd";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import type { MenuProps } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocale } from "@/i18n";
 import { useGlobalStore } from "@/stores/global.store";
 import { useUserStore } from "@/stores/user.store";
@@ -39,6 +50,7 @@ import MyTable from "@/components/table";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type StatusFilter = "ACTIVE" | "INACTIVE" | "";
+type ViewMode = "grid" | "list";
 
 // ── Helper: extract full template from gateway response ───────────────────────
 
@@ -58,9 +70,11 @@ const StatusBadge = ({ status }: { status?: string }) => {
   return (
     <Tag
       color={isActive ? "success" : "default"}
-      className="inline-flex items-center gap-1">
+      className="inline-flex items-center gap-1 !m-0">
       <span
-        className={`inline-block h-1.5 w-1.5 rounded-full ${isActive ? "bg-emerald-500" : "bg-slate-400"}`}
+        className={`inline-block h-1.5 w-1.5 rounded-full ${
+          isActive ? "bg-emerald-500" : "bg-slate-400"
+        }`}
       />
       {isActive
         ? t("onboarding.template.status.active")
@@ -83,9 +97,9 @@ const Templates = () => {
   const isReadOnly = !isHR;
 
   // ── State ────────────────────────────────────────────────────────────────
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ACTIVE");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
   const [searchText, setSearchText] = useState<string>("");
-  const [cloneSourceId, setCloneSourceId] = useState<string>();
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [aiOpen, setAiOpen] = useState(false);
   const [viewTemplate, setViewTemplate] = useState<OnboardingTemplate | null>(
     null,
@@ -106,7 +120,10 @@ const Templates = () => {
     status: string;
   }>();
 
-  // ── List query (status-filtered; search is client-side) ──────────────────
+  // ── List query ───────────────────────────────────────────────────────────
+  // We ALWAYS fetch both active + inactive (BE list requires a status filter,
+  // so we call it with an empty string to opt into "any status"). Filtering
+  // and counting then happen client-side, keeping the stats bar accurate.
   const {
     data: rawData,
     isLoading,
@@ -114,8 +131,8 @@ const Templates = () => {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["templates", statusFilter],
-    queryFn: () => apiListTemplates({ status: statusFilter }),
+    queryKey: ["templates", "all"],
+    queryFn: () => apiListTemplates({ status: "" }),
     select: (res: unknown) =>
       extractList(
         res as Record<string, unknown>,
@@ -125,14 +142,37 @@ const Templates = () => {
       ).map(mapTemplate) as OnboardingTemplate[],
   });
 
-  // Client-side name filter
+  // Derived: stats
+  const stats = useMemo(() => {
+    const list = rawData ?? [];
+    const active = list.filter(
+      (tmpl) => (tmpl.status ?? "").toUpperCase() === "ACTIVE",
+    ).length;
+    return {
+      total: list.length,
+      active,
+      inactive: list.length - active,
+    };
+  }, [rawData]);
+
+  // Derived: filtered list (status + search)
   const data = useMemo(() => {
-    if (!searchText.trim()) return rawData ?? [];
-    const lower = searchText.toLowerCase();
-    return (rawData ?? []).filter((tmpl) =>
-      tmpl.name.toLowerCase().includes(lower),
-    );
-  }, [rawData, searchText]);
+    let list = rawData ?? [];
+    if (statusFilter) {
+      list = list.filter(
+        (tmpl) => (tmpl.status ?? "").toUpperCase() === statusFilter,
+      );
+    }
+    const q = searchText.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (tmpl) =>
+          tmpl.name.toLowerCase().includes(q) ||
+          (tmpl.description ?? "").toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [rawData, statusFilter, searchText]);
 
   // ── i18n option lists ────────────────────────────────────────────────────
   const industryOptions = useMemo(
@@ -211,12 +251,35 @@ const Templates = () => {
     [navigate],
   );
 
-  /** Navigate to full template editor for editing */
-  const handleEdit = useCallback(
+  /** Navigate to full template editor for editing structure */
+  const handleEditStructure = useCallback(
     (tmpl: OnboardingTemplate) => {
       navigate(`/onboarding/templates/${tmpl.id}`);
     },
     [navigate],
+  );
+
+  /** Open the quick-edit modal for metadata-only changes */
+  const handleQuickEdit = useCallback(
+    async (tmpl: OnboardingTemplate) => {
+      setLoadingId(tmpl.id);
+      try {
+        // Refresh metadata from the server so description is always current.
+        const full = await fetchFull(tmpl.id);
+        setEditTarget(full);
+        editForm.setFieldsValue({
+          name: full.name ?? "",
+          description: full.description ?? "",
+          status: (full.status ?? "ACTIVE").toUpperCase(),
+        });
+        setEditOpen(true);
+      } catch {
+        message.error(t("onboarding.template.error.something_wrong"));
+      } finally {
+        setLoadingId(null);
+      }
+    },
+    [editForm, fetchFull, t],
   );
 
   /** Fetch full template (with stages/tasks) before navigating to wizard */
@@ -237,7 +300,7 @@ const Templates = () => {
     [fetchFull, navigate, t],
   );
 
-  /** Fetch full template before opening view modal for managers */
+  /** Fetch full template before opening view modal */
   const handleViewDetails = useCallback(
     async (tmpl: OnboardingTemplate) => {
       setLoadingId(tmpl.id);
@@ -253,7 +316,7 @@ const Templates = () => {
     [fetchFull, t],
   );
 
-  // ── Edit mutation ────────────────────────────────────────────────────────
+  // ── Edit mutation (metadata only — BE ignores checklists on update) ──────
   const editMutation = useMutation({
     mutationFn: (values: {
       name: string;
@@ -287,22 +350,6 @@ const Templates = () => {
     editForm.resetFields();
   };
 
-  // ── Clone picker ─────────────────────────────────────────────────────────
-  const templateOptions = (rawData ?? []).map((tmpl) => ({
-    value: tmpl.id,
-    label: tmpl.name,
-  }));
-
-  const handleCloneFromPicker = async () => {
-    if (!cloneSourceId) {
-      message.warning(t("onboarding.template.clone.select_required"));
-      return;
-    }
-    const source = (rawData ?? []).find((t) => t.id === cloneSourceId);
-    if (!source) return;
-    await handleDuplicate(source);
-  };
-
   // ── AI generate mutation ─────────────────────────────────────────────────
   const aiGenerateMutation = useMutation({
     mutationFn: (values: {
@@ -315,14 +362,12 @@ const Templates = () => {
       aiForm.resetFields();
       if (result?.templateId) {
         try {
-          // Fetch the AI-created template so user can review it in the wizard
           const full = await fetchFull(result.templateId);
           navigate("/onboarding/templates/new", {
             state: { duplicateFrom: full },
           });
           message.info(t("onboarding.template.ai.modal.review_hint"));
         } catch {
-          // Fallback: just refresh the list
           refetch();
           message.success(
             t("onboarding.template.ai.modal.generated_detail", {
@@ -350,7 +395,36 @@ const Templates = () => {
     }
   };
 
-  // ── Table columns ────────────────────────────────────────────────────────
+  // ── Card actions menu (HR, used in grid view) ────────────────────────────
+  const buildActionMenu = (tmpl: OnboardingTemplate): MenuProps["items"] => [
+    {
+      key: "quick-edit",
+      label: t("onboarding.template.action.quick_edit"),
+      icon: <Pencil className="h-3.5 w-3.5" />,
+      onClick: () => handleQuickEdit(tmpl),
+    },
+    {
+      key: "edit-structure",
+      label: t("onboarding.template.action.edit_structure"),
+      icon: <FileText className="h-3.5 w-3.5" />,
+      onClick: () => handleEditStructure(tmpl),
+    },
+    {
+      key: "duplicate",
+      label: t("onboarding.template.action.duplicate"),
+      icon: <Copy className="h-3.5 w-3.5" />,
+      onClick: () => handleDuplicate(tmpl),
+    },
+    { type: "divider" },
+    {
+      key: "view",
+      label: t("onboarding.template.action.view_details"),
+      icon: <Eye className="h-3.5 w-3.5" />,
+      onClick: () => handleViewDetails(tmpl),
+    },
+  ];
+
+  // ── Table columns (list view) ────────────────────────────────────────────
 
   const nameColumn = {
     title: t("onboarding.template.col.name"),
@@ -378,7 +452,7 @@ const Templates = () => {
   const statusColumn = {
     title: t("onboarding.template.col.status"),
     key: "status",
-    width: 120,
+    width: 140,
     render: (_: unknown, tmpl: OnboardingTemplate) => (
       <StatusBadge status={tmpl.status} />
     ),
@@ -387,20 +461,38 @@ const Templates = () => {
   const actionsColumn: ColumnsType<OnboardingTemplate>[number] = {
     title: t("onboarding.template.col.actions"),
     key: "actions",
-    width: isHR ? 200 : 140,
+    width: isHR ? 260 : 160,
     render: (_: unknown, tmpl: OnboardingTemplate) => {
       const busy = loadingId === tmpl.id;
       return isHR ? (
         <div className="flex items-center justify-end gap-2">
-          <Button size="small" loading={busy} onClick={() => handleEdit(tmpl)}>
-            {t("onboarding.template.action.edit")}
+          <Tooltip title={t("onboarding.template.action.quick_edit")}>
+            <Button
+              size="small"
+              icon={<Pencil className="h-3.5 w-3.5" />}
+              loading={busy}
+              onClick={() => handleQuickEdit(tmpl)}
+            />
+          </Tooltip>
+          <Button size="small" onClick={() => handleEditStructure(tmpl)}>
+            {t("onboarding.template.action.edit_structure")}
           </Button>
-          <Button
-            size="small"
-            disabled={busy}
-            onClick={() => handleDuplicate(tmpl)}>
-            {t("onboarding.template.action.duplicate")}
-          </Button>
+          <Tooltip title={t("onboarding.template.action.duplicate")}>
+            <Button
+              size="small"
+              icon={<Copy className="h-3.5 w-3.5" />}
+              disabled={busy}
+              onClick={() => handleDuplicate(tmpl)}
+            />
+          </Tooltip>
+          <Tooltip title={t("onboarding.template.action.view_details")}>
+            <Button
+              size="small"
+              icon={<Eye className="h-3.5 w-3.5" />}
+              loading={busy}
+              onClick={() => handleViewDetails(tmpl)}
+            />
+          </Tooltip>
         </div>
       ) : (
         <div className="flex items-center justify-end">
@@ -422,10 +514,174 @@ const Templates = () => {
     actionsColumn,
   ];
 
+  // ── Render helpers ───────────────────────────────────────────────────────
+
+  const renderStatCard = (
+    label: string,
+    value: number,
+    tone: "ink" | "brand" | "muted",
+  ) => (
+    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        {label}
+      </p>
+      <p
+        className={`mt-1 text-2xl font-semibold leading-tight ${
+          tone === "brand"
+            ? "text-brand"
+            : tone === "muted"
+              ? "text-slate-400"
+              : "text-ink"
+        }`}>
+        {value}
+      </p>
+    </div>
+  );
+
+  const renderCard = (tmpl: OnboardingTemplate) => {
+    const isActive = (tmpl.status ?? "ACTIVE").toUpperCase() === "ACTIVE";
+    const busy = loadingId === tmpl.id;
+    const primaryAction = isHR ? (
+      <Button
+        size="small"
+        type="primary"
+        ghost
+        icon={<Pencil className="h-3.5 w-3.5" />}
+        loading={busy}
+        onClick={() => handleQuickEdit(tmpl)}>
+        {t("onboarding.template.action.quick_edit")}
+      </Button>
+    ) : (
+      <Button
+        size="small"
+        type="primary"
+        ghost
+        icon={<Eye className="h-3.5 w-3.5" />}
+        loading={busy}
+        onClick={() => handleViewDetails(tmpl)}>
+        {t("onboarding.template.action.view_details")}
+      </Button>
+    );
+
+    return (
+      <div
+        key={tmpl.id}
+        className={`group relative flex flex-col gap-3 rounded-2xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+          isActive ? "border-slate-200" : "border-slate-200 opacity-90"
+        }`}>
+        {/* Header */}
+        <div className="flex items-start gap-3">
+          <div
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+              isActive ? "bg-brand/10" : "bg-slate-100"
+            }`}>
+            <FileText
+              className={`h-5 w-5 ${isActive ? "text-brand" : "text-slate-400"}`}
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-ink">
+              {tmpl.name || t("onboarding.template.card.untitled")}
+            </p>
+            <div className="mt-1 flex items-center gap-2">
+              <StatusBadge status={tmpl.status} />
+            </div>
+          </div>
+          {isHR && (
+            <Dropdown
+              trigger={["click"]}
+              menu={{ items: buildActionMenu(tmpl) }}
+              placement="bottomRight">
+              <Button
+                size="small"
+                type="text"
+                icon={<ChevronDown className="h-3.5 w-3.5" />}
+                aria-label="actions"
+              />
+            </Dropdown>
+          )}
+        </div>
+
+        {/* Footer actions */}
+        <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+            <span className="font-mono">#{tmpl.id.slice(0, 6)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {isHR && (
+              <Tooltip title={t("onboarding.template.action.duplicate")}>
+                <Button
+                  size="small"
+                  icon={<Copy className="h-3.5 w-3.5" />}
+                  disabled={busy}
+                  onClick={() => handleDuplicate(tmpl)}
+                />
+              </Tooltip>
+            )}
+            <Tooltip title={t("onboarding.template.action.view_details")}>
+              <Button
+                size="small"
+                icon={<Eye className="h-3.5 w-3.5" />}
+                loading={busy}
+                onClick={() => handleViewDetails(tmpl)}
+              />
+            </Tooltip>
+            {primaryAction}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderGrid = () => (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+      {data.map(renderCard)}
+    </div>
+  );
+
+  const renderLoadingGrid = () => (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div
+          key={i}
+          className="rounded-2xl border border-slate-200 bg-white p-4">
+          <Skeleton active paragraph={{ rows: 2 }} />
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderEmpty = () => (
+    <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-slate-200 bg-white py-16">
+      <Empty
+        description={
+          statusFilter === "INACTIVE"
+            ? t("onboarding.template.empty.inactive_title")
+            : t("onboarding.template.empty.active_title")
+        }
+      />
+      {statusFilter !== "INACTIVE" && isHR && (
+        <div className="flex gap-2">
+          <Button
+            type="primary"
+            icon={<Plus className="h-3.5 w-3.5" />}
+            onClick={handleNewTemplate}>
+            {t("onboarding.template.action.new")}
+          </Button>
+          <Button
+            icon={<Sparkles className="h-3.5 w-3.5" />}
+            onClick={() => setAiOpen(true)}>
+            {t("onboarding.template.ai.open")}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="h-full flex flex-col gap-4">
+    <div className="flex h-full flex-col gap-4">
       {/* Read-only banner for non-HR roles */}
       {isReadOnly && (
         <Alert
@@ -433,7 +689,7 @@ const Templates = () => {
           type="info"
           icon={<Lock className="h-4 w-4" />}
           showIcon
-          title={
+          message={
             <span className="font-medium text-sm">
               {t("onboarding.template.readonly.badge")}
             </span>
@@ -443,114 +699,93 @@ const Templates = () => {
         />
       )}
 
-      {/* Command cards — HR only */}
-      {isHR && (
-        <>
-          <div className="grid gap-3 md:grid-cols-3">
-            {/* New from scratch */}
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {t("onboarding.template.command.new_title")}
-              </p>
-              <p className="mt-1 text-sm text-slate-600">
-                {t("onboarding.template.command.new_desc")}
-              </p>
-              <Button
-                type="primary"
-                className="mt-3"
-                onClick={handleNewTemplate}>
-                {t("onboarding.template.action.new")}
-              </Button>
-            </div>
-
-            {/* Clone existing */}
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {t("onboarding.template.command.clone_title")}
-              </p>
-              <p className="mt-1 text-sm text-slate-600">
-                {t("onboarding.template.command.clone_desc")}
-              </p>
-              <div className="mt-3 flex gap-2">
-                <Select
-                  placeholder={t("onboarding.template.clone.placeholder")}
-                  value={cloneSourceId}
-                  onChange={setCloneSourceId}
-                  options={templateOptions}
-                  className="min-w-0 flex-1"
-                  showSearch
-                  optionFilterProp="label"
-                />
-                <Button
-                  loading={!!loadingId && loadingId === cloneSourceId}
-                  onClick={handleCloneFromPicker}>
-                  {t("onboarding.template.action.duplicate")}
-                </Button>
-              </div>
-            </div>
-
-            {/* AI generate */}
-            <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
-              <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-blue-700">
-                <Sparkles className="h-3.5 w-3.5" />
-                {t("onboarding.template.command.ai_title")}
-              </p>
-              <p className="mt-1 text-sm text-blue-800/80">
-                {t("onboarding.template.command.ai_desc")}
-              </p>
-              <Button className="mt-3" onClick={() => setAiOpen(true)}>
-                <WandSparkles className="mr-1 h-3.5 w-3.5" />
-                {t("onboarding.template.ai.open")}
-              </Button>
-            </div>
+      {/* Hero header — title + primary actions */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 md:flex-row md:items-center md:justify-between md:p-5">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold text-ink md:text-xl">
+            {t("onboarding.template.title")}
+          </h1>
+          <p className="mt-0.5 text-sm text-slate-500">
+            {t("onboarding.template.subtitle")}
+          </p>
+        </div>
+        {isHR && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              icon={<Sparkles className="h-3.5 w-3.5 text-blue-500" />}
+              onClick={() => setAiOpen(true)}>
+              {t("onboarding.template.ai.open")}
+            </Button>
+            <Button
+              type="primary"
+              icon={<Plus className="h-3.5 w-3.5" />}
+              onClick={handleNewTemplate}>
+              {t("onboarding.template.action.new")}
+            </Button>
           </div>
+        )}
+      </div>
 
-          <div className="flex items-center justify-between gap-2">
-            <Typography.Text type="secondary">
-              {t("onboarding.template.command.hint")}
-            </Typography.Text>
-            <div className="flex items-center gap-2">
-              <Input.Search
-                placeholder={t("onboarding.template.search.placeholder")}
-                allowClear
-                className="w-72"
-                onSearch={(v) => setSearchText(v.trim())}
-                onChange={(e) => {
-                  if (!e.target.value) setSearchText("");
-                }}
-              />
-              <Select<StatusFilter>
-                value={statusFilter}
-                onChange={setStatusFilter}
-                options={statusOptions}
-                className="w-36"
-              />
-            </div>
-          </div>
-        </>
-      )}
+      {/* Stats strip */}
+      <div className="grid grid-cols-3 gap-3">
+        {renderStatCard(t("onboarding.template.stats.total"), stats.total, "ink")}
+        {renderStatCard(
+          t("onboarding.template.stats.active"),
+          stats.active,
+          "brand",
+        )}
+        {renderStatCard(
+          t("onboarding.template.stats.inactive"),
+          stats.inactive,
+          "muted",
+        )}
+      </div>
 
-      {/* Search + filter row for read-only roles */}
-      {isReadOnly && (
-        <div className="flex justify-end items-center gap-2">
-          <Input.Search
+      {/* Search + filter + view toggle */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            prefix={<SearchIcon className="h-3.5 w-3.5 text-slate-400" />}
             placeholder={t("onboarding.template.search.placeholder")}
             allowClear
             className="w-72"
-            onSearch={(v) => setSearchText(v.trim())}
-            onChange={(e) => {
-              if (!e.target.value) setSearchText("");
-            }}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
           />
           <Select<StatusFilter>
             value={statusFilter}
             onChange={setStatusFilter}
             options={statusOptions}
-            className="w-36"
+            className="w-40"
           />
         </div>
-      )}
+        <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5">
+          <button
+            type="button"
+            onClick={() => setViewMode("grid")}
+            className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition ${
+              viewMode === "grid"
+                ? "bg-brand/10 text-brand"
+                : "text-slate-500 hover:bg-slate-50"
+            }`}>
+            <LayoutGrid className="h-3.5 w-3.5" />
+            {t("onboarding.template.view.grid")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("list")}
+            className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition ${
+              viewMode === "list"
+                ? "bg-brand/10 text-brand"
+                : "text-slate-500 hover:bg-slate-50"
+            }`}>
+            <ListIcon className="h-3.5 w-3.5" />
+            {t("onboarding.template.view.list")}
+          </button>
+        </div>
+      </div>
 
+      {/* Error banner */}
       {isError && (
         <div className="flex items-center gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3">
           <AlertTriangle className="h-5 w-5 shrink-0 text-red-400" />
@@ -564,32 +799,25 @@ const Templates = () => {
         </div>
       )}
 
-      <MyTable<OnboardingTemplate>
-        columns={columns}
-        dataSource={data}
-        rowKey="id"
-        loading={isLoading}
-        wrapClassName="!h-full w-full"
-        pagination={false}
-        locale={{
-          emptyText: (
-            <div className="flex flex-col items-center gap-4 py-8">
-              <Empty
-                description={
-                  statusFilter === "INACTIVE"
-                    ? t("onboarding.template.empty.inactive_title")
-                    : t("onboarding.template.empty.active_title")
-                }
-              />
-              {statusFilter !== "INACTIVE" && isHR && (
-                <Button type="primary" onClick={handleNewTemplate}>
-                  {t("onboarding.template.action.new")}
-                </Button>
-              )}
-            </div>
-          ),
-        }}
-      />
+      {/* Content area */}
+      <div className="flex-1 min-h-0">
+        {isLoading ? (
+          renderLoadingGrid()
+        ) : data.length === 0 ? (
+          renderEmpty()
+        ) : viewMode === "grid" ? (
+          renderGrid()
+        ) : (
+          <MyTable<OnboardingTemplate>
+            columns={columns}
+            dataSource={data}
+            rowKey="id"
+            loading={isLoading}
+            wrapClassName="!h-full w-full"
+            pagination={false}
+          />
+        )}
+      </div>
 
       {/* ── AI Generate modal ─────────────────────────────────────────────── */}
       <Modal
@@ -678,7 +906,7 @@ const Templates = () => {
         </div>
       </Modal>
 
-      {/* ── Edit template (metadata only) modal — HR only ─────────────────── */}
+      {/* ── Quick edit (metadata only) modal — HR only ────────────────────── */}
       <Modal
         title={t("onboarding.template.edit_modal.title")}
         open={editOpen}
@@ -687,7 +915,7 @@ const Templates = () => {
         okText={t("onboarding.template.edit_modal.save")}
         cancelText={t("onboarding.template.ai.modal.cancel")}
         confirmLoading={editMutation.isPending}
-        width={480}
+        width={520}
         destroyOnClose>
         <div className="py-2">
           <Form form={editForm} layout="vertical" requiredMark={false}>
@@ -724,13 +952,16 @@ const Templates = () => {
               <Select options={statusEditOptions} />
             </Form.Item>
           </Form>
-          <Typography.Text type="secondary" className="text-xs mt-1 block">
-            {t("onboarding.template.edit_modal.structure_hint")}
-          </Typography.Text>
+          <Alert
+            type="info"
+            showIcon
+            message={t("onboarding.template.edit_modal.structure_hint")}
+            className="rounded-lg"
+          />
         </div>
       </Modal>
 
-      {/* ── Template detail modal — Manager read-only view ────────────────── */}
+      {/* ── Template detail modal ─────────────────────────────────────────── */}
       <Modal
         title={t("onboarding.template.view_modal.title")}
         open={!!viewTemplate}
@@ -740,19 +971,40 @@ const Templates = () => {
             {t("onboarding.template.view_modal.close")}
           </Button>
         }
-        width={480}>
+        width={560}>
         {viewTemplate && (
           <div className="space-y-4 pt-2">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-ink">
-                {viewTemplate.name}
-              </span>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-ink">
+                  {viewTemplate.name}
+                </p>
+                {viewTemplate.description && (
+                  <p className="mt-1 text-sm text-muted">
+                    {viewTemplate.description}
+                  </p>
+                )}
+              </div>
               <StatusBadge status={viewTemplate.status} />
             </div>
-            {viewTemplate.description && (
-              <p className="text-sm text-muted">{viewTemplate.description}</p>
-            )}
-            <div className="space-y-2">
+
+            <div className="flex items-center gap-2 text-xs text-muted">
+              <span className="rounded-full bg-slate-100 px-2 py-0.5">
+                {t("onboarding.template.view_modal.stages_count", {
+                  count: viewTemplate.stages.length,
+                })}
+              </span>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5">
+                {t("onboarding.template.view_modal.tasks_count", {
+                  count: viewTemplate.stages.reduce(
+                    (sum, s) => sum + (s.tasks?.length ?? 0),
+                    0,
+                  ),
+                })}
+              </span>
+            </div>
+
+            <div className="max-h-[55vh] space-y-2 overflow-y-auto">
               {(viewTemplate.stages ?? []).length === 0 ? (
                 <p className="text-sm text-muted italic">
                   {t("onboarding.template.view_modal.no_stages")}

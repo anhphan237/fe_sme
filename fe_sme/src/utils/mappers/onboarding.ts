@@ -115,4 +115,8 @@ export const mapTask = (t: any): OnboardingTask => ({
   checklistId: t.checklistId ?? undefined,
   checklistName: t.checklistName ?? undefined,
   assignedUserId: t.assignedUserId ?? undefined,
+  assignedUserName: t.assignedUserName ?? undefined,
+  overdue: Boolean(t.overdue ?? false),
+  scheduleStatus: t.scheduleStatus ?? undefined,
+  approvalStatus: t.approvalStatus ?? undefined,
 });

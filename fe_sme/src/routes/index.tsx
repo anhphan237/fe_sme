@@ -25,7 +25,6 @@ const EmployeeDashboard = lazy(
   () => import("@/pages/dashboard/EmployeeDashboard"),
 );
 const AdminUsers = lazy(() => import("@/pages/users"));
-const AdminRoles = lazy(() => import("@/pages/roles"));
 const AdminKnowledgeBase = lazy(() => import("@/pages/knowledge-base"));
 const AdminDepartments = lazy(() => import("@/pages/departments"));
 const Profile = lazy(() => import("@/pages/profile/Profile"));
@@ -83,9 +82,6 @@ const PlatformCompanyDetail = lazy(
 );
 const PlatformOnboardingMonitor = lazy(
   () => import("@/pages/platform/onboarding/OnboardingMonitor"),
-);
-const PlatformTemplates = lazy(
-  () => import("@/pages/platform/onboarding/PlatformTemplates"),
 );
 const StaffDashboard = lazy(
   () => import("@/pages/platform/staff/StaffDashboard"),
@@ -175,10 +171,6 @@ export const router = createBrowserRouter([
         element: suspense(withRoles(<AdminUsers />, ["HR"])),
       },
       {
-        path: "/hr/roles",
-        element: suspense(withRoles(<AdminRoles />, ["HR"])),
-      },
-      {
         path: "/hr/knowledge-base",
         element: suspense(withRoles(<AdminKnowledgeBase />, ["HR"])),
       },
@@ -188,7 +180,6 @@ export const router = createBrowserRouter([
         element: <Navigate to="/hr/departments" replace />,
       },
       { path: "/admin/users", element: <Navigate to="/hr/users" replace /> },
-      { path: "/admin/roles", element: <Navigate to="/hr/roles" replace /> },
       {
         path: "/admin/knowledge-base",
         element: <Navigate to="/hr/knowledge-base" replace />,
@@ -331,7 +322,7 @@ export const router = createBrowserRouter([
           withRoles(<Documents />, ["HR", "MANAGER", "EMPLOYEE"]),
         ),
       },
-{
+      {
         path: "/documents/:documentId",
         element: suspense(
           withRoles(<DocumentDetail />, ["HR", "MANAGER", "EMPLOYEE"]),
@@ -415,10 +406,7 @@ export const router = createBrowserRouter([
       {
         path: "/platform/admin/subscriptions",
         element: (
-          <Navigate
-            to="/platform/admin/companies?tab=subscriptions"
-            replace
-          />
+          <Navigate to="/platform/admin/companies?tab=subscriptions" replace />
         ),
       },
       {
@@ -428,10 +416,6 @@ export const router = createBrowserRouter([
       {
         path: "/platform/admin/onboarding",
         element: suspense(withRoles(<PlatformOnboardingMonitor />, ["ADMIN"])),
-      },
-      {
-        path: "/platform/admin/templates",
-        element: suspense(withRoles(<PlatformTemplates />, ["ADMIN"])),
       },
       {
         path: "/platform/admin/feedback",
@@ -474,10 +458,6 @@ export const router = createBrowserRouter([
       {
         path: "/platform/onboarding-monitor",
         element: <Navigate to="/platform/admin/onboarding" replace />,
-      },
-      {
-        path: "/platform/onboarding-templates",
-        element: <Navigate to="/platform/admin/templates" replace />,
       },
       { path: "/403", element: suspense(<Forbidden />) },
       {
