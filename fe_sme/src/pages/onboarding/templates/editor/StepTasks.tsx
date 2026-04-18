@@ -211,6 +211,7 @@ function SortableTaskCard({
   total,
   onCloneTask,
   onRemoveTask,
+  readOnly,
 }: {
   taskId: string;
   field: { name: number; key: number };
@@ -218,6 +219,7 @@ function SortableTaskCard({
   total: number;
   onCloneTask: (ti: number) => void;
   onRemoveTask: (ti: number) => void;
+  readOnly?: boolean;
 }) {
   const { t } = useLocale();
   const {
@@ -246,13 +248,15 @@ function SortableTaskCard({
       {/* Card header */}
       <div className="flex items-center justify-between border-b border-stroke/60 bg-slate-50/60 px-4 py-2.5">
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="cursor-grab touch-none rounded p-0.5 text-muted/40 transition hover:text-muted active:cursor-grabbing"
-            {...attributes}
-            {...listeners}>
-            <GripVertical className="h-3.5 w-3.5" />
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              className="cursor-grab touch-none rounded p-0.5 text-muted/40 transition hover:text-muted active:cursor-grabbing"
+              {...attributes}
+              {...listeners}>
+              <GripVertical className="h-3.5 w-3.5" />
+            </button>
+          )}
           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand/10 text-[11px] font-bold text-brand">
             {index + 1}
           </span>
@@ -260,23 +264,25 @@ function SortableTaskCard({
             {t("onboarding.template.editor.step_tasks.task_label")}
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onCloneTask(index)}
-            className="flex items-center gap-1 text-xs font-medium text-muted/60 opacity-0 transition hover:text-brand group-hover:opacity-100">
-            <Copy className="h-3.5 w-3.5" />
-            {t("onboarding.template.editor.clone_task")}
-          </button>
-          <button
-            type="button"
-            onClick={() => onRemoveTask(index)}
-            disabled={total <= 1}
-            className="flex items-center gap-1 text-xs font-medium text-muted/60 opacity-0 transition hover:text-red-500 group-hover:opacity-100 disabled:pointer-events-none disabled:opacity-0">
-            <X className="h-3.5 w-3.5" />
-            {t("onboarding.template.editor.remove_task")}
-          </button>
-        </div>
+        {!readOnly && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onCloneTask(index)}
+              className="flex items-center gap-1 text-xs font-medium text-muted/60 opacity-0 transition hover:text-brand group-hover:opacity-100">
+              <Copy className="h-3.5 w-3.5" />
+              {t("onboarding.template.editor.clone_task")}
+            </button>
+            <button
+              type="button"
+              onClick={() => onRemoveTask(index)}
+              disabled={total <= 1}
+              className="flex items-center gap-1 text-xs font-medium text-muted/60 opacity-0 transition hover:text-red-500 group-hover:opacity-100 disabled:pointer-events-none disabled:opacity-0">
+              <X className="h-3.5 w-3.5" />
+              {t("onboarding.template.editor.remove_task")}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Fields */}
@@ -289,15 +295,18 @@ function SortableTaskCard({
               placeholder={t(
                 "onboarding.template.editor.task.name_placeholder",
               )}
+              disabled={readOnly}
               formItemProps={{
-                rules: [
-                  {
-                    required: true,
-                    message: t(
-                      "onboarding.template.editor.task.name_placeholder",
-                    ),
-                  },
-                ],
+                rules: readOnly
+                  ? []
+                  : [
+                      {
+                        required: true,
+                        message: t(
+                          "onboarding.template.editor.task.name_placeholder",
+                        ),
+                      },
+                    ],
               }}
             />
           </div>
@@ -306,6 +315,7 @@ function SortableTaskCard({
               name={[field.name, "dueDaysOffset"]}
               label={t("onboarding.template.editor.task.due_label")}
               min={0}
+              disabled={readOnly}
               className="w-full"
             />
           </div>
@@ -319,6 +329,7 @@ function SortableTaskCard({
               placeholder={t(
                 "onboarding.template.editor.task.desc_placeholder",
               )}
+              disabled={readOnly}
             />
           </div>
           <div>
@@ -328,6 +339,7 @@ function SortableTaskCard({
             <Form.Item name={[field.name, "assignee"]} className="mb-0">
               <Select
                 size="small"
+                disabled={readOnly}
                 options={[
                   {
                     value: "EMPLOYEE",
@@ -359,16 +371,19 @@ function SortableTaskCard({
           <BaseCheckbox
             name={[field.name, "requireAck"]}
             labelCheckbox={t("onboarding.template.editor.task.require_ack")}
+            disabled={readOnly}
           />
           <BaseCheckbox
             name={[field.name, "requireDoc"]}
             labelCheckbox={t("onboarding.template.editor.task.require_doc")}
+            disabled={readOnly}
           />
           <BaseCheckbox
             name={[field.name, "requiresManagerApproval"]}
             labelCheckbox={t(
               "onboarding.template.editor.task.require_approval",
             )}
+            disabled={readOnly}
           />
         </div>
       </div>
@@ -386,6 +401,7 @@ const TaskForm = memo(function TaskForm({
   onCloneTask,
   onReorderTask,
   onAddLibraryTask,
+  readOnly,
 }: {
   checklist: ChecklistDraft;
   onUpdateTask: (ti: number, updates: Partial<TaskDraft>) => void;
@@ -394,6 +410,7 @@ const TaskForm = memo(function TaskForm({
   onCloneTask: (ti: number) => void;
   onReorderTask: (from: number, to: number) => void;
   onAddLibraryTask: (task: LibraryTask) => void;
+  readOnly?: boolean;
 }) {
   const { t } = useLocale();
   const [antdForm] = Form.useForm<FormValues>();
@@ -483,18 +500,20 @@ const TaskForm = memo(function TaskForm({
             {t("onboarding.template.editor.step_tasks.task_label")}
           </span>
         </p>
-        <div className="flex items-center gap-2">
-          <Button
-            type="default"
-            size="small"
-            icon={<BookOpen className="h-3.5 w-3.5" />}
-            onClick={() => setLibraryOpen(true)}>
-            {t("onboarding.template.library.button")}
-          </Button>
-          <Button type="default" size="small" onClick={onAddTask}>
-            + {t("onboarding.template.editor.add_task")}
-          </Button>
-        </div>
+        {!readOnly && (
+          <div className="flex items-center gap-2">
+            <Button
+              type="default"
+              size="small"
+              icon={<BookOpen className="h-3.5 w-3.5" />}
+              onClick={() => setLibraryOpen(true)}>
+              {t("onboarding.template.library.button")}
+            </Button>
+            <Button type="default" size="small" onClick={onAddTask}>
+              + {t("onboarding.template.editor.add_task")}
+            </Button>
+          </div>
+        )}
       </div>
 
       <TaskLibraryModal
@@ -538,6 +557,7 @@ const TaskForm = memo(function TaskForm({
                         total={checklist.tasks.length}
                         onCloneTask={onCloneTask}
                         onRemoveTask={onRemoveTask}
+                        readOnly={readOnly}
                       />
                     );
                   })
@@ -563,6 +583,7 @@ export interface TasksPanelProps {
   onCloneTask: (ti: number) => void;
   onReorderTask: (from: number, to: number) => void;
   onAddLibraryTask: (task: LibraryTask) => void;
+  readOnly?: boolean;
 }
 
 export const TasksPanel = ({
@@ -574,6 +595,7 @@ export const TasksPanel = ({
   onCloneTask,
   onReorderTask,
   onAddLibraryTask,
+  readOnly,
 }: TasksPanelProps) => {
   const { t } = useLocale();
   const [stageForm] = Form.useForm<{ name: string; stageType: string }>();
@@ -603,20 +625,22 @@ export const TasksPanel = ({
           form={stageForm}
           layout="inline"
           className="flex flex-1 min-w-0 items-center gap-3"
-          onValuesChange={(_, all) =>
+          onValuesChange={(_, all) => {
+            if (readOnly) return;
             onUpdateStage({
               name: all.name ?? "",
               stageType: all.stageType ?? checklist.stageType,
-            })
-          }>
+            });
+          }}>
           <Form.Item
             name="name"
             className="mb-0 flex-1 min-w-0"
-            rules={[{ required: true }]}>
+            rules={readOnly ? [] : [{ required: true }]}>
             <Input
               placeholder={t(
                 "onboarding.template.editor.stage_name_placeholder",
               )}
+              disabled={readOnly}
               className="border-0 bg-transparent text-sm font-semibold text-ink shadow-none focus:bg-white focus:shadow"
               style={{ boxShadow: "none" }}
             />
@@ -625,6 +649,7 @@ export const TasksPanel = ({
             <Select
               options={stageOptions}
               size="small"
+              disabled={readOnly}
               className={`rounded-lg border text-xs font-semibold ${stageColor}`}
               style={{ minWidth: 120 }}
             />
@@ -642,6 +667,7 @@ export const TasksPanel = ({
           onCloneTask={onCloneTask}
           onReorderTask={onReorderTask}
           onAddLibraryTask={onAddLibraryTask}
+          readOnly={readOnly}
         />
       </div>
     </div>

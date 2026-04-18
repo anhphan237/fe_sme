@@ -6,7 +6,6 @@ import {
   CheckSquare,
   Circle,
   Clock,
-  Eye,
   Loader2,
   Send,
   ThumbsUp,
@@ -25,6 +24,10 @@ import type { OnboardingTask } from "@/shared/types";
 export interface TaskItemProps {
   task: OnboardingTask;
   canManage: boolean;
+  /** Current logged-in user id — used to compute canAct per-task */
+  currentUserId: string;
+  /** Pre-computed approve/reject permission (isHr || isLineManager). Falls back to canManage when not provided. */
+  canApproveOrReject?: boolean;
   isUpdating: boolean;
   isApproving: boolean;
   isRejecting: boolean;
@@ -53,6 +56,8 @@ const getStatusIcon = (rawStatus: string) => {
 export const TaskItem = ({
   task,
   canManage,
+  currentUserId,
+  canApproveOrReject,
   isUpdating,
   isApproving,
   isRejecting,
@@ -64,10 +69,14 @@ export const TaskItem = ({
   const { t } = useLocale();
   const isDone = task.status === STATUS_DONE;
   const rawStatus = task.rawStatus ?? "";
-  // Use the API-provided overdue flag first, fall back to local date calc
   const overdue = (task.overdue ?? isTaskOverdue(task.dueDate)) && !isDone;
   const ss = task.scheduleStatus;
   const hasSchedule = ss && ss !== "UNSCHEDULED";
+
+  // Issue #3: only assignee or managers can toggle task status
+  const canAct = canManage || task.assignedUserId === currentUserId;
+  // Issue #4 (partial): approve/reject gate — falls back to canManage when prop not provided
+  const showApproveReject = (canApproveOrReject ?? canManage) && rawStatus === "PENDING_APPROVAL";
 
   const rowBg = isDone
     ? "border-emerald-100 bg-emerald-50/30"
@@ -82,7 +91,7 @@ export const TaskItem = ({
       <button
         className="mt-0.5 shrink-0 cursor-pointer disabled:cursor-not-allowed"
         onClick={() => onToggle(task)}
-        disabled={isUpdating}
+        disabled={isUpdating || !canAct}
         aria-label={isDone ? "Đánh dấu chưa xong" : "Đánh dấu hoàn thành"}>
         {getStatusIcon(rawStatus)}
       </button>
@@ -91,7 +100,8 @@ export const TaskItem = ({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5">
           <span
-            className={`text-sm font-medium leading-snug ${isDone ? "text-gray-400 line-through" : "text-gray-800"}`}>
+            className={`cursor-pointer text-sm font-medium leading-snug hover:underline ${isDone ? "text-gray-400 line-through" : "text-gray-800 hover:text-blue-600"}`}
+            onClick={() => onOpenDrawer(task)}>
             {task.title}
           </span>
           {overdue && (
@@ -173,7 +183,7 @@ export const TaskItem = ({
           {task.status ?? t("onboarding.detail.task.status.pending")}
         </Tag>
 
-        {canManage && rawStatus === "PENDING_APPROVAL" && (
+        {showApproveReject && (
           <>
             <Button
               size="small"
@@ -193,14 +203,6 @@ export const TaskItem = ({
             </Button>
           </>
         )}
-
-        <Button
-          size="small"
-          icon={<Eye className="h-3 w-3" />}
-          onClick={() => onOpenDrawer(task)}
-          className="opacity-60 transition-opacity group-hover:opacity-100">
-          {t("onboarding.detail.task.detail")}
-        </Button>
       </div>
     </div>
   );

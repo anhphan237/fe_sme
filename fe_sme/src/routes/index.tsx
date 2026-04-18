@@ -47,9 +47,6 @@ const EmployeeDetail = lazy(
 );
 const OnboardingTasks = lazy(() => import("@/pages/onboarding/tasks"));
 const OnboardingApprovals = lazy(() => import("@/pages/onboarding/approvals"));
-const OnboardingAutomation = lazy(
-  () => import("@/pages/onboarding/automation"),
-);
 const OnboardingReports = lazy(() => import("@/pages/onboarding/reports"));
 const OnboardingSchedule = lazy(() => import("@/pages/onboarding/schedule"));
 const Documents = lazy(() => import("@/pages/documents/Documents"));
@@ -238,10 +235,6 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: "/onboarding/automation",
-        element: suspense(withRoles(<OnboardingAutomation />, ["HR"])),
-      },
-      {
         path: "/onboarding/reports",
         element: suspense(withRoles(<OnboardingReports />, ["HR"])),
       },
@@ -287,10 +280,6 @@ export const router = createBrowserRouter([
       {
         path: "/onboarding/hr/tasks",
         element: <Navigate to="/onboarding/tasks" replace />,
-      },
-      {
-        path: "/onboarding/hr/automation",
-        element: <Navigate to="/onboarding/automation" replace />,
       },
       {
         path: "/onboarding/manager",

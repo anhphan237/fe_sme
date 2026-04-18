@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Badge, Card, Empty, Progress, Radio, Skeleton, Tag } from "antd";
+import { Badge, Card, Empty, Progress, Skeleton, Tag } from "antd";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -19,6 +19,10 @@ export interface TaskListPanelProps {
   isLoading: boolean;
   isUpdating: boolean;
   canManage: boolean;
+  /** Current logged-in user id — forwarded to TaskItem for per-task canAct calculation */
+  currentUserId: string;
+  /** Pre-computed approve/reject permission (isHr || isLineManager). Forwarded to TaskItem. */
+  canApproveOrReject?: boolean;
   onToggle: (task: OnboardingTask) => void;
   onOpenDrawer: (task: OnboardingTask) => void;
   onApprove: (task: OnboardingTask) => void;
@@ -70,6 +74,8 @@ export const TaskListPanel = ({
   isLoading,
   isUpdating,
   canManage,
+  currentUserId,
+  canApproveOrReject,
   onToggle,
   onOpenDrawer,
   onApprove,
@@ -137,6 +143,8 @@ export const TaskListPanel = ({
 
   const sharedItemProps = {
     canManage,
+    currentUserId,
+    canApproveOrReject,
     isUpdating,
     isApproving,
     isRejecting,
@@ -149,38 +157,53 @@ export const TaskListPanel = ({
   const STAT_ITEMS = [
     {
       label: t("onboarding.task.stat.total"),
-      count: tasks.length,
+      count: filterCounts.all,
       icon: <ListTodo className="h-4 w-4" />,
       color: "text-gray-500",
       bg: "bg-gray-50",
+      activeBg: "bg-gray-100",
+      ring: "ring-gray-400",
+      filterKey: "all" as FilterKey,
     },
     {
       label: t("onboarding.task.stat.in_progress"),
-      count: tasks.filter((t) => t.rawStatus === "IN_PROGRESS").length,
+      count: filterCounts.in_progress,
       icon: <Loader2 className="h-4 w-4 animate-spin" />,
       color: "text-blue-500",
       bg: "bg-blue-50",
+      activeBg: "bg-blue-100",
+      ring: "ring-blue-400",
+      filterKey: "in_progress" as FilterKey,
     },
     {
       label: t("onboarding.task.stat.pending_approval"),
-      count: tasks.filter((t) => t.rawStatus === "PENDING_APPROVAL").length,
+      count: filterCounts.pending_approval,
       icon: <HourglassIcon className="h-4 w-4" />,
       color: "text-amber-500",
       bg: "bg-amber-50",
+      activeBg: "bg-amber-100",
+      ring: "ring-amber-400",
+      filterKey: "pending_approval" as FilterKey,
     },
     {
       label: t("onboarding.task.stat.done"),
-      count: completedCount,
+      count: filterCounts.done,
       icon: <CheckCircle2 className="h-4 w-4" />,
       color: "text-emerald-500",
       bg: "bg-emerald-50",
+      activeBg: "bg-emerald-100",
+      ring: "ring-emerald-400",
+      filterKey: "done" as FilterKey,
     },
     {
       label: t("onboarding.task.stat.overdue"),
-      count: overdueCount,
+      count: filterCounts.overdue,
       icon: <AlertTriangle className="h-4 w-4" />,
       color: "text-red-500",
       bg: "bg-red-50",
+      activeBg: "bg-red-100",
+      ring: "ring-red-400",
+      filterKey: "overdue" as FilterKey,
     },
   ];
 
@@ -218,62 +241,48 @@ export const TaskListPanel = ({
           strokeColor={{ "0%": "#3b82f6", "100%": "#10b981" }}
         />
       )}
-
-      {/* ── Summary stats ────────────────────────────────────────────────────── */}
+      {/* ── Summary stats (clickable filters) ──────────────────────────────────── */}
       {tasks.length > 0 && (
         <div className="mt-3 grid grid-cols-5 gap-1.5">
-          {STAT_ITEMS.map((stat) => (
-            <div
-              key={stat.label}
-              className={`rounded-xl ${stat.bg} flex flex-col items-center gap-0.5 px-1 py-2`}>
-              <span className={stat.color}>{stat.icon}</span>
-              <p className="text-base font-bold text-gray-800">{stat.count}</p>
-              <p className="text-center text-[9px] leading-tight text-gray-400">
-                {stat.label}
-              </p>
-            </div>
-          ))}
+          {STAT_ITEMS.map((stat) => {
+            const isActive = activeFilter === stat.filterKey;
+            return (
+              <button
+                key={stat.filterKey}
+                type="button"
+                onClick={() =>
+                  setActiveFilter(isActive ? "all" : stat.filterKey)
+                }
+                className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2 transition-all hover:opacity-80 ${
+                  isActive ? `${stat.activeBg} ring-2 ${stat.ring}` : stat.bg
+                }`}>
+                <span className={stat.color}>{stat.icon}</span>
+                <p className="text-base font-bold text-gray-800">
+                  {stat.count}
+                </p>
+                <p className="text-center text-[9px] leading-tight text-gray-400">
+                  {stat.label}
+                </p>
+              </button>
+            );
+          })}
         </div>
       )}
-
-      {/* ── Filter pills (Radio.Group button style) ──────────────────────────── */}
-      {tasks.length > 0 && (
-        <div className="mt-3 overflow-x-auto">
-          <Radio.Group
-            value={activeFilter}
-            onChange={(e) => setActiveFilter(e.target.value as FilterKey)}
-            size="small"
-            optionType="button"
-            buttonStyle="solid">
-            {FILTERS.map((f) => {
-              const count = filterCounts[f.key];
-              return (
-                <Radio.Button key={f.key} value={f.key}>
-                  <span className="flex items-center gap-1">
-                    {f.key === "overdue" && (
-                      <AlertTriangle className="h-2.5 w-2.5" />
-                    )}
-                    {t(f.labelKey)}
-                    {count > 0 && (
-                      <span
-                        className={`ml-0.5 rounded-full px-1 text-[10px] ${
-                          activeFilter === f.key
-                            ? "bg-white/20 text-white"
-                            : "bg-gray-100 text-gray-500"
-                        }`}>
-                        {count}
-                      </span>
-                    )}
-                  </span>
-                </Radio.Button>
-              );
-            })}
-          </Radio.Group>
-        </div>
-      )}
-
       {/* ── Task list ────────────────────────────────────────────────────────── */}
       <div className="mt-4">
+        {/* Active filter indicator */}
+        {activeFilter !== "all" && (
+          <div className="mb-2 flex items-center gap-1.5 text-xs text-gray-500">
+            <span>{t("onboarding.task.filter.showing")}:</span>
+            <Tag
+              style={{ margin: 0, fontSize: 11 }}
+              closable
+              onClose={() => setActiveFilter("all")}>
+              {STAT_ITEMS.find((s) => s.filterKey === activeFilter)?.label} (
+              {filteredTasks.length})
+            </Tag>
+          </div>
+        )}
         {isLoading ? (
           <div className="space-y-2">
             {[1, 2, 3].map((i) => (
@@ -300,8 +309,6 @@ export const TaskListPanel = ({
                   (tk.overdue ?? isTaskOverdue(tk.dueDate)) &&
                   tk.status !== STATUS_DONE,
               ).length;
-              // Determine color from stage type embedded in the group name
-              // The group name is checklistName which may contain stage type
               const stageColorKey = Object.keys(STAGE_TAG_COLOR).find((k) =>
                 group.toUpperCase().includes(k),
               );

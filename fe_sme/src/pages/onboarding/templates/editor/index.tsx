@@ -10,7 +10,7 @@ import {
   Loader2,
   Sparkles,
 } from "lucide-react";
-import { Alert, Modal, message, Spin } from "antd";
+import { Modal, message, Spin } from "antd";
 import { useLocale } from "@/i18n";
 import { useUserStore } from "@/stores/user.store";
 import type { OnboardingTemplate } from "@/shared/types";
@@ -142,13 +142,26 @@ const buildPayload = (form: EditorForm, createdBy: string) => ({
   })),
 });
 
-// BE's template.update only persists metadata (name/description/status); any
-// checklists sent in the payload are silently ignored. Keep the payload
-// minimal so the UI doesn't pretend to save structural changes.
 const buildUpdatePayload = (form: EditorForm, templateId: string) => ({
   templateId,
   name: form.name,
   description: form.description ?? "",
+  checklists: form.checklists.map((c, ci) => ({
+    name: c.name,
+    stage: c.stageType,
+    sortOrder: ci,
+    tasks: c.tasks.map((task, ti) => ({
+      title: task.name,
+      ownerType: "ROLE" as const,
+      ownerRefId: (task.assignee ?? "EMPLOYEE") as Role,
+      description: task.description,
+      dueDaysOffset: task.dueDaysOffset,
+      requireAck: task.requireAck,
+      requireDoc: task.requireDoc,
+      requiresManagerApproval: task.requiresManagerApproval,
+      sortOrder: ti,
+    })),
+  })),
 });
 
 const useSaveTemplate = () =>
@@ -475,8 +488,7 @@ const TemplateEditor = () => {
             </span>
             <span className="text-slate-300">·</span>
             <span>
-              {totalTasks}{" "}
-              {t("onboarding.template.review.tasks").toLowerCase()}
+              {totalTasks} {t("onboarding.template.review.tasks").toLowerCase()}
             </span>
           </div>
           {isCreate && (
@@ -490,18 +502,6 @@ const TemplateEditor = () => {
           )}
         </div>
       </div>
-
-      {/* Edit-mode banner — BE update API only persists metadata */}
-      {!isCreate && (
-        <Alert
-          type="info"
-          showIcon
-          icon={<Info className="h-4 w-4" />}
-          message={t("onboarding.template.editor.edit_banner.title")}
-          description={t("onboarding.template.editor.edit_banner.desc")}
-          className="rounded-xl"
-        />
-      )}
 
       {/* Info card — always visible, inline editable */}
       <div className="rounded-2xl border border-stroke bg-white p-5 shadow-sm">
@@ -564,9 +564,7 @@ const TemplateEditor = () => {
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-stroke bg-white shadow-sm">
-          <div
-            className="flex flex-col lg:flex-row"
-            style={{ minHeight: 520 }}>
+          <div className="flex flex-col lg:flex-row" style={{ minHeight: 520 }}>
             <div className="w-full shrink-0 border-b border-stroke lg:w-64 lg:border-b-0 lg:border-r">
               <StageSidebar
                 checklists={form.checklists}

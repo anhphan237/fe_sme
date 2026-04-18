@@ -30,6 +30,7 @@ export interface StageSidebarProps {
   onRemove: (i: number) => void;
   onClone: (i: number) => void;
   onReorder: (from: number, to: number) => void;
+  readOnly?: boolean;
 }
 
 function SortableStageCard({
@@ -40,6 +41,7 @@ function SortableStageCard({
   onSelect,
   onClone,
   onRemove,
+  readOnly,
 }: {
   checklist: ChecklistDraft;
   index: number;
@@ -48,6 +50,7 @@ function SortableStageCard({
   onSelect: (i: number) => void;
   onClone: (i: number) => void;
   onRemove: (i: number) => void;
+  readOnly?: boolean;
 }) {
   const { t } = useLocale();
   const {
@@ -79,14 +82,16 @@ function SortableStageCard({
       } ${isDragging ? "shadow-md opacity-90" : ""}`}
       onClick={() => onSelect(index)}>
       {/* Drag handle */}
-      <button
-        type="button"
-        className="shrink-0 cursor-grab touch-none rounded p-0.5 text-muted/30 transition hover:text-muted active:cursor-grabbing"
-        {...attributes}
-        {...listeners}
-        onClick={(e) => e.stopPropagation()}>
-        <GripVertical className="h-3.5 w-3.5" />
-      </button>
+      {!readOnly && (
+        <button
+          type="button"
+          className="shrink-0 cursor-grab touch-none rounded p-0.5 text-muted/30 transition hover:text-muted active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}>
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+      )}
 
       {/* Index badge */}
       <span
@@ -121,27 +126,29 @@ function SortableStageCard({
       </span>
 
       {/* Clone / Delete */}
-      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onClone(index);
-          }}
-          className="rounded p-1 text-muted hover:bg-brand/10 hover:text-brand">
-          <Copy className="h-3 w-3" />
-        </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove(index);
-          }}
-          disabled={total <= 1}
-          className="rounded p-1 text-muted hover:bg-red-50 hover:text-red-500 disabled:pointer-events-none disabled:opacity-30">
-          <X className="h-3 w-3" />
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClone(index);
+            }}
+            className="rounded p-1 text-muted hover:bg-brand/10 hover:text-brand">
+            <Copy className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove(index);
+            }}
+            disabled={total <= 1}
+            className="rounded p-1 text-muted hover:bg-red-50 hover:text-red-500 disabled:pointer-events-none disabled:opacity-30">
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -154,6 +161,7 @@ export const StageSidebar = ({
   onRemove,
   onClone,
   onReorder,
+  readOnly,
 }: StageSidebarProps) => {
   const { t } = useLocale();
 
@@ -180,13 +188,15 @@ export const StageSidebar = ({
             {t("onboarding.template.editor.step_stages.title")}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={onAdd}
-          className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-brand transition hover:bg-brand/10">
-          <Plus className="h-3.5 w-3.5" />
-          {t("onboarding.template.editor.add_stage")}
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={onAdd}
+            className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-brand transition hover:bg-brand/10">
+            <Plus className="h-3.5 w-3.5" />
+            {t("onboarding.template.editor.add_stage")}
+          </button>
+        )}
       </div>
 
       {/* Stage list */}
@@ -217,6 +227,7 @@ export const StageSidebar = ({
                     onSelect={onSelect}
                     onClone={onClone}
                     onRemove={onRemove}
+                    readOnly={readOnly}
                   />
                 ))}
               </div>

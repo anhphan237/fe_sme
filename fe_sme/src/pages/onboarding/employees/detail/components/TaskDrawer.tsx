@@ -414,6 +414,8 @@ interface TaskInfoTabProps {
   taskDetail: TaskDetailResponse;
   isEmployee: boolean;
   canManage: boolean;
+  /** Pre-computed approve/reject permission. Falls back to canManage when not provided. */
+  canApproveOrReject?: boolean;
   assignableUsers: UserListItem[];
   isAcknowledging: boolean;
   isUpdating: boolean;
@@ -456,6 +458,7 @@ const TaskInfoTab = ({
   taskDetail,
   isEmployee,
   canManage,
+  canApproveOrReject,
   assignableUsers,
   isAcknowledging,
   isUpdating,
@@ -797,7 +800,7 @@ const TaskInfoTab = ({
               {t("onboarding.employee.home.today_actions.mark_done")}
             </Button>
           )}
-        {canManage && status === "PENDING_APPROVAL" && (
+        {(canApproveOrReject ?? canManage) && status === "PENDING_APPROVAL" && (
           <>
             <Button
               type="primary"
@@ -1052,6 +1055,8 @@ export interface TaskDrawerProps {
   drawerTab: string;
   isEmployee: boolean;
   canManage: boolean;
+  /** Pre-computed approve/reject permission (isHr || isLineManager). Falls back to canManage. */
+  canApproveOrReject?: boolean;
   isAcknowledging: boolean;
   isUpdatingStatus: boolean;
   isApproving: boolean;
@@ -1110,6 +1115,7 @@ export const TaskDrawer = ({
   drawerTab,
   isEmployee,
   canManage,
+  canApproveOrReject,
   isAcknowledging,
   isUpdatingStatus,
   isApproving,
@@ -1255,6 +1261,7 @@ export const TaskDrawer = ({
               taskDetail={taskDetail}
               isEmployee={isEmployee}
               canManage={canManage}
+              canApproveOrReject={canApproveOrReject}
               assignableUsers={assignableUsers}
               isAcknowledging={isAcknowledging}
               isUpdating={isUpdatingStatus}

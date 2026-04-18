@@ -205,6 +205,8 @@ const EmployeeDetail = () => {
   const setBreadcrumbs = useGlobalStore((state) => state.setBreadcrumbs);
   const isEmployee = isOnboardingEmployee(currentUser?.roles ?? []);
   const canManage = canManageOnboarding(currentUser?.roles ?? []);
+  const userId = currentUser?.id ?? "";
+  const isHr = (currentUser?.roles ?? []).includes("HR");
 
   // ── Local state ─────────────────────────────────────────────────────────────
 
@@ -470,13 +472,8 @@ const EmployeeDetail = () => {
   });
 
   const cancelScheduleMutation = useMutation({
-    mutationFn: ({
-      taskId,
-      reason,
-    }: {
-      taskId: string;
-      reason?: string;
-    }) => apiCancelTaskSchedule({ taskId, reason }),
+    mutationFn: ({ taskId, reason }: { taskId: string; reason?: string }) =>
+      apiCancelTaskSchedule({ taskId, reason }),
     onSuccess: () => {
       invalidateTasks();
       setCancelScheduleReason("");
@@ -486,13 +483,8 @@ const EmployeeDetail = () => {
   });
 
   const markNoShowMutation = useMutation({
-    mutationFn: ({
-      taskId,
-      reason,
-    }: {
-      taskId: string;
-      reason?: string;
-    }) => apiMarkTaskNoShow({ taskId, reason }),
+    mutationFn: ({ taskId, reason }: { taskId: string; reason?: string }) =>
+      apiMarkTaskNoShow({ taskId, reason }),
     onSuccess: () => {
       invalidateTasks();
       setNoShowReason("");
@@ -540,6 +532,10 @@ const EmployeeDetail = () => {
     activateInstance.isPending ||
     cancelInstance.isPending ||
     completeInstance.isPending;
+
+  // Issue #4 (partial): HR always can approve/reject; Manager only if they are the line manager of this instance
+  const canApproveOrReject =
+    canManage && (isHr || instance?.managerUserId === userId);
 
   const taskIndex = selectedTaskId
     ? tasks.findIndex((tk) => tk.id === selectedTaskId)
@@ -852,6 +848,8 @@ const EmployeeDetail = () => {
             isLoading={tasksLoading}
             isUpdating={updateTaskStatus.isPending}
             canManage={canManage}
+            currentUserId={userId}
+            canApproveOrReject={canApproveOrReject}
             onToggle={handleToggleTask}
             onOpenDrawer={openTaskDrawer}
             onApprove={(task) => approveMutation.mutate(task.id)}
@@ -881,6 +879,7 @@ const EmployeeDetail = () => {
         drawerTab={drawerTab}
         isEmployee={isEmployee}
         canManage={canManage}
+        canApproveOrReject={canApproveOrReject}
         isAcknowledging={acknowledgeMutation.isPending}
         isUpdatingStatus={updateTaskStatus.isPending}
         isApproving={approveMutation.isPending}

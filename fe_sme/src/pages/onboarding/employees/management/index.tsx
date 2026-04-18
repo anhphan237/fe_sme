@@ -418,7 +418,6 @@ const EmployeeManagement = () => {
           });
         }}
       />
-
       <BulkImportModal
         open={importOpen}
         onClose={() => {

@@ -11,6 +11,7 @@ import {
   Lock,
   Pencil,
   Plus,
+  Power,
   Search as SearchIcon,
   Sparkles,
   WandSparkles,
@@ -120,10 +121,6 @@ const Templates = () => {
     status: string;
   }>();
 
-  // ── List query ───────────────────────────────────────────────────────────
-  // We ALWAYS fetch both active + inactive (BE list requires a status filter,
-  // so we call it with an empty string to opt into "any status"). Filtering
-  // and counting then happen client-side, keeping the stats bar accurate.
   const {
     data: rawData,
     isLoading,
@@ -350,7 +347,64 @@ const Templates = () => {
     editForm.resetFields();
   };
 
-  // ── AI generate mutation ─────────────────────────────────────────────────
+  // ── Toggle status (activate / deactivate) ────────────────────────────────
+  const toggleStatusMutation = useMutation({
+    mutationFn: ({
+      templateId,
+      status,
+    }: {
+      templateId: string;
+      status: string;
+    }) => apiUpdateTemplate({ templateId, status }),
+    onSuccess: (_, { status }) => {
+      refetch();
+      message.success(
+        status === "INACTIVE"
+          ? t("onboarding.template.toast.deactivated")
+          : t("onboarding.template.toast.activated"),
+      );
+    },
+    onError: (_, { status }) => {
+      message.error(
+        status === "INACTIVE"
+          ? t("onboarding.template.toast.deactivate_failed")
+          : t("onboarding.template.toast.activate_failed"),
+      );
+    },
+  });
+
+  const handleToggleStatus = useCallback(
+    (tmpl: OnboardingTemplate) => {
+      const isActive = (tmpl.status ?? "ACTIVE").toUpperCase() === "ACTIVE";
+      const newStatus = isActive ? "INACTIVE" : "ACTIVE";
+      Modal.confirm({
+        title: isActive
+          ? t("onboarding.template.deactivate.title")
+          : t("onboarding.template.activate.title"),
+        content: isActive
+          ? t("onboarding.template.deactivate.message", { name: tmpl.name })
+          : t("onboarding.template.activate.message", { name: tmpl.name }),
+        okText: isActive
+          ? t("onboarding.template.deactivate.confirm")
+          : t("onboarding.template.activate.confirm"),
+        cancelText: t("onboarding.template.ai.modal.cancel"),
+        okButtonProps: { danger: isActive },
+        onOk: async () => {
+          setLoadingId(tmpl.id);
+          try {
+            await toggleStatusMutation.mutateAsync({
+              templateId: tmpl.id,
+              status: newStatus,
+            });
+          } finally {
+            setLoadingId(null);
+          }
+        },
+      });
+    },
+    [t, toggleStatusMutation],
+  );
+
   const aiGenerateMutation = useMutation({
     mutationFn: (values: {
       industry: string;
@@ -396,33 +450,46 @@ const Templates = () => {
   };
 
   // ── Card actions menu (HR, used in grid view) ────────────────────────────
-  const buildActionMenu = (tmpl: OnboardingTemplate): MenuProps["items"] => [
-    {
-      key: "quick-edit",
-      label: t("onboarding.template.action.quick_edit"),
-      icon: <Pencil className="h-3.5 w-3.5" />,
-      onClick: () => handleQuickEdit(tmpl),
-    },
-    {
-      key: "edit-structure",
-      label: t("onboarding.template.action.edit_structure"),
-      icon: <FileText className="h-3.5 w-3.5" />,
-      onClick: () => handleEditStructure(tmpl),
-    },
-    {
-      key: "duplicate",
-      label: t("onboarding.template.action.duplicate"),
-      icon: <Copy className="h-3.5 w-3.5" />,
-      onClick: () => handleDuplicate(tmpl),
-    },
-    { type: "divider" },
-    {
-      key: "view",
-      label: t("onboarding.template.action.view_details"),
-      icon: <Eye className="h-3.5 w-3.5" />,
-      onClick: () => handleViewDetails(tmpl),
-    },
-  ];
+  const buildActionMenu = (tmpl: OnboardingTemplate): MenuProps["items"] => {
+    const isActive = (tmpl.status ?? "ACTIVE").toUpperCase() === "ACTIVE";
+    return [
+      {
+        key: "quick-edit",
+        label: t("onboarding.template.action.quick_edit"),
+        icon: <Pencil className="h-3.5 w-3.5" />,
+        onClick: () => handleQuickEdit(tmpl),
+      },
+      {
+        key: "edit-structure",
+        label: t("onboarding.template.action.edit_structure"),
+        icon: <FileText className="h-3.5 w-3.5" />,
+        onClick: () => handleEditStructure(tmpl),
+      },
+      {
+        key: "duplicate",
+        label: t("onboarding.template.action.duplicate"),
+        icon: <Copy className="h-3.5 w-3.5" />,
+        onClick: () => handleDuplicate(tmpl),
+      },
+      { type: "divider" as const },
+      {
+        key: "view",
+        label: t("onboarding.template.action.view_details"),
+        icon: <Eye className="h-3.5 w-3.5" />,
+        onClick: () => handleViewDetails(tmpl),
+      },
+      { type: "divider" as const },
+      {
+        key: "toggle-status",
+        label: isActive
+          ? t("onboarding.template.action.deactivate")
+          : t("onboarding.template.action.activate"),
+        icon: <Power className="h-3.5 w-3.5" />,
+        danger: isActive,
+        onClick: () => handleToggleStatus(tmpl),
+      },
+    ];
+  };
 
   // ── Table columns (list view) ────────────────────────────────────────────
 
@@ -461,9 +528,10 @@ const Templates = () => {
   const actionsColumn: ColumnsType<OnboardingTemplate>[number] = {
     title: t("onboarding.template.col.actions"),
     key: "actions",
-    width: isHR ? 260 : 160,
+    width: isHR ? 300 : 160,
     render: (_: unknown, tmpl: OnboardingTemplate) => {
       const busy = loadingId === tmpl.id;
+      const isActive = (tmpl.status ?? "ACTIVE").toUpperCase() === "ACTIVE";
       return isHR ? (
         <div className="flex items-center justify-end gap-2">
           <Tooltip title={t("onboarding.template.action.quick_edit")}>
@@ -491,6 +559,20 @@ const Templates = () => {
               icon={<Eye className="h-3.5 w-3.5" />}
               loading={busy}
               onClick={() => handleViewDetails(tmpl)}
+            />
+          </Tooltip>
+          <Tooltip
+            title={
+              isActive
+                ? t("onboarding.template.action.deactivate")
+                : t("onboarding.template.action.activate")
+            }>
+            <Button
+              size="small"
+              danger={isActive}
+              icon={<Power className="h-3.5 w-3.5" />}
+              loading={busy}
+              onClick={() => handleToggleStatus(tmpl)}
             />
           </Tooltip>
         </div>
@@ -728,7 +810,11 @@ const Templates = () => {
 
       {/* Stats strip */}
       <div className="grid grid-cols-3 gap-3">
-        {renderStatCard(t("onboarding.template.stats.total"), stats.total, "ink")}
+        {renderStatCard(
+          t("onboarding.template.stats.total"),
+          stats.total,
+          "ink",
+        )}
         {renderStatCard(
           t("onboarding.template.stats.active"),
           stats.active,
@@ -819,7 +905,6 @@ const Templates = () => {
         )}
       </div>
 
-      {/* ── AI Generate modal ─────────────────────────────────────────────── */}
       <Modal
         title={
           <div className="flex items-center gap-2">
@@ -906,7 +991,6 @@ const Templates = () => {
         </div>
       </Modal>
 
-      {/* ── Quick edit (metadata only) modal — HR only ────────────────────── */}
       <Modal
         title={t("onboarding.template.edit_modal.title")}
         open={editOpen}
@@ -961,7 +1045,6 @@ const Templates = () => {
         </div>
       </Modal>
 
-      {/* ── Template detail modal ─────────────────────────────────────────── */}
       <Modal
         title={t("onboarding.template.view_modal.title")}
         open={!!viewTemplate}

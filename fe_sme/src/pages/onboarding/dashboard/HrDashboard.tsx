@@ -191,14 +191,6 @@ const HrDashboard = () => {
                   </Text>
                 </div>
               </Link>
-              <Link to="/onboarding/automation">
-                <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 transition-colors hover:bg-violet-100">
-                  <CheckCircle className="mb-2 h-5 w-5 text-violet-600" />
-                  <Text strong className="block text-sm">
-                    {t("onboarding.hr.dashboard.action.automation")}
-                  </Text>
-                </div>
-              </Link>
               <Link to="/onboarding/tasks">
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 transition-colors hover:bg-amber-100">
                   <Clock className="mb-2 h-5 w-5 text-amber-600" />

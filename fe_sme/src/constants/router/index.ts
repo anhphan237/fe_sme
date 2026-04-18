@@ -22,7 +22,6 @@ export const AppRouters = {
   ONBOARDING_TEMPLATES: "/onboarding/templates",
   ONBOARDING_TEMPLATES_NEW: "/onboarding/templates/new",
   ONBOARDING_TASKS: "/onboarding/tasks",
-  ONBOARDING_AUTOMATION: "/onboarding/automation",
   ONBOARDING_MY_JOURNEY: "/onboarding/my-journey",
   // Documents
   DOCUMENTS: "/documents",

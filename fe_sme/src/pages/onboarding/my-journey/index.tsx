@@ -20,6 +20,7 @@ import {
   Row,
   Skeleton,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 import { Link } from "react-router-dom";
@@ -155,7 +156,16 @@ const MyJourney = () => {
       ? Math.round((completedCount / totalCount) * 100)
       : (latestInstance?.progress ?? 0);
 
-  const pendingTasks = tasks.filter((task) => task.status !== STATUS_DONE);
+  // Only tasks the employee is directly responsible for
+  const myTasks = useMemo(
+    () =>
+      tasks.filter(
+        (task) => !task.assignedUserId || task.assignedUserId === userId,
+      ),
+    [tasks, userId],
+  );
+
+  const pendingTasks = myTasks.filter((task) => task.status !== STATUS_DONE);
   const overdueTasks = pendingTasks.filter((task) => {
     if (!task.dueDate) return false;
     return new Date(task.dueDate).getTime() < Date.now();
@@ -179,19 +189,19 @@ const MyJourney = () => {
       .slice(0, 5);
   }, [pendingTasks]);
 
-  // Task status breakdown
+  // Task status breakdown — based on employee's own tasks
   const tasksByStatus = useMemo(
     () => ({
-      todo: tasks.filter(
+      todo: myTasks.filter(
         (t) => !t.rawStatus || ["TODO", "ASSIGNED"].includes(t.rawStatus),
       ).length,
-      inProgress: tasks.filter((t) => t.rawStatus === "IN_PROGRESS").length,
-      waitAck: tasks.filter((t) => t.rawStatus === "WAIT_ACK").length,
-      pendingApproval: tasks.filter((t) => t.rawStatus === "PENDING_APPROVAL")
+      inProgress: myTasks.filter((t) => t.rawStatus === "IN_PROGRESS").length,
+      waitAck: myTasks.filter((t) => t.rawStatus === "WAIT_ACK").length,
+      pendingApproval: myTasks.filter((t) => t.rawStatus === "PENDING_APPROVAL")
         .length,
-      done: tasks.filter((t) => t.rawStatus === "DONE").length,
+      done: myTasks.filter((t) => t.rawStatus === "DONE").length,
     }),
-    [tasks],
+    [myTasks],
   );
 
   // Stage/checklist progress grouping
@@ -478,6 +488,8 @@ const MyJourney = () => {
                   const isOverdue =
                     task.dueDate &&
                     new Date(task.dueDate).getTime() < Date.now();
+                  const canAct =
+                    !task.assignedUserId || task.assignedUserId === userId;
 
                   return (
                     <div
@@ -512,6 +524,7 @@ const MyJourney = () => {
                           size="small"
                           type={isDone ? "default" : "primary"}
                           loading={updateTaskStatus.isPending}
+                          disabled={!canAct}
                           onClick={() => handleToggleTask(task)}>
                           {isDone
                             ? t(
@@ -693,7 +706,7 @@ const MyJourney = () => {
                   </div>
                 ))}
 
-                {tasks
+                {myTasks
                   .filter(
                     (task) =>
                       task.rawStatus === "WAIT_ACK" ||
@@ -861,10 +874,17 @@ const MyJourney = () => {
                   )}
 
                 {selectedTaskDetail.status === "WAIT_ACK" && (
+                  <Tooltip
+                    title={
+                      selectedTaskDetail.requireDoc
+                        ? t("onboarding.task.prereq.needs_doc")
+                        : undefined
+                    }>
                   <Button
                     type="primary"
                     block
                     loading={updateTaskStatus.isPending}
+                    disabled={Boolean(selectedTaskDetail.requireDoc)}
                     onClick={() =>
                       updateTaskStatus.mutate(
                         { taskId: selectedTaskDetail.taskId!, status: "DONE" },
@@ -893,6 +913,7 @@ const MyJourney = () => {
                     }>
                     {t("onboarding.task.action.confirm_complete")}
                   </Button>
+                  </Tooltip>
                 )}
 
                 {!selectedTaskDetail.requireAck &&
@@ -939,6 +960,7 @@ const MyJourney = () => {
 
                 {!selectedTaskDetail.requireAck &&
                   !selectedTaskDetail.requiresManagerApproval &&
+                  !selectedTaskDetail.requireDoc &&
                   selectedTaskDetail.status !== "WAIT_ACK" &&
                   selectedTaskDetail.status !== "PENDING_APPROVAL" && (
                     <Button
@@ -984,6 +1006,15 @@ const MyJourney = () => {
                       }>
                       {t("onboarding.task.action.confirm_complete")}
                     </Button>
+                  )}
+
+                {selectedTaskDetail.requireDoc &&
+                  selectedTaskDetail.status !== "DONE" &&
+                  selectedTaskDetail.status !== "PENDING_APPROVAL" && (
+                    <div className="flex items-center gap-1.5 rounded-md border border-amber-100 bg-amber-50/70 px-3 py-2 text-xs text-amber-700">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      {t("onboarding.task.prereq.needs_doc_go_tasks")}
+                    </div>
                   )}
               </div>
             )}
