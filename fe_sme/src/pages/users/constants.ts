@@ -1,9 +1,10 @@
 export const ROLE_OPTIONS = [
-  { value: "EMPLOYEE", label: "Employee" },
-  { value: "HR", label: "HR" },
-  { value: "MANAGER", label: "Manager" },
-  { value: "ADMIN", label: "Admin" },
-  { value: "IT", label: "IT" },
+  { value: "EMPLOYEE", labelKey: "role.employee" },
+  { value: "HR", labelKey: "role.hr" },
+  { value: "MANAGER", labelKey: "role.manager" },
+  { value: "IT", labelKey: "role.it" },
+  { value: "ADMIN", labelKey: "role.admin", isPlatform: true },
+  { value: "STAFF", labelKey: "role.staff", isPlatform: true },
 ];
 
 export const ROLE_BADGE_STYLES: Record<string, string> = {

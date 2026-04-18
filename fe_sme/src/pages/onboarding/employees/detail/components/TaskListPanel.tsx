@@ -1,14 +1,16 @@
 import { useMemo, useState } from "react";
-import { Badge, Card, Empty, Progress, Select, Skeleton } from "antd";
+import { Badge, Card, Empty, Progress, Skeleton, Tag } from "antd";
 import {
+  AlertTriangle,
   CheckCircle2,
   Clock,
+  HourglassIcon,
   ListTodo,
   Loader2,
-  HourglassIcon,
 } from "lucide-react";
 import { useLocale } from "@/i18n";
-import { STATUS_DONE } from "../constants";
+import { STAGE_TAG_COLOR, STATUS_DONE } from "../constants";
+import { isTaskOverdue } from "../helpers";
 import { TaskItem } from "./TaskItem";
 import type { OnboardingTask } from "@/shared/types";
 
@@ -17,6 +19,10 @@ export interface TaskListPanelProps {
   isLoading: boolean;
   isUpdating: boolean;
   canManage: boolean;
+  /** Current logged-in user id — forwarded to TaskItem for per-task canAct calculation */
+  currentUserId: string;
+  /** Pre-computed approve/reject permission (isHr || isLineManager). Forwarded to TaskItem. */
+  canApproveOrReject?: boolean;
   onToggle: (task: OnboardingTask) => void;
   onOpenDrawer: (task: OnboardingTask) => void;
   onApprove: (task: OnboardingTask) => void;
@@ -25,7 +31,13 @@ export interface TaskListPanelProps {
   isRejecting: boolean;
 }
 
-type FilterKey = "all" | "todo" | "in_progress" | "pending_approval" | "done";
+type FilterKey =
+  | "all"
+  | "todo"
+  | "in_progress"
+  | "pending_approval"
+  | "done"
+  | "overdue";
 
 const FILTERS: { key: FilterKey; labelKey: string; statusValues: string[] }[] =
   [
@@ -50,48 +62,20 @@ const FILTERS: { key: FilterKey; labelKey: string; statusValues: string[] }[] =
       labelKey: "onboarding.task.filter.done",
       statusValues: ["DONE"],
     },
+    {
+      key: "overdue",
+      labelKey: "onboarding.task.stat.overdue",
+      statusValues: [],
+    },
   ];
-
-const STAT_ITEMS = (
-  tasks: OnboardingTask[],
-  completedCount: number,
-  t: (k: string) => string,
-) => [
-  {
-    label: t("onboarding.task.stat.total"),
-    count: tasks.length,
-    icon: <ListTodo className="h-4 w-4" />,
-    color: "text-gray-500",
-    bg: "bg-gray-50",
-  },
-  {
-    label: t("onboarding.task.stat.in_progress"),
-    count: tasks.filter((t) => t.rawStatus === "IN_PROGRESS").length,
-    icon: <Loader2 className="h-4 w-4 animate-spin" />,
-    color: "text-blue-500",
-    bg: "bg-blue-50",
-  },
-  {
-    label: t("onboarding.task.stat.pending_approval"),
-    count: tasks.filter((t) => t.rawStatus === "PENDING_APPROVAL").length,
-    icon: <HourglassIcon className="h-4 w-4" />,
-    color: "text-amber-500",
-    bg: "bg-amber-50",
-  },
-  {
-    label: t("onboarding.task.stat.done"),
-    count: completedCount,
-    icon: <CheckCircle2 className="h-4 w-4" />,
-    color: "text-emerald-500",
-    bg: "bg-emerald-50",
-  },
-];
 
 export const TaskListPanel = ({
   tasks,
   isLoading,
   isUpdating,
   canManage,
+  currentUserId,
+  canApproveOrReject,
   onToggle,
   onOpenDrawer,
   onApprove,
@@ -106,7 +90,19 @@ export const TaskListPanel = ({
   const progressPercent =
     tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
 
+  const overdueCount = tasks.filter(
+    (tk) =>
+      (tk.overdue ?? isTaskOverdue(tk.dueDate)) && tk.status !== STATUS_DONE,
+  ).length;
+
   const filteredTasks = useMemo(() => {
+    if (activeFilter === "overdue") {
+      return tasks.filter(
+        (tk) =>
+          (tk.overdue ?? isTaskOverdue(tk.dueDate)) &&
+          tk.status !== STATUS_DONE,
+      );
+    }
     if (activeFilter === "all") return tasks;
     const filter = FILTERS.find((f) => f.key === activeFilter);
     return tasks.filter((task) =>
@@ -121,12 +117,14 @@ export const TaskListPanel = ({
           f.key,
           f.key === "all"
             ? tasks.length
-            : tasks.filter((task) =>
-                f.statusValues.includes(task.rawStatus ?? ""),
-              ).length,
+            : f.key === "overdue"
+              ? overdueCount
+              : tasks.filter((task) =>
+                  f.statusValues.includes(task.rawStatus ?? ""),
+                ).length,
         ]),
       ) as Record<FilterKey, number>,
-    [tasks],
+    [tasks, overdueCount],
   );
 
   const groupedTasks = useMemo(() => {
@@ -145,6 +143,8 @@ export const TaskListPanel = ({
 
   const sharedItemProps = {
     canManage,
+    currentUserId,
+    canApproveOrReject,
     isUpdating,
     isApproving,
     isRejecting,
@@ -153,6 +153,59 @@ export const TaskListPanel = ({
     onApprove,
     onReject,
   };
+
+  const STAT_ITEMS = [
+    {
+      label: t("onboarding.task.stat.total"),
+      count: filterCounts.all,
+      icon: <ListTodo className="h-4 w-4" />,
+      color: "text-gray-500",
+      bg: "bg-gray-50",
+      activeBg: "bg-gray-100",
+      ring: "ring-gray-400",
+      filterKey: "all" as FilterKey,
+    },
+    {
+      label: t("onboarding.task.stat.in_progress"),
+      count: filterCounts.in_progress,
+      icon: <Loader2 className="h-4 w-4 animate-spin" />,
+      color: "text-blue-500",
+      bg: "bg-blue-50",
+      activeBg: "bg-blue-100",
+      ring: "ring-blue-400",
+      filterKey: "in_progress" as FilterKey,
+    },
+    {
+      label: t("onboarding.task.stat.pending_approval"),
+      count: filterCounts.pending_approval,
+      icon: <HourglassIcon className="h-4 w-4" />,
+      color: "text-amber-500",
+      bg: "bg-amber-50",
+      activeBg: "bg-amber-100",
+      ring: "ring-amber-400",
+      filterKey: "pending_approval" as FilterKey,
+    },
+    {
+      label: t("onboarding.task.stat.done"),
+      count: filterCounts.done,
+      icon: <CheckCircle2 className="h-4 w-4" />,
+      color: "text-emerald-500",
+      bg: "bg-emerald-50",
+      activeBg: "bg-emerald-100",
+      ring: "ring-emerald-400",
+      filterKey: "done" as FilterKey,
+    },
+    {
+      label: t("onboarding.task.stat.overdue"),
+      count: filterCounts.overdue,
+      icon: <AlertTriangle className="h-4 w-4" />,
+      color: "text-red-500",
+      bg: "bg-red-50",
+      activeBg: "bg-red-100",
+      ring: "ring-red-400",
+      filterKey: "overdue" as FilterKey,
+    },
+  ];
 
   return (
     <Card className="overflow-hidden">
@@ -188,51 +241,48 @@ export const TaskListPanel = ({
           strokeColor={{ "0%": "#3b82f6", "100%": "#10b981" }}
         />
       )}
-
-      {/* ── Summary stats ────────────────────────────────────────────────────── */}
+      {/* ── Summary stats (clickable filters) ──────────────────────────────────── */}
       {tasks.length > 0 && (
-        <div className="mt-3 grid grid-cols-4 gap-2">
-          {STAT_ITEMS(tasks, completedCount, t).map((stat) => (
-            <div
-              key={stat.label}
-              className={`rounded-xl ${stat.bg} flex flex-col items-center gap-0.5 px-2 py-2.5`}>
-              <span className={stat.color}>{stat.icon}</span>
-              <p className="text-base font-bold text-gray-800">{stat.count}</p>
-              <p className="text-center text-[10px] leading-tight text-gray-400">
-                {stat.label}
-              </p>
-            </div>
-          ))}
+        <div className="mt-3 grid grid-cols-5 gap-1.5">
+          {STAT_ITEMS.map((stat) => {
+            const isActive = activeFilter === stat.filterKey;
+            return (
+              <button
+                key={stat.filterKey}
+                type="button"
+                onClick={() =>
+                  setActiveFilter(isActive ? "all" : stat.filterKey)
+                }
+                className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2 transition-all hover:opacity-80 ${
+                  isActive ? `${stat.activeBg} ring-2 ${stat.ring}` : stat.bg
+                }`}>
+                <span className={stat.color}>{stat.icon}</span>
+                <p className="text-base font-bold text-gray-800">
+                  {stat.count}
+                </p>
+                <p className="text-center text-[9px] leading-tight text-gray-400">
+                  {stat.label}
+                </p>
+              </button>
+            );
+          })}
         </div>
       )}
-
-      {/* ── Filter select ────────────────────────────────────────────────────── */}
-      {tasks.length > 0 && (
-        <div className="mt-3 flex items-center gap-2">
-          <Select
-            value={activeFilter}
-            onChange={(val) => setActiveFilter(val)}
-            size="small"
-            style={{ width: 180 }}
-            options={FILTERS.map((f) => ({
-              value: f.key,
-              label: (
-                <span className="flex items-center justify-between gap-2">
-                  <span>{t(f.labelKey)}</span>
-                  {filterCounts[f.key] > 0 && (
-                    <span className="rounded-full bg-gray-100 px-1.5 text-[10px] text-gray-500">
-                      {filterCounts[f.key]}
-                    </span>
-                  )}
-                </span>
-              ),
-            }))}
-          />
-        </div>
-      )}
-
       {/* ── Task list ────────────────────────────────────────────────────────── */}
       <div className="mt-4">
+        {/* Active filter indicator */}
+        {activeFilter !== "all" && (
+          <div className="mb-2 flex items-center gap-1.5 text-xs text-gray-500">
+            <span>{t("onboarding.task.filter.showing")}:</span>
+            <Tag
+              style={{ margin: 0, fontSize: 11 }}
+              closable
+              onClose={() => setActiveFilter("all")}>
+              {STAT_ITEMS.find((s) => s.filterKey === activeFilter)?.label} (
+              {filteredTasks.length})
+            </Tag>
+          </div>
+        )}
         {isLoading ? (
           <div className="space-y-2">
             {[1, 2, 3].map((i) => (
@@ -254,22 +304,48 @@ export const TaskListPanel = ({
               const groupDone = groupItems.filter(
                 (tk) => tk.status === STATUS_DONE,
               ).length;
+              const groupOverdue = groupItems.filter(
+                (tk) =>
+                  (tk.overdue ?? isTaskOverdue(tk.dueDate)) &&
+                  tk.status !== STATUS_DONE,
+              ).length;
+              const stageColorKey = Object.keys(STAGE_TAG_COLOR).find((k) =>
+                group.toUpperCase().includes(k),
+              );
+              const stageColor = stageColorKey
+                ? STAGE_TAG_COLOR[stageColorKey]
+                : "blue";
+
               return (
                 <div key={group}>
                   <div className="mb-2 flex items-center justify-between border-b border-gray-100 pb-1.5">
                     <div className="flex items-center gap-1.5">
                       <Clock className="h-3.5 w-3.5 text-blue-400" />
-                      <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      <Tag
+                        color={stageColor}
+                        style={{ margin: 0, fontSize: 11 }}>
                         {group}
+                      </Tag>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {groupOverdue > 0 && (
+                        <span className="flex items-center gap-0.5 text-xs font-medium text-red-500">
+                          <AlertTriangle className="h-3 w-3" />
+                          {groupOverdue}
+                        </span>
+                      )}
+                      <span className="text-xs text-gray-400">
+                        {groupDone}/{groupItems.length}
                       </span>
                     </div>
-                    <span className="text-xs text-gray-400">
-                      {groupDone}/{groupItems.length}
-                    </span>
                   </div>
                   <div className="space-y-2">
                     {groupItems.map((task) => (
-                      <TaskItem key={task.id} task={task} {...sharedItemProps} />
+                      <TaskItem
+                        key={task.id}
+                        task={task}
+                        {...sharedItemProps}
+                      />
                     ))}
                   </div>
                 </div>

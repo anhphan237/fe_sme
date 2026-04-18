@@ -1,15 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronLeft,
-  ChevronRight,
   ClipboardList,
   Check,
+  Info,
+  LayoutTemplate,
   Loader2,
-  FileText,
+  Sparkles,
 } from "lucide-react";
-import { message, Spin } from "antd";
+import { Modal, message, Spin } from "antd";
 import { useLocale } from "@/i18n";
 import { useUserStore } from "@/stores/user.store";
 import type { OnboardingTemplate } from "@/shared/types";
@@ -25,7 +26,7 @@ import { TasksPanel } from "./StepTasks";
 
 import type { TaskDraft, ChecklistDraft, EditorForm } from "./constants";
 import type { TemplatePreset, LibraryTask } from "./constants";
-import { TEMPLATE_PRESETS, STAGE_OPTIONS } from "./constants";
+import { TEMPLATE_PRESETS } from "./constants";
 import type { Role } from "@/interface/common";
 
 interface SaveTemplatePayload {
@@ -249,19 +250,15 @@ const TemplateEditor = () => {
 
   const [form, setForm] = useState<EditorForm>(initialForm);
   const [activeStageIndex, setActiveStageIndex] = useState(0);
-  const [activeStep, setActiveStep] = useState(0);
-  const TOTAL_STEPS = 3;
-  const stepKeys = [
-    "onboarding.template.editor.step.info",
-    "onboarding.template.editor.step.builder",
-    "onboarding.template.editor.step.review",
-  ];
-  const canAdvance =
-    activeStep === 0
-      ? form.name.trim().length > 0
-      : activeStep === 1
-        ? form.checklists.length > 0
-        : true;
+  const [presetModalOpen, setPresetModalOpen] = useState(false);
+
+  const totalTasks = useMemo(
+    () => form.checklists.reduce((n, c) => n + c.tasks.length, 0),
+    [form.checklists],
+  );
+  const nameValid = form.name.trim().length > 0;
+  const hasStages = form.checklists.length > 0;
+  const canSave = nameValid && (isCreate ? hasStages : true);
 
   // Initialize form from duplicateFrom (duplicate mode) or loaded template (edit mode)
   useEffect(() => {
@@ -456,159 +453,119 @@ const TemplateEditor = () => {
     );
   }
 
+  const pageTitle = !isCreate
+    ? t("onboarding.template.editor.title_edit")
+    : duplicateFrom
+      ? t("onboarding.template.editor.title_duplicate")
+      : t("onboarding.template.editor.title_create");
+
   return (
-    <div className="space-y-4 pb-24">
-      {/* Back + title row */}
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => navigate("/onboarding/templates")}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition hover:bg-slate-100 hover:text-ink">
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <h1 className="text-xl font-semibold text-ink">
-          {!isCreate
-            ? t("onboarding.template.editor.title_edit")
-            : duplicateFrom
-              ? t("onboarding.template.editor.title_duplicate")
-              : t("onboarding.template.editor.title_create")}
-        </h1>
-      </div>
-
-      {/* -- Step 0: Info -------------------------------------------- */}
-      {activeStep === 0 && (
-        <div className="space-y-4">
-          {/* Name + Description card */}
-          <div className="overflow-hidden rounded-2xl border border-stroke bg-white shadow-sm">
-            <div className="flex items-center gap-4 border-b border-stroke bg-slate-50/60 px-6 py-4">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand/10">
-                <FileText className="h-4.5 w-4.5 text-brand" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-ink">
-                  {t("onboarding.template.editor.step_info.title")}
-                </h3>
-                <p className="mt-0.5 text-xs text-muted">
-                  {t("onboarding.template.editor.step_info.subtitle")}
-                </p>
-              </div>
-            </div>
-            <div className="space-y-5 p-6">
-              {/* Template name */}
-              <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-                    {t("onboarding.template.editor.step_info.name_label")}
-                  </span>
-                  <span className="text-[11px] font-medium text-red-400">
-                    {t("onboarding.template.editor.step_info.required")}
-                  </span>
-                </div>
-                <input
-                  autoFocus
-                  type="text"
-                  value={form.name}
-                  onChange={(e) => updateForm({ name: e.target.value })}
-                  placeholder={t(
-                    "onboarding.template.editor.step_info.name_placeholder",
-                  )}
-                  className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-sm font-semibold text-ink placeholder:text-muted/50 focus:border-brand focus:outline-none"
-                />
-                {form.name.trim().length > 0 && (
-                  <p className="mt-1.5 flex items-center gap-1 text-[11px] text-brand">
-                    <Check className="h-3 w-3" strokeWidth={2.5} />
-                    {t("onboarding.template.editor.step_info.looks_good")}
-                  </p>
-                )}
-              </div>
-
-              <div className="border-t border-stroke/60" />
-
-              {/* Description */}
-              <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-                    {t("onboarding.template.editor.step_info.desc_label")}
-                  </span>
-                  <span className="text-[11px] text-muted/50">
-                    {t("onboarding.template.editor.step_info.optional")}
-                  </span>
-                </div>
-                <textarea
-                  value={form.description ?? ""}
-                  onChange={(e) => updateForm({ description: e.target.value })}
-                  placeholder={t(
-                    "onboarding.template.editor.step_info.desc_placeholder",
-                  )}
-                  rows={4}
-                  maxLength={500}
-                  className="w-full resize-none rounded-lg border border-stroke bg-transparent px-3 py-2 text-sm leading-relaxed text-ink placeholder:text-muted/50 focus:border-brand focus:outline-none"
-                />
-                <p className="mt-1.5 text-right text-[11px] text-muted/50">
-                  {(form.description ?? "").length}{" "}
-                  {t("onboarding.template.editor.step_info.chars")}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Preset picker */}
-          <div className="overflow-hidden rounded-2xl border border-stroke bg-white shadow-sm">
-            <div className="border-b border-stroke bg-slate-50/60 px-6 py-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted">
-                {t("onboarding.template.preset.title")}
-              </p>
-              <p className="mt-0.5 text-[11px] text-muted/70">
-                {t("onboarding.template.preset.subtitle")}
-              </p>
-            </div>
-            <div className="grid gap-3 p-5 sm:grid-cols-3">
-              {TEMPLATE_PRESETS.map((preset) => {
-                const stageCount = preset.checklists.length;
-                const taskCount = preset.checklists.reduce(
-                  (sum, c) => sum + c.tasks.length,
-                  0,
-                );
-                return (
-                  <button
-                    key={preset.key}
-                    type="button"
-                    onClick={() => applyPreset(preset)}
-                    className="group flex flex-col items-start gap-2 rounded-xl border border-stroke bg-white p-4 text-left transition hover:border-brand/40 hover:shadow-md">
-                    <span className="text-2xl">{preset.icon}</span>
-                    <div>
-                      <p className="text-sm font-semibold text-ink group-hover:text-brand">
-                        {t(preset.nameKey)}
-                      </p>
-                      <p className="mt-0.5 text-xs text-muted">
-                        {t(preset.descKey)}
-                      </p>
-                    </div>
-                    <div className="mt-auto flex items-center gap-2 text-[11px] text-muted/60">
-                      <span>
-                        {stageCount}{" "}
-                        {t("onboarding.template.editor.stages_label")}
-                      </span>
-                      <span>·</span>
-                      <span>
-                        {taskCount}{" "}
-                        {t("onboarding.template.review.tasks").toLowerCase()}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+    <div className="flex h-full flex-col gap-4 pb-24">
+      {/* Top bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate("/onboarding/templates")}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition hover:bg-slate-100 hover:text-ink">
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <div>
+            <h1 className="text-lg font-semibold text-ink md:text-xl">
+              {pageTitle}
+            </h1>
+            <p className="text-xs text-muted">
+              {t("onboarding.template.editor.subtitle")}
+            </p>
           </div>
         </div>
-      )}
 
-      {/* -- Step 1: Builder ----------------------------------------- */}
-      {activeStep === 1 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+            <span>
+              {form.checklists.length}{" "}
+              {t("onboarding.template.review.stages").toLowerCase()}
+            </span>
+            <span className="text-slate-300">·</span>
+            <span>
+              {totalTasks} {t("onboarding.template.review.tasks").toLowerCase()}
+            </span>
+          </div>
+          {isCreate && (
+            <button
+              type="button"
+              onClick={() => setPresetModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-brand/40 hover:text-brand">
+              <Sparkles className="h-3.5 w-3.5" />
+              {t("onboarding.template.editor.toolbar.use_preset")}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Info card — always visible, inline editable */}
+      <div className="rounded-2xl border border-stroke bg-white p-5 shadow-sm">
+        <div className="space-y-3">
+          <div>
+            <div className="mb-1 flex items-center gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+                {t("onboarding.template.editor.step_info.name_label")}
+              </span>
+              <span
+                className={`text-[10px] font-semibold ${
+                  nameValid ? "text-emerald-500" : "text-red-400"
+                }`}>
+                {nameValid
+                  ? t("onboarding.template.editor.step_info.looks_good")
+                  : t("onboarding.template.editor.step_info.required")}
+              </span>
+            </div>
+            <input
+              autoFocus
+              type="text"
+              value={form.name}
+              onChange={(e) => updateForm({ name: e.target.value })}
+              placeholder={t(
+                "onboarding.template.editor.step_info.name_placeholder",
+              )}
+              className="w-full rounded-lg border border-transparent bg-slate-50 px-3 py-2.5 text-base font-semibold text-ink placeholder:text-muted/50 focus:border-brand focus:bg-white focus:outline-none"
+            />
+          </div>
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+                {t("onboarding.template.editor.step_info.desc_label")}
+              </span>
+              <span className="text-[10px] text-muted/50">
+                {(form.description ?? "").length} / 500
+              </span>
+            </div>
+            <textarea
+              value={form.description ?? ""}
+              onChange={(e) => updateForm({ description: e.target.value })}
+              placeholder={t(
+                "onboarding.template.editor.step_info.desc_placeholder",
+              )}
+              rows={2}
+              maxLength={500}
+              className="w-full resize-none rounded-lg border border-transparent bg-slate-50 px-3 py-2 text-sm leading-relaxed text-ink placeholder:text-muted/50 focus:border-brand focus:bg-white focus:outline-none"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Builder — empty state or sidebar + tasks panel */}
+      {!hasStages ? (
+        <div className="overflow-hidden rounded-2xl border border-dashed border-slate-200 bg-white shadow-sm">
+          <PresetEmptyState
+            onApplyPreset={applyPreset}
+            onAddBlank={addChecklist}
+          />
+        </div>
+      ) : (
         <div className="overflow-hidden rounded-2xl border border-stroke bg-white shadow-sm">
-          <div className="flex" style={{ minHeight: 560 }}>
-            {/* Left: stage sidebar */}
-            <div className="w-64 shrink-0 border-r border-stroke">
+          <div className="flex flex-col lg:flex-row" style={{ minHeight: 520 }}>
+            <div className="w-full shrink-0 border-b border-stroke lg:w-64 lg:border-b-0 lg:border-r">
               <StageSidebar
                 checklists={form.checklists}
                 activeIndex={activeStageIndex}
@@ -619,14 +576,8 @@ const TemplateEditor = () => {
                 onReorder={reorderChecklists}
               />
             </div>
-            {/* Right: task panel or empty-state */}
             <div className="flex min-w-0 flex-1">
-              {form.checklists.length === 0 ? (
-                <PresetEmptyState
-                  onApplyPreset={applyPreset}
-                  onAddBlank={addChecklist}
-                />
-              ) : activeStage ? (
+              {activeStage ? (
                 <TasksPanel
                   key={activeStage.id}
                   checklist={activeStage}
@@ -649,215 +600,113 @@ const TemplateEditor = () => {
         </div>
       )}
 
-      {/* -- Step 2: Review ------------------------------------------ */}
-      {activeStep === 2 && (
-        <div className="overflow-hidden rounded-2xl border border-stroke bg-white shadow-sm">
-          <div className="border-b border-stroke px-6 py-5">
-            <h3 className="text-base font-semibold text-ink">
-              {t("onboarding.template.editor.step_review.title")}
-            </h3>
-            <p className="mt-0.5 text-sm text-muted">
-              {t("onboarding.template.editor.step_review.subtitle")}
-            </p>
+      {/* Preset picker modal — reachable anytime via toolbar */}
+      <Modal
+        open={presetModalOpen}
+        onCancel={() => setPresetModalOpen(false)}
+        footer={null}
+        width={640}
+        title={
+          <div className="flex items-center gap-2">
+            <LayoutTemplate className="h-4 w-4 text-brand" />
+            <span>{t("onboarding.template.preset.title")}</span>
           </div>
-          <div className="space-y-5 p-6">
-            {/* Template summary */}
-            <div className="flex items-start gap-4 rounded-xl border border-stroke bg-slate-50 p-4">
-              <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">
-                  {t("onboarding.template.editor.review.template_label")}
-                </p>
-                <p className="mt-1 truncate text-lg font-bold text-ink">
-                  {form.name || "—"}
-                </p>
-                {form.description && (
-                  <p className="mt-0.5 text-sm text-muted">
-                    {form.description}
+        }>
+        <p className="mb-4 text-xs text-muted">
+          {t("onboarding.template.preset.subtitle")}
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {TEMPLATE_PRESETS.map((preset) => {
+            const stageCount = preset.checklists.length;
+            const taskCount = preset.checklists.reduce(
+              (sum, c) => sum + c.tasks.length,
+              0,
+            );
+            return (
+              <button
+                key={preset.key}
+                type="button"
+                onClick={() => {
+                  applyPreset(preset);
+                  setPresetModalOpen(false);
+                }}
+                className="group flex flex-col items-start gap-2 rounded-xl border border-stroke bg-white p-4 text-left transition hover:border-brand/40 hover:shadow-md">
+                <span className="text-2xl">{preset.icon}</span>
+                <div>
+                  <p className="text-sm font-semibold text-ink group-hover:text-brand">
+                    {t(preset.nameKey)}
                   </p>
-                )}
-              </div>
-              <div className="flex shrink-0 gap-3">
-                <div className="rounded-lg border border-stroke bg-white px-4 py-2.5 text-center">
-                  <p className="text-xl font-bold text-brand">
-                    {form.checklists.length}
-                  </p>
-                  <p className="text-[11px] text-muted">
-                    {t("onboarding.template.review.stages")}
+                  <p className="mt-0.5 text-xs text-muted">
+                    {t(preset.descKey)}
                   </p>
                 </div>
-                <div className="rounded-lg border border-stroke bg-white px-4 py-2.5 text-center">
-                  <p className="text-xl font-bold text-brand">
-                    {form.checklists.reduce((n, c) => n + c.tasks.length, 0)}
-                  </p>
-                  <p className="text-[11px] text-muted">
-                    {t("onboarding.template.review.tasks")}
-                  </p>
+                <div className="mt-auto flex items-center gap-2 text-[11px] text-muted/60">
+                  <span>
+                    {stageCount} {t("onboarding.template.editor.stages_label")}
+                  </span>
+                  <span>·</span>
+                  <span>
+                    {taskCount}{" "}
+                    {t("onboarding.template.review.tasks").toLowerCase()}
+                  </span>
                 </div>
-              </div>
-            </div>
-
-            {/* Stage list */}
-            <ul className="space-y-2">
-              {form.checklists.map((c, i) => {
-                const stageLabelKey = STAGE_OPTIONS.find(
-                  (o) => o.value === c.stageType,
-                )?.label;
-                const stageLabel = stageLabelKey
-                  ? t(stageLabelKey)
-                  : c.stageType;
-                return (
-                  <li
-                    key={c.id}
-                    className="rounded-xl border border-stroke bg-white">
-                    <div className="flex items-center gap-2.5 border-b border-stroke/60 px-4 py-3">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">
-                        {i + 1}
-                      </span>
-                      <span className="text-sm font-medium text-ink">
-                        {c.name ||
-                          t("onboarding.template.editor.stage_fallback", {
-                            num: i + 1,
-                          })}
-                      </span>
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-muted">
-                        {stageLabel}
-                      </span>
-                      <span className="ml-auto text-xs text-muted">
-                        {c.tasks.length}{" "}
-                        {t("onboarding.template.review.tasks").toLowerCase()}
-                      </span>
-                    </div>
-                    {c.tasks.length > 0 && (
-                      <ul className="divide-y divide-stroke/40">
-                        {c.tasks.map((task) => (
-                          <li
-                            key={task.id}
-                            className="flex items-baseline gap-3 px-4 py-2.5 text-sm">
-                            <span className="shrink-0 text-muted/40">·</span>
-                            <span className="flex-1 font-medium text-ink">
-                              {task.name ||
-                                t(
-                                  "onboarding.template.editor.review.untitled_task",
-                                )}
-                            </span>
-                            {task.assignee && task.assignee !== "EMPLOYEE" && (
-                              <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-                                {task.assignee}
-                              </span>
-                            )}
-                            <span className="shrink-0 text-xs text-muted">
-                              {task.dueDaysOffset}d
-                            </span>
-                            {task.requireAck && (
-                              <span className="shrink-0 rounded-full bg-brand/10 px-2 py-0.5 text-[11px] text-brand">
-                                {t("onboarding.template.editor.task_ack")}
-                              </span>
-                            )}
-                            {task.requireDoc && (
-                              <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-600">
-                                {t("onboarding.template.editor.task_doc")}
-                              </span>
-                            )}
-                            {task.requiresManagerApproval && (
-                              <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-600">
-                                {t("onboarding.template.editor.task_approval")}
-                              </span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
+              </button>
+            );
+          })}
         </div>
-      )}
+      </Modal>
 
-      {/* -- Wizard footer (sticky) ---------------------------------- */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-stroke bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.07)] lg:left-64">
-        <div className="mx-auto max-w-5xl px-6 py-3">
-          <div className="flex items-center justify-between gap-4">
-            {/* Left: back / cancel */}
-            <div className="w-28 shrink-0">
-              {activeStep > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setActiveStep((s) => s - 1)}
-                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted transition hover:bg-slate-100 hover:text-ink">
-                  <ChevronLeft className="h-4 w-4" />
-                  {t("onboarding.template.editor.btn.back")}
-                </button>
+      {/* Sticky save bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-stroke bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.05)] lg:left-64">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 md:px-6">
+          <div className="flex items-center gap-3 text-xs text-muted">
+            {!nameValid && (
+              <span className="flex items-center gap-1.5 text-red-500">
+                <Info className="h-3.5 w-3.5" />
+                {t("onboarding.template.editor.toast.name_required")}
+              </span>
+            )}
+            {nameValid && !hasStages && isCreate && (
+              <span className="flex items-center gap-1.5 text-amber-500">
+                <Info className="h-3.5 w-3.5" />
+                {t("onboarding.template.editor.footer.need_stage")}
+              </span>
+            )}
+            {canSave && (
+              <span className="flex items-center gap-1.5 text-emerald-500">
+                <Check className="h-3.5 w-3.5" />
+                {t("onboarding.template.editor.footer.ready")}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate("/onboarding/templates")}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-muted transition hover:bg-slate-100 hover:text-ink">
+              {t("onboarding.template.editor.btn.cancel")}
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!canSave || isSaving}
+              className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand/90 disabled:opacity-50">
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  {isCreate
+                    ? t("onboarding.template.editor.btn.creating")
+                    : t("onboarding.template.editor.btn.saving")}
+                </>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => navigate("/onboarding/templates")}
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-muted transition hover:bg-slate-100 hover:text-ink">
-                  {t("onboarding.template.editor.btn.cancel")}
-                </button>
+                <>
+                  <Check className="h-4 w-4" />
+                  {isCreate
+                    ? t("onboarding.template.editor.btn.create")
+                    : t("onboarding.template.editor.btn.save")}
+                </>
               )}
-            </div>
-
-            {/* Center: step indicator */}
-            <div className="flex flex-1 flex-col items-center gap-1.5">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted">
-                {t(stepKeys[activeStep] ?? stepKeys[0])}
-              </p>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
-                  <span
-                    key={i}
-                    className={`block rounded-full transition-all duration-300 ${
-                      i === activeStep
-                        ? "h-1.5 w-8 bg-brand"
-                        : i < activeStep
-                          ? "h-1.5 w-4 bg-brand/40"
-                          : "h-1.5 w-4 bg-slate-200"
-                    }`}
-                  />
-                ))}
-              </div>
-              <p className="text-[11px] text-muted/60">
-                {activeStep + 1} / {TOTAL_STEPS}
-              </p>
-            </div>
-
-            {/* Right: next / submit */}
-            <div className="flex w-28 shrink-0 justify-end">
-              {activeStep < TOTAL_STEPS - 1 ? (
-                <button
-                  type="button"
-                  onClick={() => setActiveStep((s) => s + 1)}
-                  disabled={!canAdvance}
-                  className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand/90 disabled:opacity-50">
-                  {t("onboarding.template.editor.btn.next")}
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={isSaving || !form.name.trim()}
-                  className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand/90 disabled:opacity-50">
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      {isCreate
-                        ? t("onboarding.template.editor.btn.creating")
-                        : t("onboarding.template.editor.btn.saving")}
-                    </>
-                  ) : (
-                    <>
-                      <Check className="h-4 w-4" />
-                      {isCreate
-                        ? t("onboarding.template.editor.btn.create")
-                        : t("onboarding.template.editor.btn.save")}
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
+            </button>
           </div>
         </div>
       </div>

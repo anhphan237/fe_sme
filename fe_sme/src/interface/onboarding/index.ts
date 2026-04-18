@@ -19,6 +19,8 @@ export interface TaskTemplateCreateItem {
   ownerRefId: Role;
   dueDaysOffset?: number;
   requireAck?: boolean;
+  requireDoc?: boolean;
+  requiresManagerApproval?: boolean;
   description?: string;
   sortOrder?: number;
 }
@@ -395,6 +397,9 @@ export interface TaskDetailResponse {
   scheduleProposedAt?: string;
   scheduleConfirmedBy?: string;
   scheduleConfirmedAt?: string;
+  scheduleRescheduleReason?: string;
+  scheduleCancelReason?: string;
+  scheduleNoShowReason?: string;
   // Collections
   comments?: CommentResponse[];
   attachments?: TaskAttachmentItem[];
@@ -497,77 +502,4 @@ export interface CommentResponse {
 /** com.sme.onboarding.task.comment.list → response data */
 export interface CommentListResponse {
   comments: CommentResponse[];
-}
-
-// ---------------------------
-// Automation Rules
-// ---------------------------
-
-/** com.sme.onboarding.automation.rule.list */
-export interface AutomationRuleListRequest {
-  companyId?: string;
-}
-
-/** Single automation rule */
-export interface AutomationRuleResponse {
-  ruleId: string;
-  name: string;
-  trigger: string;
-  channel: "email" | "notification";
-  enabled: boolean;
-}
-
-/** com.sme.onboarding.automation.rule.toggle */
-export interface AutomationRuleToggleRequest {
-  ruleId: string;
-  enabled: boolean;
-}
-
-/** com.sme.onboarding.automation.rule.list → response data */
-export interface AutomationRuleListResponse {
-  rules: AutomationRuleResponse[];
-}
-
-// ---------------------------
-// Email Logs
-// ---------------------------
-
-/** com.sme.onboarding.automation.email.list */
-export interface EmailLogListRequest {
-  page?: number;
-  size?: number;
-}
-
-/** Single email log entry */
-export interface EmailLogResponse {
-  logId: string;
-  subject: string;
-  recipientEmail?: string;
-  status: "Sent" | "Failed";
-  sentAt: string;
-}
-
-/** com.sme.onboarding.automation.email.list → response data */
-export interface EmailLogListResponse {
-  logs: EmailLogResponse[];
-}
-
-// ---------------------------
-// Automation Email Send (Self-Test)
-// ---------------------------
-
-/** com.sme.automation.email.send — send a test email to verify configuration */
-export interface AutomationEmailSendRequest {
-  /** Template code: WELCOME_NEW_EMPLOYEE | PRE_FIRST_DAY | TASK_REMINDER */
-  templateCode: string;
-  /** Recipient email address */
-  toEmail: string;
-  /** Template placeholders e.g. { employeeName, companyName, startDate } */
-  placeholders?: Record<string, string>;
-}
-
-/** com.sme.automation.email.send → response */
-export interface AutomationEmailSendResponse {
-  success: boolean;
-  message: string;
 }

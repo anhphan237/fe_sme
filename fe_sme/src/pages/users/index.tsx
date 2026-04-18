@@ -1,5 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
-import { AlertCircle, Phone, Plus, Upload, Users } from "lucide-react";
+import {
+  AlertCircle,
+  Clock,
+  Plus,
+  Upload,
+  UserCheck,
+  UserX,
+  Users,
+} from "lucide-react";
 import { clsx } from "clsx";
 import { Empty, Select, Tag } from "antd";
 import { notify } from "@/utils/notify";
@@ -30,8 +38,9 @@ import type {
 } from "@/components/bulk-import";
 import type { User } from "@/shared/types";
 
+const COMPANY_ROLE_OPTIONS = ROLE_OPTIONS.filter((o) => !o.isPlatform);
+
 const STATUS_FILTER_OPTIONS = [
-  { value: "ALL", labelKey: "user.filter.all" },
   { value: "Active", labelKey: "user.filter.status_active" },
   { value: "Invited", labelKey: "user.filter.status_invited" },
   { value: "Inactive", labelKey: "user.filter.status_inactive" },
@@ -51,106 +60,111 @@ const buildUserColumns = ({
   onDetail: (id: string) => void;
   onDisable: (id: string) => void;
   onEnable: (id: string) => void;
-}): ColumnsType<User> => {
-  return [
-    {
-      title: t("user.column.name"),
-      dataIndex: "name",
-      key: "name",
-      render: (_: unknown, user: User) => (
-        <div className="flex min-w-0 items-center gap-3">
-          <div
-            aria-hidden="true"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#3684DB]/10 text-sm font-semibold text-[#3684DB]">
-            {(user.name?.[0] ?? user.email?.[0] ?? "?").toUpperCase()}
-          </div>
-          <div className="min-w-0">
-            <button
-              type="button"
-              onClick={() => onDetail(user.id)}
-              className="max-w-full truncate text-left font-medium text-[#223A59] transition-colors hover:text-[#3684DB] hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3684DB]">
-              {user.name || user.email}
-            </button>
-            <p className="mt-0.5 truncate text-xs text-[#758BA5]">
-              {user.email}
-            </p>
-            {user.phone && (
-              <p className="mt-0.5 flex items-center gap-1 text-xs text-[#9BAEC2]">
-                <Phone className="h-3 w-3" />
-                {user.phone}
-              </p>
-            )}
-          </div>
+}): ColumnsType<User> => [
+  {
+    title: t("user.column.name"),
+    dataIndex: "name",
+    key: "name",
+    render: (_: unknown, user: User) => (
+      <div className="flex min-w-0 items-center gap-3">
+        <div
+          aria-hidden="true"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#3684DB]/10 text-sm font-semibold text-[#3684DB]">
+          {(user.name?.[0] ?? user.email?.[0] ?? "?").toUpperCase()}
         </div>
-      ),
+        <div className="min-w-0">
+          <button
+            type="button"
+            onClick={() => onDetail(user.id)}
+            className="max-w-full truncate text-left font-medium text-[#223A59] transition-colors hover:text-[#3684DB] hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3684DB]">
+            {user.name || user.email}
+          </button>
+          <p className="mt-0.5 truncate text-xs text-[#758BA5]">{user.email}</p>
+          {user.phone && (
+            <p className="mt-0.5 text-xs text-[#9BAEC2]">{user.phone}</p>
+          )}
+        </div>
+      </div>
+    ),
+  },
+  {
+    title: t("user.column.role"),
+    key: "role",
+    width: 130,
+    render: (_: unknown, user: User) => {
+      const primaryRole = getPrimaryRole(user.roles);
+      return (
+        <Tag
+          className={clsx(
+            "text-xs",
+            ROLE_BADGE_STYLES[primaryRole] ?? ROLE_BADGE_STYLES.EMPLOYEE,
+          )}>
+          {ROLE_LABELS[primaryRole]}
+        </Tag>
+      );
     },
-    {
-      title: t("user.column.role"),
-      key: "role",
-      width: 120,
-      render: (_: unknown, user: User) => {
-        const primaryRole = getPrimaryRole(user.roles);
-        return (
-          <Tag
-            className={clsx(
-              "text-xs",
-              ROLE_BADGE_STYLES[primaryRole] ?? ROLE_BADGE_STYLES.EMPLOYEE,
-            )}>
-            {ROLE_LABELS[primaryRole]}
-          </Tag>
-        );
-      },
-    },
-    {
-      title: t("user.column.department"),
-      dataIndex: "department",
-      key: "department",
-      render: (dept: string) => (
-        <span className="text-sm text-[#223A59]">
-          {dept || <span className="text-[#758BA5]">&mdash;</span>}
+  },
+  {
+    title: t("user.column.department"),
+    key: "department",
+    render: (_: unknown, user: User) => (
+      <div className="min-w-0">
+        <span className="block truncate text-sm text-[#223A59]">
+          {user.department || <span className="text-[#758BA5]">&mdash;</span>}
         </span>
+      </div>
+    ),
+  },
+  {
+    title: t("user.column.manager"),
+    key: "manager",
+    render: (_: unknown, user: User) =>
+      user.manager ? (
+        <span className="text-sm text-[#223A59]">{user.manager}</span>
+      ) : (
+        <span className="text-[#758BA5]">&mdash;</span>
       ),
-    },
-    {
-      title: t("user.column.status"),
-      dataIndex: "status",
-      key: "status",
-      width: 100,
-      render: (status: User["status"]) => <UserStatusTag status={status} />,
-    },
-    {
-      title: t("user.column.created"),
-      dataIndex: "createdAt",
-      key: "createdAt",
-      render: (v: string) => (
-        <span className="text-sm text-[#758BA5]">{v?.slice(0, 10) ?? "—"}</span>
+  },
+  {
+    title: t("user.column.status"),
+    dataIndex: "status",
+    key: "status",
+    width: 130,
+    render: (status: User["status"]) => <UserStatusTag status={status} />,
+  },
+  {
+    title: t("user.column.created"),
+    dataIndex: "createdAt",
+    key: "createdAt",
+    width: 110,
+    render: (v: string) => (
+      <span className="text-sm text-[#758BA5]">{v?.slice(0, 10) ?? "—"}</span>
+    ),
+  },
+  {
+    title: t("global.action"),
+    key: "action",
+    align: "right" as const,
+    width: 110,
+    render: (_: unknown, user: User) =>
+      user.status === "Inactive" ? (
+        <BaseButton
+          size="small"
+          loading={enablingId === user.id}
+          onClick={() => onEnable(user.id)}
+          label="user.enable"
+        />
+      ) : (
+        <BaseButton
+          size="small"
+          danger
+          loading={disablingId === user.id}
+          onClick={() => onDisable(user.id)}
+          label="user.disable"
+        />
       ),
-    },
-    {
-      title: t("global.action"),
-      key: "action",
-      align: "right" as const,
-      width: 100,
-      render: (_: unknown, user: User) =>
-        user.status === "Inactive" ? (
-          <BaseButton
-            size="small"
-            loading={enablingId === user.id}
-            onClick={() => onEnable(user.id)}
-            label="user.enable"
-          />
-        ) : (
-          <BaseButton
-            size="small"
-            danger
-            loading={disablingId === user.id}
-            onClick={() => onDisable(user.id)}
-            label="user.disable"
-          />
-        ),
-    },
-  ];
-};
+  },
+];
 
 const AdminUsers = () => {
   const { t } = useLocale();
@@ -158,9 +172,11 @@ const AdminUsers = () => {
   const [importOpen, setImportOpen] = useState(false);
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<string>("ALL");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [deptFilter, setDeptFilter] = useState<string>("");
+  const [roleFilter, setRoleFilter] = useState<string | undefined>(undefined);
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(
+    undefined,
+  );
+  const [deptFilter, setDeptFilter] = useState<string | undefined>(undefined);
   const [disablingId, setDisablingId] = useState<string | null>(null);
   const [enablingId, setEnablingId] = useState<string | null>(null);
 
@@ -169,34 +185,35 @@ const AdminUsers = () => {
 
   const stats = useMemo(() => {
     const all = users ?? [];
+    const byRole = COMPANY_ROLE_OPTIONS.map((o) => ({
+      value: o.value,
+      labelKey: o.labelKey,
+      count: all.filter((u) => getPrimaryRole(u.roles) === o.value).length,
+    }));
     return {
       total: all.length,
       active: all.filter((u) => u.status === "Active").length,
       invited: all.filter((u) => u.status === "Invited").length,
       inactive: all.filter((u) => u.status === "Inactive").length,
+      byRole,
     };
   }, [users]);
 
   const q = search.trim().toLowerCase();
-  const filtered = !users
-    ? []
-    : users
-        .filter(
-          (u) =>
-            !q ||
-            u.name.toLowerCase().includes(q) ||
-            u.email.toLowerCase().includes(q) ||
-            (u.department ?? "").toLowerCase().includes(q) ||
-            (u.phone ?? "").toLowerCase().includes(q),
-        )
-        .filter(
-          (u) => roleFilter === "ALL" || getPrimaryRole(u.roles) === roleFilter,
-        )
-        .filter((u) => statusFilter === "ALL" || u.status === statusFilter)
-        .filter((u) => !deptFilter || u.departmentId === deptFilter);
+  const filtered = (users ?? [])
+    .filter(
+      (u) =>
+        !q ||
+        u.name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        (u.department ?? "").toLowerCase().includes(q) ||
+        (u.phone ?? "").toLowerCase().includes(q),
+    )
+    .filter((u) => !roleFilter || getPrimaryRole(u.roles) === roleFilter)
+    .filter((u) => !statusFilter || u.status === statusFilter)
+    .filter((u) => !deptFilter || u.departmentId === deptFilter);
 
-  const hasActiveFilters =
-    roleFilter !== "ALL" || deptFilter || statusFilter !== "ALL";
+  const hasActiveFilters = !!(roleFilter || statusFilter || deptFilter);
 
   const handleInvite = async (form: InviteForm) => {
     await apiCreateUser({
@@ -245,11 +262,7 @@ const AdminUsers = () => {
     description: t("user.import.description"),
     fields: [
       { key: "email", label: t("user.import.field.email"), required: true },
-      {
-        key: "fullName",
-        label: t("user.import.field.full_name"),
-        required: true,
-      },
+      { key: "fullName", label: t("user.import.field.full_name"), required: true },
       { key: "phone", label: t("user.import.field.phone") },
       { key: "roleCode", label: t("user.import.field.role") },
       { key: "departmentId", label: t("user.import.field.department") },
@@ -311,153 +324,186 @@ const AdminUsers = () => {
           <p className="text-sm font-medium text-slate-700">
             {t("user.empty_title")}
           </p>
-          <p className="text-xs text-slate-400">
-            {t("user.empty_description")}
-          </p>
+          <p className="text-xs text-slate-400">{t("user.empty_description")}</p>
         </div>
       }
     />
   );
 
   return (
-    <div className="flex h-full flex-col p-4">
-      {/* Stats strip */}
+    <div className="flex h-full flex-col gap-4 p-4">
+      {/* ── Actions ── */}
+      <div className="flex shrink-0 items-center justify-end gap-2">
+        <BaseButton
+          icon={<Upload className="h-4 w-4" />}
+          onClick={() => setImportOpen(true)}
+          label="user.import_csv"
+        />
+        <BaseButton
+          type="primary"
+          icon={<Plus className="h-4 w-4" />}
+          onClick={() => setInviteOpen(true)}
+          label="user.invite"
+        />
+      </div>
+
+      {/* ── Stats ── */}
       {!isLoading && !isError && (
-        <div className="mb-3 flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1.5 rounded-lg border border-slate-100 bg-white px-3 py-2">
-            <Users className="h-4 w-4 text-slate-400" />
-            <span className="text-sm font-semibold text-slate-700">
-              {stats.total}
-            </span>
-            <span className="text-xs text-slate-400">
-              {t("user.stats.total")}
-            </span>
+        <div className="space-y-3">
+          {/* 4 stat cards */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {/* Total */}
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-500">
+                  {t("user.stats.total")}
+                </span>
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100">
+                  <Users className="h-3.5 w-3.5 text-slate-500" />
+                </div>
+              </div>
+              <p className="mt-2 text-2xl font-bold text-slate-800">
+                {stats.total}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-400">
+                {t("user.stats.members")}
+              </p>
+            </div>
+
+            {/* Active */}
+            <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-green-600">
+                  {t("user.stats.active")}
+                </span>
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-green-100">
+                  <UserCheck className="h-3.5 w-3.5 text-green-600" />
+                </div>
+              </div>
+              <p className="mt-2 text-2xl font-bold text-green-700">
+                {stats.active}
+              </p>
+              <p className="mt-0.5 text-xs text-green-600">
+                {stats.total > 0
+                  ? `${Math.round((stats.active / stats.total) * 100)}% ${t("user.stats.of_total")}`
+                  : "—"}
+              </p>
+            </div>
+
+            {/* Invited */}
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-amber-600">
+                  {t("user.stats.invited")}
+                </span>
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100">
+                  <Clock className="h-3.5 w-3.5 text-amber-500" />
+                </div>
+              </div>
+              <p className="mt-2 text-2xl font-bold text-amber-700">
+                {stats.invited}
+              </p>
+              <p className="mt-0.5 text-xs text-amber-600">
+                {t("user.stats.pending_activation")}
+              </p>
+            </div>
+
+            {/* Inactive */}
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-red-500">
+                  {t("user.stats.inactive")}
+                </span>
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-100">
+                  <UserX className="h-3.5 w-3.5 text-red-500" />
+                </div>
+              </div>
+              <p className="mt-2 text-2xl font-bold text-red-700">
+                {stats.inactive}
+              </p>
+              <p className="mt-0.5 text-xs text-red-500">
+                {t("user.stats.disabled")}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5 rounded-lg border border-green-100 bg-green-50 px-3 py-2">
-            <span className="h-2 w-2 rounded-full bg-green-500" />
-            <span className="text-sm font-semibold text-green-700">
-              {stats.active}
-            </span>
-            <span className="text-xs text-green-600">
-              {t("user.stats.active")}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
-            <span className="h-2 w-2 rounded-full bg-amber-400" />
-            <span className="text-sm font-semibold text-amber-700">
-              {stats.invited}
-            </span>
-            <span className="text-xs text-amber-600">
-              {t("user.stats.invited")}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2">
-            <span className="h-2 w-2 rounded-full bg-red-400" />
-            <span className="text-sm font-semibold text-red-700">
-              {stats.inactive}
-            </span>
-            <span className="text-xs text-red-600">
-              {t("user.stats.inactive")}
-            </span>
-          </div>
+
+          {/* Role distribution */}
+          {stats.total > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-100 bg-white px-4 py-3">
+              <span className="mr-1 text-xs font-medium text-slate-400">
+                {t("user.stats.by_role")}
+              </span>
+              {stats.byRole
+                .filter((r) => r.count > 0)
+                .map((r) => (
+                  <span
+                    key={r.value}
+                    className={clsx(
+                      "flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
+                      ROLE_BADGE_STYLES[r.value] ?? ROLE_BADGE_STYLES.EMPLOYEE,
+                    )}>
+                    {t(r.labelKey)}
+                    <span className="font-bold">{r.count}</span>
+                  </span>
+                ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Toolbar */}
-      <div className="mb-3 flex items-center justify-between gap-3">
+      {/* ── Filter toolbar ── */}
+      <div className="flex flex-wrap items-center gap-2">
         <BaseSearch
           placeholder={t("user.search_placeholder")}
           allowClear
-          className="max-w-72 flex-1"
+          className="min-w-48 max-w-72 flex-1"
           onSearch={(val) => setSearch(val ?? "")}
         />
-        <div className="flex shrink-0 items-center gap-2">
-          <BaseButton
-            icon={<Upload className="h-4 w-4" />}
-            onClick={() => setImportOpen(true)}
-            label="user.import_csv"
-          />
-          <BaseButton
-            type="primary"
-            icon={<Plus className="h-4 w-4" />}
-            onClick={() => setInviteOpen(true)}
-            label="user.invite"
-          />
-        </div>
-      </div>
-
-      {/* Filter row */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        {/* Role filter chips */}
-        <div className="flex items-center gap-1">
-          {[{ value: "ALL", label: t("user.filter.all") }, ...ROLE_OPTIONS].map(
-            (opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setRoleFilter(opt.value)}
-                className={clsx(
-                  "rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                  roleFilter === opt.value
-                    ? "bg-[#3684DB] text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200",
-                )}>
-                {opt.label}
-              </button>
-            ),
-          )}
-        </div>
-
-        {/* Divider */}
-        <div className="h-5 w-px bg-slate-200" />
-
-        {/* Status filter chips */}
-        <div className="flex items-center gap-1">
-          {STATUS_FILTER_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => setStatusFilter(opt.value)}
-              className={clsx(
-                "rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                statusFilter === opt.value
-                  ? "bg-slate-700 text-white"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200",
-              )}>
-              {t(opt.labelKey)}
-            </button>
-          ))}
-        </div>
-
-        {/* Department filter */}
+        <Select
+          allowClear
+          placeholder={t("user.filter.all_roles")}
+          className="w-40"
+          value={roleFilter}
+          onChange={(v) => setRoleFilter(v)}
+          options={COMPANY_ROLE_OPTIONS.map((o) => ({
+            value: o.value,
+            label: t(o.labelKey),
+          }))}
+        />
+        <Select
+          allowClear
+          placeholder={t("user.filter.all_statuses")}
+          className="w-44"
+          value={statusFilter}
+          onChange={(v) => setStatusFilter(v)}
+          options={STATUS_FILTER_OPTIONS.map((o) => ({
+            value: o.value,
+            label: t(o.labelKey),
+          }))}
+        />
         <Select
           allowClear
           placeholder={t("user.filter.all_departments")}
-          className="w-48 text-xs"
-          size="small"
-          value={deptFilter || undefined}
-          onChange={(v) => setDeptFilter(v ?? "")}
+          className="w-48"
+          value={deptFilter}
+          onChange={(v) => setDeptFilter(v)}
           options={departments.map((d) => ({
             value: d.departmentId,
             label: d.name,
           }))}
         />
-
-        {/* Clear filters */}
         {hasActiveFilters && (
           <button
             type="button"
             onClick={() => {
-              setRoleFilter("ALL");
-              setStatusFilter("ALL");
-              setDeptFilter("");
+              setRoleFilter(undefined);
+              setStatusFilter(undefined);
+              setDeptFilter(undefined);
             }}
             className="text-xs text-[#758BA5] underline hover:text-[#3684DB]">
             {t("user.filter.clear")}
           </button>
         )}
-
-        {/* Result count when filtered */}
         {(hasActiveFilters || q) && (
           <span className="ml-auto text-xs text-slate-400">
             {filtered.length} / {stats.total}
@@ -465,6 +511,7 @@ const AdminUsers = () => {
         )}
       </div>
 
+      {/* ── Table ── */}
       <MyTable
         columns={userColumns}
         dataSource={isError ? [] : filtered}

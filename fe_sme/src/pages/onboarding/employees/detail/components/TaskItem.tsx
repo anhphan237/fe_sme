@@ -1,24 +1,33 @@
 import { Button, Tag, Tooltip } from "antd";
 import {
+  AlertTriangle,
+  Calendar,
   CheckCircle2,
+  CheckSquare,
   Circle,
   Clock,
-  AlertTriangle,
-  ThumbsUp,
-  XCircle,
-  Eye,
-  CheckSquare,
-  Send,
   Loader2,
+  Send,
+  ThumbsUp,
+  User as UserIcon,
+  XCircle,
 } from "lucide-react";
 import { useLocale } from "@/i18n";
-import { STATUS_TAG_COLOR, STATUS_DONE } from "../constants";
+import {
+  SCHEDULE_STATUS_COLOR,
+  STATUS_TAG_COLOR,
+  STATUS_DONE,
+} from "../constants";
 import { isTaskOverdue } from "../helpers";
 import type { OnboardingTask } from "@/shared/types";
 
 export interface TaskItemProps {
   task: OnboardingTask;
   canManage: boolean;
+  /** Current logged-in user id — used to compute canAct per-task */
+  currentUserId: string;
+  /** Pre-computed approve/reject permission (isHr || isLineManager). Falls back to canManage when not provided. */
+  canApproveOrReject?: boolean;
   isUpdating: boolean;
   isApproving: boolean;
   isRejecting: boolean;
@@ -47,6 +56,8 @@ const getStatusIcon = (rawStatus: string) => {
 export const TaskItem = ({
   task,
   canManage,
+  currentUserId,
+  canApproveOrReject,
   isUpdating,
   isApproving,
   isRejecting,
@@ -58,7 +69,14 @@ export const TaskItem = ({
   const { t } = useLocale();
   const isDone = task.status === STATUS_DONE;
   const rawStatus = task.rawStatus ?? "";
-  const overdue = isTaskOverdue(task.dueDate) && !isDone;
+  const overdue = (task.overdue ?? isTaskOverdue(task.dueDate)) && !isDone;
+  const ss = task.scheduleStatus;
+  const hasSchedule = ss && ss !== "UNSCHEDULED";
+
+  // Issue #3: only assignee or managers can toggle task status
+  const canAct = canManage || task.assignedUserId === currentUserId;
+  // Issue #4 (partial): approve/reject gate — falls back to canManage when prop not provided
+  const showApproveReject = (canApproveOrReject ?? canManage) && rawStatus === "PENDING_APPROVAL";
 
   const rowBg = isDone
     ? "border-emerald-100 bg-emerald-50/30"
@@ -73,7 +91,7 @@ export const TaskItem = ({
       <button
         className="mt-0.5 shrink-0 cursor-pointer disabled:cursor-not-allowed"
         onClick={() => onToggle(task)}
-        disabled={isUpdating}
+        disabled={isUpdating || !canAct}
         aria-label={isDone ? "Đánh dấu chưa xong" : "Đánh dấu hoàn thành"}>
         {getStatusIcon(rawStatus)}
       </button>
@@ -82,9 +100,16 @@ export const TaskItem = ({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5">
           <span
-            className={`text-sm font-medium leading-snug ${isDone ? "text-gray-400 line-through" : "text-gray-800"}`}>
+            className={`cursor-pointer text-sm font-medium leading-snug hover:underline ${isDone ? "text-gray-400 line-through" : "text-gray-800 hover:text-blue-600"}`}
+            onClick={() => onOpenDrawer(task)}>
             {task.title}
           </span>
+          {overdue && (
+            <span className="flex items-center gap-0.5 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-600">
+              <AlertTriangle className="h-2.5 w-2.5" />
+              {t("onboarding.task.stat.overdue")}
+            </span>
+          )}
           {task.required && (
             <span className="rounded bg-red-50 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-500">
               {t("onboarding.task.required") ?? "Bắt buộc"}
@@ -92,6 +117,7 @@ export const TaskItem = ({
           )}
         </div>
 
+        {/* Metadata row */}
         <div className="mt-1 flex flex-wrap items-center gap-2">
           {task.dueDate && (
             <span
@@ -103,6 +129,30 @@ export const TaskItem = ({
               )}
               {task.dueDate}
             </span>
+          )}
+          {task.assignedUserName && (
+            <span className="flex items-center gap-0.5 text-xs text-gray-400">
+              <UserIcon className="h-3 w-3" />
+              {task.assignedUserName}
+            </span>
+          )}
+          {hasSchedule && (
+            <Tooltip
+              title={`${t("onboarding.task.schedule.section_title")}: ${ss}`}>
+              <span className="flex items-center gap-0.5 text-xs">
+                <Calendar className="h-3 w-3" />
+                <Tag
+                  color={SCHEDULE_STATUS_COLOR[ss!] ?? "default"}
+                  style={{
+                    margin: 0,
+                    fontSize: 10,
+                    lineHeight: "16px",
+                    padding: "0 4px",
+                  }}>
+                  {t(`onboarding.task.schedule.status.${ss}`)}
+                </Tag>
+              </span>
+            </Tooltip>
           )}
           {task.requireAck && (
             <Tooltip
@@ -127,11 +177,13 @@ export const TaskItem = ({
 
       {/* Right: status badge + action buttons */}
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-        <Tag color={STATUS_TAG_COLOR[rawStatus] ?? "default"} style={{ margin: 0, fontSize: 11 }}>
+        <Tag
+          color={STATUS_TAG_COLOR[rawStatus] ?? "default"}
+          style={{ margin: 0, fontSize: 11 }}>
           {task.status ?? t("onboarding.detail.task.status.pending")}
         </Tag>
 
-        {canManage && rawStatus === "PENDING_APPROVAL" && (
+        {showApproveReject && (
           <>
             <Button
               size="small"
@@ -151,14 +203,6 @@ export const TaskItem = ({
             </Button>
           </>
         )}
-
-        <Button
-          size="small"
-          icon={<Eye className="h-3 w-3" />}
-          onClick={() => onOpenDrawer(task)}
-          className="opacity-60 transition-opacity group-hover:opacity-100">
-          {t("onboarding.detail.task.detail")}
-        </Button>
       </div>
     </div>
   );

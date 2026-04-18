@@ -45,26 +45,37 @@ const { RangePicker } = DatePicker;
 
 type PeriodPreset = "today" | "7d" | "30d" | "3m" | "6m" | "ytd" | "custom";
 
-const PERIOD_OPTIONS: { value: PeriodPreset; labelVi: string; labelEn: string }[] = [
+const PERIOD_OPTIONS: {
+  value: PeriodPreset;
+  labelVi: string;
+  labelEn: string;
+}[] = [
   { value: "today", labelVi: "Hôm nay", labelEn: "Today" },
-  { value: "7d",    labelVi: "7 ngày qua", labelEn: "Last 7 days" },
-  { value: "30d",   labelVi: "30 ngày qua", labelEn: "Last 30 days" },
-  { value: "3m",    labelVi: "3 tháng qua", labelEn: "Last 3 months" },
-  { value: "6m",    labelVi: "6 tháng qua", labelEn: "Last 6 months" },
-  { value: "ytd",   labelVi: "Năm nay", labelEn: "This year" },
+  { value: "7d", labelVi: "7 ngày qua", labelEn: "Last 7 days" },
+  { value: "30d", labelVi: "30 ngày qua", labelEn: "Last 30 days" },
+  { value: "3m", labelVi: "3 tháng qua", labelEn: "Last 3 months" },
+  { value: "6m", labelVi: "6 tháng qua", labelEn: "Last 6 months" },
+  { value: "ytd", labelVi: "Năm nay", labelEn: "This year" },
   { value: "custom", labelVi: "Tùy chỉnh", labelEn: "Custom" },
 ];
 
 const calcPresetRange = (preset: PeriodPreset): [string, string] => {
   const today = dayjs().format("YYYY-MM-DD");
   switch (preset) {
-    case "today": return [today, today];
-    case "7d":    return [dayjs().subtract(6, "day").format("YYYY-MM-DD"), today];
-    case "30d":   return [dayjs().subtract(29, "day").format("YYYY-MM-DD"), today];
-    case "3m":    return [dayjs().subtract(3, "month").format("YYYY-MM-DD"), today];
-    case "6m":    return [dayjs().subtract(6, "month").format("YYYY-MM-DD"), today];
-    case "ytd":   return [dayjs().startOf("year").format("YYYY-MM-DD"), today];
-    default:      return [dayjs().subtract(29, "day").format("YYYY-MM-DD"), today];
+    case "today":
+      return [today, today];
+    case "7d":
+      return [dayjs().subtract(6, "day").format("YYYY-MM-DD"), today];
+    case "30d":
+      return [dayjs().subtract(29, "day").format("YYYY-MM-DD"), today];
+    case "3m":
+      return [dayjs().subtract(3, "month").format("YYYY-MM-DD"), today];
+    case "6m":
+      return [dayjs().subtract(6, "month").format("YYYY-MM-DD"), today];
+    case "ytd":
+      return [dayjs().startOf("year").format("YYYY-MM-DD"), today];
+    default:
+      return [dayjs().subtract(29, "day").format("YYYY-MM-DD"), today];
   }
 };
 
@@ -193,7 +204,8 @@ const usePlatformDashboard = (startDate: string, endDate: string) => {
 const PlatformDashboard = () => {
   const { t } = useLocale();
   const navigate = useNavigate();
-  const [activePeriod, setActivePeriod] = useState<PeriodPreset>(DEFAULT_PRESET);
+  const [activePeriod, setActivePeriod] =
+    useState<PeriodPreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<[string, string]>([
     DEFAULT_START,
     DEFAULT_END,
@@ -424,12 +436,6 @@ const PlatformDashboard = () => {
                 to: "/platform/admin/onboarding",
                 icon: ClipboardCheck,
                 color: "text-violet-600",
-              },
-              {
-                label: t("platform.dashboard.link_templates"),
-                to: "/platform/admin/templates",
-                icon: BarChart2,
-                color: "text-emerald-600",
               },
               {
                 label: t("platform.dashboard.link_subscriptions"),

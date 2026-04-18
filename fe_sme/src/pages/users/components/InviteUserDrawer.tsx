@@ -90,6 +90,15 @@ export const InviteUserDrawer = ({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const roleOptions = useMemo(
+    () =>
+      ROLE_OPTIONS.filter((o) => !o.isPlatform).map((o) => ({
+        value: o.value,
+        label: t(o.labelKey),
+      })),
+    [t],
+  );
+
   const selectedDeptId = Form.useWatch("departmentId", form);
 
   const managerOptions = useMemo(() => {
@@ -326,7 +335,7 @@ export const InviteUserDrawer = ({
         <BaseSelect
           name="roleCode"
           label={t("user.role")}
-          options={ROLE_OPTIONS as { value: string; label: string }[]}
+          options={roleOptions}
         />
         <div className="grid gap-4 sm:grid-cols-2">
           <BaseSelect

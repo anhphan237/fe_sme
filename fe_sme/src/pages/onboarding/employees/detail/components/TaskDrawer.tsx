@@ -7,25 +7,31 @@ import {
   CheckSquare,
   ChevronLeft,
   ChevronRight,
+  FileUp,
   Paperclip,
   Send,
   ThumbsUp,
   User as UserIcon,
+  Users,
   XCircle,
 } from "lucide-react";
 import {
   Button,
   Col,
+  DatePicker,
   Divider,
   Drawer,
   Empty,
   Input,
   Row,
+  Select,
   Skeleton,
   Tag,
   Tooltip,
   Typography,
+  Upload,
 } from "antd";
+import type { Dayjs } from "dayjs";
 import { useLocale } from "@/i18n";
 import {
   APPROVAL_STATUS_COLOR,
@@ -34,7 +40,11 @@ import {
   STATUS_TAG_COLOR,
 } from "../constants";
 import { formatDate, formatDateTime, getStageLabel } from "../helpers";
-import type { TaskDetailResponse, CommentResponse } from "@/interface/onboarding";
+import type {
+  TaskDetailResponse,
+  CommentResponse,
+} from "@/interface/onboarding";
+import type { UserListItem } from "@/interface/identity";
 import type { OnboardingTask } from "@/shared/types";
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
@@ -67,22 +77,380 @@ const StatusBadge = ({ rawStatus }: { rawStatus: string | undefined }) => {
   );
 };
 
+// ── Schedule Section ──────────────────────────────────────────────────────────
+
+interface ScheduleSectionProps {
+  taskDetail: TaskDetailResponse;
+  isEmployee: boolean;
+  canManage: boolean;
+  scheduleMode: null | "propose" | "reschedule";
+  scheduleDates: [Dayjs | null, Dayjs | null];
+  scheduleReason: string;
+  cancelScheduleReason: string;
+  noShowReason: string;
+  isProposingSchedule: boolean;
+  isConfirmingSchedule: boolean;
+  isRescheduling: boolean;
+  isCancellingSchedule: boolean;
+  isMarkingNoShow: boolean;
+  onScheduleModeChange: (mode: null | "propose" | "reschedule") => void;
+  onScheduleDatesChange: (dates: [Dayjs | null, Dayjs | null]) => void;
+  onScheduleReasonChange: (v: string) => void;
+  onCancelScheduleReasonChange: (v: string) => void;
+  onNoShowReasonChange: (v: string) => void;
+  onProposeSchedule: () => void;
+  onConfirmSchedule: () => void;
+  onReschedule: () => void;
+  onCancelSchedule: () => void;
+  onMarkNoShow: () => void;
+}
+
+const ScheduleSection = ({
+  taskDetail,
+  isEmployee,
+  canManage,
+  scheduleMode,
+  scheduleDates,
+  scheduleReason,
+  cancelScheduleReason,
+  noShowReason,
+  isProposingSchedule,
+  isConfirmingSchedule,
+  isRescheduling,
+  isCancellingSchedule,
+  isMarkingNoShow,
+  onScheduleModeChange,
+  onScheduleDatesChange,
+  onScheduleReasonChange,
+  onCancelScheduleReasonChange,
+  onNoShowReasonChange,
+  onProposeSchedule,
+  onConfirmSchedule,
+  onReschedule,
+  onCancelSchedule,
+  onMarkNoShow,
+}: ScheduleSectionProps) => {
+  const { t } = useLocale();
+  const ss = taskDetail.scheduleStatus ?? "UNSCHEDULED";
+  const canPropose = isEmployee || canManage;
+
+  return (
+    <>
+      <Divider orientationMargin={0}>
+        <span className="flex items-center gap-1 text-xs text-gray-400">
+          <Calendar className="h-3 w-3" />
+          {t("onboarding.task.schedule.section_title")}
+        </span>
+      </Divider>
+
+      <div className="rounded-lg border border-blue-100 bg-blue-50/30 p-3 space-y-3">
+        {/* Status badge */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-gray-500">
+            {t("onboarding.employee.home.task_detail.field_status")}:
+          </span>
+          <Tag
+            color={SCHEDULE_STATUS_COLOR[ss] ?? "default"}
+            style={{ margin: 0 }}>
+            {t(`onboarding.task.schedule.status.${ss}`)}
+          </Tag>
+        </div>
+
+        {/* UNSCHEDULED — propose form */}
+        {ss === "UNSCHEDULED" && canPropose && (
+          <>
+            {scheduleMode === "propose" ? (
+              <div className="space-y-2">
+                <DatePicker.RangePicker
+                  showTime
+                  style={{ width: "100%" }}
+                  value={scheduleDates}
+                  onChange={(vals) =>
+                    onScheduleDatesChange(
+                      vals ? [vals[0] ?? null, vals[1] ?? null] : [null, null],
+                    )
+                  }
+                />
+                <div className="flex gap-2">
+                  <Button
+                    type="primary"
+                    size="small"
+                    loading={isProposingSchedule}
+                    disabled={!scheduleDates[0] || !scheduleDates[1]}
+                    onClick={onProposeSchedule}>
+                    {t("onboarding.task.schedule.action.propose")}
+                  </Button>
+                  <Button
+                    size="small"
+                    onClick={() => onScheduleModeChange(null)}>
+                    {t("global.cancel_action")}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                size="small"
+                icon={<Calendar className="h-3.5 w-3.5" />}
+                onClick={() => onScheduleModeChange("propose")}>
+                {t("onboarding.task.schedule.action.propose")}
+              </Button>
+            )}
+          </>
+        )}
+
+        {/* PROPOSED — show times, confirm/cancel */}
+        {ss === "PROPOSED" && (
+          <>
+            <Row gutter={[12, 8]}>
+              {taskDetail.scheduledStartAt && (
+                <Col span={12}>
+                  <InfoField label={t("onboarding.task.schedule.field.start")}>
+                    {formatDateTime(taskDetail.scheduledStartAt)}
+                  </InfoField>
+                </Col>
+              )}
+              {taskDetail.scheduledEndAt && (
+                <Col span={12}>
+                  <InfoField label={t("onboarding.task.schedule.field.end")}>
+                    {formatDateTime(taskDetail.scheduledEndAt)}
+                  </InfoField>
+                </Col>
+              )}
+              {taskDetail.scheduleProposedBy && (
+                <Col span={24}>
+                  <InfoField
+                    label={t("onboarding.task.schedule.field.proposed_by")}>
+                    {taskDetail.scheduleProposedBy}
+                    {taskDetail.scheduleProposedAt &&
+                      ` · ${formatDateTime(taskDetail.scheduleProposedAt)}`}
+                  </InfoField>
+                </Col>
+              )}
+            </Row>
+            <div className="flex flex-wrap gap-2">
+              {canManage && (
+                <Button
+                  type="primary"
+                  size="small"
+                  loading={isConfirmingSchedule}
+                  onClick={onConfirmSchedule}>
+                  {t("onboarding.task.schedule.action.confirm")}
+                </Button>
+              )}
+              {/* Cancel with reason */}
+              <div className="flex gap-1">
+                <Input
+                  size="small"
+                  style={{ width: 140 }}
+                  value={cancelScheduleReason}
+                  onChange={(e) => onCancelScheduleReasonChange(e.target.value)}
+                  placeholder={t(
+                    "onboarding.task.schedule.field.cancel_reason",
+                  )}
+                />
+                <Button
+                  size="small"
+                  danger
+                  loading={isCancellingSchedule}
+                  onClick={onCancelSchedule}>
+                  {t("onboarding.task.schedule.action.cancel")}
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* CONFIRMED — show times, reschedule / cancel / no-show */}
+        {(ss === "CONFIRMED" || ss === "RESCHEDULED") && (
+          <>
+            <Row gutter={[12, 8]}>
+              {taskDetail.scheduledStartAt && (
+                <Col span={12}>
+                  <InfoField label={t("onboarding.task.schedule.field.start")}>
+                    {formatDateTime(taskDetail.scheduledStartAt)}
+                  </InfoField>
+                </Col>
+              )}
+              {taskDetail.scheduledEndAt && (
+                <Col span={12}>
+                  <InfoField label={t("onboarding.task.schedule.field.end")}>
+                    {formatDateTime(taskDetail.scheduledEndAt)}
+                  </InfoField>
+                </Col>
+              )}
+              {taskDetail.scheduleConfirmedBy && (
+                <Col span={24}>
+                  <InfoField
+                    label={t("onboarding.task.schedule.field.confirmed_by")}>
+                    {taskDetail.scheduleConfirmedBy}
+                    {taskDetail.scheduleConfirmedAt &&
+                      ` · ${formatDateTime(taskDetail.scheduleConfirmedAt)}`}
+                  </InfoField>
+                </Col>
+              )}
+              {ss === "RESCHEDULED" && taskDetail.scheduleRescheduleReason && (
+                <Col span={24}>
+                  <InfoField
+                    label={t(
+                      "onboarding.task.schedule.field.reschedule_reason",
+                    )}>
+                    {taskDetail.scheduleRescheduleReason}
+                  </InfoField>
+                </Col>
+              )}
+            </Row>
+
+            {/* Reschedule mode */}
+            {scheduleMode === "reschedule" ? (
+              <div className="space-y-2">
+                <DatePicker.RangePicker
+                  showTime
+                  style={{ width: "100%" }}
+                  value={scheduleDates}
+                  onChange={(vals) =>
+                    onScheduleDatesChange(
+                      vals ? [vals[0] ?? null, vals[1] ?? null] : [null, null],
+                    )
+                  }
+                />
+                <Input
+                  size="small"
+                  value={scheduleReason}
+                  onChange={(e) => onScheduleReasonChange(e.target.value)}
+                  placeholder={t(
+                    "onboarding.task.schedule.field.reschedule_reason",
+                  )}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    type="primary"
+                    size="small"
+                    loading={isRescheduling}
+                    disabled={!scheduleDates[0] || !scheduleDates[1]}
+                    onClick={onReschedule}>
+                    {t("onboarding.task.schedule.action.reschedule")}
+                  </Button>
+                  <Button
+                    size="small"
+                    onClick={() => onScheduleModeChange(null)}>
+                    {t("global.cancel_action")}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="small"
+                  onClick={() => onScheduleModeChange("reschedule")}>
+                  {t("onboarding.task.schedule.action.reschedule")}
+                </Button>
+                {/* Cancel */}
+                <div className="flex gap-1">
+                  <Input
+                    size="small"
+                    style={{ width: 140 }}
+                    value={cancelScheduleReason}
+                    onChange={(e) =>
+                      onCancelScheduleReasonChange(e.target.value)
+                    }
+                    placeholder={t(
+                      "onboarding.task.schedule.field.cancel_reason",
+                    )}
+                  />
+                  <Button
+                    size="small"
+                    danger
+                    loading={isCancellingSchedule}
+                    onClick={onCancelSchedule}>
+                    {t("onboarding.task.schedule.action.cancel")}
+                  </Button>
+                </div>
+                {/* No-show (manager only) */}
+                {canManage && (
+                  <div className="flex gap-1">
+                    <Input
+                      size="small"
+                      style={{ width: 140 }}
+                      value={noShowReason}
+                      onChange={(e) => onNoShowReasonChange(e.target.value)}
+                      placeholder={t(
+                        "onboarding.task.schedule.field.no_show_reason",
+                      )}
+                    />
+                    <Button
+                      size="small"
+                      loading={isMarkingNoShow}
+                      onClick={onMarkNoShow}>
+                      {t("onboarding.task.schedule.action.no_show")}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* CANCELLED */}
+        {ss === "CANCELLED" && taskDetail.scheduleCancelReason && (
+          <InfoField label={t("onboarding.task.schedule.field.cancel_reason")}>
+            {taskDetail.scheduleCancelReason}
+          </InfoField>
+        )}
+
+        {/* MISSED */}
+        {ss === "MISSED" && taskDetail.scheduleNoShowReason && (
+          <InfoField label={t("onboarding.task.schedule.field.no_show_reason")}>
+            {taskDetail.scheduleNoShowReason}
+          </InfoField>
+        )}
+      </div>
+    </>
+  );
+};
+
 // ── Info Tab ─────────────────────────────────────────────────────────────────
 
 interface TaskInfoTabProps {
   taskDetail: TaskDetailResponse;
   isEmployee: boolean;
   canManage: boolean;
+  /** Pre-computed approve/reject permission. Falls back to canManage when not provided. */
+  canApproveOrReject?: boolean;
+  assignableUsers: UserListItem[];
   isAcknowledging: boolean;
   isUpdating: boolean;
   isApproving: boolean;
   isRejecting: boolean;
+  isAssigning: boolean;
+  // Schedule
+  scheduleMode: null | "propose" | "reschedule";
+  scheduleDates: [Dayjs | null, Dayjs | null];
+  scheduleReason: string;
+  cancelScheduleReason: string;
+  noShowReason: string;
+  isProposingSchedule: boolean;
+  isConfirmingSchedule: boolean;
+  isRescheduling: boolean;
+  isCancellingSchedule: boolean;
+  isMarkingNoShow: boolean;
+  onScheduleModeChange: (mode: null | "propose" | "reschedule") => void;
+  onScheduleDatesChange: (dates: [Dayjs | null, Dayjs | null]) => void;
+  onScheduleReasonChange: (v: string) => void;
+  onCancelScheduleReasonChange: (v: string) => void;
+  onNoShowReasonChange: (v: string) => void;
+  onProposeSchedule: () => void;
+  onConfirmSchedule: () => void;
+  onReschedule: () => void;
+  onCancelSchedule: () => void;
+  onMarkNoShow: () => void;
+  // Actions
   onAcknowledge: () => void;
   onConfirmComplete: () => void;
   onSubmitApproval: () => void;
   onMarkDone: () => void;
   onApprove: () => void;
   onReject: () => void;
+  onAssign: (userId: string) => void;
   onClose: () => void;
 }
 
@@ -90,20 +458,45 @@ const TaskInfoTab = ({
   taskDetail,
   isEmployee,
   canManage,
+  canApproveOrReject,
+  assignableUsers,
   isAcknowledging,
   isUpdating,
   isApproving,
   isRejecting,
+  isAssigning,
+  scheduleMode,
+  scheduleDates,
+  scheduleReason,
+  cancelScheduleReason,
+  noShowReason,
+  isProposingSchedule,
+  isConfirmingSchedule,
+  isRescheduling,
+  isCancellingSchedule,
+  isMarkingNoShow,
+  onScheduleModeChange,
+  onScheduleDatesChange,
+  onScheduleReasonChange,
+  onCancelScheduleReasonChange,
+  onNoShowReasonChange,
+  onProposeSchedule,
+  onConfirmSchedule,
+  onReschedule,
+  onCancelSchedule,
+  onMarkNoShow,
   onAcknowledge,
   onConfirmComplete,
   onSubmitApproval,
   onMarkDone,
   onApprove,
   onReject,
+  onAssign,
   onClose,
 }: TaskInfoTabProps) => {
   const { t } = useLocale();
   const status = taskDetail.status;
+  const ss = taskDetail.scheduleStatus ?? "UNSCHEDULED";
 
   return (
     <div className="space-y-5 pt-2">
@@ -145,9 +538,7 @@ const TaskInfoTab = ({
         <Col span={12}>
           <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
             <InfoField
-              label={t(
-                "onboarding.employee.home.task_detail.field_due_date",
-              )}>
+              label={t("onboarding.employee.home.task_detail.field_due_date")}>
               <span className="flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5 text-gray-400" />
                 {formatDate(taskDetail.dueDate)}
@@ -202,6 +593,65 @@ const TaskInfoTab = ({
           </div>
         </div>
       )}
+
+      {/* Assignment (manager/HR only) */}
+      {canManage && assignableUsers.length > 0 && (
+        <>
+          <Divider orientationMargin={0}>
+            <span className="flex items-center gap-1 text-xs text-gray-400">
+              <Users className="h-3 w-3" />
+              {t("onboarding.task.assign.section_title")}
+            </span>
+          </Divider>
+          <div className="flex items-center gap-2">
+            <Select
+              showSearch
+              allowClear
+              style={{ flex: 1 }}
+              placeholder={t("onboarding.task.assign.placeholder")}
+              defaultValue={taskDetail.assignedUserId ?? undefined}
+              filterOption={(input, option) =>
+                String(option?.label ?? "")
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
+              options={assignableUsers.map((u) => ({
+                value: u.userId,
+                label: u.fullName || u.email,
+              }))}
+              loading={isAssigning}
+              onSelect={(userId: string) => onAssign(userId)}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Schedule section */}
+      <ScheduleSection
+        taskDetail={taskDetail}
+        isEmployee={isEmployee}
+        canManage={canManage}
+        scheduleMode={scheduleMode}
+        scheduleDates={scheduleDates}
+        scheduleReason={scheduleReason}
+        cancelScheduleReason={cancelScheduleReason}
+        noShowReason={noShowReason}
+        isProposingSchedule={isProposingSchedule}
+        isConfirmingSchedule={isConfirmingSchedule}
+        isRescheduling={isRescheduling}
+        isCancellingSchedule={isCancellingSchedule}
+        isMarkingNoShow={isMarkingNoShow}
+        onScheduleModeChange={onScheduleModeChange}
+        onScheduleDatesChange={onScheduleDatesChange}
+        onScheduleReasonChange={onScheduleReasonChange}
+        onCancelScheduleReasonChange={onCancelScheduleReasonChange}
+        onNoShowReasonChange={onNoShowReasonChange}
+        onProposeSchedule={onProposeSchedule}
+        onConfirmSchedule={onConfirmSchedule}
+        onReschedule={onReschedule}
+        onCancelSchedule={onCancelSchedule}
+        onMarkNoShow={onMarkNoShow}
+      />
 
       {/* Acknowledgment */}
       {taskDetail.requireAck && (
@@ -300,52 +750,6 @@ const TaskInfoTab = ({
         </>
       )}
 
-      {/* Schedule */}
-      {taskDetail.scheduleStatus &&
-        taskDetail.scheduleStatus !== "UNSCHEDULED" && (
-          <>
-            <Divider orientationMargin={0}>
-              <span className="flex items-center gap-1 text-xs text-gray-400">
-                <Calendar className="h-3 w-3" />
-                {t("onboarding.task.schedule.section_title")}
-              </span>
-            </Divider>
-            <div className="rounded-lg border border-blue-100 bg-blue-50/30 p-3">
-              <div className="mb-2 flex items-center gap-2">
-                <span className="text-xs text-gray-500">
-                  {t("onboarding.employee.home.task_detail.field_status")}:
-                </span>
-                <Tag
-                  color={
-                    SCHEDULE_STATUS_COLOR[taskDetail.scheduleStatus] ?? "default"
-                  }
-                  style={{ margin: 0 }}>
-                  {t(
-                    `onboarding.task.schedule.status.${taskDetail.scheduleStatus}`,
-                  )}
-                </Tag>
-              </div>
-              <Row gutter={[12, 8]}>
-                {taskDetail.scheduledStartAt && (
-                  <Col span={12}>
-                    <InfoField
-                      label={t("onboarding.task.schedule.field.start")}>
-                      {formatDateTime(taskDetail.scheduledStartAt)}
-                    </InfoField>
-                  </Col>
-                )}
-                {taskDetail.scheduledEndAt && (
-                  <Col span={12}>
-                    <InfoField label={t("onboarding.task.schedule.field.end")}>
-                      {formatDateTime(taskDetail.scheduledEndAt)}
-                    </InfoField>
-                  </Col>
-                )}
-              </Row>
-            </div>
-          </>
-        )}
-
       {/* Action buttons */}
       <Divider orientationMargin={0}>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
@@ -396,7 +800,7 @@ const TaskInfoTab = ({
               {t("onboarding.employee.home.today_actions.mark_done")}
             </Button>
           )}
-        {canManage && status === "PENDING_APPROVAL" && (
+        {(canApproveOrReject ?? canManage) && status === "PENDING_APPROVAL" && (
           <>
             <Button
               type="primary"
@@ -416,6 +820,95 @@ const TaskInfoTab = ({
         )}
         <Button onClick={onClose}>{t("global.close")}</Button>
       </div>
+    </div>
+  );
+};
+
+// ── Documents Tab ─────────────────────────────────────────────────────────────
+
+interface TaskDocumentsTabProps {
+  taskDetail: TaskDetailResponse;
+  uploadingFile: boolean;
+  onUploadAttachment: (file: File) => void;
+}
+
+const TaskDocumentsTab = ({
+  taskDetail,
+  uploadingFile,
+  onUploadAttachment,
+}: TaskDocumentsTabProps) => {
+  const { t } = useLocale();
+  const attachments = taskDetail.attachments ?? [];
+
+  return (
+    <div className="space-y-4 pt-2">
+      {/* Upload area */}
+      <Upload.Dragger
+        multiple={false}
+        showUploadList={false}
+        beforeUpload={(file) => {
+          onUploadAttachment(file);
+          return false;
+        }}
+        disabled={uploadingFile}
+        style={{ borderRadius: 12 }}>
+        <div className="flex flex-col items-center gap-2 py-4">
+          <FileUp className="h-8 w-8 text-blue-400" />
+          <p className="text-sm font-medium text-gray-700">
+            {t("onboarding.task.attachment.upload_title")}
+          </p>
+          <p className="text-xs text-gray-400">
+            {t("onboarding.task.attachment.upload_desc")}
+          </p>
+          {uploadingFile && (
+            <span className="text-xs text-blue-500">
+              {t("onboarding.task.attachment.uploading")}
+            </span>
+          )}
+        </div>
+      </Upload.Dragger>
+
+      {/* requireDoc warning */}
+      {taskDetail.requireDoc && attachments.length === 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          {t("onboarding.task.attachment.require_doc_warning")}
+        </div>
+      )}
+
+      {/* Attachment list */}
+      {attachments.length === 0 ? (
+        <Empty
+          description={t("onboarding.task.attachment.empty")}
+          imageStyle={{ height: 40 }}
+        />
+      ) : (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <Paperclip className="h-3.5 w-3.5" />
+            {t("onboarding.employee.home.task_detail.field_attachments")}
+            <span className="ml-1 rounded-full bg-gray-100 px-1.5 text-gray-500">
+              {attachments.length}
+            </span>
+          </div>
+          {attachments.map((att) => (
+            <a
+              key={att.attachmentId}
+              href={att.fileUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-blue-600 transition-colors hover:bg-blue-50">
+              <Paperclip className="h-3.5 w-3.5 shrink-0" />
+              <span className="flex-1 truncate">{att.fileName}</span>
+              {att.fileSizeBytes && (
+                <span className="shrink-0 text-xs text-gray-400">
+                  {(att.fileSizeBytes / 1024).toFixed(0)} KB
+                </span>
+              )}
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -445,12 +938,16 @@ const TaskActivityTab = ({
                 className="flex items-start gap-2 rounded-md bg-gray-50 px-3 py-2 text-xs">
                 <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-blue-400" />
                 <div className="flex-1">
-                  <span className="font-medium text-gray-700">{log.action}</span>
+                  <span className="font-medium text-gray-700">
+                    {log.action}
+                  </span>
                   {log.newValue && (
                     <span className="ml-1 text-gray-500">→ {log.newValue}</span>
                   )}
                   {log.actorName && (
-                    <span className="ml-1 text-gray-400">· {log.actorName}</span>
+                    <span className="ml-1 text-gray-400">
+                      · {log.actorName}
+                    </span>
                   )}
                 </div>
                 <span className="shrink-0 text-gray-400">
@@ -467,35 +964,6 @@ const TaskActivityTab = ({
           }
           imageStyle={{ height: 40 }}
         />
-      )}
-
-      {taskDetail.attachments && taskDetail.attachments.length > 0 && (
-        <>
-          <Divider orientationMargin={0}>
-            <span className="flex items-center gap-1 text-xs text-gray-400">
-              <Paperclip className="h-3 w-3" />
-              {t("onboarding.employee.home.task_detail.field_attachments")}
-            </span>
-          </Divider>
-          <div className="space-y-1.5">
-            {taskDetail.attachments.map((att) => (
-              <a
-                key={att.attachmentId}
-                href={att.fileUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-blue-600 transition-colors hover:bg-blue-50">
-                <Paperclip className="h-3.5 w-3.5 shrink-0" />
-                <span className="flex-1 truncate">{att.fileName}</span>
-                {att.fileSizeBytes && (
-                  <span className="shrink-0 text-xs text-gray-400">
-                    {(att.fileSizeBytes / 1024).toFixed(0)} KB
-                  </span>
-                )}
-              </a>
-            ))}
-          </div>
-        </>
       )}
     </div>
   );
@@ -539,8 +1007,7 @@ const TaskCommentsTab = ({
               </div>
               <div className="flex-1 rounded-lg bg-gray-50 px-3 py-2">
                 <p className="text-xs font-semibold text-gray-700">
-                  {c.authorName ??
-                    t("onboarding.task.comments.unknown_author")}
+                  {c.authorName ?? t("onboarding.task.comments.unknown_author")}
                 </p>
                 <p className="text-sm text-gray-600">{c.message}</p>
                 {c.createdAt && (
@@ -588,11 +1055,38 @@ export interface TaskDrawerProps {
   drawerTab: string;
   isEmployee: boolean;
   canManage: boolean;
+  /** Pre-computed approve/reject permission (isHr || isLineManager). Falls back to canManage. */
+  canApproveOrReject?: boolean;
   isAcknowledging: boolean;
   isUpdatingStatus: boolean;
   isApproving: boolean;
   isRejecting: boolean;
   isAddingComment: boolean;
+  isAssigning: boolean;
+  uploadingFile: boolean;
+  assignableUsers: UserListItem[];
+  // Schedule
+  scheduleMode: null | "propose" | "reschedule";
+  scheduleDates: [Dayjs | null, Dayjs | null];
+  scheduleReason: string;
+  cancelScheduleReason: string;
+  noShowReason: string;
+  isProposingSchedule: boolean;
+  isConfirmingSchedule: boolean;
+  isRescheduling: boolean;
+  isCancellingSchedule: boolean;
+  isMarkingNoShow: boolean;
+  onScheduleModeChange: (mode: null | "propose" | "reschedule") => void;
+  onScheduleDatesChange: (dates: [Dayjs | null, Dayjs | null]) => void;
+  onScheduleReasonChange: (v: string) => void;
+  onCancelScheduleReasonChange: (v: string) => void;
+  onNoShowReasonChange: (v: string) => void;
+  onProposeSchedule: () => void;
+  onConfirmSchedule: () => void;
+  onReschedule: () => void;
+  onCancelSchedule: () => void;
+  onMarkNoShow: () => void;
+  // Actions
   onClose: () => void;
   onDrawerTabChange: (tab: string) => void;
   onCommentChange: (value: string) => void;
@@ -603,6 +1097,8 @@ export interface TaskDrawerProps {
   onMarkDone: () => void;
   onApprove: () => void;
   onReject: () => void;
+  onAssign: (userId: string) => void;
+  onUploadAttachment: (file: File) => void;
   onNavigatePrev: () => void;
   onNavigateNext: () => void;
 }
@@ -619,11 +1115,35 @@ export const TaskDrawer = ({
   drawerTab,
   isEmployee,
   canManage,
+  canApproveOrReject,
   isAcknowledging,
   isUpdatingStatus,
   isApproving,
   isRejecting,
   isAddingComment,
+  isAssigning,
+  uploadingFile,
+  assignableUsers,
+  scheduleMode,
+  scheduleDates,
+  scheduleReason,
+  cancelScheduleReason,
+  noShowReason,
+  isProposingSchedule,
+  isConfirmingSchedule,
+  isRescheduling,
+  isCancellingSchedule,
+  isMarkingNoShow,
+  onScheduleModeChange,
+  onScheduleDatesChange,
+  onScheduleReasonChange,
+  onCancelScheduleReasonChange,
+  onNoShowReasonChange,
+  onProposeSchedule,
+  onConfirmSchedule,
+  onReschedule,
+  onCancelSchedule,
+  onMarkNoShow,
   onClose,
   onDrawerTabChange,
   onCommentChange,
@@ -634,6 +1154,8 @@ export const TaskDrawer = ({
   onMarkDone,
   onApprove,
   onReject,
+  onAssign,
+  onUploadAttachment,
   onNavigatePrev,
   onNavigateNext,
 }: TaskDrawerProps) => {
@@ -644,10 +1166,34 @@ export const TaskDrawer = ({
   const hasPrev = taskIndex > 0;
   const hasNext = taskIndex >= 0 && taskIndex < tasks.length - 1;
 
+  const attachmentCount = taskDetail?.attachments?.length ?? 0;
+
+  const TABS = [
+    {
+      key: "info",
+      label: t("onboarding.detail.task.tab.info") ?? "Chi tiết",
+    },
+    {
+      key: "documents",
+      label:
+        attachmentCount > 0
+          ? `${t("onboarding.task.tab.documents") ?? "Tài liệu"} (${attachmentCount})`
+          : (t("onboarding.task.tab.documents") ?? "Tài liệu"),
+    },
+    {
+      key: "activity",
+      label: t("onboarding.detail.task.tab.activity") ?? "Hoạt động",
+    },
+    {
+      key: "comments",
+      label: t("onboarding.task.comments.title") ?? "Bình luận",
+    },
+  ];
+
   return (
     <Drawer
       open={open}
-      width={640}
+      width={680}
       onClose={onClose}
       title={
         <div className="flex items-center gap-2">
@@ -695,25 +1241,11 @@ export const TaskDrawer = ({
           }}>
           {/* Tab navigation */}
           <div className="mb-4 flex gap-1 rounded-lg bg-gray-100 p-1">
-            {[
-              {
-                key: "info",
-                label: t("onboarding.detail.task.tab.info") ?? "Chi tiết",
-              },
-              {
-                key: "activity",
-                label:
-                  t("onboarding.detail.task.tab.activity") ?? "Hoạt động",
-              },
-              {
-                key: "comments",
-                label: t("onboarding.task.comments.title") ?? "Bình luận",
-              },
-            ].map((tab) => (
+            {TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => onDrawerTabChange(tab.key)}
-                className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
+                className={`flex-1 rounded-md px-2 py-1.5 text-sm font-medium transition-all ${
                   drawerTab === tab.key
                     ? "bg-white text-gray-800 shadow-sm"
                     : "text-gray-500 hover:text-gray-700"
@@ -729,17 +1261,48 @@ export const TaskDrawer = ({
               taskDetail={taskDetail}
               isEmployee={isEmployee}
               canManage={canManage}
+              canApproveOrReject={canApproveOrReject}
+              assignableUsers={assignableUsers}
               isAcknowledging={isAcknowledging}
               isUpdating={isUpdatingStatus}
               isApproving={isApproving}
               isRejecting={isRejecting}
+              isAssigning={isAssigning}
+              scheduleMode={scheduleMode}
+              scheduleDates={scheduleDates}
+              scheduleReason={scheduleReason}
+              cancelScheduleReason={cancelScheduleReason}
+              noShowReason={noShowReason}
+              isProposingSchedule={isProposingSchedule}
+              isConfirmingSchedule={isConfirmingSchedule}
+              isRescheduling={isRescheduling}
+              isCancellingSchedule={isCancellingSchedule}
+              isMarkingNoShow={isMarkingNoShow}
+              onScheduleModeChange={onScheduleModeChange}
+              onScheduleDatesChange={onScheduleDatesChange}
+              onScheduleReasonChange={onScheduleReasonChange}
+              onCancelScheduleReasonChange={onCancelScheduleReasonChange}
+              onNoShowReasonChange={onNoShowReasonChange}
+              onProposeSchedule={onProposeSchedule}
+              onConfirmSchedule={onConfirmSchedule}
+              onReschedule={onReschedule}
+              onCancelSchedule={onCancelSchedule}
+              onMarkNoShow={onMarkNoShow}
               onAcknowledge={onAcknowledge}
               onConfirmComplete={onConfirmComplete}
               onSubmitApproval={onSubmitApproval}
               onMarkDone={onMarkDone}
               onApprove={onApprove}
               onReject={onReject}
+              onAssign={onAssign}
               onClose={onClose}
+            />
+          )}
+          {drawerTab === "documents" && (
+            <TaskDocumentsTab
+              taskDetail={taskDetail}
+              uploadingFile={uploadingFile}
+              onUploadAttachment={onUploadAttachment}
             />
           )}
           {drawerTab === "activity" && (
