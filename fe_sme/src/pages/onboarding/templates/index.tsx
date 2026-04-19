@@ -47,6 +47,8 @@ import { extractList } from "@/api/core/types";
 import { mapTemplate } from "@/utils/mappers/onboarding";
 import type { OnboardingTemplate } from "@/shared/types";
 import MyTable from "@/components/table";
+import { StageChip } from "./editor/StagePicker";
+import { STAGE_ACCENTS, getStageMeta } from "./editor/constants";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -742,21 +744,6 @@ const Templates = () => {
             : t("onboarding.template.empty.active_title")
         }
       />
-      {statusFilter !== "INACTIVE" && isHR && (
-        <div className="flex gap-2">
-          <Button
-            type="primary"
-            icon={<Plus className="h-3.5 w-3.5" />}
-            onClick={handleNewTemplate}>
-            {t("onboarding.template.action.new")}
-          </Button>
-          <Button
-            icon={<Sparkles className="h-3.5 w-3.5" />}
-            onClick={() => setAiOpen(true)}>
-            {t("onboarding.template.ai.open")}
-          </Button>
-        </div>
-      )}
     </div>
   );
 
@@ -782,31 +769,16 @@ const Templates = () => {
       )}
 
       {/* Hero header — title + primary actions */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 md:flex-row md:items-center md:justify-between md:p-5">
-        <div className="min-w-0">
-          <h1 className="text-lg font-semibold text-ink md:text-xl">
-            {t("onboarding.template.title")}
-          </h1>
-          <p className="mt-0.5 text-sm text-slate-500">
-            {t("onboarding.template.subtitle")}
-          </p>
+      {isHR && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="primary"
+            icon={<Plus className="h-3.5 w-3.5" />}
+            onClick={handleNewTemplate}>
+            {t("onboarding.template.action.new")}
+          </Button>
         </div>
-        {isHR && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              icon={<Sparkles className="h-3.5 w-3.5 text-blue-500" />}
-              onClick={() => setAiOpen(true)}>
-              {t("onboarding.template.ai.open")}
-            </Button>
-            <Button
-              type="primary"
-              icon={<Plus className="h-3.5 w-3.5" />}
-              onClick={handleNewTemplate}>
-              {t("onboarding.template.action.new")}
-            </Button>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Stats strip */}
       <div className="grid grid-cols-3 gap-3">
@@ -904,93 +876,6 @@ const Templates = () => {
           />
         )}
       </div>
-
-      <Modal
-        title={
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-blue-500" />
-            <span>{t("onboarding.template.ai.modal.generate_title")}</span>
-          </div>
-        }
-        open={aiOpen}
-        onCancel={() => {
-          setAiOpen(false);
-          aiForm.resetFields();
-        }}
-        footer={null}
-        width={520}>
-        <div className="pt-2">
-          <Typography.Text type="secondary" className="text-xs block mb-4">
-            {t("onboarding.template.ai.modal.generate_hint")}
-          </Typography.Text>
-          <Form form={aiForm} layout="vertical" requiredMark={false}>
-            <Form.Item
-              name="industry"
-              label={t("onboarding.template.ai.modal.industry_label")}
-              rules={[
-                {
-                  required: true,
-                  message: t("onboarding.template.ai.modal.industry_required"),
-                },
-              ]}>
-              <Select
-                placeholder={t(
-                  "onboarding.template.ai.modal.industry_placeholder",
-                )}
-                options={industryOptions}
-                showSearch
-                optionFilterProp="label"
-              />
-            </Form.Item>
-            <Form.Item
-              name="companySize"
-              label={t("onboarding.template.ai.modal.size_label")}
-              rules={[
-                {
-                  required: true,
-                  message: t("onboarding.template.ai.modal.size_required"),
-                },
-              ]}>
-              <Select
-                placeholder={t("onboarding.template.ai.modal.size_placeholder")}
-                options={companySizeOptions}
-              />
-            </Form.Item>
-            <Form.Item
-              name="jobRole"
-              label={t("onboarding.template.ai.modal.role_label")}
-              rules={[
-                {
-                  required: true,
-                  message: t("onboarding.template.ai.modal.role_required"),
-                },
-              ]}>
-              <Input
-                placeholder={t("onboarding.template.ai.modal.role_placeholder")}
-              />
-            </Form.Item>
-          </Form>
-          <div className="flex items-center justify-end gap-2 mt-2">
-            <Button
-              onClick={() => {
-                setAiOpen(false);
-                aiForm.resetFields();
-              }}>
-              {t("onboarding.template.ai.modal.cancel")}
-            </Button>
-            <Button
-              type="primary"
-              loading={aiGenerateMutation.isPending}
-              onClick={handleAIGenerate}
-              icon={<WandSparkles className="h-3.5 w-3.5" />}>
-              {aiGenerateMutation.isPending
-                ? t("onboarding.template.ai.modal.generating")
-                : t("onboarding.template.ai.modal.submit")}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
       <Modal
         title={t("onboarding.template.edit_modal.title")}
         open={editOpen}
@@ -1087,40 +972,59 @@ const Templates = () => {
               </span>
             </div>
 
-            <div className="max-h-[55vh] space-y-2 overflow-y-auto">
+            <div className="max-h-[55vh] overflow-y-auto pr-1">
               {(viewTemplate.stages ?? []).length === 0 ? (
                 <p className="text-sm text-muted italic">
                   {t("onboarding.template.view_modal.no_stages")}
                 </p>
               ) : (
-                viewTemplate.stages.map((stage) => (
-                  <div
-                    key={stage.id}
-                    className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-ink">
-                        {stage.name}
-                      </span>
-                      <span className="text-xs text-muted">
-                        {t("onboarding.template.view_modal.tasks_count", {
-                          count: stage.tasks?.length ?? 0,
-                        })}
-                      </span>
-                    </div>
-                    {(stage.tasks ?? []).length > 0 && (
-                      <ul className="mt-1.5 space-y-0.5">
-                        {stage.tasks.map((task) => (
-                          <li
-                            key={task.id}
-                            className="text-xs text-muted flex items-start gap-1.5">
-                            <span className="mt-0.5 h-1 w-1 shrink-0 rounded-full bg-slate-300" />
-                            {task.title}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ))
+                <ol className="relative space-y-2.5 border-l border-slate-200 pl-4">
+                  {viewTemplate.stages.map((stage) => {
+                    const meta = getStageMeta(stage.stageType);
+                    const accent = STAGE_ACCENTS[meta.accent];
+                    return (
+                      <li key={stage.id} className="relative">
+                        <span
+                          className={`absolute -left-[20px] top-2 h-2 w-2 rounded-full ring-2 ring-white ${accent.dot}`}
+                        />
+                        <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+                          <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2">
+                            <StageChip stage={stage.stageType} size="xs" />
+                            <span className="text-xs font-semibold text-ink">
+                              {stage.name ||
+                                t(
+                                  "onboarding.template.editor.step_tasks.stage_fallback",
+                                )}
+                            </span>
+                            <span
+                              className={`text-[10px] font-semibold uppercase tracking-wider ${accent.text}`}>
+                              {t(meta.phaseKey)}
+                            </span>
+                            <span className="ml-auto text-[11px] text-muted">
+                              {t("onboarding.template.view_modal.tasks_count", {
+                                count: stage.tasks?.length ?? 0,
+                              })}
+                            </span>
+                          </div>
+                          {(stage.tasks ?? []).length > 0 && (
+                            <ul className="divide-y divide-slate-100">
+                              {stage.tasks.map((task) => (
+                                <li
+                                  key={task.id}
+                                  className="flex items-start gap-2 px-3 py-1.5 text-xs text-slate-700">
+                                  <span
+                                    className={`mt-1 h-1 w-1 shrink-0 rounded-full ${accent.dot}`}
+                                  />
+                                  {task.title}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
               )}
             </div>
           </div>

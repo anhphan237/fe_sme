@@ -19,7 +19,12 @@ import { CSS } from "@dnd-kit/utilities";
 import { useLocale } from "@/i18n";
 import BaseInput from "@core/components/Input/InputWithLabel";
 import BaseSelect from "@core/components/Select/BaseSelect";
-import { STAGE_OPTIONS, STAGE_COLORS } from "./constants";
+import {
+  STAGE_ACCENTS,
+  STAGE_COLORS,
+  STAGE_OPTIONS,
+  getStageMeta,
+} from "./constants";
 import type { ChecklistDraft } from "./constants";
 
 export interface StageSidebarProps {
@@ -62,9 +67,8 @@ function SortableStageCard({
     isDragging,
   } = useSortable({ id: checklist.id });
 
-  const stageLabel = STAGE_OPTIONS.find(
-    (o) => o.value === checklist.stageType,
-  )?.label;
+  const meta = getStageMeta(checklist.stageType);
+  const accent = STAGE_ACCENTS[meta.accent];
 
   return (
     <div
@@ -93,15 +97,6 @@ function SortableStageCard({
         </button>
       )}
 
-      {/* Index badge */}
-      <span
-        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-          isActive ? "bg-brand text-white" : "bg-slate-100 text-slate-500"
-        }`}>
-        {index + 1}
-      </span>
-
-      {/* Stage name + type label */}
       <div className="min-w-0 flex-1">
         <p
           className={`truncate text-sm font-medium leading-tight ${
@@ -110,11 +105,6 @@ function SortableStageCard({
           {checklist.name ||
             `${t("onboarding.template.editor.step_tasks.stage_fallback")} ${index + 1}`}
         </p>
-        {stageLabel && (
-          <p className="mt-0.5 truncate text-[10px] text-muted">
-            {t(stageLabel)}
-          </p>
-        )}
       </div>
 
       {/* Task count */}
@@ -235,16 +225,6 @@ export const StageSidebar = ({
           </DndContext>
         )}
       </div>
-
-      {/* Footer */}
-      {checklists.length > 0 && (
-        <div className="border-t border-stroke px-4 py-2.5">
-          <p className="text-[11px] text-muted">
-            <span className="font-semibold text-ink">{checklists.length}</span>{" "}
-            {t("onboarding.template.editor.step_stages.footer_count")}
-          </p>
-        </div>
-      )}
     </div>
   );
 };
@@ -388,9 +368,6 @@ export const StepStages = ({
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor),
   );
-
-  // Sync parent state into antd form on structural changes (add/remove/reorder)
-  // Note: setFieldsValue does NOT trigger onValuesChange in antd 5
   useEffect(() => {
     antdForm.setFieldsValue({
       checklists: checklists.map((c) => ({
@@ -491,19 +468,6 @@ export const StepStages = ({
           )}
         </div>
       </Form>
-
-      {/* Footer summary */}
-      {checklists.length > 0 && (
-        <div className="flex items-center justify-between border-t border-stroke/60 bg-slate-50/60 px-5 py-3">
-          <p className="text-xs text-muted">
-            <span className="font-semibold text-ink">{checklists.length}</span>{" "}
-            {t("onboarding.template.editor.step_stages.footer_count")}
-          </p>
-          <p className="text-xs text-muted">
-            {t("onboarding.template.editor.step_stages.footer_hint")}
-          </p>
-        </div>
-      )}
     </div>
   );
 };

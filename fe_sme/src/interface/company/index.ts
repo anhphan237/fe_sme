@@ -103,3 +103,67 @@ export interface DepartmentMutationResponse {
   departmentId: string;
   name: string;
 }
+
+// ── Department Type ─────────────────────────────────────────
+
+/** com.sme.company.departmentType.list → request */
+export interface ListDepartmentTypeRequest {
+  status?: string;
+}
+
+/** Single department type item */
+export interface DepartmentTypeItem {
+  departmentTypeId: string;
+  code: string;
+  name: string;
+  status: string;
+}
+
+/** com.sme.company.departmentType.list → response */
+export interface ListDepartmentTypeResponse {
+  items: DepartmentTypeItem[];
+}
+
+/** com.sme.company.departmentType.create → request */
+export interface CreateDepartmentTypeRequest {
+  code: string;
+  name: string;
+  status?: string;
+}
+
+/** com.sme.company.departmentType.create → response */
+export interface CreateDepartmentTypeResponse {
+  departmentTypeId: string;
+  companyId: string;
+  code: string;
+  name: string;
+  status: string;
+}
+
+/** com.sme.company.departmentType.update → request */
+export interface UpdateDepartmentTypeRequest {
+  departmentTypeId: string;
+  code: string;
+  name: string;
+  status?: string;
+}
+
+/** com.sme.company.departmentType.update → response */
+export interface UpdateDepartmentTypeResponse {
+  departmentTypeId: string;
+  companyId: string;
+  code: string;
+  name: string;
+  status: string;
+}
+
+/** com.sme.company.departmentType.delete → request */
+export interface DeleteDepartmentTypeRequest {
+  departmentTypeId: string;
+}
+
+/** com.sme.company.departmentType.delete → response */
+export interface DeleteDepartmentTypeResponse {
+  departmentTypeId: string;
+  status: string;
+}

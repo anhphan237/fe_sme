@@ -10,6 +10,15 @@ import type {
   DepartmentItem,
   ListDepartmentResponse,
   DepartmentMutationResponse,
+  ListDepartmentTypeRequest,
+  DepartmentTypeItem,
+  ListDepartmentTypeResponse,
+  CreateDepartmentTypeRequest,
+  CreateDepartmentTypeResponse,
+  UpdateDepartmentTypeRequest,
+  UpdateDepartmentTypeResponse,
+  DeleteDepartmentTypeRequest,
+  DeleteDepartmentTypeResponse,
 } from "@/interface/company";
 
 // ── Company ────────────────────────────────────────────────
@@ -65,3 +74,34 @@ export const apiUpdateOrgDepartment = (payload: UpdateDepartmentRequest) =>
     "com.sme.org.department.update",
     payload,
   );
+
+// ── Department Type ────────────────────────────────────────
+
+/** com.sme.company.departmentType.list */
+export const apiListDepartmentTypes = (params?: ListDepartmentTypeRequest) =>
+  gatewayRequest<
+    ListDepartmentTypeRequest,
+    ListDepartmentTypeResponse | DepartmentTypeItem[]
+  >("com.sme.company.departmentType.list", params ?? {}, { flatPayload: true });
+
+/** com.sme.company.departmentType.create */
+export const apiCreateDepartmentType = (payload: CreateDepartmentTypeRequest) =>
+  gatewayRequest<CreateDepartmentTypeRequest, CreateDepartmentTypeResponse>(
+    "com.sme.company.departmentType.create",
+    payload,
+  );
+
+/** com.sme.company.departmentType.update */
+export const apiUpdateDepartmentType = (payload: UpdateDepartmentTypeRequest) =>
+  gatewayRequest<UpdateDepartmentTypeRequest, UpdateDepartmentTypeResponse>(
+    "com.sme.company.departmentType.update",
+    payload,
+  );
+
+/** com.sme.company.departmentType.delete */
+export const apiDeleteDepartmentType = (payload: DeleteDepartmentTypeRequest) =>
+  gatewayRequest<DeleteDepartmentTypeRequest, DeleteDepartmentTypeResponse>(
+    "com.sme.company.departmentType.delete",
+    payload,
+  );
+

@@ -1,10 +1,12 @@
 ﻿import { memo, useState, useMemo, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Form, Input, Select, Button } from "antd";
 import {
   BookOpen,
   ClipboardList,
   Copy,
   GripVertical,
+  Loader2,
   Plus,
   Search,
   X,
@@ -29,20 +31,41 @@ import BaseInput from "@core/components/Input/InputWithLabel";
 import BaseInputNumber from "@core/components/Input/BaseNumberInput";
 import BaseCheckbox from "@core/components/Checkbox";
 import BaseModal from "@core/components/Modal/BaseModal";
+import BaseSelect from "@core/components/Select/BaseSelect";
 import {
+  STAGE_ACCENTS,
   STAGE_OPTIONS,
-  STAGE_COLORS,
-  TASK_LIBRARY,
-  TASK_CATEGORIES,
+  getStageMeta,
 } from "./constants";
 import type {
   TaskDraft,
   ChecklistDraft,
   LibraryTask,
-  TaskCategory,
 } from "./constants";
+import {
+  apiListTaskLibraries,
+  apiGetTaskLibrary,
+} from "@/api/onboarding/onboarding.api";
+import type { TaskTemplateDetail } from "@/interface/onboarding";
 
 // ── Task Library Modal ─────────────────────────────────────────────────────────
+
+/** Maps a BE TaskTemplateDetail ownerType/ownerRefId to a UI assignee role */
+function resolveAssignee(task: TaskTemplateDetail): LibraryTask["assignee"] {
+  const ownerType = task.ownerType?.toUpperCase() ?? "";
+  if (ownerType === "MANAGER") return "MANAGER";
+  if (ownerType === "IT_STAFF") return "IT";
+  if (ownerType === "DEPARTMENT" || ownerType === "USER") return "HR";
+  // ownerType === "ROLE" or "EMPLOYEE" — check ownerRefId
+  const ref = String(task.ownerRefId ?? "").toUpperCase();
+  if (ref === "HR" || ref === "DEPARTMENT") return "HR";
+  if (ref === "MANAGER") return "MANAGER";
+  if (ref === "IT" || ref === "IT_STAFF") return "IT";
+  if (ownerType === "EMPLOYEE") return "EMPLOYEE";
+  return "EMPLOYEE";
+}
+
+type TaskLibraryEntry = LibraryTask & { _groupName: string; _stage?: string };
 
 const TaskLibraryModal = ({
   open,
@@ -55,34 +78,84 @@ const TaskLibraryModal = ({
 }) => {
   const { t } = useLocale();
   const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState<TaskCategory | "all">(
-    "all",
+  const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(
+    null,
   );
 
-  const filtered = useMemo(() => {
-    let list = TASK_LIBRARY;
-    if (activeCategory !== "all")
-      list = list.filter((tk) => tk.category === activeCategory);
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (tk) =>
-          tk.name.toLowerCase().includes(q) ||
-          tk.description.toLowerCase().includes(q),
-      );
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!open) {
+      setSearch("");
+      setSelectedLibraryId(null);
     }
-    return list;
-  }, [search, activeCategory]);
+  }, [open]);
 
+  // Fetch list of active task libraries
+  const { data: libraryList, isLoading: isLoadingList } = useQuery({
+    queryKey: ["task-libraries", "ACTIVE"],
+    queryFn: () => apiListTaskLibraries({ status: "ACTIVE", size: 100 }),
+    enabled: open,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Auto-select first library when list loads
+  useEffect(() => {
+    if (libraryList?.items?.length && !selectedLibraryId) {
+      setSelectedLibraryId(libraryList.items[0].templateId);
+    }
+  }, [libraryList, selectedLibraryId]);
+
+  // Fetch detail of selected library
+  const { data: libraryDetail, isLoading: isLoadingDetail } = useQuery({
+    queryKey: ["task-library", selectedLibraryId],
+    queryFn: () => apiGetTaskLibrary(selectedLibraryId!),
+    enabled: !!selectedLibraryId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Flatten all tasks from all checklists into entries with group metadata
+  const allEntries = useMemo<TaskLibraryEntry[]>(() => {
+    if (!libraryDetail?.checklists) return [];
+    return libraryDetail.checklists.flatMap((cl) =>
+      cl.tasks.map((task) => ({
+        name: task.name ?? task.title ?? "",
+        description: task.description ?? "",
+        dueDaysOffset: task.dueDaysOffset ?? 0,
+        requireAck: task.requireAck ?? false,
+        requireDoc: task.requireDoc ?? false,
+        requiresManagerApproval: task.requiresManagerApproval ?? false,
+        category: "hr" as LibraryTask["category"],
+        assignee: resolveAssignee(task),
+        _groupName: cl.name,
+        _stage: cl.stage,
+      })),
+    );
+  }, [libraryDetail]);
+
+  // Filter by search query
+  const filtered = useMemo(() => {
+    if (!search.trim()) return allEntries;
+    const q = search.toLowerCase();
+    return allEntries.filter(
+      (tk) =>
+        tk.name.toLowerCase().includes(q) ||
+        tk.description.toLowerCase().includes(q),
+    );
+  }, [allEntries, search]);
+
+  // Group filtered entries by checklist name
   const grouped = useMemo(() => {
-    const map = new Map<TaskCategory, LibraryTask[]>();
+    const map = new Map<string, TaskLibraryEntry[]>();
     for (const tk of filtered) {
-      const arr = map.get(tk.category) ?? [];
+      const arr = map.get(tk._groupName) ?? [];
       arr.push(tk);
-      map.set(tk.category, arr);
+      map.set(tk._groupName, arr);
     }
     return map;
   }, [filtered]);
+
+  const libraries = libraryList?.items ?? [];
+  const isLoading = isLoadingList || isLoadingDetail;
 
   return (
     <BaseModal
@@ -96,6 +169,22 @@ const TaskLibraryModal = ({
       onCancel={onClose}
       footer={null}
       width={520}>
+      {/* Library selector — shown only when there are multiple libraries */}
+      {libraries.length > 1 && (
+        <Select
+          value={selectedLibraryId}
+          onChange={setSelectedLibraryId}
+          options={libraries.map((lib) => ({
+            value: lib.templateId,
+            label: lib.departmentTypeName
+              ? `${lib.name} (${lib.departmentTypeName})`
+              : lib.name,
+          }))}
+          className="mb-3 w-full"
+          size="small"
+        />
+      )}
+
       <Input
         prefix={<Search className="h-3.5 w-3.5 text-muted" />}
         placeholder={t("onboarding.template.library.search")}
@@ -105,84 +194,74 @@ const TaskLibraryModal = ({
         className="mb-3"
       />
 
-      <div className="mb-4 flex flex-wrap gap-1.5">
-        <button
-          type="button"
-          onClick={() => setActiveCategory("all")}
-          className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-            activeCategory === "all"
-              ? "bg-brand/10 text-brand"
-              : "bg-slate-100 text-muted hover:bg-slate-200"
-          }`}>
-          {t("onboarding.template.library.cat_all")}
-        </button>
-        {TASK_CATEGORIES.map((cat) => (
-          <button
-            key={cat.value}
-            type="button"
-            onClick={() => setActiveCategory(cat.value)}
-            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-              activeCategory === cat.value
-                ? "bg-brand/10 text-brand"
-                : "bg-slate-100 text-muted hover:bg-slate-200"
-            }`}>
-            {t(cat.label)}
-          </button>
-        ))}
-      </div>
-
-      <div className="max-h-[60vh] space-y-4 overflow-y-auto">
-        {TASK_CATEGORIES.filter(
-          (cat) => activeCategory === "all" || activeCategory === cat.value,
-        ).map((cat) => {
-          const tasks = grouped.get(cat.value);
-          if (!tasks?.length) return null;
-          return (
-            <div key={cat.value}>
-              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
-                {t(cat.label)}
-              </h4>
-              <div className="space-y-1.5">
-                {tasks.map((tk, i) => (
-                  <div
-                    key={`${cat.value}-${i}`}
-                    className="group flex items-start gap-3 rounded-lg border border-stroke bg-white p-3 transition hover:border-brand/30 hover:shadow-sm">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-ink">{tk.name}</p>
-                      <p className="mt-0.5 text-xs text-muted">
-                        {tk.description}
-                      </p>
-                      <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted/70">
-                        <span>
-                          {t("onboarding.template.library.due_days", {
-                            days: tk.dueDaysOffset,
-                          })}
-                        </span>
-                        {tk.requireAck && (
-                          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-600">
-                            {t("onboarding.template.library.requires_ack")}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => onAdd(tk)}
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-stroke text-muted transition hover:border-brand hover:bg-brand/5 hover:text-brand">
-                      <Plus className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-
-        {filtered.length === 0 && (
+      <div className="max-h-[60vh] overflow-y-auto">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted" />
+          </div>
+        ) : grouped.size === 0 ? (
           <div className="py-8 text-center">
             <p className="text-sm text-muted">
-              {t("onboarding.template.library.no_results")}
+              {libraries.length === 0
+                ? t("onboarding.template.library.no_libraries")
+                : t("onboarding.template.library.no_results")}
             </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {Array.from(grouped.entries()).map(([groupName, tasks]) => {
+              const stageMeta = getStageMeta(tasks[0]?._stage);
+              const accent = STAGE_ACCENTS[stageMeta.accent];
+              return (
+                <div key={groupName}>
+                  <h4 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
+                    <span>{groupName}</span>
+                    {tasks[0]?._stage && (
+                      <span
+                        className={`rounded-md border px-1.5 py-0.5 text-[10px] normal-case tracking-normal font-medium ${accent.chip}`}>
+                        {t(stageMeta.labelKey)}
+                      </span>
+                    )}
+                  </h4>
+                  <div className="space-y-1.5">
+                    {tasks.map((tk, i) => (
+                      <div
+                        key={`${groupName}-${i}`}
+                        className="group flex items-start gap-3 rounded-lg border border-stroke bg-white p-3 transition hover:border-brand/30 hover:shadow-sm">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-ink">
+                            {tk.name}
+                          </p>
+                          {tk.description && (
+                            <p className="mt-0.5 text-xs text-muted">
+                              {tk.description}
+                            </p>
+                          )}
+                          <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted/70">
+                            <span>
+                              {t("onboarding.template.library.due_days", {
+                                days: tk.dueDaysOffset,
+                              })}
+                            </span>
+                            {tk.requireAck && (
+                              <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-600">
+                                {t("onboarding.template.library.requires_ack")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => onAdd(tk)}
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-stroke text-muted transition hover:border-brand hover:bg-brand/5 hover:text-brand">
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -598,63 +677,50 @@ export const TasksPanel = ({
   readOnly,
 }: TasksPanelProps) => {
   const { t } = useLocale();
-  const [stageForm] = Form.useForm<{ name: string; stageType: string }>();
+  const [stageForm] = Form.useForm<{ stageType: string }>();
 
-  const stageOptions = STAGE_OPTIONS.map((o) => ({
-    value: o.value,
-    label: t(o.label),
-  }));
+  const stageOptions = STAGE_OPTIONS.map((o) => {
+    const m = getStageMeta(o.value);
+    return {
+      value: o.value,
+      label: `${m.code} · ${t(o.label)}`,
+    };
+  });
 
-  const stageColor =
-    STAGE_COLORS[checklist.stageType ?? ""] ??
-    "bg-slate-50 text-slate-500 border-slate-200";
+  const meta = getStageMeta(checklist.stageType);
+  const accent = STAGE_ACCENTS[meta.accent];
 
   // Sync form when switching stages
   useEffect(() => {
-    stageForm.setFieldsValue({
-      name: checklist.name,
-      stageType: checklist.stageType,
-    });
-  }, [checklist.id, checklist.name, checklist.stageType, stageForm]);
+    stageForm.setFieldsValue({ stageType: checklist.stageType });
+  }, [checklist.id, checklist.stageType, stageForm]);
 
   return (
     <div className="flex h-full flex-col">
-      {/* Stage header — editable name + type */}
-      <div className="flex items-center gap-3 border-b border-stroke bg-slate-50/50 px-5 py-3">
-        <Form
-          form={stageForm}
-          layout="inline"
-          className="flex flex-1 min-w-0 items-center gap-3"
-          onValuesChange={(_, all) => {
-            if (readOnly) return;
-            onUpdateStage({
-              name: all.name ?? "",
-              stageType: all.stageType ?? checklist.stageType,
-            });
-          }}>
-          <Form.Item
-            name="name"
-            className="mb-0 flex-1 min-w-0"
-            rules={readOnly ? [] : [{ required: true }]}>
-            <Input
-              placeholder={t(
-                "onboarding.template.editor.stage_name_placeholder",
-              )}
-              disabled={readOnly}
-              className="border-0 bg-transparent text-sm font-semibold text-ink shadow-none focus:bg-white focus:shadow"
-              style={{ boxShadow: "none" }}
-            />
-          </Form.Item>
-          <Form.Item name="stageType" className="mb-0 shrink-0">
-            <Select
+      <div className="relative border-b border-stroke bg-white">
+        <div className="flex flex-col gap-2 px-5 py-3">
+          <Form
+            form={stageForm}
+            layout="inline"
+            className="flex flex-1 min-w-0 items-center gap-3"
+            onValuesChange={(_, all) => {
+              if (readOnly) return;
+              const stageMeta = getStageMeta(all.stageType);
+              onUpdateStage({
+                name: t(stageMeta.defaultNameKey),
+                stageType: all.stageType ?? checklist.stageType,
+              });
+            }}>
+            <BaseSelect
+              name="stageType"
               options={stageOptions}
               size="small"
               disabled={readOnly}
-              className={`rounded-lg border text-xs font-semibold ${stageColor}`}
-              style={{ minWidth: 120 }}
+              style={{ minWidth: 180 }}
+              formItemProps={{ className: "shrink-0" }}
             />
-          </Form.Item>
-        </Form>
+          </Form>
+        </div>
       </div>
 
       {/* Task list */}

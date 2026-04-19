@@ -27,6 +27,7 @@ const EmployeeDashboard = lazy(
 const AdminUsers = lazy(() => import("@/pages/users"));
 const AdminKnowledgeBase = lazy(() => import("@/pages/knowledge-base"));
 const AdminDepartments = lazy(() => import("@/pages/departments"));
+const AdminDepartmentTypes = lazy(() => import("@/pages/department-types"));
 const Profile = lazy(() => import("@/pages/profile/Profile"));
 const Notifications = lazy(() => import("@/pages/settings/Notifications"));
 const NotificationsPage = lazy(
@@ -35,6 +36,10 @@ const NotificationsPage = lazy(
 const OnboardingDashboard = lazy(() => import("@/pages/onboarding/dashboard"));
 const MyJourney = lazy(() => import("@/pages/onboarding/my-journey"));
 const Templates = lazy(() => import("@/pages/onboarding/Templates"));
+const TaskLibrary = lazy(() => import("@/pages/onboarding/task-library"));
+const TaskLibraryDetail = lazy(
+  () => import("@/pages/onboarding/task-library/detail"),
+);
 const TemplateEditor = lazy(
   () => import("@/pages/onboarding/templates/editor"),
 );
@@ -164,6 +169,10 @@ export const router = createBrowserRouter([
         element: suspense(withRoles(<AdminDepartments />, ["HR"])),
       },
       {
+        path: "/hr/department-types",
+        element: suspense(withRoles(<AdminDepartmentTypes />, ["HR"])),
+      },
+      {
         path: "/hr/users",
         element: suspense(withRoles(<AdminUsers />, ["HR"])),
       },
@@ -213,6 +222,14 @@ export const router = createBrowserRouter([
       {
         path: "/onboarding/templates",
         element: suspense(withRoles(<Templates />, ["HR", "MANAGER"])),
+      },
+      {
+        path: "/onboarding/task-library",
+        element: suspense(withRoles(<TaskLibrary />, ["HR"])),
+      },
+      {
+        path: "/onboarding/task-library/:templateId",
+        element: suspense(withRoles(<TaskLibraryDetail />, ["HR"])),
       },
       {
         path: "/onboarding/templates/new",

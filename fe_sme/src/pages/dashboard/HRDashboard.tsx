@@ -48,8 +48,10 @@ import { apiGetSurveyAnalyticsReport } from "@/api/survey/survey.api";
 import { apiSearchUsers } from "@/api/identity/identity.api";
 import { extractList } from "@/api/core/types";
 import { mapInstance } from "@/utils/mappers/onboarding";
+import { useUserNameMap } from "@/utils/resolvers/userResolver";
 import type { OnboardingInstance } from "@/shared/types";
 import { AppRouters } from "@/constants/router";
+import { useLocale } from "@/i18n";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -122,35 +124,35 @@ type StageVolume = { stage: string; value: number };
 const FUNNEL_COLORS = ["#0f766e", "#2563eb", "#f59e0b", "#ef4444"];
 const SURVEY_COLORS = ["#6366f1", "#a78bfa", "#c4b5fd", "#818cf8", "#4f46e5"];
 const STAGE_LABELS: Record<string, string> = {
-  PRE_BOARDING: "Pre-boarding",
-  DAY_1: "Ngày 1",
-  DAY_7: "Ngày 7",
-  DAY_30: "Ngày 30",
-  DAY_60: "Ngày 60",
+  PRE_BOARDING: "dashboard.hr.stage.pre_boarding",
+  DAY_1: "dashboard.hr.stage.day_1",
+  DAY_7: "dashboard.hr.stage.day_7",
+  DAY_30: "dashboard.hr.stage.day_30",
+  DAY_60: "dashboard.hr.stage.day_60",
 };
 
 const DATE_PRESETS = [
   {
-    label: "Tháng này",
+    label: "dashboard.hr.date_preset.this_month",
     getValue: (): [Dayjs, Dayjs] => [dayjs().startOf("month"), dayjs()],
   },
   {
-    label: "Tháng trước",
+    label: "dashboard.hr.date_preset.last_month",
     getValue: (): [Dayjs, Dayjs] => [
       dayjs().subtract(1, "month").startOf("month"),
       dayjs().subtract(1, "month").endOf("month"),
     ],
   },
   {
-    label: "3 tháng",
+    label: "dashboard.hr.date_preset.3_months",
     getValue: (): [Dayjs, Dayjs] => [dayjs().subtract(3, "month"), dayjs()],
   },
   {
-    label: "6 tháng",
+    label: "dashboard.hr.date_preset.6_months",
     getValue: (): [Dayjs, Dayjs] => [dayjs().subtract(6, "month"), dayjs()],
   },
   {
-    label: "Năm nay",
+    label: "dashboard.hr.date_preset.this_year",
     getValue: (): [Dayjs, Dayjs] => [dayjs().startOf("year"), dayjs()],
   },
 ] as const;
@@ -336,21 +338,26 @@ function KpiCard({
 }
 
 /** Thẻ hiển thị instance cần chú ý (progress thấp) */
-function AttentionCard({ inst }: { inst: OnboardingInstance }) {
+function AttentionCard({
+  inst,
+  resolveName,
+}: {
+  inst: OnboardingInstance;
+  resolveName: (id: string | null | undefined, fallback?: string) => string;
+}) {
   const progress = inst.progress ?? 0;
   const progressColor =
     progress < 10 ? "exception" : progress < 30 ? "active" : "normal";
+  const displayName =
+    inst.employeeName ||
+    resolveName(inst.employeeUserId, inst.employeeId || "—");
   return (
     <Link to={`${AppRouters.ONBOARDING_EMPLOYEES}/${inst.id}`}>
       <div className="flex items-center gap-3 rounded-lg border border-stroke bg-white px-3 py-2.5 transition-colors hover:border-amber-300 hover:bg-amber-50/40">
         <div className="flex-1 min-w-0">
-          <p className="truncate text-sm font-medium text-ink">
-            {inst.employeeName || inst.employeeId || "—"}
-          </p>
+          <p className="truncate text-sm font-medium text-ink">{displayName}</p>
           {inst.managerName && (
-            <p className="truncate text-xs text-muted">
-              Manager: {inst.managerName}
-            </p>
+            <p className="truncate text-xs text-muted">{inst.managerName}</p>
           )}
           <Progress
             percent={progress}
@@ -364,9 +371,6 @@ function AttentionCard({ inst }: { inst: OnboardingInstance }) {
     </Link>
   );
 }
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
 function parseDate(value?: string) {
   if (!value) return null;
   const parsed = new Date(value);
@@ -395,7 +399,6 @@ function instanceStatusColor(status?: string) {
   }
 }
 
-/** Label renderer cho recharts BarChart — hiển thị % hoàn thành */
 function DeptCompletionLabel(props: {
   x?: number;
   y?: number;
@@ -423,6 +426,7 @@ function DeptCompletionLabel(props: {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function HRDashboard() {
+  const { t } = useLocale();
   const currentTenant = useUserStore((s) => s.currentTenant);
   const currentUser = useUserStore((s) => s.currentUser);
   const companyId = currentTenant?.id ?? currentUser?.companyId ?? undefined;
@@ -432,7 +436,9 @@ export default function HRDashboard() {
     dayjs().startOf("month"),
     dayjs(),
   ]);
-  const [activePreset, setActivePreset] = useState<string>("Tháng này");
+  const [activePreset, setActivePreset] = useState<string>(
+    "dashboard.hr.date_preset.this_month",
+  );
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [departmentFilter, setDepartmentFilter] = useState<string>("");
 
@@ -483,6 +489,8 @@ export default function HRDashboard() {
 
   const { data: employeeList = [], isLoading: employeeLoading } =
     useEmployeeListQuery(true);
+
+  const { resolveName } = useUserNameMap();
 
   // ── Data derivation ──────────────────────────────────────────────────────
   const summary = (summaryRaw ?? {}) as DashboardSummary;
@@ -548,7 +556,7 @@ export default function HRDashboard() {
   const stageTrendData = useMemo(
     () =>
       (surveyAnalytics?.stageTrends ?? []).map((s) => ({
-        stage: STAGE_LABELS[s.stage] ?? s.stage,
+        stage: t(STAGE_LABELS[s.stage] ?? s.stage),
         "Phản hồi": s.submittedCount,
         "Điểm TB": Number(s.averageOverall.toFixed(2)),
       })),
@@ -589,37 +597,39 @@ export default function HRDashboard() {
   // ── KPIs ─────────────────────────────────────────────────────────────────
   const kpisRow1 = [
     {
-      label: "Đang onboarding",
+      label: t("dashboard.hr.kpi.active_onboarding"),
       value: String(summaryActive),
       icon: <Users className="h-4 w-4" />,
       tone: "teal" as const,
     },
     {
-      label: "Hoàn thành",
+      label: t("dashboard.hr.kpi.completed"),
       value: String(summaryCompleted),
-      sub: hasDateRange ? "trong kỳ" : undefined,
+      sub: hasDateRange ? t("dashboard.hr.kpi.in_period") : undefined,
       icon: <CheckCircle2 className="h-4 w-4" />,
       tone: "emerald" as const,
     },
     {
-      label: "Task đang chờ",
+      label: t("dashboard.hr.kpi.pending_tasks"),
       value: String(completionPending),
       icon: <ClipboardList className="h-4 w-4" />,
       tone: "amber" as const,
     },
     {
-      label: "Tỉ lệ hoàn thành",
+      label: t("dashboard.hr.kpi.completion_rate"),
       value: `${completionRate}%`,
       icon: <TrendingUp className="h-4 w-4" />,
       tone: "indigo" as const,
     },
     {
-      label: "Tổng nhân viên",
+      label: t("dashboard.hr.kpi.total_employees"),
       value:
         totalEmployees !== null
           ? String(totalEmployees)
           : String(employeeList.length || "—"),
-      sub: hasDateRange ? "trong kỳ đã chọn" : "chọn kỳ để xem",
+      sub: hasDateRange
+        ? t("dashboard.hr.kpi.in_selected_period")
+        : t("dashboard.hr.kpi.select_period_hint"),
       icon: <UserCheck className="h-4 w-4" />,
       tone: "violet" as const,
     },
@@ -627,24 +637,24 @@ export default function HRDashboard() {
 
   const kpisRow2 = [
     {
-      label: "Khảo sát đã gửi",
+      label: t("dashboard.hr.kpi.surveys_sent"),
       value: surveySentCount > 0 ? String(surveySentCount) : "—",
-      sub: hasDateRange ? "trong kỳ" : undefined,
+      sub: hasDateRange ? t("dashboard.hr.kpi.in_period") : undefined,
       icon: <MessageSquare className="h-4 w-4" />,
       tone: "sky" as const,
     },
     {
-      label: "Tỉ lệ phản hồi",
+      label: t("dashboard.hr.kpi.response_rate"),
       value: surveySentCount > 0 ? `${surveyResponseRate}%` : "—",
       sub:
         surveySentCount > 0
-          ? `${surveySubmittedCount}/${surveySentCount} phản hồi`
+          ? `${surveySubmittedCount}/${surveySentCount} ${t("dashboard.hr.kpi.responses")}`
           : undefined,
       icon: <TrendingUp className="h-4 w-4" />,
       tone: "purple" as const,
     },
     {
-      label: "Điểm hài lòng",
+      label: t("dashboard.hr.kpi.satisfaction_score"),
       value: satisfactionScore > 0 ? satisfactionScore.toFixed(1) : "—",
       sub: satisfactionScore > 0 ? "/ 5.0" : undefined,
       icon: <Star className="h-4 w-4" />,
@@ -655,22 +665,22 @@ export default function HRDashboard() {
   // ── Funnel BarChart data ──────────────────────────────────────────────────
   const funnelData: StageVolume[] = [
     {
-      stage: "Đang hoạt động",
+      stage: t("dashboard.hr.status.active"),
       value: Number(funnel.activeCount ?? activeInstances),
     },
     {
-      stage: "Hoàn thành",
+      stage: t("dashboard.hr.status.completed"),
       value: Number(funnel.completedCount ?? completedInstances),
     },
     {
-      stage: "Đã huỷ",
+      stage: t("dashboard.hr.status.cancelled"),
       value: Number(
         funnel.cancelledCount ??
           filteredInstances.filter((x) => x.status === "CANCELLED").length,
       ),
     },
     {
-      stage: "Nháp",
+      stage: t("dashboard.hr.status.draft"),
       value: Number(
         funnel.otherCount ??
           filteredInstances.filter((x) => x.status === "DRAFT").length,
@@ -732,7 +742,7 @@ export default function HRDashboard() {
         <div className="flex flex-wrap items-end gap-4">
           <div>
             <p className="mb-1 text-xs font-semibold uppercase text-muted">
-              Khoảng thời gian
+              {t("dashboard.hr.filter.time_range")}
             </p>
             <div className="flex items-center gap-2">
               <Select
@@ -743,12 +753,18 @@ export default function HRDashboard() {
                   if (preset) {
                     applyPreset(preset.label, preset.getValue);
                   } else {
-                    setActivePreset("Tùy chỉnh");
+                    setActivePreset("dashboard.hr.date_preset.custom");
                   }
                 }}
                 options={[
-                  ...DATE_PRESETS.map((p) => ({ value: p.label, label: p.label })),
-                  { value: "Tùy chỉnh", label: "Tùy chỉnh" },
+                  ...DATE_PRESETS.map((p) => ({
+                    value: p.label,
+                    label: t(p.label),
+                  })),
+                  {
+                    value: "dashboard.hr.date_preset.custom",
+                    label: t("dashboard.hr.date_preset.custom"),
+                  },
                 ]}
               />
               <DatePicker.RangePicker
@@ -756,14 +772,14 @@ export default function HRDashboard() {
                 format="DD/MM/YYYY"
                 onChange={(value) => {
                   setDateRange(value ?? [null, null]);
-                  setActivePreset("Tùy chỉnh");
+                  setActivePreset("dashboard.hr.date_preset.custom");
                 }}
               />
             </div>
           </div>
           <div>
             <p className="mb-1 text-xs font-semibold uppercase text-muted">
-              Trạng thái
+              {t("dashboard.hr.filter.status")}
             </p>
             <Select
               className="w-44"
@@ -771,17 +787,23 @@ export default function HRDashboard() {
               allowClear
               onChange={(value) => setStatusFilter(value ?? "")}
               options={[
-                { value: "DRAFT", label: "Nháp" },
-                { value: "ACTIVE", label: "Đang hoạt động" },
-                { value: "COMPLETED", label: "Hoàn thành" },
-                { value: "CANCELLED", label: "Đã huỷ" },
+                { value: "DRAFT", label: t("dashboard.hr.status.draft") },
+                { value: "ACTIVE", label: t("dashboard.hr.status.active") },
+                {
+                  value: "COMPLETED",
+                  label: t("dashboard.hr.status.completed"),
+                },
+                {
+                  value: "CANCELLED",
+                  label: t("dashboard.hr.status.cancelled"),
+                },
               ]}
-              placeholder="Tất cả trạng thái"
+              placeholder={t("dashboard.hr.filter.status_placeholder")}
             />
           </div>
           <div>
             <p className="mb-1 text-xs font-semibold uppercase text-muted">
-              Phòng ban
+              {t("dashboard.hr.filter.department")}
             </p>
             <Select
               className="w-44"
@@ -789,7 +811,7 @@ export default function HRDashboard() {
               allowClear
               options={departmentOptions}
               onChange={(value) => setDepartmentFilter(value ?? "")}
-              placeholder="Tất cả phòng ban"
+              placeholder={t("dashboard.hr.filter.department_placeholder")}
               disabled={!hasDateRange}
             />
           </div>
@@ -799,7 +821,7 @@ export default function HRDashboard() {
       {/* KPI Row 1 — Onboarding KPIs */}
       <div>
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
-          Onboarding
+          {t("dashboard.hr.section.onboarding")}
         </p>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {isKpiLoading || employeeLoading
@@ -818,7 +840,7 @@ export default function HRDashboard() {
       {/* KPI Row 2 — Survey KPIs */}
       <div>
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
-          Khảo sát nhân viên
+          {t("dashboard.hr.section.employee_survey")}
         </p>
         <div className="grid gap-4 sm:grid-cols-3">
           {surveyLoading
@@ -837,17 +859,17 @@ export default function HRDashboard() {
       {/* Trạng thái onboarding */}
       <Card className="border border-stroke bg-white shadow-sm">
         <h2 className="text-base font-semibold text-ink">
-          Tiến độ onboarding
+          {t("dashboard.hr.section.onboarding_progress")}
         </h2>
         <p className="text-sm text-muted">
-          Phân bổ trạng thái các onboarding trong kỳ
+          {t("dashboard.hr.section.onboarding_progress_desc")}
         </p>
         <div className="mt-6 h-64">
           {isProgressLoading ? (
             <Skeleton active paragraph={{ rows: 5 }} title={false} />
           ) : funnelData.length === 0 ? (
             <p className="text-sm text-muted">
-              Chưa có dữ liệu trong khoảng thời gian đã chọn.
+              {t("dashboard.hr.msg.no_data_in_period")}
             </p>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
@@ -856,7 +878,10 @@ export default function HRDashboard() {
                 <XAxis dataKey="stage" />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="value" name="Số lượng" radius={[6, 6, 0, 0]}>
+                <Bar
+                  dataKey="value"
+                  name={t("dashboard.hr.chart.quantity")}
+                  radius={[6, 6, 0, 0]}>
                   {funnelData.map((_, index) => (
                     <Cell
                       key={`funnel-bar-${index}`}
@@ -876,21 +901,21 @@ export default function HRDashboard() {
         {/* Department bar chart */}
         <Card className="border border-stroke bg-white shadow-sm">
           <h2 className="text-base font-semibold text-ink">
-            Thống kê theo phòng ban
+            {t("dashboard.hr.section.department_stats")}
           </h2>
           <p className="text-sm text-muted">
-            Task hoàn thành — nhãn % là tỉ lệ hoàn thành mỗi phòng ban
+            {t("dashboard.hr.section.department_stats_desc")}
           </p>
           <div className="mt-6 h-72">
             {!hasDateRange ? (
               <p className="text-sm text-muted">
-                Chọn khoảng thời gian để xem dữ liệu.
+                {t("dashboard.hr.msg.select_period")}
               </p>
             ) : byDepartmentLoading ? (
               <Skeleton active paragraph={{ rows: 5 }} title={false} />
             ) : departmentStats.length === 0 ? (
               <p className="text-sm text-muted">
-                Không có dữ liệu theo phòng ban.
+                {t("dashboard.hr.msg.no_department_data")}
               </p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
@@ -909,13 +934,13 @@ export default function HRDashboard() {
                   <Legend />
                   <Bar
                     dataKey="totalTasks"
-                    name="Tổng task"
+                    name={t("dashboard.hr.chart.total_tasks")}
                     fill="#60a5fa"
                     radius={[4, 4, 0, 0]}
                   />
                   <Bar
                     dataKey="completedTasks"
-                    name="Hoàn thành"
+                    name={t("dashboard.hr.chart.completed")}
                     fill="#0f766e"
                     radius={[4, 4, 0, 0]}>
                     <LabelList
@@ -937,15 +962,17 @@ export default function HRDashboard() {
         <Card className="border border-stroke bg-white shadow-sm">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-amber-500" />
-            <h2 className="text-base font-semibold text-ink">Cần chú ý</h2>
+            <h2 className="text-base font-semibold text-ink">
+              {t("dashboard.hr.section.attention")}
+            </h2>
           </div>
           <p className="text-sm text-muted">
-            Onboarding đang hoạt động nhưng tiến độ dưới 30%
+            {t("dashboard.hr.section.attention_desc")}
           </p>
           <div className="mt-4 space-y-2">
             {!hasDateRange ? (
               <p className="text-sm text-muted">
-                Chọn khoảng thời gian để xem.
+                {t("dashboard.hr.msg.select_period_short")}
               </p>
             ) : instancesLoading ? (
               <Skeleton active paragraph={{ rows: 4 }} title={false} />
@@ -953,16 +980,20 @@ export default function HRDashboard() {
               <div className="flex flex-col items-center gap-2 py-6 text-center">
                 <CheckCircle2 className="h-8 w-8 text-emerald-500" />
                 <p className="text-sm font-medium text-ink">
-                  Tất cả onboarding đều ổn
+                  {t("dashboard.hr.msg.all_ok")}
                 </p>
                 <p className="text-xs text-muted">
-                  Không có onboarding nào dưới 30% tiến độ.
+                  {t("dashboard.hr.msg.none_below_30")}
                 </p>
               </div>
             ) : (
               <div className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
                 {attentionInstances.map((inst) => (
-                  <AttentionCard key={inst.id} inst={inst} />
+                  <AttentionCard
+                    key={inst.id}
+                    inst={inst}
+                    resolveName={resolveName}
+                  />
                 ))}
               </div>
             )}
@@ -972,7 +1003,7 @@ export default function HRDashboard() {
               <Link
                 to={AppRouters.ONBOARDING_EMPLOYEES}
                 className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
-                Xem tất cả nhân viên
+                {t("dashboard.hr.action.view_all_employees")}
                 <ArrowRight className="h-3 w-3" />
               </Link>
             </div>
@@ -981,14 +1012,15 @@ export default function HRDashboard() {
       </div>
 
       {/* Survey Insights */}
-      <div className={`grid gap-4 ${surveyTimeTrendData.length > 0 ? "lg:grid-cols-2" : ""}`}>
+      <div
+        className={`grid gap-4 ${surveyTimeTrendData.length > 0 ? "lg:grid-cols-2" : ""}`}>
         {/* Survey Stage Trends */}
         <Card className="border border-stroke bg-white shadow-sm">
           <h2 className="text-base font-semibold text-ink">
-            Khảo sát theo giai đoạn onboarding
+            {t("dashboard.hr.section.survey_stage")}
           </h2>
           <p className="text-sm text-muted">
-            Số phản hồi và điểm hài lòng trung bình theo từng giai đoạn
+            {t("dashboard.hr.section.survey_stage_desc")}
           </p>
           <div className="mt-4 h-64">
             {surveyLoading ? (
@@ -996,8 +1028,8 @@ export default function HRDashboard() {
             ) : stageTrendData.length === 0 ? (
               <p className="text-sm text-muted">
                 {hasDateRange
-                  ? "Chưa có dữ liệu khảo sát trong kỳ."
-                  : "Chọn khoảng thời gian để xem."}
+                  ? t("dashboard.hr.msg.no_survey_data")
+                  : t("dashboard.hr.msg.select_period_short")}
               </p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
@@ -1043,10 +1075,10 @@ export default function HRDashboard() {
         {surveyTimeTrendData.length > 0 && (
           <Card className="border border-stroke bg-white shadow-sm">
             <h2 className="text-base font-semibold text-ink">
-              Xu hướng khảo sát theo thời gian
+              {t("dashboard.hr.section.survey_time")}
             </h2>
             <p className="text-sm text-muted">
-              Số phản hồi và điểm hài lòng trung bình theo tháng
+              {t("dashboard.hr.section.survey_time_desc")}
             </p>
             <div className="mt-4 h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -1090,10 +1122,10 @@ export default function HRDashboard() {
         {/* Employee status stats */}
         <Card className="border border-stroke bg-white shadow-sm">
           <h2 className="text-base font-semibold text-ink">
-            Tổng quan nhân sự
+            {t("dashboard.hr.section.team_overview")}
           </h2>
           <p className="text-sm text-muted">
-            Tình trạng nhân viên trong hệ thống
+            {t("dashboard.hr.section.team_overview_desc")}
           </p>
           {employeeLoading ? (
             <Skeleton
@@ -1107,7 +1139,9 @@ export default function HRDashboard() {
               <div className="flex items-center justify-between rounded-lg border border-stroke bg-emerald-50/50 px-3 py-2.5">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  <span className="text-sm text-ink">Đang hoạt động</span>
+                  <span className="text-sm text-ink">
+                    {t("dashboard.hr.employee.active")}
+                  </span>
                 </div>
                 <span className="text-base font-bold text-emerald-700">
                   {activeEmployees}
@@ -1116,7 +1150,9 @@ export default function HRDashboard() {
               <div className="flex items-center justify-between rounded-lg border border-stroke bg-gray-50 px-3 py-2.5">
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-muted" />
-                  <span className="text-sm text-ink">Không hoạt động</span>
+                  <span className="text-sm text-ink">
+                    {t("dashboard.hr.employee.inactive")}
+                  </span>
                 </div>
                 <span className="text-base font-bold text-muted">
                   {inactiveEmployees}
@@ -1126,7 +1162,7 @@ export default function HRDashboard() {
                 <div className="flex items-center gap-2">
                   <UserCheck className="h-4 w-4 text-teal-600" />
                   <span className="text-sm font-medium text-ink">
-                    Tổng cộng
+                    {t("dashboard.hr.employee.total")}
                   </span>
                 </div>
                 <span className="text-base font-bold text-teal-700">
@@ -1137,7 +1173,7 @@ export default function HRDashboard() {
                 <Link
                   to={AppRouters.ADMIN_USERS}
                   className="flex items-center justify-end gap-1 text-xs font-medium text-blue-600 hover:underline">
-                  Quản lý nhân viên
+                  {t("dashboard.hr.action.manage_employees")}
                   <ArrowRight className="h-3 w-3" />
                 </Link>
               </div>
@@ -1148,16 +1184,18 @@ export default function HRDashboard() {
         {/* Role breakdown chart */}
         <Card className="border border-stroke bg-white shadow-sm lg:col-span-2">
           <h2 className="text-base font-semibold text-ink">
-            Phân bổ theo vai trò
+            {t("dashboard.hr.section.role_distribution")}
           </h2>
           <p className="text-sm text-muted">
-            Số lượng nhân viên theo từng role trong hệ thống
+            {t("dashboard.hr.section.role_distribution_desc")}
           </p>
           <div className="mt-4 h-60">
             {employeeLoading ? (
               <Skeleton active paragraph={{ rows: 4 }} title={false} />
             ) : roleBreakdown.length === 0 ? (
-              <p className="text-sm text-muted">Không có dữ liệu.</p>
+              <p className="text-sm text-muted">
+                {t("dashboard.hr.msg.no_data")}
+              </p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
@@ -1192,10 +1230,10 @@ export default function HRDashboard() {
       {/* Onboarding Trend — full width */}
       <Card className="border border-stroke bg-white shadow-sm">
         <h2 className="text-base font-semibold text-ink">
-          Xu hướng onboarding
+          {t("dashboard.hr.section.onboarding_trend")}
         </h2>
         <p className="text-sm text-muted">
-          Số lượng onboarding khởi tạo theo tháng
+          {t("dashboard.hr.section.onboarding_trend_desc")}
         </p>
         <div className="mt-6 h-64">
           {instancesLoading ? (
@@ -1203,8 +1241,8 @@ export default function HRDashboard() {
           ) : trendData.length === 0 ? (
             <p className="text-sm text-muted">
               {hasDateRange
-                ? "Không có dữ liệu xu hướng trong kỳ đã chọn."
-                : "Chọn khoảng thời gian để xem xu hướng."}
+                ? t("dashboard.hr.msg.no_trend_data")
+                : t("dashboard.hr.msg.select_period_trend")}
             </p>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
@@ -1216,7 +1254,7 @@ export default function HRDashboard() {
                 <Line
                   type="monotone"
                   dataKey="value"
-                  name="Số onboarding"
+                  name={t("dashboard.hr.chart.onboarding_count")}
                   stroke="#2563eb"
                   strokeWidth={2}
                   dot={{ r: 4 }}
@@ -1233,16 +1271,16 @@ export default function HRDashboard() {
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="text-base font-semibold text-ink">
-              Onboarding gần đây
+              {t("dashboard.hr.section.recent_onboardings")}
             </h2>
             <p className="text-sm text-muted">
-              10 onboarding mới nhất trong kỳ đã chọn
+              {t("dashboard.hr.section.recent_onboardings_desc")}
             </p>
           </div>
           <Link
             to={AppRouters.ONBOARDING_EMPLOYEES}
             className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
-            Xem tất cả
+            {t("dashboard.hr.action.view_all")}
             <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
@@ -1252,19 +1290,28 @@ export default function HRDashboard() {
           ) : recentInstances.length === 0 ? (
             <p className="py-4 text-sm text-muted">
               {hasDateRange
-                ? "Không có onboarding nào trong khoảng thời gian đã chọn."
-                : "Chọn khoảng thời gian để xem danh sách."}
+                ? t("dashboard.hr.msg.no_onboarding_in_period")
+                : t("dashboard.hr.msg.select_period_list")}
             </p>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-stroke text-left text-xs font-semibold uppercase text-muted">
-                  <th className="pb-3 pr-4">Nhân viên</th>
-                  <th className="pb-3 pr-4">Manager</th>
-                  <th className="pb-3 pr-4">Ngày bắt đầu</th>
-                  <th className="pb-3 pr-4">Trạng thái</th>
-                  <th className="pb-3 pr-4">Tiến độ</th>
-                  <th className="pb-3" />
+                  <th className="pb-3 pr-4">
+                    {t("dashboard.hr.table.employee")}
+                  </th>
+                  <th className="pb-3 pr-4">
+                    {t("dashboard.hr.table.manager")}
+                  </th>
+                  <th className="pb-3 pr-4">
+                    {t("dashboard.hr.table.start_date")}
+                  </th>
+                  <th className="pb-3 pr-4">
+                    {t("dashboard.hr.table.status")}
+                  </th>
+                  <th className="pb-3 pr-4">
+                    {t("dashboard.hr.table.progress")}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -1272,15 +1319,30 @@ export default function HRDashboard() {
                   <tr
                     key={inst.id}
                     className="border-b border-stroke/50 last:border-0">
-                    <td className="py-3 pr-4 font-medium text-ink">
-                      {inst.employeeName || inst.employeeId || "—"}
+                    <td className="py-3 pr-4 font-medium">
+                      <Link
+                        to={`${AppRouters.ONBOARDING_EMPLOYEES}/${inst.id}`}
+                        className="text-blue-600 hover:underline">
+                        {inst.employeeName ||
+                          resolveName(
+                            inst.employeeUserId,
+                            inst.employeeId || "—",
+                          )}
+                      </Link>
                     </td>
                     <td className="py-3 pr-4 text-muted">
-                      <AntTooltip title={inst.managerName ?? undefined}>
-                        <span className="max-w-[120px] truncate block">
-                          {inst.managerName ?? "—"}
-                        </span>
-                      </AntTooltip>
+                      {(() => {
+                        const managerDisplay =
+                          inst.managerName ||
+                          resolveName(inst.managerUserId, "—");
+                        return (
+                          <AntTooltip title={managerDisplay}>
+                            <span className="max-w-[120px] truncate block">
+                              {managerDisplay}
+                            </span>
+                          </AntTooltip>
+                        );
+                      })()}
                     </td>
                     <td className="py-3 pr-4 text-muted">
                       {inst.startDate
@@ -1308,14 +1370,6 @@ export default function HRDashboard() {
                       <span className="text-xs text-muted">
                         {inst.progress ?? 0}%
                       </span>
-                    </td>
-                    <td className="py-3 text-right">
-                      <Link
-                        to={`${AppRouters.ONBOARDING_EMPLOYEES}/${inst.id}`}
-                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
-                        Chi tiết
-                        <ArrowRight className="h-3 w-3" />
-                      </Link>
                     </td>
                   </tr>
                 ))}

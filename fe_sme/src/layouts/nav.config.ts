@@ -42,6 +42,11 @@ export const NAV_SECTIONS: NavSection[] = [
         requiredRoles: ["HR"],
       },
       {
+        titleKey: "nav.organization.department_types",
+        to: "/hr/department-types",
+        requiredRoles: ["HR"],
+      },
+      {
         titleKey: "nav.organization.users",
         to: "/hr/users",
         requiredRoles: ["HR"],
@@ -65,6 +70,11 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         titleKey: "nav.onboarding.templates",
         to: "/onboarding/templates",
+        requiredRoles: ["HR"],
+      },
+      {
+        titleKey: "nav.onboarding.task_library",
+        to: "/onboarding/task-library",
         requiredRoles: ["HR"],
       },
       {

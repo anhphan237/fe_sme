@@ -23,9 +23,15 @@ import { mapTemplate } from "@/utils/mappers/onboarding";
 
 import { StageSidebar } from "./StepStages";
 import { TasksPanel } from "./StepTasks";
+import { StagePickerModal } from "./StagePicker";
 
 import type { TaskDraft, ChecklistDraft, EditorForm } from "./constants";
-import type { TemplatePreset, LibraryTask } from "./constants";
+import type {
+  TemplatePreset,
+  LibraryTask,
+  StageMeta,
+  StageType,
+} from "./constants";
 import { TEMPLATE_PRESETS } from "./constants";
 import type { Role } from "@/interface/common";
 
@@ -34,10 +40,14 @@ interface SaveTemplatePayload {
   description: string;
   status: "ACTIVE";
   createdBy: string;
+  /** TASK_LIBRARY | CUSTOM */
+  templateKind?: string;
+  departmentTypeCode?: string;
   checklists?: {
     name: string;
     /** BE stage type: PRE_BOARDING | DAY_1 | DAY_7 | DAY_30 | DAY_60 */
     stage: string;
+    deadlineDays?: number;
     sortOrder?: number;
     tasks: {
       /** BE field — must be `title`, NOT `name` */
@@ -49,6 +59,8 @@ interface SaveTemplatePayload {
       requireAck: boolean;
       requireDoc: boolean;
       requiresManagerApproval: boolean;
+      approverUserId?: string;
+      requiredDocumentIds?: string[];
       sortOrder?: number;
     }[];
   }[];
@@ -62,6 +74,7 @@ const VALID_STAGE_TYPES = [
   "DAY_7",
   "DAY_30",
   "DAY_60",
+  "CUSTOM",
 ] as const;
 
 type ValidStageType = (typeof VALID_STAGE_TYPES)[number];
@@ -83,8 +96,17 @@ const emptyTask = (): TaskDraft => ({
 const emptyChecklist = (): ChecklistDraft => ({
   id: crypto.randomUUID(),
   name: "",
-  stageType: "DAY_1",
+  stageType: "CUSTOM",
   tasks: [emptyTask()],
+});
+
+/** Build a new checklist pre-filled from the picked stage meta so HR doesn't
+ *  have to retype the phase name or pick a due offset for the first task. */
+const checklistFromMeta = (meta: StageMeta, name: string): ChecklistDraft => ({
+  id: crypto.randomUUID(),
+  name,
+  stageType: meta.value,
+  tasks: [{ ...emptyTask(), dueDaysOffset: meta.defaultDueOffset }],
 });
 
 const initialForm = (): EditorForm => ({
@@ -98,20 +120,25 @@ const templateToForm = (tmpl: OnboardingTemplate): EditorForm => ({
   description: tmpl.description ?? "",
   checklists: tmpl.stages?.length
     ? tmpl.stages.map((s, i) => ({
-        id: crypto.randomUUID(),
+        id: s.id,
+        checklistTemplateId: s.id,
         name: s.name ?? "",
         stageType: VALID_STAGE_TYPES.includes(s.stageType as ValidStageType)
           ? (s.stageType as ValidStageType)
           : FALLBACK_STAGE_TYPE(i),
+        deadlineDays: (s as any).deadlineDays ?? undefined,
         tasks: s.tasks?.length
           ? s.tasks.map((task) => ({
-              id: crypto.randomUUID(),
+              id: task.id,
+              taskTemplateId: task.id,
               name: task.title ?? "",
               description: task.description ?? "",
               dueDaysOffset: parseInt(String(task.dueOffset ?? "0"), 10) || 0,
-              requireAck: task.required ?? false,
+              requireAck: task.requireAck ?? task.required ?? false,
               requireDoc: task.requireDoc ?? false,
               requiresManagerApproval: task.requiresManagerApproval ?? false,
+              approverUserId: (task as any).approverUserId ?? undefined,
+              requiredDocumentIds: (task as any).requiredDocumentIds ?? undefined,
               assignee: (task.ownerRole ?? "EMPLOYEE") as TaskDraft["assignee"],
             }))
           : [emptyTask()],
@@ -127,6 +154,7 @@ const buildPayload = (form: EditorForm, createdBy: string) => ({
   checklists: form.checklists.map((c, ci) => ({
     name: c.name,
     stage: c.stageType,
+    deadlineDays: c.deadlineDays,
     sortOrder: ci,
     tasks: c.tasks.map((task, ti) => ({
       title: task.name,
@@ -137,6 +165,8 @@ const buildPayload = (form: EditorForm, createdBy: string) => ({
       requireAck: task.requireAck,
       requireDoc: task.requireDoc,
       requiresManagerApproval: task.requiresManagerApproval,
+      approverUserId: task.approverUserId,
+      requiredDocumentIds: task.requiredDocumentIds,
       sortOrder: ti,
     })),
   })),
@@ -147,10 +177,13 @@ const buildUpdatePayload = (form: EditorForm, templateId: string) => ({
   name: form.name,
   description: form.description ?? "",
   checklists: form.checklists.map((c, ci) => ({
+    checklistTemplateId: c.checklistTemplateId ?? null,
     name: c.name,
     stage: c.stageType,
+    deadlineDays: c.deadlineDays,
     sortOrder: ci,
     tasks: c.tasks.map((task, ti) => ({
+      taskTemplateId: task.taskTemplateId ?? null,
       title: task.name,
       ownerType: "ROLE" as const,
       ownerRefId: (task.assignee ?? "EMPLOYEE") as Role,
@@ -159,6 +192,8 @@ const buildUpdatePayload = (form: EditorForm, templateId: string) => ({
       requireAck: task.requireAck,
       requireDoc: task.requireDoc,
       requiresManagerApproval: task.requiresManagerApproval,
+      approverUserId: task.approverUserId,
+      requiredDocumentIds: task.requiredDocumentIds,
       sortOrder: ti,
     })),
   })),
@@ -251,6 +286,7 @@ const TemplateEditor = () => {
   const [form, setForm] = useState<EditorForm>(initialForm);
   const [activeStageIndex, setActiveStageIndex] = useState(0);
   const [presetModalOpen, setPresetModalOpen] = useState(false);
+  const [stagePickerOpen, setStagePickerOpen] = useState(false);
 
   const totalTasks = useMemo(
     () => form.checklists.reduce((n, c) => n + c.tasks.length, 0),
@@ -263,7 +299,8 @@ const TemplateEditor = () => {
   // Initialize form from duplicateFrom (duplicate mode) or loaded template (edit mode)
   useEffect(() => {
     if (duplicateFrom) {
-      setForm(templateToForm(duplicateFrom));
+      const base = templateToForm(duplicateFrom);
+      setForm({ ...base, name: `Copy of ${base.name}` });
       return;
     }
     if (!isCreate && templateRes) {
@@ -302,11 +339,17 @@ const TemplateEditor = () => {
       return { ...prev, checklists: list };
     });
 
-  const addChecklist = () =>
-    setForm((prev) => ({
-      ...prev,
-      checklists: [...prev.checklists, emptyChecklist()],
-    }));
+  const addChecklistFromMeta = (meta: StageMeta) => {
+    const name = t(meta.defaultNameKey);
+    setForm((prev) => {
+      const next = [...prev.checklists, checklistFromMeta(meta, name)];
+      setActiveStageIndex(next.length - 1);
+      return { ...prev, checklists: next };
+    });
+    setStagePickerOpen(false);
+  };
+
+  const openStagePicker = () => setStagePickerOpen(true);
 
   const removeChecklist = (i: number) =>
     setForm((prev) => ({
@@ -559,7 +602,7 @@ const TemplateEditor = () => {
         <div className="overflow-hidden rounded-2xl border border-dashed border-slate-200 bg-white shadow-sm">
           <PresetEmptyState
             onApplyPreset={applyPreset}
-            onAddBlank={addChecklist}
+            onAddBlank={openStagePicker}
           />
         </div>
       ) : (
@@ -570,7 +613,7 @@ const TemplateEditor = () => {
                 checklists={form.checklists}
                 activeIndex={activeStageIndex}
                 onSelect={setActiveStageIndex}
-                onAdd={addChecklist}
+                onAdd={openStagePicker}
                 onRemove={removeChecklist}
                 onClone={cloneChecklist}
                 onReorder={reorderChecklists}
@@ -599,6 +642,18 @@ const TemplateEditor = () => {
           </div>
         </div>
       )}
+
+      {/* Stage picker modal — shown when HR clicks "Add stage" */}
+      <StagePickerModal
+        open={stagePickerOpen}
+        usedStages={
+          form.checklists
+            .map((c) => c.stageType as StageType)
+            .filter(Boolean) as StageType[]
+        }
+        onCancel={() => setStagePickerOpen(false)}
+        onPick={addChecklistFromMeta}
+      />
 
       {/* Preset picker modal — reachable anytime via toolbar */}
       <Modal

@@ -21,8 +21,14 @@ export interface TaskTemplateCreateItem {
   requireAck?: boolean;
   requireDoc?: boolean;
   requiresManagerApproval?: boolean;
+  /** Designated approver user ID — overrides default manager when requiresManagerApproval=true */
+  approverUserId?: string | null;
+  /** Document template IDs required for this task (used when requireDoc=true) */
+  requiredDocumentIds?: string[];
   description?: string;
   sortOrder?: number;
+  /** ACTIVE | INACTIVE | DRAFT */
+  status?: string;
 }
 
 /** Item inside OnboardingTemplateCreateRequest.checklists[] */
@@ -30,8 +36,41 @@ export interface ChecklistTemplateCreateItem {
   name: string;
   /** BE stage type: PRE_BOARDING | DAY_1 | DAY_7 | DAY_30 | DAY_60 */
   stage?: string;
+  /** Deadline in days from onboarding start date */
+  deadlineDays?: number;
   sortOrder?: number;
+  /** ACTIVE | INACTIVE | DRAFT */
+  status?: string;
   tasks: TaskTemplateCreateItem[];
+}
+
+/**
+ * Item inside OnboardingTemplateUpdateRequest.checklists[].tasks[]
+ * - `taskTemplateId` = null → BE creates a new task
+ * - `taskTemplateId` = existing ID → BE updates that task
+ * - Omitting a task from the array → BE deletes it (tree sync)
+ */
+export interface TaskTemplateUpdateItem extends TaskTemplateCreateItem {
+  taskTemplateId?: string | null;
+}
+
+/**
+ * Item inside OnboardingTemplateUpdateRequest.checklists[]
+ * - `checklistTemplateId` = null → BE creates a new checklist
+ * - `checklistTemplateId` = existing ID → BE updates that checklist
+ * - Omitting a checklist from the array → BE deletes it (tree sync)
+ */
+export interface ChecklistTemplateUpdateItem {
+  checklistTemplateId?: string | null;
+  name: string;
+  /** BE stage type: PRE_BOARDING | DAY_1 | DAY_7 | DAY_30 | DAY_60 */
+  stage?: string;
+  /** Deadline in days from onboarding start date */
+  deadlineDays?: number;
+  sortOrder?: number;
+  /** ACTIVE | INACTIVE | DRAFT */
+  status?: string;
+  tasks: TaskTemplateUpdateItem[];
 }
 
 /** com.sme.onboarding.template.create */
@@ -41,16 +80,19 @@ export interface OnboardingTemplateCreateRequest {
   /** default: ACTIVE */
   status?: string;
   createdBy?: string;
+  /** TASK_LIBRARY | CUSTOM */
+  templateKind?: string;
+  departmentTypeCode?: string;
   checklists?: ChecklistTemplateCreateItem[];
 }
 
-/** com.sme.onboarding.template.update */
+/** com.sme.onboarding.template.update — supports full tree sync */
 export interface OnboardingTemplateUpdateRequest {
   templateId: string;
   name?: string;
   description?: string;
   status?: string;
-  checklists?: ChecklistTemplateCreateItem[];
+  checklists?: ChecklistTemplateUpdateItem[];
 }
 
 /** com.sme.onboarding.template.get */
@@ -73,6 +115,7 @@ export interface OnboardingTemplateSummary {
 /** Detailed task in a checklist */
 export interface TaskTemplateDetail {
   taskTemplateId: string;
+  checklistTemplateId?: string;
   /** BE returns `title`; mapper also checks `name` as fallback */
   title?: string;
   name: string;
@@ -80,8 +123,18 @@ export interface TaskTemplateDetail {
   ownerType?: string;
   dueDaysOffset: number;
   requireAck: boolean;
+  requireDoc?: boolean;
+  requiresManagerApproval?: boolean;
+  /** Designated approver user ID — overrides default manager when requiresManagerApproval=true */
+  approverUserId?: string;
+  /** Document template IDs required for this task */
+  requiredDocumentIds?: string[];
   description?: string;
   sortOrder?: number;
+  /** Response uses orderNo; sortOrder used for create/update */
+  orderNo?: number;
+  /** ACTIVE | INACTIVE | DRAFT */
+  status?: string;
 }
 
 /** Detailed checklist in a template */
@@ -90,7 +143,13 @@ export interface ChecklistTemplateDetail {
   name: string;
   /** BE stage type: PRE_BOARDING | DAY_1 | DAY_7 | DAY_30 | DAY_60 */
   stage?: string;
+  /** Deadline in days from onboarding start date */
+  deadlineDays?: number;
   sortOrder?: number;
+  /** Response uses orderNo; sortOrder used for create/update */
+  orderNo?: number;
+  /** ACTIVE | INACTIVE | DRAFT */
+  status?: string;
   tasks: TaskTemplateDetail[];
 }
 
@@ -100,7 +159,12 @@ export interface OnboardingTemplateGetResponse {
   name: string;
   description: string;
   status: string;
+  /** TASK_LIBRARY | CUSTOM */
+  templateKind?: string;
+  departmentTypeCode?: string;
   checklists: ChecklistTemplateDetail[];
+  /** Standalone tasks not tied to a checklist */
+  baselineTasks?: TaskTemplateDetail[];
   updatedAt?: string;
 }
 
@@ -114,6 +178,9 @@ export interface OnboardingTemplateResponse {
   templateId: string;
   name: string;
   status: string;
+  /** TASK_LIBRARY | CUSTOM */
+  templateKind?: string;
+  departmentTypeCode?: string;
 }
 
 // ---------------------------
@@ -502,4 +569,34 @@ export interface CommentResponse {
 /** com.sme.onboarding.task.comment.list → response data */
 export interface CommentListResponse {
   comments: CommentResponse[];
+}
+
+// ---------------------------
+// Task Library
+// ---------------------------
+
+/** Single item in GET /api/v1/task-libraries response */
+export interface TaskLibraryItem {
+  templateId: string;
+  name: string;
+  status: string;
+  departmentTypeCode?: string;
+  departmentTypeName?: string;
+}
+
+/** GET /api/v1/task-libraries → response data */
+export interface TaskLibraryListResponse {
+  items: TaskLibraryItem[];
+  totalCount: number;
+  page: number;
+  size: number;
+}
+
+/** POST /api/v1/task-libraries/import-excel → response data */
+export interface TaskLibraryImportResponse {
+  templateId: string;
+  departmentTypeCode: string;
+  created: boolean;
+  totalRows: number;
+  importedTasks: number;
 }

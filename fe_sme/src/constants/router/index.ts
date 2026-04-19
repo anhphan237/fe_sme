@@ -8,6 +8,7 @@ export const AppRouters = {
   FORBIDDEN: "/403",
   // HR (formerly Admin)
   ADMIN_DEPARTMENTS: "/hr/departments",
+  ADMIN_DEPARTMENT_TYPES: "/hr/department-types",
   ADMIN_USERS: "/hr/users",
   ADMIN_KNOWLEDGE_BASE: "/hr/knowledge-base",
   // Notifications
@@ -21,6 +22,8 @@ export const AppRouters = {
   ONBOARDING_EMPLOYEES_NEW: "/onboarding/employees/new",
   ONBOARDING_TEMPLATES: "/onboarding/templates",
   ONBOARDING_TEMPLATES_NEW: "/onboarding/templates/new",
+  ONBOARDING_TASK_LIBRARY: "/onboarding/task-library",
+  ONBOARDING_TASK_LIBRARY_DETAIL: "/onboarding/task-library/:templateId",
   ONBOARDING_TASKS: "/onboarding/tasks",
   ONBOARDING_MY_JOURNEY: "/onboarding/my-journey",
   // Documents

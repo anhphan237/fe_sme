@@ -172,10 +172,7 @@ function DocCard({
       className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-stroke bg-white shadow-sm transition hover:border-slate-300 hover:shadow-soft"
       onClick={() => onView(doc.documentId)}>
       {/* Accent strip */}
-      <div
-        className="h-1.5 w-full"
-        style={{ backgroundColor: accentColor }}
-      />
+      <div className="h-1.5 w-full" style={{ backgroundColor: accentColor }} />
 
       <div className="flex flex-1 flex-col gap-3 p-4">
         {/* Header */}
@@ -203,7 +200,12 @@ function DocCard({
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge
             count={ext.toUpperCase()}
-            style={{ backgroundColor: accentColor, fontSize: 10, height: 18, lineHeight: "18px" }}
+            style={{
+              backgroundColor: accentColor,
+              fontSize: 10,
+              height: 18,
+              lineHeight: "18px",
+            }}
           />
           {doc.status && (
             <Tag
@@ -280,10 +282,17 @@ function DocRow({
       <div className="hidden items-center gap-2 sm:flex">
         <Badge
           count={ext.toUpperCase()}
-          style={{ backgroundColor: accentColor, fontSize: 10, height: 18, lineHeight: "18px" }}
+          style={{
+            backgroundColor: accentColor,
+            fontSize: 10,
+            height: 18,
+            lineHeight: "18px",
+          }}
         />
         {doc.status && (
-          <Tag color={STATUS_COLOR[doc.status] ?? "default"} className="m-0 text-xs">
+          <Tag
+            color={STATUS_COLOR[doc.status] ?? "default"}
+            className="m-0 text-xs">
             {doc.status}
           </Tag>
         )}
@@ -396,14 +405,6 @@ const Documents = () => {
     <div className="space-y-5">
       {/* Page header */}
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-ink">
-            {t("document.page.title")}
-          </h1>
-          <p className="mt-0.5 text-sm text-muted">
-            {t("document.page.subtitle")}
-          </p>
-        </div>
         <button
           onClick={handleOpenUpload}
           className="flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brandDark active:scale-95">
@@ -441,9 +442,7 @@ const Documents = () => {
       </div>
 
       {/* Search + View toggle */}
-      <Card
-        size="small"
-        className="border border-stroke bg-white shadow-sm">
+      <Card size="small" className="border border-stroke bg-white shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <Input
             prefix={<SearchOutlined className="text-muted" />}
@@ -545,16 +544,7 @@ const Documents = () => {
                     ? t("document.empty.no_search_result")
                     : t("document.empty.description")
                 }
-                className="py-12">
-                {!searchText && (
-                  <button
-                    onClick={handleOpenUpload}
-                    className="flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brandDark">
-                    <FileAddOutlined />
-                    {t("document.action.upload")}
-                  </button>
-                )}
-              </Empty>
+                className="py-12"></Empty>
             </Card>
           ) : view === "grid" ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

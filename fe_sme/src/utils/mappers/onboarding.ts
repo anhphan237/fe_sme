@@ -18,12 +18,13 @@ export const mapTemplate = (t: any): OnboardingTemplate => {
     description: t.description ?? "",
     status: t.status ?? "ACTIVE",
     stages: Array.isArray(rawStages)
-      ? rawStages.map((c: any) => ({
-          id: c.checklistTemplateId ?? c.id ?? "",
+      ? rawStages.map((c: any, ci: number) => ({
+          id: c.checklistTemplateId ?? c.id ?? `stage-${ci}`,
           name: c.name ?? "",
           stageType: c.stageType ?? c.stage_type ?? c.stage ?? undefined,
-          tasks: (c.tasks ?? []).map((task: any) => ({
-            id: task.taskTemplateId ?? task.id ?? "",
+          deadlineDays: c.deadlineDays ?? undefined,
+          tasks: (c.tasks ?? []).map((task: any, ti: number) => ({
+            id: task.taskTemplateId ?? task.id ?? `task-${ci}-${ti}`,
             title: task.name ?? task.title ?? "",
             description: task.description ?? "",
             ownerRole: (task.ownerRefId ?? task.ownerRole ?? "HR") as any,
@@ -34,6 +35,8 @@ export const mapTemplate = (t: any): OnboardingTemplate => {
             requiresManagerApproval: Boolean(
               task.requiresManagerApproval ?? false,
             ),
+            approverUserId: task.approverUserId ?? undefined,
+            requiredDocumentIds: task.requiredDocumentIds ?? undefined,
             status: task.status,
             dueDate: task.dueDate,
           })),
