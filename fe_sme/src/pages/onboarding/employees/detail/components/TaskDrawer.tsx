@@ -1150,7 +1150,9 @@ const TaskCommentsTab = ({
                 <p className="text-xs font-semibold text-gray-700">
                   {c.authorName ?? t("onboarding.task.comments.unknown_author")}
                 </p>
-                <p className="text-sm text-gray-600">{c.message}</p>
+                <p className="text-sm text-gray-600">
+                  {c.message ?? c.content ?? ""}
+                </p>
                 {c.createdAt && (
                   <p className="mt-1 text-[11px] text-gray-400">
                     {formatDateTime(c.createdAt)}
