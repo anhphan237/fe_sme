@@ -35,6 +35,9 @@ const COMPANY_SIZE_OPTIONS = [
   { value: "ENTERPRISE", label: "Enterprise (trên 200 người)" },
 ];
 
+const VN_PHONE_REGEX = /^(\+84|0)[0-9]{9}$/;
+const TAX_CODE_REGEX = /^\d{10}(-\d{3})?$/;
+
 /** Shared wrapper – gives every step form consistent vertical rhythm */
 const StepSection = ({ children }: { children: ReactNode }) => (
   <section className="flex flex-col gap-4">{children}</section>
@@ -81,9 +84,9 @@ export const RegisterStepCompany = () => {
           rules: [
             {
               required: true,
-              min: 2,
               message: t("register.zod.company_name_required"),
             },
+            { min: 2, message: t("register.zod.company_name_min") },
           ],
         }}
       />
@@ -95,6 +98,10 @@ export const RegisterStepCompany = () => {
         formItemProps={{
           rules: [
             { required: true, message: t("register.zod.tax_code_required") },
+            {
+              pattern: TAX_CODE_REGEX,
+              message: t("register.zod.tax_code_invalid"),
+            },
           ],
         }}
       />
@@ -105,38 +112,10 @@ export const RegisterStepCompany = () => {
         placeholder={t("register.company.address.placeholder")}
         formItemProps={{
           rules: [
-            {
-              required: true,
-              min: 2,
-              message: t("register.zod.address_required"),
-            },
+            { required: true, message: t("register.zod.address_required") },
+            { min: 5, message: t("register.zod.address_min") },
           ],
         }}
-      />
-
-      <BaseSelect
-        name="timezone"
-        label={t("register.company.timezone.label")}
-        options={TIMEZONE_OPTIONS}
-        formItemProps={{
-          rules: [
-            { required: true, message: t("register.zod.timezone_required") },
-          ],
-        }}
-      />
-
-      <BaseSelect
-        name="industry"
-        label="Ngành nghề (tuỳ chọn)"
-        options={INDUSTRY_OPTIONS}
-        formItemProps={{ tooltip: "AI sẽ dùng thông tin này để tạo quy trình onboarding phù hợp" }}
-      />
-
-      <BaseSelect
-        name="companySize"
-        label="Quy mô công ty (tuỳ chọn)"
-        options={COMPANY_SIZE_OPTIONS}
-        formItemProps={{ tooltip: "AI sẽ dùng thông tin này để tạo quy trình onboarding phù hợp" }}
       />
     </StepSection>
   );
@@ -163,11 +142,8 @@ export const RegisterStepAdmin = ({
         placeholder={t("register.admin.fullname.placeholder")}
         formItemProps={{
           rules: [
-            {
-              required: true,
-              min: 2,
-              message: t("register.zod.fullname_required"),
-            },
+            { required: true, message: t("register.zod.fullname_required") },
+            { min: 2, message: t("register.zod.fullname_min") },
           ],
         }}
       />
@@ -197,10 +173,11 @@ export const RegisterStepAdmin = ({
         }
         formItemProps={{
           rules: [
+            { required: true, message: t("register.zod.password_min") },
+            { min: 8, message: t("register.zod.password_min") },
             {
-              required: true,
-              min: 6,
-              message: t("register.zod.password_min"),
+              pattern: /^(?=.*[a-zA-Z])(?=.*\d).+$/,
+              message: t("register.zod.password_weak"),
             },
           ],
         }}
@@ -212,6 +189,19 @@ export const RegisterStepAdmin = ({
         type="tel"
         placeholder={t("register.admin.phone.placeholder")}
         prefix={<Phone className="w-4 h-4 text-gray-400" aria-hidden="true" />}
+        formItemProps={{
+          rules: [
+            {
+              validator: (_, value) => {
+                if (!value) return Promise.resolve();
+                if (VN_PHONE_REGEX.test(value)) return Promise.resolve();
+                return Promise.reject(
+                  new Error(t("register.zod.phone_invalid")),
+                );
+              },
+            },
+          ],
+        }}
       />
     </StepSection>
   );

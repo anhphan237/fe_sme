@@ -12,6 +12,7 @@ import {
   Eye,
   Flag,
   RefreshCw,
+  Search,
   Send,
   ThumbsUp,
   Users,
@@ -20,6 +21,7 @@ import {
   Activity,
   Calendar,
   User as UserIcon,
+  ShieldCheck,
 } from "lucide-react";
 import {
   Badge,
@@ -31,10 +33,10 @@ import {
   Empty,
   Input,
   Modal,
+  Popconfirm,
   Row,
   Skeleton,
   Tag,
-  Tooltip,
   Typography,
 } from "antd";
 import { useLocale } from "@/i18n";
@@ -110,7 +112,8 @@ const StatCard = ({
 
 interface TaskApprovalItemProps {
   task: OnboardingTask;
-  isApproving: boolean;
+  approvingTaskId: string | null;
+  rejectingTaskId: string | null;
   onApprove: (task: OnboardingTask) => void;
   onReject: (task: OnboardingTask) => void;
   onDetail: (task: OnboardingTask) => void;
@@ -118,13 +121,17 @@ interface TaskApprovalItemProps {
 
 const TaskApprovalItem = ({
   task,
-  isApproving,
+  approvingTaskId,
+  rejectingTaskId,
   onApprove,
   onReject,
   onDetail,
 }: TaskApprovalItemProps) => {
   const { t } = useLocale();
   const overdue = isOverdue(task.dueDate);
+  const isApprovingThis = approvingTaskId === task.id;
+  const isRejectingThis = rejectingTaskId === task.id;
+  const isBusy = isApprovingThis || isRejectingThis;
 
   return (
     <div
@@ -141,9 +148,12 @@ const TaskApprovalItem = ({
       {/* Task info */}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-sm font-medium leading-snug text-gray-800">
+          <button
+            type="button"
+            onClick={() => onDetail(task)}
+            className="truncate text-left text-sm font-medium leading-snug text-gray-800 hover:text-blue-600 hover:underline">
             {task.title}
-          </span>
+          </button>
           {overdue && (
             <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-500">
               {t("onboarding.approvals.task.overdue_badge") ?? "Quá hạn"}
@@ -154,7 +164,15 @@ const TaskApprovalItem = ({
               {t("onboarding.task.required") ?? "Bắt buộc"}
             </span>
           )}
+          <Tag color="gold" style={{ margin: 0, fontSize: 10 }}>
+            {t("onboarding.task.status.pending_approval") ?? "Chờ duyệt"}
+          </Tag>
         </div>
+        {task.description && (
+          <p className="mt-1 line-clamp-1 text-xs text-gray-500">
+            {task.description}
+          </p>
+        )}
         <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-gray-400">
           {task.dueDate && (
             <span
@@ -168,6 +186,12 @@ const TaskApprovalItem = ({
                 `Hạn: ${task.dueDate}`}
             </span>
           )}
+          {task.assignedUserName && (
+            <span className="flex items-center gap-1">
+              <UserIcon className="h-3 w-3" />
+              {task.assignedUserName}
+            </span>
+          )}
           <span className="flex items-center gap-1">
             <Send className="h-3 w-3" />
             {t("onboarding.approvals.task.submitted") ?? "Đã gửi"}
@@ -177,28 +201,34 @@ const TaskApprovalItem = ({
 
       {/* Actions */}
       <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-        <Tag color="gold" style={{ margin: 0, fontSize: 11 }}>
-          {t("onboarding.task.status.pending_approval") ?? "Chờ duyệt"}
-        </Tag>
-        <Tooltip title={t("onboarding.task.action.approve") ?? "Phê duyệt"}>
+        <Popconfirm
+          title={t("onboarding.task.action.approve") ?? "Phê duyệt"}
+          description={
+            t("onboarding.task.action.approve_confirm_desc") ??
+            "Bạn có chắc chắn muốn phê duyệt nhiệm vụ này?"
+          }
+          okText={t("onboarding.task.action.approve") ?? "Phê duyệt"}
+          cancelText={t("global.cancel_action") ?? "Hủy"}
+          okButtonProps={{ type: "primary" }}
+          onConfirm={() => onApprove(task)}>
           <Button
             size="small"
             type="primary"
             icon={<ThumbsUp className="h-3 w-3" />}
-            loading={isApproving}
-            onClick={() => onApprove(task)}>
+            loading={isApprovingThis}
+            disabled={isBusy && !isApprovingThis}>
             {t("onboarding.task.action.approve") ?? "Duyệt"}
           </Button>
-        </Tooltip>
-        <Tooltip title={t("onboarding.task.action.reject") ?? "Từ chối"}>
-          <Button
-            size="small"
-            danger
-            icon={<XCircle className="h-3 w-3" />}
-            onClick={() => onReject(task)}>
-            {t("onboarding.task.action.reject") ?? "Từ chối"}
-          </Button>
-        </Tooltip>
+        </Popconfirm>
+        <Button
+          size="small"
+          danger
+          icon={<XCircle className="h-3 w-3" />}
+          loading={isRejectingThis}
+          disabled={isBusy && !isRejectingThis}
+          onClick={() => onReject(task)}>
+          {t("onboarding.task.action.reject") ?? "Từ chối"}
+        </Button>
         <Button
           size="small"
           icon={<Eye className="h-3 w-3" />}
@@ -216,7 +246,8 @@ const TaskApprovalItem = ({
 interface EmployeeApprovalGroupProps {
   instance: OnboardingInstance;
   tasks: OnboardingTask[];
-  isApproving: boolean;
+  approvingTaskId: string | null;
+  rejectingTaskId: string | null;
   onApprove: (task: OnboardingTask) => void;
   onReject: (task: OnboardingTask) => void;
   onDetail: (task: OnboardingTask) => void;
@@ -225,7 +256,8 @@ interface EmployeeApprovalGroupProps {
 const EmployeeApprovalGroup = ({
   instance,
   tasks,
-  isApproving,
+  approvingTaskId,
+  rejectingTaskId,
   onApprove,
   onReject,
   onDetail,
@@ -272,7 +304,8 @@ const EmployeeApprovalGroup = ({
           <TaskApprovalItem
             key={task.id}
             task={task}
-            isApproving={isApproving}
+            approvingTaskId={approvingTaskId}
+            rejectingTaskId={rejectingTaskId}
             onApprove={onApprove}
             onReject={onReject}
             onDetail={onDetail}
@@ -438,11 +471,11 @@ const ApprovalDetailDrawer = ({
               {/* Approval section */}
               <Divider orientationMargin={0}>
                 <span className="flex items-center gap-1 text-xs text-gray-400">
-                  <ThumbsUp className="h-3 w-3" />
+                  <ShieldCheck className="h-3 w-3" />
                   {t("onboarding.task.approval.section_title") ?? "Phê duyệt"}
                 </span>
               </Divider>
-              <div className="rounded-lg border border-amber-100 bg-amber-50/40 p-3">
+              <div className="space-y-2 rounded-lg border border-amber-100 bg-amber-50/40 p-3">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-500">
                     {t("onboarding.employee.home.task_detail.field_status") ??
@@ -453,6 +486,34 @@ const ApprovalDetailDrawer = ({
                     {t("onboarding.task.approval.status.pending") ?? "Đang chờ"}
                   </Tag>
                 </div>
+                {taskDetail.updatedAt && (
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <Send className="h-3 w-3 text-gray-400" />
+                    {t("onboarding.approvals.task.submitted") ?? "Đã gửi"}:{" "}
+                    <span className="font-medium text-gray-700">
+                      {formatDateTime(taskDetail.updatedAt)}
+                    </span>
+                  </div>
+                )}
+                {taskDetail.approverUserId && (
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <UserIcon className="h-3 w-3 text-gray-400" />
+                    {t("onboarding.task.field.approved_by") ?? "Phê duyệt bởi"}:{" "}
+                    <span className="font-medium text-gray-700">
+                      {taskDetail.approverUserId}
+                    </span>
+                  </div>
+                )}
+                {taskDetail.rejectionReason && (
+                  <div className="rounded-md border border-red-100 bg-red-50 p-2 text-xs text-red-600">
+                    <div className="font-medium">
+                      {t("onboarding.task.rejection_reason") ?? "Lý do từ chối"}
+                    </div>
+                    <div className="mt-0.5 text-red-700">
+                      {taskDetail.rejectionReason}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Attachments */}
@@ -490,13 +551,23 @@ const ApprovalDetailDrawer = ({
               {/* Action buttons */}
               <Divider orientationMargin={0} />
               <div className="flex flex-wrap gap-2">
-                <Button
-                  type="primary"
-                  icon={<ThumbsUp className="h-3.5 w-3.5" />}
-                  loading={isApproving}
-                  onClick={onApprove}>
-                  {t("onboarding.task.action.approve") ?? "Phê duyệt"}
-                </Button>
+                <Popconfirm
+                  title={t("onboarding.task.action.approve") ?? "Phê duyệt"}
+                  description={
+                    t("onboarding.task.action.approve_confirm_desc") ??
+                    "Bạn có chắc chắn muốn phê duyệt nhiệm vụ này?"
+                  }
+                  okText={t("onboarding.task.action.approve") ?? "Phê duyệt"}
+                  cancelText={t("global.cancel_action") ?? "Hủy"}
+                  okButtonProps={{ type: "primary" }}
+                  onConfirm={onApprove}>
+                  <Button
+                    type="primary"
+                    icon={<ThumbsUp className="h-3.5 w-3.5" />}
+                    loading={isApproving}>
+                    {t("onboarding.task.action.approve") ?? "Phê duyệt"}
+                  </Button>
+                </Popconfirm>
                 <Button
                   danger
                   icon={<XCircle className="h-3.5 w-3.5" />}
@@ -585,11 +656,9 @@ const ApprovalsPage = () => {
   const [search, setSearch] = useState("");
   const [overdueFirst, setOverdueFirst] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(
-    null,
-  );
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [rejectTargetTitle, setRejectTargetTitle] = useState<string>("");
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // ── Step 1: Fetch all ACTIVE instances ──────────────────────────────────────
@@ -668,10 +737,18 @@ const ApprovalsPage = () => {
 
   // ── Mutations ────────────────────────────────────────────────────────────────
 
+  const invalidateAfterAction = () => {
+    queryClient.invalidateQueries({ queryKey: ["approval-tasks"] });
+    queryClient.invalidateQueries({ queryKey: ["approval-instances"] });
+    queryClient.invalidateQueries({ queryKey: ["approval-task-detail"] });
+    queryClient.invalidateQueries({ queryKey: ["onboarding-tasks"] });
+    queryClient.invalidateQueries({ queryKey: ["onboarding-task-detail"] });
+  };
+
   const approveMutation = useMutation({
     mutationFn: (taskId: string) => apiApproveTask({ taskId }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["approval-tasks"] });
+      invalidateAfterAction();
       setDrawerOpen(false);
       setSelectedTaskId(null);
       notify.success(t("onboarding.task.toast.approved") ?? "Đã phê duyệt");
@@ -684,9 +761,10 @@ const ApprovalsPage = () => {
     mutationFn: ({ taskId, reason }: { taskId: string; reason?: string }) =>
       apiRejectTask({ taskId, reason }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["approval-tasks"] });
+      invalidateAfterAction();
       setRejectModalOpen(false);
       setRejectReason("");
+      setRejectTargetTitle("");
       setDrawerOpen(false);
       setSelectedTaskId(null);
       notify.success(t("onboarding.task.toast.rejected") ?? "Đã từ chối");
@@ -743,9 +821,8 @@ const ApprovalsPage = () => {
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
-  const openDetail = (task: OnboardingTask, instanceId: string) => {
+  const openDetail = (task: OnboardingTask) => {
     setSelectedTaskId(task.id);
-    setSelectedInstanceId(instanceId);
     setDrawerOpen(true);
   };
 
@@ -755,6 +832,16 @@ const ApprovalsPage = () => {
 
   const handleOpenReject = (task: OnboardingTask) => {
     setSelectedTaskId(task.id);
+    setRejectTargetTitle(task.title);
+    setDrawerOpen(false);
+    setRejectModalOpen(true);
+  };
+
+  const handleOpenRejectFromDrawer = () => {
+    if (taskDetail) {
+      setRejectTargetTitle(String(taskDetail.title ?? ""));
+    }
+    setDrawerOpen(false);
     setRejectModalOpen(true);
   };
 
@@ -765,6 +852,14 @@ const ApprovalsPage = () => {
       reason: rejectReason.trim() || undefined,
     });
   };
+
+  const approvingTaskId = approveMutation.isPending
+    ? (approveMutation.variables ?? null)
+    : null;
+  const rejectingTaskId =
+    rejectMutation.isPending && rejectMutation.variables
+      ? (rejectMutation.variables.taskId ?? null)
+      : null;
 
   // ── Access guard ─────────────────────────────────────────────────────────────
 
@@ -803,7 +898,7 @@ const ApprovalsPage = () => {
               ? `${stats.employees} ${
                   t("onboarding.approvals.stat.employees")?.toLowerCase() ??
                   "nhân viên"
-                } ${stats.employees > 1 ? "có" : "có"} task chờ duyệt`
+                } có ${stats.pending} task chờ duyệt`
               : (t("onboarding.approvals.subtitle") ??
                 "Xem xét và phê duyệt nhiệm vụ đang chờ từ nhân viên")}
           </p>
@@ -855,7 +950,7 @@ const ApprovalsPage = () => {
           onChange={(e) => setSearch(e.target.value)}
           allowClear
           className="max-w-xs"
-          prefix={<AlertTriangle className="h-3.5 w-3.5 text-gray-400" />}
+          prefix={<Search className="h-3.5 w-3.5 text-gray-400" />}
         />
         <button
           onClick={() => setOverdueFirst((v) => !v)}
@@ -901,10 +996,11 @@ const ApprovalsPage = () => {
               key={instance.id}
               instance={instance}
               tasks={tasks}
-              isApproving={approveMutation.isPending}
+              approvingTaskId={approvingTaskId}
+              rejectingTaskId={rejectingTaskId}
               onApprove={handleApprove}
               onReject={handleOpenReject}
-              onDetail={(task) => openDetail(task, instance.id)}
+              onDetail={openDetail}
             />
           ))}
         </div>
@@ -926,16 +1022,24 @@ const ApprovalsPage = () => {
         onApprove={() =>
           taskDetail && approveMutation.mutate(taskDetail.taskId)
         }
-        onReject={() => setRejectModalOpen(true)}
+        onReject={handleOpenRejectFromDrawer}
       />
 
       {/* ── Reject Modal ─────────────────────────────────────────────────────── */}
       <Modal
-        title={t("onboarding.task.action.reject") ?? "Từ chối nhiệm vụ"}
+        title={
+          <div className="flex items-center gap-2">
+            <XCircle className="h-4 w-4 text-red-500" />
+            <span>
+              {t("onboarding.task.action.reject_confirm") ?? "Xác nhận từ chối"}
+            </span>
+          </div>
+        }
         open={rejectModalOpen}
         onCancel={() => {
           setRejectModalOpen(false);
           setRejectReason("");
+          setRejectTargetTitle("");
         }}
         onOk={handleConfirmReject}
         okText={t("onboarding.task.action.reject") ?? "Từ chối"}
@@ -945,19 +1049,38 @@ const ApprovalsPage = () => {
           loading: rejectMutation.isPending,
         }}>
         <div className="py-2">
-          <p className="mb-3 text-sm text-gray-600">
-            {t("onboarding.task.reject.desc") ??
-              "Lý do từ chối (không bắt buộc):"}
+          {rejectTargetTitle && (
+            <div className="mb-3 rounded-lg border border-red-100 bg-red-50/60 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-red-500">
+                {t("onboarding.task.field.title") ?? "Nhiệm vụ"}
+              </p>
+              <p className="mt-0.5 text-sm font-medium text-gray-800">
+                {rejectTargetTitle}
+              </p>
+            </div>
+          )}
+          <p className="mb-2 text-sm text-gray-600">
+            {t("onboarding.task.action.reject_reason_label") ??
+              "Lý do từ chối"}{" "}
+            <span className="text-gray-400">
+              ({t("global.optional") ?? "không bắt buộc"})
+            </span>
           </p>
           <Input.TextArea
             rows={3}
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
             placeholder={
-              t("onboarding.task.reject.placeholder") ?? "Nhập lý do từ chối..."
+              t("onboarding.task.action.reject_reason_placeholder") ??
+              "Nhập lý do từ chối..."
             }
             maxLength={500}
+            showCount
           />
+          <p className="mt-2 text-xs text-gray-400">
+            {t("onboarding.task.reject.desc") ??
+              "Lý do sẽ được gửi cho nhân viên và ghi vào nhật ký hoạt động."}
+          </p>
         </div>
       </Modal>
     </div>

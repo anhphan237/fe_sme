@@ -1,12 +1,25 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { Badge, Card, Progress, Skeleton, Tag, Typography } from "antd";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Drawer,
+  Empty,
+  Progress,
+  Skeleton,
+  Tag,
+  Tooltip,
+  Typography,
+} from "antd";
 import dayjs from "dayjs";
 import {
   AlertCircle,
   AlertTriangle,
   BellRing,
+  CalendarClock,
   CheckCircle2,
   CircleDashed,
   ClipboardList,
@@ -14,18 +27,22 @@ import {
   FileText,
   Layers,
   User,
+  UserCheck,
 } from "lucide-react";
 import { useUserStore } from "@/stores/user.store";
 import {
+  apiAcknowledgeTask,
+  apiGetTaskDetailFull,
   apiListInstances,
-  apiListTasks,
+  apiListTasksByAssignee,
+  apiUpdateTaskStatus,
 } from "@/api/onboarding/onboarding.api";
 import { apiGetDocuments } from "@/api/document/document.api";
 import { extractList } from "@/api/core/types";
 import { mapInstance, mapTask } from "@/utils/mappers/onboarding";
+import { notify } from "@/utils/notify";
 import type { OnboardingInstance, OnboardingTask } from "@/shared/types";
-
-// ── Types ──────────────────────────────────────────────────────────────────────
+import type { TaskDetailResponse } from "@/interface/onboarding";
 
 type DashboardDocument = {
   documentId: string;
@@ -33,7 +50,7 @@ type DashboardDocument = {
   status?: string;
 };
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+const STATUS_DONE_API = "DONE";
 
 function isOverdue(dueDate?: string) {
   if (!dueDate) return false;
@@ -61,14 +78,12 @@ function docNeedsAck(status?: string) {
   return !s.includes("DONE") && !s.includes("PROCESSED") && !s.includes("ACK");
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
-
 export default function EmployeeDashboard() {
+  const queryClient = useQueryClient();
   const currentUser = useUserStore((s) => s.currentUser);
-  // employeeId for instance query — fall back to userId if no dedicated employeeId
   const employeeId = currentUser?.employeeId ?? currentUser?.id ?? undefined;
 
-  // ── Data queries ─────────────────────────────────────────────────────────────
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const { data: instances = [], isLoading: instancesLoading } = useQuery({
     queryKey: ["employee-instances", employeeId ?? ""],
@@ -83,7 +98,6 @@ export default function EmployeeDashboard() {
       ).map(mapInstance) as OnboardingInstance[],
   });
 
-  // Highest-priority instance: ACTIVE > DRAFT/PENDING > COMPLETED > CANCELLED, then newest
   const latestInstance = useMemo(() => {
     if (!instances.length) return null;
     const rank: Record<string, number> = {
@@ -100,15 +114,16 @@ export default function EmployeeDashboard() {
     })[0];
   }, [instances]);
 
-  const { data: tasks = [], isLoading: tasksLoading } = useQuery({
-    queryKey: ["employee-tasks", latestInstance?.id ?? ""],
+  // Employee tasks — ALWAYS via listByAssignee (current operator = logged-in employee)
+  const { data: allAssigneeTasks = [], isLoading: tasksLoading } = useQuery({
+    queryKey: ["employee-tasks-by-assignee", employeeId ?? ""],
     queryFn: () =>
-      apiListTasks(latestInstance!.id, {
+      apiListTasksByAssignee({
         size: 100,
         sortBy: "due_date",
         sortOrder: "ASC",
       }),
-    enabled: Boolean(latestInstance?.id),
+    enabled: Boolean(employeeId),
     select: (res: unknown) =>
       extractList(
         res as Record<string, unknown>,
@@ -118,6 +133,14 @@ export default function EmployeeDashboard() {
         "list",
       ).map(mapTask) as OnboardingTask[],
   });
+
+  // Focus statistics on the active instance when available; otherwise show all
+  const tasks = useMemo(() => {
+    if (!latestInstance?.id) return allAssigneeTasks;
+    return allAssigneeTasks.filter(
+      (t) => !t.onboardingId || t.onboardingId === latestInstance.id,
+    );
+  }, [allAssigneeTasks, latestInstance?.id]);
 
   const { data: documents = [], isLoading: docsLoading } = useQuery({
     queryKey: ["employee-documents"],
@@ -131,7 +154,49 @@ export default function EmployeeDashboard() {
       ),
   });
 
-  // ── Derived stats ─────────────────────────────────────────────────────────────
+  const { data: taskDetail, isLoading: taskDetailLoading } = useQuery({
+    queryKey: ["employee-task-detail", selectedTaskId ?? ""],
+    queryFn: () => apiGetTaskDetailFull(selectedTaskId!),
+    enabled: Boolean(selectedTaskId),
+    select: (res: unknown) => {
+      const r = res as Record<string, unknown>;
+      const raw = r?.task ?? r?.data ?? r?.result ?? r?.payload ?? res;
+      if (!raw || typeof raw !== "object") return null;
+      return raw as TaskDetailResponse;
+    },
+  });
+
+  // ── Mutations ───────────────────────────────────────────────
+
+  const invalidateTasks = () => {
+    queryClient.invalidateQueries({
+      queryKey: ["employee-tasks-by-assignee", employeeId ?? ""],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["employee-instances", employeeId ?? ""],
+    });
+    if (selectedTaskId) {
+      queryClient.invalidateQueries({
+        queryKey: ["employee-task-detail", selectedTaskId],
+      });
+    }
+  };
+
+  const updateTaskStatus = useMutation({
+    mutationFn: ({ taskId, status }: { taskId: string; status: string }) =>
+      apiUpdateTaskStatus(taskId, status),
+  });
+
+  const acknowledgeMutation = useMutation({
+    mutationFn: (taskId: string) => apiAcknowledgeTask({ taskId }),
+    onSuccess: () => {
+      invalidateTasks();
+      notify.success("Đã xác nhận nhận task");
+    },
+    onError: () => notify.error("Thao tác thất bại"),
+  });
+
+  // ── Derived stats ────────────────────────────────────────────
 
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter((t) => t.rawStatus === "DONE").length;
@@ -151,7 +216,6 @@ export default function EmployeeDashboard() {
     ? dayjs().diff(dayjs(latestInstance.startDate), "day") + 1
     : null;
 
-  // Task status breakdown
   const tasksByStatus = useMemo(
     () => ({
       todo: tasks.filter(
@@ -166,7 +230,6 @@ export default function EmployeeDashboard() {
     [tasks, completedTasks],
   );
 
-  // Stage progress grouped by checklistName
   const stageProgress = useMemo(() => {
     const groups: Record<
       string,
@@ -181,7 +244,6 @@ export default function EmployeeDashboard() {
     return Object.values(groups);
   }, [tasks]);
 
-  // Milestone timeline (7 / 30 / 60 days from start)
   const milestoneTimeline = useMemo(() => {
     const start = latestInstance?.startDate;
     if (!start) return [];
@@ -196,7 +258,6 @@ export default function EmployeeDashboard() {
     });
   }, [latestInstance?.startDate]);
 
-  // Urgent tasks: overdue first, then soonest due
   const urgentTasks = useMemo(() => {
     const score = (t: OnboardingTask) => {
       if (!t.dueDate) return 999999999;
@@ -206,6 +267,65 @@ export default function EmployeeDashboard() {
     return [...pendingList].sort((a, b) => score(a) - score(b)).slice(0, 8);
   }, [pendingList]);
 
+  const actionNeededTasks = useMemo(
+    () =>
+      pendingList.filter(
+        (t) =>
+          t.rawStatus === "WAIT_ACK" || t.rawStatus === "PENDING_APPROVAL",
+      ),
+    [pendingList],
+  );
+
+  // ── Handlers ────────────────────────────────────────────────
+
+  const handleToggleTask = async (task: OnboardingTask) => {
+    const isDone = task.rawStatus === "DONE";
+    if (isDone) {
+      try {
+        await updateTaskStatus.mutateAsync({ taskId: task.id, status: "TODO" });
+        invalidateTasks();
+        notify.success("Đã chuyển lại thành chưa hoàn thành");
+      } catch {
+        notify.error("Thao tác thất bại");
+      }
+      return;
+    }
+
+    if (task.requireAck && task.rawStatus !== "WAIT_ACK") {
+      try {
+        await acknowledgeMutation.mutateAsync(task.id);
+      } catch {
+        // handled by mutation onError
+      }
+      return;
+    }
+
+    if (task.requiresManagerApproval) {
+      try {
+        await updateTaskStatus.mutateAsync({
+          taskId: task.id,
+          status: "PENDING_APPROVAL",
+        });
+        invalidateTasks();
+        notify.success("Đã gửi duyệt cho quản lý");
+      } catch {
+        notify.error("Thao tác thất bại");
+      }
+      return;
+    }
+
+    try {
+      await updateTaskStatus.mutateAsync({
+        taskId: task.id,
+        status: STATUS_DONE_API,
+      });
+      invalidateTasks();
+      notify.success("Đã hoàn thành task");
+    } catch {
+      notify.error("Thao tác thất bại");
+    }
+  };
+
   if (instancesLoading) {
     return (
       <div className="p-6">
@@ -214,13 +334,12 @@ export default function EmployeeDashboard() {
     );
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────────
+  // ── Render ──────────────────────────────────────────────────
 
   return (
     <div className="space-y-4 p-6">
-      {/* ── Row 1: Progress + Stats ─────────────────────────────────────────── */}
+      {/* ── Row 1: Progress + Stats ─────────────────────────── */}
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* Progress circle */}
         <Card className="border border-stroke shadow-sm">
           <Typography.Text strong>Tiến độ onboarding</Typography.Text>
           <p className="text-xs text-muted">
@@ -269,7 +388,6 @@ export default function EmployeeDashboard() {
           )}
         </Card>
 
-        {/* Stat tiles */}
         <div className="grid grid-cols-2 content-start gap-3 lg:col-span-2">
           {[
             {
@@ -317,7 +435,6 @@ export default function EmployeeDashboard() {
             </Card>
           ))}
 
-          {/* Task status breakdown — spans full 2-col row */}
           <Card
             size="small"
             className="col-span-2 border border-stroke shadow-sm">
@@ -364,14 +481,15 @@ export default function EmployeeDashboard() {
         </div>
       </div>
 
-      {/* ── Row 2: Urgent tasks + Milestone ────────────────────────────────── */}
+      {/* ── Row 2: Actionable urgent list + Milestone ───────── */}
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Urgent task list */}
         <Card className="border border-stroke shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <Typography.Text strong>Task cần xử lý</Typography.Text>
-              <p className="text-xs text-muted">Ưu tiên theo mức độ khẩn cấp</p>
+              <Typography.Text strong>Task cần xử lý hôm nay</Typography.Text>
+              <p className="text-xs text-muted">
+                Ưu tiên theo hạn và mức độ khẩn cấp
+              </p>
             </div>
             <Link to="/onboarding/tasks">
               <Typography.Text className="text-xs text-blue-500 hover:underline">
@@ -379,13 +497,11 @@ export default function EmployeeDashboard() {
               </Typography.Text>
             </Link>
           </div>
-          <div className="space-y-2 overflow-y-auto" style={{ maxHeight: 300 }}>
+          <div className="space-y-2 overflow-y-auto" style={{ maxHeight: 360 }}>
             {tasksLoading ? (
               <Skeleton active paragraph={{ rows: 5 }} title={false} />
             ) : !latestInstance ? (
-              <p className="py-4 text-center text-sm text-muted">
-                Bạn chưa có onboarding nào đang hoạt động.
-              </p>
+              <Empty description="Bạn chưa có onboarding nào đang hoạt động." />
             ) : urgentTasks.length === 0 ? (
               <p className="py-4 text-center text-sm text-muted">
                 Tất cả task đã hoàn thành. Xuất sắc! 🎉
@@ -395,10 +511,18 @@ export default function EmployeeDashboard() {
                 const overdue = isOverdue(task.dueDate);
                 const isWaitAck = task.rawStatus === "WAIT_ACK";
                 const isPendingApproval = task.rawStatus === "PENDING_APPROVAL";
+                const ctaLabel = task.requireAck
+                  ? isWaitAck
+                    ? "Xác nhận hoàn thành"
+                    : "Xác nhận đã nhận"
+                  : task.requiresManagerApproval
+                    ? "Gửi duyệt"
+                    : "Hoàn thành";
+
                 return (
                   <div
                     key={task.id}
-                    className={`flex items-start justify-between gap-2 rounded-lg border px-3 py-2.5 ${
+                    className={`rounded-lg border px-3 py-2.5 transition-colors ${
                       overdue
                         ? "border-red-200 bg-red-50/40"
                         : isWaitAck
@@ -407,41 +531,68 @@ export default function EmployeeDashboard() {
                             ? "border-amber-200 bg-amber-50/40"
                             : "border-stroke/60 bg-slate-50"
                     }`}>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
-                        {task.title ?? "Không có tiêu đề"}
-                      </p>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                        {task.dueDate && (
-                          <span
-                            className={`text-xs ${overdue ? "font-semibold text-red-500" : "text-muted"}`}>
-                            {overdue ? "⚠ Quá hạn: " : "Hạn: "}
-                            {dayjs(task.dueDate).format("DD/MM/YYYY")}
-                          </span>
-                        )}
-                        {task.checklistName && (
-                          <span className="text-xs text-muted">
-                            · {task.checklistName}
-                          </span>
-                        )}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">
+                          {task.title ?? "Không có tiêu đề"}
+                        </p>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                          {task.dueDate && (
+                            <span
+                              className={`text-xs ${overdue ? "font-semibold text-red-500" : "text-muted"}`}>
+                              {overdue ? "⚠ Quá hạn: " : "Hạn: "}
+                              {dayjs(task.dueDate).format("DD/MM/YYYY")}
+                            </span>
+                          )}
+                          {task.checklistName && (
+                            <span className="text-xs text-muted">
+                              · {task.checklistName}
+                            </span>
+                          )}
+                        </div>
                       </div>
+                      <Badge
+                        status={taskStatusVariant(task.rawStatus)}
+                        text={
+                          <span className="whitespace-nowrap text-xs text-muted">
+                            {task.status}
+                          </span>
+                        }
+                      />
                     </div>
-                    <Badge
-                      status={taskStatusVariant(task.rawStatus)}
-                      text={
-                        <span className="whitespace-nowrap text-xs text-muted">
-                          {task.status}
-                        </span>
-                      }
-                    />
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button
+                        size="small"
+                        type="primary"
+                        loading={
+                          updateTaskStatus.isPending ||
+                          acknowledgeMutation.isPending
+                        }
+                        disabled={isPendingApproval}
+                        onClick={() => handleToggleTask(task)}>
+                        {ctaLabel}
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => setSelectedTaskId(task.id)}>
+                        Xem chi tiết
+                      </Button>
+                    </div>
                   </div>
                 );
               })
             )}
           </div>
+          <Alert
+            className="!mt-3"
+            type="info"
+            showIcon
+            icon={<UserCheck className="h-4 w-4" />}
+            message="Mẹo"
+            description="Hoàn thành task đúng hạn giúp onboarding của bạn nhanh chóng hơn."
+          />
         </Card>
 
-        {/* Milestone */}
         <Card className="border border-stroke shadow-sm">
           <Typography.Text strong className="mb-3 block">
             Milestone onboarding
@@ -482,7 +633,7 @@ export default function EmployeeDashboard() {
         </Card>
       </div>
 
-      {/* ── Row 3: Stage / Checklist Progress ──────────────────────────────── */}
+      {/* ── Row 3: Stage / Checklist Progress ───────────────── */}
       {stageProgress.length > 0 && (
         <Card className="border border-stroke shadow-sm">
           <div className="mb-3 flex items-center gap-2">
@@ -551,8 +702,10 @@ export default function EmployeeDashboard() {
         </Card>
       )}
 
-      {/* ── Row 4: Reminder stream ──────────────────────────────────────────── */}
-      {(overdueList.length > 0 || dueSoonList.length > 0) && (
+      {/* ── Row 4: Reminder stream ──────────────────────────── */}
+      {(overdueList.length > 0 ||
+        dueSoonList.length > 0 ||
+        actionNeededTasks.length > 0) && (
         <Card className="border border-stroke shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <BellRing className="h-4 w-4 text-amber-500" />
@@ -562,7 +715,8 @@ export default function EmployeeDashboard() {
             {overdueList.slice(0, 3).map((task) => (
               <div
                 key={`overdue-${task.id}`}
-                className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 p-3">
+                className="flex cursor-pointer items-center justify-between rounded-lg border border-red-200 bg-red-50 p-3 hover:bg-red-100"
+                onClick={() => setSelectedTaskId(task.id)}>
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-red-500" />
                   <Typography.Text className="text-sm">
@@ -575,7 +729,8 @@ export default function EmployeeDashboard() {
             {dueSoonList.slice(0, 3).map((task) => (
               <div
                 key={`soon-${task.id}`}
-                className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-3">
+                className="flex cursor-pointer items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-3 hover:bg-amber-100"
+                onClick={() => setSelectedTaskId(task.id)}>
                 <div className="flex items-center gap-2">
                   <CircleDashed className="h-4 w-4 text-amber-500" />
                   <Typography.Text className="text-sm">
@@ -585,13 +740,30 @@ export default function EmployeeDashboard() {
                 <Tag color="warning">Sắp đến hạn</Tag>
               </div>
             ))}
+            {actionNeededTasks.slice(0, 3).map((task) => (
+              <div
+                key={`action-${task.id}`}
+                className="flex cursor-pointer items-center justify-between rounded-lg border border-sky-200 bg-sky-50 p-3 hover:bg-sky-100"
+                onClick={() => setSelectedTaskId(task.id)}>
+                <div className="flex items-center gap-2">
+                  <CalendarClock className="h-4 w-4 text-sky-500" />
+                  <Typography.Text className="text-sm">
+                    {task.title}
+                  </Typography.Text>
+                </div>
+                <Tag color="processing">
+                  {task.rawStatus === "WAIT_ACK"
+                    ? "Cần xác nhận"
+                    : "Chờ duyệt"}
+                </Tag>
+              </div>
+            ))}
           </div>
         </Card>
       )}
 
-      {/* ── Row 5: Documents + Contact info ────────────────────────────────── */}
+      {/* ── Row 5: Documents + Contact info ─────────────────── */}
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Documents */}
         <Card className="border border-stroke shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <div>
@@ -633,7 +805,6 @@ export default function EmployeeDashboard() {
           </div>
         </Card>
 
-        {/* Contact / onboarding info */}
         <Card className="border border-stroke shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <User className="h-4 w-4 text-teal-500" />
@@ -672,6 +843,202 @@ export default function EmployeeDashboard() {
           </div>
         </Card>
       </div>
+
+      {/* ── Task detail drawer ──────────────────────────────── */}
+      <Drawer
+        title="Chi tiết task"
+        width={560}
+        open={Boolean(selectedTaskId)}
+        onClose={() => setSelectedTaskId(null)}>
+        {taskDetailLoading ? (
+          <Skeleton active paragraph={{ rows: 6 }} />
+        ) : taskDetail ? (
+          <div className="space-y-3">
+            <div>
+              <Typography.Text type="secondary">Tiêu đề</Typography.Text>
+              <Typography.Paragraph className="!mb-0 !mt-1" strong>
+                {taskDetail.title ?? "-"}
+              </Typography.Paragraph>
+            </div>
+
+            <div>
+              <Typography.Text type="secondary">Mô tả</Typography.Text>
+              <Typography.Paragraph className="!mb-0 !mt-1">
+                {taskDetail.description ?? "-"}
+              </Typography.Paragraph>
+            </div>
+
+            {taskDetail.rejectionReason && (
+              <Alert
+                type="error"
+                showIcon
+                message="Lý do từ chối"
+                description={taskDetail.rejectionReason}
+              />
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-gray-200 p-3">
+                <Typography.Text type="secondary">Trạng thái</Typography.Text>
+                <div className="mt-1">
+                  <Tag color={taskStatusVariant(taskDetail.status)}>
+                    {taskDetail.status ?? "TODO"}
+                  </Tag>
+                </div>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3">
+                <Typography.Text type="secondary">Hạn</Typography.Text>
+                <div className="mt-1 text-sm">
+                  {taskDetail.dueDate
+                    ? dayjs(taskDetail.dueDate).format("DD/MM/YYYY")
+                    : "—"}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-lg border border-gray-200 p-3 text-center">
+                <Typography.Text type="secondary">Bình luận</Typography.Text>
+                <p className="!mb-0 mt-1 text-lg font-semibold">
+                  {Array.isArray(taskDetail.comments)
+                    ? taskDetail.comments.length
+                    : 0}
+                </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3 text-center">
+                <Typography.Text type="secondary">Tệp đính kèm</Typography.Text>
+                <p className="!mb-0 mt-1 text-lg font-semibold">
+                  {Array.isArray(taskDetail.attachments)
+                    ? taskDetail.attachments.length
+                    : 0}
+                </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3 text-center">
+                <Typography.Text type="secondary">Hoạt động</Typography.Text>
+                <p className="!mb-0 mt-1 text-lg font-semibold">
+                  {Array.isArray(taskDetail.activityLogs)
+                    ? taskDetail.activityLogs.length
+                    : 0}
+                </p>
+              </div>
+            </div>
+
+            {taskDetail.status !== "DONE" && (
+              <div className="space-y-2 pt-2">
+                {taskDetail.requireAck &&
+                  ["TODO", "IN_PROGRESS", "ASSIGNED"].includes(
+                    taskDetail.status ?? "",
+                  ) && (
+                    <Button
+                      type="primary"
+                      block
+                      loading={acknowledgeMutation.isPending}
+                      onClick={() =>
+                        acknowledgeMutation.mutate(taskDetail.taskId!)
+                      }>
+                      Xác nhận đã nhận
+                    </Button>
+                  )}
+
+                {taskDetail.status === "WAIT_ACK" && (
+                  <Tooltip
+                    title={
+                      taskDetail.requireDoc
+                        ? "Cần đính kèm tài liệu trước khi hoàn thành"
+                        : undefined
+                    }>
+                    <Button
+                      type="primary"
+                      block
+                      loading={updateTaskStatus.isPending}
+                      disabled={Boolean(taskDetail.requireDoc)}
+                      onClick={() =>
+                        updateTaskStatus.mutate(
+                          { taskId: taskDetail.taskId!, status: "DONE" },
+                          {
+                            onSuccess: () => {
+                              invalidateTasks();
+                              notify.success("Đã xác nhận hoàn thành");
+                            },
+                            onError: () => notify.error("Thao tác thất bại"),
+                          },
+                        )
+                      }>
+                      Xác nhận hoàn thành
+                    </Button>
+                  </Tooltip>
+                )}
+
+                {!taskDetail.requireAck &&
+                  taskDetail.requiresManagerApproval &&
+                  ["TODO", "IN_PROGRESS", "ASSIGNED"].includes(
+                    taskDetail.status ?? "",
+                  ) && (
+                    <Button
+                      block
+                      loading={updateTaskStatus.isPending}
+                      onClick={() =>
+                        updateTaskStatus.mutate(
+                          {
+                            taskId: taskDetail.taskId!,
+                            status: "PENDING_APPROVAL",
+                          },
+                          {
+                            onSuccess: () => {
+                              invalidateTasks();
+                              notify.success("Đã gửi duyệt cho quản lý");
+                            },
+                            onError: () => notify.error("Thao tác thất bại"),
+                          },
+                        )
+                      }>
+                      Gửi duyệt
+                    </Button>
+                  )}
+
+                {!taskDetail.requireAck &&
+                  !taskDetail.requiresManagerApproval &&
+                  !taskDetail.requireDoc &&
+                  taskDetail.status !== "WAIT_ACK" &&
+                  taskDetail.status !== "PENDING_APPROVAL" && (
+                    <Button
+                      type="primary"
+                      block
+                      loading={updateTaskStatus.isPending}
+                      onClick={() =>
+                        updateTaskStatus.mutate(
+                          { taskId: taskDetail.taskId!, status: "DONE" },
+                          {
+                            onSuccess: () => {
+                              invalidateTasks();
+                              notify.success("Đã hoàn thành task");
+                            },
+                            onError: () => notify.error("Thao tác thất bại"),
+                          },
+                        )
+                      }>
+                      Hoàn thành
+                    </Button>
+                  )}
+
+                {taskDetail.requireDoc &&
+                  taskDetail.status !== "PENDING_APPROVAL" && (
+                    <div className="flex items-center gap-1.5 rounded-md border border-amber-100 bg-amber-50/70 px-3 py-2 text-xs text-amber-700">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      Task này yêu cầu tài liệu. Hãy vào trang Tasks để đính kèm.
+                    </div>
+                  )}
+              </div>
+            )}
+
+            <Link to="/onboarding/tasks">
+              <Button block>Mở bảng task</Button>
+            </Link>
+          </div>
+        ) : (
+          <Empty description="Không tải được chi tiết task." />
+        )}
+      </Drawer>
     </div>
   );
 }

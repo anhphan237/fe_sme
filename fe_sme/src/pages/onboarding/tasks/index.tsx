@@ -510,7 +510,6 @@ const TaskAction = ({
 const TaskItem = ({
   task,
   currentUserId,
-  isEmployee,
   canManage,
   isUpdating,
   onStart,
@@ -523,7 +522,6 @@ const TaskItem = ({
 }: {
   task: OnboardingTask;
   currentUserId?: string;
-  isEmployee: boolean;
   canManage: boolean;
   isUpdating: boolean;
   onStart: (task: OnboardingTask) => void;
@@ -541,8 +539,7 @@ const TaskItem = ({
   const isAssignee =
     Boolean(currentUserId) && task.assignedUserId === currentUserId;
   // HR/MANAGER bypass assignee constraint on BE; employees & IT-only must be assignee.
-  const canAct =
-    canManage || isAssignee || (isEmployee && !task.assignedUserId);
+  const canAct = canManage || isAssignee;
 
   return (
     <li className="transition-colors hover:bg-slate-50">
@@ -678,7 +675,6 @@ const StageSection = ({
   tasks,
   isUpdating,
   currentUserId,
-  isEmployee,
   canManage,
   onStart,
   onAcknowledge,
@@ -692,7 +688,6 @@ const StageSection = ({
   tasks: OnboardingTask[];
   isUpdating: boolean;
   currentUserId?: string;
-  isEmployee: boolean;
   canManage: boolean;
   onStart: (task: OnboardingTask) => void;
   onAcknowledge: (task: OnboardingTask) => void;
@@ -741,7 +736,6 @@ const StageSection = ({
             key={task.id}
             task={task}
             currentUserId={currentUserId}
-            isEmployee={isEmployee}
             canManage={canManage}
             isUpdating={isUpdating}
             onStart={onStart}
@@ -1566,7 +1560,6 @@ const Tasks = () => {
                   updateStatus.isPending || acknowledgeMutation.isPending
                 }
                 currentUserId={userId}
-                isEmployee={isEmployee}
                 canManage={canManage}
                 onStart={handleStart}
                 onAcknowledge={handleAcknowledge}
@@ -1588,7 +1581,7 @@ const Tasks = () => {
                     : t("onboarding.task.empty.desc_no_instance")
                 }>
                 {isEmployee ? (
-                  <Button onClick={() => navigate("/onboarding/my-journey")}>
+                  <Button onClick={() => navigate("/dashboard/employee")}>
                     {t("onboarding.task.empty.title")}
                   </Button>
                 ) : (
@@ -2026,10 +2019,7 @@ const Tasks = () => {
             {(() => {
               const isDetailAssignee =
                 Boolean(userId) && taskDetail.assignedUserId === userId;
-              const canActOnDetail =
-                canManage ||
-                isDetailAssignee ||
-                (isEmployee && !taskDetail.assignedUserId);
+              const canActOnDetail = canManage || isDetailAssignee;
               const hasAttachment = (taskDetail.attachments?.length ?? 0) > 0;
               const scheduleNeededUnmet = Boolean(
                 taskDetail.scheduleStatus &&

@@ -33,7 +33,6 @@ import type {
   StageType,
 } from "./constants";
 import { TEMPLATE_PRESETS } from "./constants";
-import type { Role } from "@/interface/common";
 
 interface SaveTemplatePayload {
   name: string;
@@ -52,8 +51,10 @@ interface SaveTemplatePayload {
     tasks: {
       /** BE field — must be `title`, NOT `name` */
       title: string;
+      /** BE supports: USER | DEPARTMENT | EMPLOYEE | MANAGER | IT_STAFF */
       ownerType: string;
-      ownerRefId: Role;
+      /** Only set when ownerType is USER (userId) or DEPARTMENT (deptId). */
+      ownerRefId: string | null;
       description: string;
       dueDaysOffset: number;
       requireAck: boolean;
@@ -138,13 +139,38 @@ const templateToForm = (tmpl: OnboardingTemplate): EditorForm => ({
               requireDoc: task.requireDoc ?? false,
               requiresManagerApproval: task.requiresManagerApproval ?? false,
               approverUserId: (task as any).approverUserId ?? undefined,
-              requiredDocumentIds: (task as any).requiredDocumentIds ?? undefined,
+              requiredDocumentIds:
+                (task as any).requiredDocumentIds ?? undefined,
               assignee: (task.ownerRole ?? "EMPLOYEE") as TaskDraft["assignee"],
             }))
           : [emptyTask()],
       }))
     : [emptyChecklist()],
 });
+
+/**
+ * BE's OnboardingTaskGenerateProcessor.applyOwnerAssignment only resolves
+ * ownerType ∈ { USER, DEPARTMENT, EMPLOYEE, MANAGER, IT_STAFF }. Anything else
+ * (incl. "ROLE") leaves assignedUserId null → tasks become unassigned.
+ * For the 4 generic assignee roles the FE exposes, send the ownerType BE
+ * actually resolves; ownerRefId is only meaningful for USER/DEPARTMENT so
+ * omit it here.
+ */
+const mapAssigneeToOwner = (
+  assignee: TaskDraft["assignee"] | undefined,
+): { ownerType: string; ownerRefId: string | null } => {
+  switch (assignee) {
+    case "MANAGER":
+      return { ownerType: "MANAGER", ownerRefId: null };
+    case "IT":
+      return { ownerType: "IT_STAFF", ownerRefId: null };
+    case "HR":
+      return { ownerType: "HR", ownerRefId: null };
+    case "EMPLOYEE":
+    default:
+      return { ownerType: "EMPLOYEE", ownerRefId: null };
+  }
+};
 
 const buildPayload = (form: EditorForm, createdBy: string) => ({
   name: form.name,
@@ -154,21 +180,26 @@ const buildPayload = (form: EditorForm, createdBy: string) => ({
   checklists: form.checklists.map((c, ci) => ({
     name: c.name,
     stage: c.stageType,
-    deadlineDays: c.deadlineDays,
+    deadlineDays: c.tasks.length
+      ? Math.max(...c.tasks.map((t) => t.dueDaysOffset ?? 0))
+      : 0,
     sortOrder: ci,
-    tasks: c.tasks.map((task, ti) => ({
-      title: task.name,
-      ownerType: "ROLE" as const,
-      ownerRefId: (task.assignee ?? "EMPLOYEE") as Role,
-      description: task.description,
-      dueDaysOffset: task.dueDaysOffset,
-      requireAck: task.requireAck,
-      requireDoc: task.requireDoc,
-      requiresManagerApproval: task.requiresManagerApproval,
-      approverUserId: task.approverUserId,
-      requiredDocumentIds: task.requiredDocumentIds,
-      sortOrder: ti,
-    })),
+    tasks: c.tasks.map((task, ti) => {
+      const { ownerType, ownerRefId } = mapAssigneeToOwner(task.assignee);
+      return {
+        title: task.name,
+        ownerType,
+        ownerRefId,
+        description: task.description,
+        dueDaysOffset: task.dueDaysOffset,
+        requireAck: task.requireAck,
+        requireDoc: task.requireDoc,
+        requiresManagerApproval: task.requiresManagerApproval,
+        approverUserId: task.approverUserId,
+        requiredDocumentIds: task.requiredDocumentIds,
+        sortOrder: ti,
+      };
+    }),
   })),
 });
 
@@ -180,22 +211,27 @@ const buildUpdatePayload = (form: EditorForm, templateId: string) => ({
     checklistTemplateId: c.checklistTemplateId ?? null,
     name: c.name,
     stage: c.stageType,
-    deadlineDays: c.deadlineDays,
+    deadlineDays: c.tasks.length
+      ? Math.max(...c.tasks.map((t) => t.dueDaysOffset ?? 0))
+      : 0,
     sortOrder: ci,
-    tasks: c.tasks.map((task, ti) => ({
-      taskTemplateId: task.taskTemplateId ?? null,
-      title: task.name,
-      ownerType: "ROLE" as const,
-      ownerRefId: (task.assignee ?? "EMPLOYEE") as Role,
-      description: task.description,
-      dueDaysOffset: task.dueDaysOffset,
-      requireAck: task.requireAck,
-      requireDoc: task.requireDoc,
-      requiresManagerApproval: task.requiresManagerApproval,
-      approverUserId: task.approverUserId,
-      requiredDocumentIds: task.requiredDocumentIds,
-      sortOrder: ti,
-    })),
+    tasks: c.tasks.map((task, ti) => {
+      const { ownerType, ownerRefId } = mapAssigneeToOwner(task.assignee);
+      return {
+        taskTemplateId: task.taskTemplateId ?? null,
+        title: task.name,
+        ownerType,
+        ownerRefId,
+        description: task.description,
+        dueDaysOffset: task.dueDaysOffset,
+        requireAck: task.requireAck,
+        requireDoc: task.requireDoc,
+        requiresManagerApproval: task.requiresManagerApproval,
+        approverUserId: task.approverUserId,
+        requiredDocumentIds: task.requiredDocumentIds,
+        sortOrder: ti,
+      };
+    }),
   })),
 });
 

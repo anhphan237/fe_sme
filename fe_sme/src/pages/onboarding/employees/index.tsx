@@ -15,20 +15,16 @@ import {
   ROLE_LABELS,
   getPrimaryRole,
 } from "@/shared/rbac";
+import { AppLoading } from "@/components/page-loading";
 import { InstanceStatusBadge } from "./InstanceStatusBadge";
 import { StartOnboardingDrawer } from "./StartOnboardingDrawer";
 import { EmployeeFormDrawer } from "./management/EmployeeFormDrawer";
 import { apiListInstances } from "@/api/onboarding/onboarding.api";
-import {
-  apiSearchUsers,
-  apiBulkCreateUsers,
-} from "@/api/identity/identity.api";
-import { apiListDepartments } from "@/api/company/company.api";
+import { apiBulkCreateUsers } from "@/api/identity/identity.api";
 import { extractList } from "@/api/core/types";
 import { mapInstance } from "@/utils/mappers/onboarding";
-import { mapUser } from "@/utils/mappers/identity";
+import { useUsersQuery, useDepartmentsQuery } from "@/hooks/adminHooks";
 import type { OnboardingInstance, User } from "@/shared/types";
-import type { DepartmentItem } from "@/interface/company";
 import type {
   BulkImportConfig,
   ImportRowResult,
@@ -103,24 +99,19 @@ const Employees = () => {
   >(undefined);
   const [importOpen, setImportOpen] = useState(false);
 
-  const { data: users = [], isLoading: usersLoading } = useQuery({
-    queryKey: ["users"],
-    queryFn: () => apiSearchUsers(),
-    select: (res: unknown) =>
-      extractList(res as Record<string, unknown>, "users", "items").map((u) =>
-        mapUser(u as Record<string, unknown>),
-      ) as User[],
-  });
+  const { data: users = [], isLoading: usersLoading } = useUsersQuery();
 
   const {
     data: instances = [],
     isLoading: instancesLoading,
     isError: instancesError,
     error: instancesErr,
+    isFetching: instancesFetching,
     refetch: refetchInstances,
   } = useQuery({
     queryKey: ["instances", "", statusFilter],
     queryFn: () => apiListInstances({ status: statusFilter }),
+    refetchOnMount: "always",
     select: (res: unknown) =>
       extractList(
         res as Record<string, unknown>,
@@ -130,12 +121,7 @@ const Employees = () => {
       ).map(mapInstance) as OnboardingInstance[],
   });
 
-  const { data: departments = [] } = useQuery({
-    queryKey: ["departments"],
-    queryFn: () => apiListDepartments(),
-    select: (res: unknown) =>
-      extractList(res as Record<string, unknown>, "items") as DepartmentItem[],
-  });
+  const { data: departments = [] } = useDepartmentsQuery();
 
   const filteredInstances = useMemo(() => {
     if (!onboardingSearch.trim()) return instances;
@@ -379,7 +365,8 @@ const Employees = () => {
   };
 
   return (
-    <div className="flex h-full flex-col p-4">
+    <div className="relative flex h-full flex-col p-4">
+      {(instancesFetching || usersLoading) && <AppLoading />}
       <Tabs
         activeKey={tab}
         onChange={(k) => setTab(k as PageTab)}

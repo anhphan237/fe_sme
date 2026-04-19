@@ -11,8 +11,12 @@ export interface TaskDraft {
   requiresManagerApproval: boolean;
   /** Designated approver user ID — overrides default manager when requiresManagerApproval=true */
   approverUserId?: string;
+  /** Display name for approverUserId — FE-only, not sent to BE */
+  approverUserName?: string;
   /** Document IDs required for this task (fetched from com.sme.content.document.list) */
   requiredDocumentIds?: string[];
+  /** Document display names — FE-only, not sent to BE */
+  requiredDocumentNames?: string[];
   assignee: "HR" | "MANAGER" | "EMPLOYEE" | "IT";
 }
 

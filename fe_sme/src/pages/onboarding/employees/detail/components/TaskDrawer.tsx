@@ -2,13 +2,17 @@ import type { ReactNode } from "react";
 import {
   Activity,
   AlertTriangle,
+  BookOpen,
+  Building2,
   Calendar,
   CheckCircle2,
   CheckSquare,
   ChevronLeft,
   ChevronRight,
+  FileText,
   FileUp,
   Paperclip,
+  Play,
   Send,
   ThumbsUp,
   User as UserIcon,
@@ -444,6 +448,7 @@ interface TaskInfoTabProps {
   onCancelSchedule: () => void;
   onMarkNoShow: () => void;
   // Actions
+  onStart: () => void;
   onAcknowledge: () => void;
   onConfirmComplete: () => void;
   onSubmitApproval: () => void;
@@ -485,6 +490,7 @@ const TaskInfoTab = ({
   onReschedule,
   onCancelSchedule,
   onMarkNoShow,
+  onStart,
   onAcknowledge,
   onConfirmComplete,
   onSubmitApproval,
@@ -556,13 +562,38 @@ const TaskInfoTab = ({
             </InfoField>
           </div>
         </Col>
-        {(taskDetail.assignedUserName || taskDetail.assignedUserId) && (
+        {/* Assignee — prefer nested object, fall back to flat fields */}
+        {(taskDetail.assignedUser?.fullName ||
+          taskDetail.assignedUserName ||
+          taskDetail.assignedUserId) && (
           <Col span={12}>
             <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
               <InfoField label={t("onboarding.task.field.assignee")}>
                 <span className="flex items-center gap-1">
                   <UserIcon className="h-3.5 w-3.5 text-gray-400" />
-                  {taskDetail.assignedUserName ?? taskDetail.assignedUserId}
+                  {taskDetail.assignedUser?.fullName ??
+                    taskDetail.assignedUserName ??
+                    taskDetail.assignedUserId}
+                </span>
+                {taskDetail.assignedUser?.email && (
+                  <span className="mt-0.5 block text-xs text-gray-400">
+                    {taskDetail.assignedUser.email}
+                  </span>
+                )}
+              </InfoField>
+            </div>
+          </Col>
+        )}
+        {/* Department */}
+        {taskDetail.assignedDepartment && (
+          <Col span={12}>
+            <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+              <InfoField
+                label={t("onboarding.task.field.department") ?? "Phòng ban"}>
+                <span className="flex items-center gap-1">
+                  <Building2 className="h-3.5 w-3.5 text-gray-400" />
+                  {taskDetail.assignedDepartment.name ??
+                    taskDetail.assignedDepartment.departmentId}
                 </span>
               </InfoField>
             </div>
@@ -571,7 +602,11 @@ const TaskInfoTab = ({
         {taskDetail.createdAt && (
           <Col
             span={
-              taskDetail.assignedUserName || taskDetail.assignedUserId ? 12 : 24
+              taskDetail.assignedUser?.fullName ||
+              taskDetail.assignedUserName ||
+              taskDetail.assignedUserId
+                ? 12
+                : 24
             }>
             <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
               <InfoField label={t("onboarding.task.field.created_at")}>
@@ -581,6 +616,32 @@ const TaskInfoTab = ({
           </Col>
         )}
       </Row>
+
+      {/* Required documents */}
+      {taskDetail.requiredDocuments &&
+        taskDetail.requiredDocuments.length > 0 && (
+          <>
+            <Divider orientationMargin={0}>
+              <span className="flex items-center gap-1 text-xs text-gray-400">
+                <BookOpen className="h-3 w-3" />
+                {t("onboarding.task.required_docs.section_title") ??
+                  "Tài liệu yêu cầu"}
+              </span>
+            </Divider>
+            <div className="space-y-1.5">
+              {taskDetail.requiredDocuments.map((doc) => (
+                <div
+                  key={doc.documentId}
+                  className="flex items-center gap-2 rounded-lg border border-amber-100 bg-amber-50/50 px-3 py-2 text-sm">
+                  <FileText className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                  <span className="flex-1 text-gray-700">
+                    {doc.title ?? doc.documentId}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
 
       {/* Description */}
       {taskDetail.description && (
@@ -725,9 +786,17 @@ const TaskInfoTab = ({
         </Typography.Text>
       </Divider>
       <div className="flex flex-wrap gap-2">
+        {isEmployee && (status === "TODO" || status === "ASSIGNED") && (
+          <Button
+            icon={<Play className="h-3.5 w-3.5" />}
+            loading={isUpdating}
+            onClick={onStart}>
+            {t("onboarding.task.action.start")}
+          </Button>
+        )}
         {isEmployee &&
           taskDetail.requireAck &&
-          (status === "TODO" || status === "IN_PROGRESS") && (
+          status === "IN_PROGRESS" && (
             <Button
               type="primary"
               icon={<CheckSquare className="h-3.5 w-3.5" />}
@@ -747,7 +816,7 @@ const TaskInfoTab = ({
         )}
         {isEmployee &&
           taskDetail.requiresManagerApproval &&
-          (status === "TODO" || status === "IN_PROGRESS") && (
+          status === "IN_PROGRESS" && (
             <Button
               type="primary"
               icon={<Send className="h-3.5 w-3.5" />}
@@ -759,7 +828,7 @@ const TaskInfoTab = ({
         {isEmployee &&
           !taskDetail.requireAck &&
           !taskDetail.requiresManagerApproval &&
-          (status === "TODO" || status === "IN_PROGRESS") && (
+          status === "IN_PROGRESS" && (
             <Button
               type="primary"
               icon={<CheckCircle2 className="h-3.5 w-3.5" />}
@@ -807,9 +876,34 @@ const TaskDocumentsTab = ({
 }: TaskDocumentsTabProps) => {
   const { t } = useLocale();
   const attachments = taskDetail.attachments ?? [];
+  const requiredDocs = taskDetail.requiredDocuments ?? [];
 
   return (
     <div className="space-y-4 pt-2">
+      {/* Required documents list */}
+      {requiredDocs.length > 0 && (
+        <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-3">
+          <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-blue-600">
+            <BookOpen className="h-3.5 w-3.5" />
+            {t("onboarding.task.required_docs.section_title") ??
+              "Tài liệu yêu cầu"}
+            <span className="ml-1 rounded-full bg-blue-100 px-1.5 text-blue-600">
+              {requiredDocs.length}
+            </span>
+          </div>
+          <div className="space-y-1">
+            {requiredDocs.map((doc) => (
+              <div
+                key={doc.documentId}
+                className="flex items-center gap-2 text-sm text-gray-700">
+                <FileText className="h-3.5 w-3.5 shrink-0 text-blue-400" />
+                {doc.title ?? doc.documentId}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Upload area */}
       <Upload.Dragger
         multiple={false}
@@ -918,14 +1012,18 @@ function parseActivityChange(
     case "STATUS_CHANGED": {
       const parts: string[] = [];
       if (old?.status !== next?.status) {
-        parts.push(`${statusLabel(old?.status)} → ${statusLabel(next?.status)}`);
+        parts.push(
+          `${statusLabel(old?.status)} → ${statusLabel(next?.status)}`,
+        );
       }
       if (old?.approvalStatus !== next?.approvalStatus) {
         const aLabel = approvalLabel(next?.approvalStatus);
         if (aLabel) parts.push(aLabel);
       }
       return {
-        label: t("onboarding.task.activity.action.status_changed") || "Status changed",
+        label:
+          t("onboarding.task.activity.action.status_changed") ||
+          "Status changed",
         detail: parts.join(" · ") || null,
       };
     }
@@ -933,7 +1031,8 @@ function parseActivityChange(
       const wasAssigned = !!old?.assignedUserId;
       const isAssigned = !!next?.assignedUserId;
       let detail: string | null = null;
-      if (!wasAssigned && isAssigned) detail = `${statusLabel("TODO")} → ${statusLabel("ASSIGNED")}`;
+      if (!wasAssigned && isAssigned)
+        detail = `${statusLabel("TODO")} → ${statusLabel("ASSIGNED")}`;
       else if (wasAssigned && !isAssigned) detail = "Unassigned";
       else if (wasAssigned && isAssigned) detail = "Reassigned";
       return {
@@ -1133,6 +1232,7 @@ export interface TaskDrawerProps {
   onDrawerTabChange: (tab: string) => void;
   onCommentChange: (value: string) => void;
   onAddComment: () => void;
+  onStart: () => void;
   onAcknowledge: () => void;
   onConfirmComplete: () => void;
   onSubmitApproval: () => void;
@@ -1190,6 +1290,7 @@ export const TaskDrawer = ({
   onDrawerTabChange,
   onCommentChange,
   onAddComment,
+  onStart,
   onAcknowledge,
   onConfirmComplete,
   onSubmitApproval,
@@ -1330,6 +1431,7 @@ export const TaskDrawer = ({
               onReschedule={onReschedule}
               onCancelSchedule={onCancelSchedule}
               onMarkNoShow={onMarkNoShow}
+              onStart={onStart}
               onAcknowledge={onAcknowledge}
               onConfirmComplete={onConfirmComplete}
               onSubmitApproval={onSubmitApproval}

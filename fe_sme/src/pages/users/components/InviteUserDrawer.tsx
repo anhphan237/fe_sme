@@ -38,13 +38,15 @@ const SectionLabel = ({
   label: string;
   className?: string;
 }) => (
-  <div className={`mb-3 flex items-center gap-2 ${className ?? ""}`}>
+  <div className={`mb-4 flex items-center gap-2 ${className ?? ""}`}>
     <span className="text-xs font-semibold uppercase tracking-wider text-[#758BA5]">
       {label}
     </span>
     <div className="h-px flex-1 bg-[#E8EDF3]" />
   </div>
 );
+
+const RequiredMark = () => <span className="ml-0.5 text-red-400">*</span>;
 
 const FORM_ID = "invite-user-form";
 
@@ -120,7 +122,6 @@ export const InviteUserDrawer = ({
     onClose();
   };
 
-  // Auto-generate employee code when drawer opens
   useEffect(() => {
     if (open) {
       form.setFieldValue("employeeCode", generateEmployeeCode());
@@ -272,12 +273,13 @@ export const InviteUserDrawer = ({
 
         {/* ── Account ── */}
         <SectionLabel label={t("user.section.account")} />
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
           <BaseInput
             name="email"
             label={
               <>
-                {t("user.email")} <span className="text-red-400">*</span>
+                {t("user.email")}
+                <RequiredMark />
               </>
             }
             type="email"
@@ -294,7 +296,8 @@ export const InviteUserDrawer = ({
             name="name"
             label={
               <>
-                {t("user.name")} <span className="text-red-400">*</span>
+                {t("user.name")}
+                <RequiredMark />
               </>
             }
             placeholder="Nguyen Van A"
@@ -306,90 +309,120 @@ export const InviteUserDrawer = ({
 
         {/* Password (direct mode only) */}
         {createMode === "direct" && (
-          <BaseInput
-            name="password"
-            label={
-              <>
-                {t("user.password")} <span className="text-red-400">*</span>
-              </>
-            }
-            type="password"
-            placeholder={t("user.password_placeholder")}
-            formItemProps={{
-              rules: [
-                { required: true, message: t("user.error.no_password") },
-                {
-                  min: 8,
-                  message: t("user.error.password_min"),
-                },
-              ],
-            }}
-          />
+          <div className="mt-3">
+            <BaseInput
+              name="password"
+              label={
+                <>
+                  {t("user.password")}
+                  <RequiredMark />
+                </>
+              }
+              type="password"
+              placeholder={t("user.password_placeholder")}
+              formItemProps={{
+                rules: [
+                  { required: true, message: t("user.error.no_password") },
+                  { min: 8, message: t("user.error.password_min") },
+                ],
+              }}
+            />
+          </div>
         )}
 
         {/* ── Role & Organization ── */}
         <SectionLabel
           label={t("user.section.role_department")}
-          className="mt-2"
+          className="mt-5"
         />
-        <BaseSelect
-          name="roleCode"
-          label={t("user.role")}
-          options={roleOptions}
-        />
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-y-3">
           <BaseSelect
-            name="departmentId"
-            label={t("user.invite.department_id")}
-            showSearch
-            allowClear
-            placeholder={t("user.invite.department_placeholder")}
-            options={departments.map((d) => ({
-              value: d.departmentId,
-              label: d.name,
-            }))}
-            filterOption={(input, option) =>
-              String(option?.label ?? "")
-                .toLowerCase()
-                .includes(input.toLowerCase())
+            name="roleCode"
+            label={
+              <>
+                {t("user.role")}
+                <RequiredMark />
+              </>
             }
-            onChange={() => form.setFieldValue("managerUserId", undefined)}
+            options={roleOptions}
+            formItemProps={{
+              rules: [
+                { required: true, message: t("user.role") + " is required" },
+              ],
+            }}
           />
-          <BaseSelect
-            name="managerUserId"
-            label={t("user.invite.manager_id")}
-            showSearch
-            allowClear
-            options={managerOptions}
-            filterOption={(input, option) =>
-              String(option?.label ?? "")
-                .toLowerCase()
-                .includes(input.toLowerCase())
-            }
-          />
+          <div className="grid gap-x-4 sm:grid-cols-2">
+            <BaseSelect
+              name="departmentId"
+              label={t("user.invite.department_id")}
+              showSearch
+              allowClear
+              placeholder={t("user.invite.department_placeholder")}
+              options={departments.map((d) => ({
+                value: d.departmentId,
+                label: d.name,
+              }))}
+              filterOption={(input, option) =>
+                String(option?.label ?? "")
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
+              onChange={() => form.setFieldValue("managerUserId", undefined)}
+            />
+            <BaseSelect
+              name="managerUserId"
+              label={t("user.invite.manager_id")}
+              showSearch
+              allowClear
+              placeholder={t("user.invite.department_placeholder")}
+              options={managerOptions}
+              filterOption={(input, option) =>
+                String(option?.label ?? "")
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
+            />
+          </div>
         </div>
 
-        {/* ── Employee profile ── */}
-        <SectionLabel label={t("user.section.profile")} className="mt-2" />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <BaseInput
-            name="phone"
-            label={t("user.detail.phone")}
-            type="tel"
-            placeholder="+84 xxx xxx xxx"
-          />
-          <BaseInput
-            name="jobTitle"
-            label={t("user.detail.job_title")}
-            placeholder={t("user.form.job_title_placeholder")}
-          />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <BaseInput
-            name="employeeCode"
-            label={t("user.detail.employee_code")}
-            placeholder="EMP-2026-xxxx"
-          />
+        {/* ── Employee Profile ── */}
+        <SectionLabel label={t("user.section.profile")} className="mt-5" />
+        <div className="flex flex-col gap-y-3">
+          <div className="grid gap-x-4 sm:grid-cols-2">
+            <BaseInput
+              name="phone"
+              label={t("user.detail.phone")}
+              type="tel"
+              placeholder="+84 xxx xxx xxx"
+              formItemProps={{
+                rules: [
+                  {
+                    pattern: /^[+]?[\d\s\-().]{7,20}$/,
+                    message: "Invalid phone number format.",
+                  },
+                ],
+              }}
+            />
+            <BaseInput
+              name="jobTitle"
+              label={t("user.detail.job_title")}
+              placeholder={t("user.form.job_title_placeholder")}
+            />
+          </div>
+          <div className="grid gap-x-4 sm:grid-cols-2">
+            <BaseInput
+              name="employeeCode"
+              label={t("user.detail.employee_code")}
+              placeholder="EMP-2026-xxxx"
+            />
+            <BaseDatePicker
+              name="startDate"
+              label={t("user.detail.start_date")}
+              placeholder="DD-MM-YYYY"
+              style={{ width: "100%" }}
+              disabledDate={(d) => d && d.isAfter(dayjs(), "day")}
+            />
+          </div>
           <BaseInput
             name="workLocation"
             label={t("user.detail.work_location")}

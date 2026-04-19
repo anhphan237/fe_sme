@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-
-import { Button, Drawer, Skeleton } from "antd";
+import dayjs from "dayjs";
+import { DatePicker, Drawer, Select, Skeleton } from "antd";
+import BaseButton from "@/components/button";
 import { notify } from "@/utils/notify";
 import { useLocale } from "@/i18n";
 import {
@@ -55,10 +56,7 @@ const INITIAL_FORM = {
 
 type FormState = typeof INITIAL_FORM;
 
-const inputCls =
-  "w-full rounded-xl border border-stroke px-4 py-2.5 text-[15px] text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:bg-slate-50 disabled:text-muted disabled:cursor-not-allowed";
-
-const labelCls = "grid gap-1.5 text-sm font-medium text-ink";
+const fieldLabelCls = "text-sm font-medium text-ink";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -95,9 +93,12 @@ export const StartOnboardingDrawer = ({
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((p) => ({ ...p, [key]: value }));
 
+  const today = dayjs().startOf("day");
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.employeeId || !form.templateId || !form.managerId) return;
+    if (form.startDate && dayjs(form.startDate).isBefore(today)) return;
 
     try {
       const raw = (await createInstance.mutateAsync({
@@ -133,16 +134,19 @@ export const StartOnboardingDrawer = ({
   };
 
   const isFormValid = Boolean(
-    form.employeeId && form.templateId && form.managerId,
+    form.employeeId &&
+      form.templateId &&
+      form.managerId &&
+      (!form.startDate || !dayjs(form.startDate).isBefore(today)),
   );
 
+  const employees = users.filter((u) => u.roles.includes("EMPLOYEE"));
   const managers = users.filter((u) => u.roles.includes("MANAGER"));
-  const itStaff = users.filter((u) => u.roles.includes("IT"));
 
   const footer = (
     <div className="flex justify-end gap-3">
-      <Button onClick={handleClose}>{t("global.cancel")}</Button>
-      <Button
+      <BaseButton onClick={handleClose} label="global.cancel" />
+      <BaseButton
         type="primary"
         htmlType="submit"
         form={FORM_ID}
@@ -150,7 +154,7 @@ export const StartOnboardingDrawer = ({
         {isPending
           ? t("onboarding.employee.drawer.submitting")
           : t("onboarding.employee.action.start")}
-      </Button>
+      </BaseButton>
     </div>
   );
 
@@ -175,78 +179,64 @@ export const StartOnboardingDrawer = ({
             {t("onboarding.employee.drawer.description")}
           </p>
 
-          <label className={labelCls}>
-            {t("onboarding.employee.modal.employee")} *
-            <select
-              className={inputCls}
-              value={form.employeeId}
-              onChange={(e) => set("employeeId", e.target.value)}
-              required>
-              <option value="">—</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className={labelCls}>
-            {t("onboarding.employee.drawer.manager")} *
-            <select
-              className={inputCls}
-              value={form.managerId}
-              onChange={(e) => set("managerId", e.target.value)}
-              required>
-              <option value="">—</option>
-              {(managers.length > 0 ? managers : users).map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className={labelCls}>
-            {t("onboarding.employee.modal.template")} *
-            <select
-              className={inputCls}
-              value={form.templateId}
-              onChange={(e) => set("templateId", e.target.value)}
-              required>
-              <option value="">—</option>
-              {templates.map((tpl) => (
-                <option key={tpl.id} value={tpl.id}>
-                  {tpl.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className={labelCls}>
-            {t("onboarding.employee.modal.start_date")}
-            <input
-              type="date"
-              className={inputCls}
-              value={form.startDate}
-              onChange={(e) => set("startDate", e.target.value)}
+          <div className="grid gap-1.5">
+            <span className={fieldLabelCls}>
+              {t("onboarding.employee.modal.employee")} *
+            </span>
+            <Select
+              className="w-full"
+              value={form.employeeId || undefined}
+              onChange={(v) => set("employeeId", v ?? "")}
+              placeholder="—"
+              options={employees.map((u) => ({ value: u.id, label: u.name }))}
             />
-          </label>
+          </div>
 
-          <label className={labelCls}>
-            {t("onboarding.employee.drawer.it_staff")}
-            <select
-              className={inputCls}
-              value={form.itStaffId}
-              onChange={(e) => set("itStaffId", e.target.value)}>
-              <option value="">—</option>
-              {(itStaff.length > 0 ? itStaff : users).map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="grid gap-1.5">
+            <span className={fieldLabelCls}>
+              {t("onboarding.employee.drawer.manager")} *
+            </span>
+            <Select
+              className="w-full"
+              value={form.managerId || undefined}
+              onChange={(v) => set("managerId", v ?? "")}
+              placeholder="—"
+              options={(managers.length > 0 ? managers : users).map((u) => ({
+                value: u.id,
+                label: u.name,
+              }))}
+            />
+          </div>
+
+          <div className="grid gap-1.5">
+            <span className={fieldLabelCls}>
+              {t("onboarding.employee.modal.template")} *
+            </span>
+            <Select
+              className="w-full"
+              value={form.templateId || undefined}
+              onChange={(v) => set("templateId", v ?? "")}
+              placeholder="—"
+              options={templates.map((tpl) => ({
+                value: tpl.id,
+                label: tpl.name,
+              }))}
+            />
+          </div>
+
+          <div className="grid gap-1.5">
+            <span className={fieldLabelCls}>
+              {t("onboarding.employee.modal.start_date")}
+            </span>
+            <DatePicker
+              className="w-full"
+              value={form.startDate ? dayjs(form.startDate) : null}
+              onChange={(date) =>
+                set("startDate", date ? date.format("YYYY-MM-DD") : "")
+              }
+              disabledDate={(current) => current && current.isBefore(today)}
+            />
+          </div>
         </form>
       )}
     </Drawer>

@@ -91,6 +91,8 @@ export interface OnboardingTask {
   /** Raw schedule status from API: UNSCHEDULED | PROPOSED | CONFIRMED | RESCHEDULED | CANCELLED | MISSED */
   scheduleStatus?: string;
   approvalStatus?: string;
+  /** Onboarding instance ID this task belongs to (populated from listByAssignee) */
+  onboardingId?: string;
 }
 
 export interface OnboardingComment {
@@ -313,6 +315,7 @@ export interface BillingPlan {
   id: string;
   code: string;
   name: string;
+  status: string;
   price: string;
   priceYearly: string;
   priceRaw: number;

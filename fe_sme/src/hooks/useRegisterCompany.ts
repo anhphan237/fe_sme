@@ -123,7 +123,11 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
     select: (res: any) =>
       extractList(res, "plans", "items")
         .map(mapPlan)
-        .filter((p: BillingPlan) => !HIDDEN_PLANS.includes(p.name)),
+        .filter(
+          (p: BillingPlan) =>
+            !HIDDEN_PLANS.includes(p.name) &&
+            p.status.toUpperCase() === "ACTIVE",
+        ),
   });
 
   const handleContinueFromEmail = async () => {
@@ -246,13 +250,16 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
       const sub = await apiGetSubscription(companyId);
       const subData = mapSubscription(sub as any);
       if (subData.planCode)
-        setTenant({ ...registrationResult?.tenantData ?? {
-          id: companyId,
-          name: form.getFieldValue("companyName"),
-          industry: "",
-          size: "",
+        setTenant({
+          ...(registrationResult?.tenantData ?? {
+            id: companyId,
+            name: form.getFieldValue("companyName"),
+            industry: "",
+            size: "",
+            plan: subData.planCode,
+          }),
           plan: subData.planCode,
-        }, plan: subData.planCode });
+        });
 
       let invoiceId: string | undefined = subData?.invoiceId;
       if (!invoiceId && subData?.subscriptionId) {

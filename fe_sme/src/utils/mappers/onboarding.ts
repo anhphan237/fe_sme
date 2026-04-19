@@ -10,6 +10,26 @@ import type {
 
 // ── Mappers ─────────────────────────────────────────────────
 
+/**
+ * Derive the UI assignee role from BE's ownerType / ownerRefId.
+ * BE stores new templates with ownerType ∈ {EMPLOYEE, MANAGER, IT_STAFF, HR,
+ * USER, DEPARTMENT}. Legacy templates use ownerType=ROLE + ownerRefId=<role>.
+ */
+const resolveOwnerRole = (task: any): string => {
+  const ownerType = String(task.ownerType ?? "").toUpperCase();
+  if (ownerType === "MANAGER") return "MANAGER";
+  if (ownerType === "IT_STAFF") return "IT";
+  if (ownerType === "EMPLOYEE") return "EMPLOYEE";
+  if (ownerType === "HR") return "HR";
+  if (ownerType === "DEPARTMENT" || ownerType === "USER") return "HR";
+  const ref = String(task.ownerRefId ?? task.ownerRole ?? "").toUpperCase();
+  if (ref === "MANAGER") return "MANAGER";
+  if (ref === "IT" || ref === "IT_STAFF") return "IT";
+  if (ref === "EMPLOYEE") return "EMPLOYEE";
+  if (ref === "HR" || ref === "DEPARTMENT") return "HR";
+  return "EMPLOYEE";
+};
+
 export const mapTemplate = (t: any): OnboardingTemplate => {
   const rawStages = t?.checklists ?? t?.stages;
   return {
@@ -27,7 +47,7 @@ export const mapTemplate = (t: any): OnboardingTemplate => {
             id: task.taskTemplateId ?? task.id ?? `task-${ci}-${ti}`,
             title: task.name ?? task.title ?? "",
             description: task.description ?? "",
-            ownerRole: (task.ownerRefId ?? task.ownerRole ?? "HR") as any,
+            ownerRole: resolveOwnerRole(task) as any,
             dueOffset: String(task.dueDaysOffset ?? task.dueOffset ?? 0),
             required: task.requireAck ?? task.required ?? false,
             requireAck: Boolean(task.requireAck ?? task.required ?? false),
@@ -117,9 +137,26 @@ export const mapTask = (t: any): OnboardingTask => ({
   dueDate: t.dueDate,
   checklistId: t.checklistId ?? undefined,
   checklistName: t.checklistName ?? undefined,
-  assignedUserId: t.assignedUserId ?? undefined,
-  assignedUserName: t.assignedUserName ?? undefined,
+  assignedUserId:
+    t.assignedUserId ??
+    t.assigneeUserId ??
+    t.assigneeId ??
+    t.assignedUser?.userId ??
+    undefined,
+  assignedUserName:
+    t.assignedUserName ??
+    t.assigneeUserName ??
+    t.assignedUser?.fullName ??
+    t.assignedUser?.name ??
+    undefined,
   overdue: Boolean(t.overdue ?? false),
   scheduleStatus: t.scheduleStatus ?? undefined,
   approvalStatus: t.approvalStatus ?? undefined,
+  onboardingId:
+    t.onboardingId ??
+    t.onboardingInstanceId ??
+    t.instanceId ??
+    t.checklist?.onboardingId ??
+    t.checklist?.instanceId ??
+    undefined,
 });
