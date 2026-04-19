@@ -8,16 +8,18 @@ import {
   Row,
   Skeleton,
   Table,
+  Tabs,
   Tag,
   Typography,
 } from "antd";
-import { CheckCircle, ClipboardList, Clock, Users } from "lucide-react";
+import { BarChart2, CheckCircle, ClipboardList, Clock, Users } from "lucide-react";
 import { extractList } from "@/api/core/types";
 import { apiListInstances } from "@/api/onboarding/onboarding.api";
 import { mapInstance } from "@/utils/mappers/onboarding";
 import { useUserNameMap } from "@/utils/resolvers/userResolver";
 import { useLocale } from "@/i18n";
 import type { OnboardingInstance } from "@/shared/types";
+import ScoreboardPanel from "./ScoreboardPanel";
 
 const { Title, Text } = Typography;
 
@@ -80,8 +82,8 @@ const HrDashboard = () => {
 
   if (isLoading) return <Skeleton active paragraph={{ rows: 8 }} />;
 
-  return (
-    <div className="space-y-6 p-6">
+  const overviewContent = (
+    <div className="space-y-6">
       {/* Stats row */}
       <Row gutter={[16, 16]}>
         <Col xs={12} sm={6}>
@@ -284,6 +286,37 @@ const HrDashboard = () => {
           ]}
         />
       </Card>
+    </div>
+  );
+
+  return (
+    <div className="p-6">
+      <Tabs
+        defaultActiveKey="overview"
+        size="large"
+        items={[
+          {
+            key: "overview",
+            label: (
+              <span className="flex items-center gap-1.5">
+                <BarChart2 className="h-4 w-4" />
+                {t("onboarding.hr.dashboard.tab.overview")}
+              </span>
+            ),
+            children: overviewContent,
+          },
+          {
+            key: "scoreboard",
+            label: (
+              <span className="flex items-center gap-1.5">
+                <Users className="h-4 w-4" />
+                {t("onboarding.hr.dashboard.tab.scoreboard")}
+              </span>
+            ),
+            children: <ScoreboardPanel />,
+          },
+        ]}
+      />
     </div>
   );
 };

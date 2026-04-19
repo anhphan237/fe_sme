@@ -1,6 +1,16 @@
 ﻿import { memo, useState, useMemo, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Form, Input, Select, Button } from "antd";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Form,
+  Input,
+  Select,
+  Button,
+  Tag,
+  Divider,
+  Upload as AntUpload,
+  message,
+  Checkbox,
+} from "antd";
 import {
   BookOpen,
   ClipboardList,
@@ -10,6 +20,13 @@ import {
   Plus,
   Search,
   X,
+  FileText,
+  FileImage,
+  File as GenericFileIcon,
+  UploadCloud,
+  UserCheck,
+  FileCheck2,
+  FolderOpen,
 } from "lucide-react";
 import {
   DndContext,
@@ -29,23 +46,21 @@ import { CSS } from "@dnd-kit/utilities";
 import { useLocale } from "@/i18n";
 import BaseInput from "@core/components/Input/InputWithLabel";
 import BaseInputNumber from "@core/components/Input/BaseNumberInput";
-import BaseCheckbox from "@core/components/Checkbox";
 import BaseModal from "@core/components/Modal/BaseModal";
 import BaseSelect from "@core/components/Select/BaseSelect";
-import {
-  STAGE_ACCENTS,
-  STAGE_OPTIONS,
-  getStageMeta,
-} from "./constants";
-import type {
-  TaskDraft,
-  ChecklistDraft,
-  LibraryTask,
-} from "./constants";
+import { STAGE_ACCENTS, STAGE_OPTIONS, getStageMeta } from "./constants";
+import type { TaskDraft, ChecklistDraft, LibraryTask } from "./constants";
 import {
   apiListTaskLibraries,
   apiGetTaskLibrary,
 } from "@/api/onboarding/onboarding.api";
+import {
+  apiGetDocuments,
+  apiUploadDocumentFile,
+} from "@/api/document/document.api";
+import { useUsersQuery } from "@/hooks/adminHooks";
+import type { User } from "@/shared/types";
+import type { DocumentItem } from "@/interface/document";
 import type { TaskTemplateDetail } from "@/interface/onboarding";
 
 // ── Task Library Modal ─────────────────────────────────────────────────────────
@@ -237,7 +252,7 @@ const TaskLibraryModal = ({
                               {tk.description}
                             </p>
                           )}
-                          <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted/70">
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-muted/70">
                             <span>
                               {t("onboarding.template.library.due_days", {
                                 days: tk.dueDaysOffset,
@@ -246,6 +261,20 @@ const TaskLibraryModal = ({
                             {tk.requireAck && (
                               <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-600">
                                 {t("onboarding.template.library.requires_ack")}
+                              </span>
+                            )}
+                            {tk.requireDoc && (
+                              <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-600">
+                                {t(
+                                  "onboarding.template.editor.task.require_doc",
+                                )}
+                              </span>
+                            )}
+                            {tk.requiresManagerApproval && (
+                              <span className="rounded bg-purple-50 px-1.5 py-0.5 text-purple-600">
+                                {t(
+                                  "onboarding.template.editor.task.require_approval",
+                                )}
                               </span>
                             )}
                           </div>
@@ -269,6 +298,269 @@ const TaskLibraryModal = ({
   );
 };
 
+// ── DocumentPickerField ────────────────────────────────────────────────────────
+
+function getFileExt(fileUrl: string): string {
+  return fileUrl?.split(".").pop()?.toLowerCase() ?? "";
+}
+
+function FileTypeIcon({
+  fileUrl,
+  size = "sm",
+}: {
+  fileUrl?: string;
+  size?: "sm" | "md";
+}) {
+  const cls = size === "md" ? "h-4 w-4" : "h-3.5 w-3.5";
+  const ext = getFileExt(fileUrl ?? "");
+  if (ext === "pdf")
+    return <FileText className={`${cls} shrink-0 text-red-500`} />;
+  if (["docx", "doc"].includes(ext))
+    return <FileText className={`${cls} shrink-0 text-blue-500`} />;
+  if (["xlsx", "xls", "csv"].includes(ext))
+    return <FileText className={`${cls} shrink-0 text-green-600`} />;
+  if (["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext))
+    return <FileImage className={`${cls} shrink-0 text-purple-500`} />;
+  return <GenericFileIcon className={`${cls} shrink-0 text-gray-400`} />;
+}
+
+const DocumentPickerField = ({
+  value,
+  onChange,
+  documents,
+  isLoading,
+  disabled,
+}: {
+  value?: string[];
+  onChange?: (ids: string[]) => void;
+  documents: DocumentItem[];
+  isLoading: boolean;
+  disabled?: boolean;
+}) => {
+  const queryClient = useQueryClient();
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadName, setUploadName] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+
+  const openUpload = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setUploadOpen(true);
+  };
+
+  const closeUpload = () => {
+    if (isUploading) return;
+    setUploadOpen(false);
+    setUploadFile(null);
+    setUploadName("");
+  };
+
+  const handleUploadConfirm = async () => {
+    if (!uploadFile || !uploadName.trim()) return;
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", uploadFile);
+      formData.append("name", uploadName.trim());
+      const result = await apiUploadDocumentFile(formData);
+      await queryClient.invalidateQueries({ queryKey: ["documents"] });
+      onChange?.([...(value ?? []), result.documentId]);
+      message.success(`Đã upload "${uploadName.trim()}"`);
+      closeUpload();
+    } catch (err: any) {
+      message.error(err?.message ?? "Upload thất bại. Vui lòng thử lại.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const emptyContent = isLoading ? (
+    <div className="flex items-center justify-center py-8">
+      <Loader2 className="h-5 w-5 animate-spin text-muted" />
+    </div>
+  ) : (
+    <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100">
+        <FileText className="h-5 w-5 text-muted" />
+      </div>
+      <p className="text-xs font-medium text-ink">Chưa có tài liệu nào</p>
+      <p className="text-[11px] text-muted">
+        Upload tài liệu để nhân viên có thể xác nhận
+      </p>
+      <Button
+        size="small"
+        type="primary"
+        ghost
+        icon={<UploadCloud className="h-3.5 w-3.5" />}
+        onClick={openUpload}
+        className="mt-1">
+        Upload tài liệu đầu tiên
+      </Button>
+    </div>
+  );
+
+  return (
+    <>
+      <Select
+        mode="multiple"
+        size="small"
+        disabled={disabled}
+        loading={isLoading}
+        value={value}
+        onChange={onChange}
+        placeholder="Tìm và chọn tài liệu..."
+        optionFilterProp="label"
+        className="w-full"
+        tagRender={(props) => {
+          const doc = documents.find((d) => d.documentId === props.value);
+          return (
+            <Tag
+              closable={!disabled}
+              onClose={props.onClose}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                marginRight: 4,
+                marginBlock: 2,
+                paddingInline: 6,
+                paddingBlock: 2,
+                borderRadius: 6,
+                fontSize: 11,
+                lineHeight: "16px",
+              }}>
+              <FileTypeIcon fileUrl={doc?.fileUrl} />
+              <span
+                style={{
+                  maxWidth: 140,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}>
+                {doc?.name ?? String(props.value)}
+              </span>
+            </Tag>
+          );
+        }}
+        notFoundContent={emptyContent}
+        dropdownRender={(menu) => (
+          <>
+            {menu}
+            <Divider style={{ margin: "4px 0" }} />
+            <div style={{ padding: "4px 8px 8px" }}>
+              <Button
+                type="dashed"
+                size="small"
+                block
+                icon={<UploadCloud className="h-3.5 w-3.5" />}
+                onClick={openUpload}>
+                Upload tài liệu mới
+              </Button>
+            </div>
+          </>
+        )}
+        options={documents.map((d) => ({
+          value: d.documentId,
+          label: d.name,
+          desc: d.description,
+          fileUrl: d.fileUrl,
+        }))}
+        optionRender={(opt) => (
+          <div className="flex items-center gap-2 py-0.5">
+            <FileTypeIcon
+              fileUrl={(opt.data as unknown as DocumentItem).fileUrl}
+              size="md"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-medium text-ink">
+                {opt.data.label as string}
+              </p>
+              {(opt.data as unknown as DocumentItem).description && (
+                <p className="truncate text-[10px] text-muted">
+                  {(opt.data as unknown as DocumentItem).description}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      />
+
+      {/* Upload modal */}
+      <BaseModal
+        title={
+          <div className="flex items-center gap-2">
+            <UploadCloud className="h-4 w-4 text-brand" />
+            <span>Upload tài liệu mới</span>
+          </div>
+        }
+        open={uploadOpen}
+        onCancel={closeUpload}
+        onOk={handleUploadConfirm}
+        confirmLoading={isUploading}
+        okText="Upload & chọn"
+        cancelText="Hủy"
+        okButtonProps={{ disabled: !uploadFile || !uploadName.trim() }}
+        width={440}>
+        <div className="space-y-4 py-1">
+          {/* Drag & drop area */}
+          <AntUpload.Dragger
+            accept="*/*"
+            maxCount={1}
+            showUploadList={{ showRemoveIcon: true }}
+            beforeUpload={(file) => {
+              setUploadFile(file);
+              if (!uploadName) {
+                setUploadName(file.name.replace(/\.[^.]+$/, ""));
+              }
+              return false;
+            }}
+            onRemove={() => {
+              setUploadFile(null);
+              setUploadName("");
+            }}
+            fileList={
+              uploadFile
+                ? [
+                    {
+                      uid: "1",
+                      name: uploadFile.name,
+                      status: "done",
+                      size: uploadFile.size,
+                    },
+                  ]
+                : []
+            }
+            style={{ borderRadius: 8 }}>
+            <div className="py-4">
+              <UploadCloud className="mx-auto mb-2 h-8 w-8 text-brand/40" />
+              <p className="text-sm font-medium text-ink">
+                Kéo thả hoặc click để chọn file
+              </p>
+              <p className="mt-1 text-[11px] text-muted">
+                PDF, DOCX, XLSX, ảnh và các định dạng khác
+              </p>
+            </div>
+          </AntUpload.Dragger>
+
+          {/* Document name */}
+          <div>
+            <p className="mb-1.5 text-xs font-semibold text-muted">
+              Tên tài liệu <span className="font-normal text-red-400">*</span>
+            </p>
+            <Input
+              size="small"
+              value={uploadName}
+              onChange={(e) => setUploadName(e.target.value)}
+              placeholder="Nhập tên tài liệu..."
+              disabled={isUploading}
+            />
+          </div>
+        </div>
+      </BaseModal>
+    </>
+  );
+};
+
 // ── SortableTaskCard ───────────────────────────────────────────────────────────
 
 interface FormValues {
@@ -279,6 +571,8 @@ interface FormValues {
     requireAck: boolean;
     requireDoc: boolean;
     requiresManagerApproval: boolean;
+    approverUserId?: string;
+    requiredDocumentIds?: string[];
     assignee: string;
   }[];
 }
@@ -291,6 +585,10 @@ function SortableTaskCard({
   onCloneTask,
   onRemoveTask,
   readOnly,
+  documents,
+  isLoadingDocs,
+  users,
+  isLoadingUsers,
 }: {
   taskId: string;
   field: { name: number; key: number };
@@ -299,6 +597,10 @@ function SortableTaskCard({
   onCloneTask: (ti: number) => void;
   onRemoveTask: (ti: number) => void;
   readOnly?: boolean;
+  documents?: DocumentItem[];
+  isLoadingDocs?: boolean;
+  users?: User[];
+  isLoadingUsers?: boolean;
 }) {
   const { t } = useLocale();
   const {
@@ -446,25 +748,233 @@ function SortableTaskCard({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-6 border-t border-stroke/60 pt-3">
-          <BaseCheckbox
-            name={[field.name, "requireAck"]}
-            labelCheckbox={t("onboarding.template.editor.task.require_ack")}
-            disabled={readOnly}
-          />
-          <BaseCheckbox
-            name={[field.name, "requireDoc"]}
-            labelCheckbox={t("onboarding.template.editor.task.require_doc")}
-            disabled={readOnly}
-          />
-          <BaseCheckbox
-            name={[field.name, "requiresManagerApproval"]}
-            labelCheckbox={t(
-              "onboarding.template.editor.task.require_approval",
-            )}
-            disabled={readOnly}
-          />
+        {/* ── Option cards ──────────────────────────────────────────── */}
+        <div className="grid grid-cols-3 gap-2 border-t border-stroke/60 pt-3">
+          {/* Xác nhận tài liệu */}
+          <div className="cursor-pointer rounded-xl border border-stroke bg-white p-3 transition has-[input:checked]:border-amber-300 has-[input:checked]:bg-amber-50/60 hover:border-amber-200 hover:shadow-sm">
+            <div className="mb-2.5 flex items-start justify-between">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100">
+                <FileCheck2 className="h-3.5 w-3.5 text-amber-600" />
+              </span>
+              <Form.Item
+                name={[field.name, "requireAck"]}
+                valuePropName="checked"
+                className="mb-0">
+                <Checkbox disabled={readOnly} />
+              </Form.Item>
+            </div>
+            <p className="text-xs font-semibold text-ink">
+              {t("onboarding.template.editor.task.require_ack") ?? "Xác nhận tài liệu"}
+            </p>
+            <p className="mt-0.5 text-[10px] leading-relaxed text-muted">
+              Nhân viên phải đọc & xác nhận trước khi hoàn thành
+            </p>
+          </div>
+
+          {/* Nộp tài liệu */}
+          <div className="cursor-pointer rounded-xl border border-stroke bg-white p-3 transition has-[input:checked]:border-blue-300 has-[input:checked]:bg-blue-50/60 hover:border-blue-200 hover:shadow-sm">
+            <div className="mb-2.5 flex items-start justify-between">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100">
+                <FolderOpen className="h-3.5 w-3.5 text-blue-600" />
+              </span>
+              <Form.Item
+                name={[field.name, "requireDoc"]}
+                valuePropName="checked"
+                className="mb-0">
+                <Checkbox disabled={readOnly} />
+              </Form.Item>
+            </div>
+            <p className="text-xs font-semibold text-ink">
+              {t("onboarding.template.editor.task.require_doc") ?? "Nộp tài liệu"}
+            </p>
+            <p className="mt-0.5 text-[10px] leading-relaxed text-muted">
+              Nhân viên phải upload tài liệu để hoàn thành
+            </p>
+          </div>
+
+          {/* Phê duyệt quản lý */}
+          <div className="cursor-pointer rounded-xl border border-stroke bg-white p-3 transition has-[input:checked]:border-violet-300 has-[input:checked]:bg-violet-50/60 hover:border-violet-200 hover:shadow-sm">
+            <div className="mb-2.5 flex items-start justify-between">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100">
+                <UserCheck className="h-3.5 w-3.5 text-violet-600" />
+              </span>
+              <Form.Item
+                name={[field.name, "requiresManagerApproval"]}
+                valuePropName="checked"
+                className="mb-0">
+                <Checkbox disabled={readOnly} />
+              </Form.Item>
+            </div>
+            <p className="text-xs font-semibold text-ink">
+              {t("onboarding.template.editor.task.require_approval") ?? "Phê duyệt quản lý"}
+            </p>
+            <p className="mt-0.5 text-[10px] leading-relaxed text-muted">
+              Quản lý phải phê duyệt để đánh dấu hoàn thành
+            </p>
+          </div>
         </div>
+
+        {/* Conditional approver input — shown only when requiresManagerApproval is checked */}
+        <Form.Item
+          noStyle
+          shouldUpdate={(prev, curr) =>
+            prev.tasks?.[field.name]?.requiresManagerApproval !==
+            curr.tasks?.[field.name]?.requiresManagerApproval
+          }>
+          {({ getFieldValue }) => {
+            const needsApproval = getFieldValue([
+              "tasks",
+              field.name,
+              "requiresManagerApproval",
+            ]);
+            if (!needsApproval) return null;
+            return (
+              <div className="overflow-hidden rounded-xl border border-orange-200 bg-gradient-to-b from-orange-50/70 to-transparent">
+                {/* Header */}
+                <div className="flex items-center gap-3 border-b border-orange-100/80 bg-orange-50/60 px-4 py-2.5">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-orange-100">
+                    <UserCheck className="h-3.5 w-3.5 text-orange-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-orange-800">
+                      {t("onboarding.template.editor.task.approver_label") ?? "Người phê duyệt"}
+                    </p>
+                    <p className="text-[10px] text-orange-500">
+                      Chọn quản lý sẽ phê duyệt task này
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-600">
+                    Tùy chọn
+                  </span>
+                </div>
+                {/* Select */}
+                <div className="p-3">
+                  <Form.Item
+                    name={[field.name, "approverUserId"]}
+                    className="mb-0">
+                    <Select
+                      showSearch
+                      allowClear
+                      size="small"
+                      disabled={readOnly}
+                      loading={isLoadingUsers}
+                      placeholder="Mặc định: line manager của nhân viên"
+                      filterOption={(input, option) =>
+                        String(option?.label ?? "")
+                          .toLowerCase()
+                          .includes(input.toLowerCase())
+                      }
+                      notFoundContent={
+                        isLoadingUsers ? (
+                          <div className="flex items-center justify-center py-4">
+                            <Loader2 className="h-4 w-4 animate-spin text-muted" />
+                          </div>
+                        ) : (
+                          <div className="py-4 text-center text-xs text-muted">
+                            Không tìm thấy người dùng
+                          </div>
+                        )
+                      }
+                      options={(users ?? []).map((u) => ({
+                        value: u.id,
+                        label: u.name || u.email,
+                        email: u.email,
+                      }))}
+                      optionRender={(opt) => {
+                        const initials = String(opt.data.label ?? "?")
+                          .split(" ")
+                          .filter(Boolean)
+                          .slice(-2)
+                          .map((w: string) => w[0])
+                          .join("")
+                          .toUpperCase();
+                        return (
+                          <div className="flex items-center gap-2.5 py-0.5">
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[9px] font-bold text-violet-700">
+                              {initials}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-xs font-medium text-ink">
+                                {opt.data.label as string}
+                              </p>
+                              <p className="truncate text-[10px] text-muted">
+                                {(opt.data as { email?: string }).email}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      }}
+                    />
+                  </Form.Item>
+                  <p className="mt-2 text-[10px] text-orange-500/80">
+                    Nếu để trống, line manager của nhân viên sẽ được dùng làm người phê duyệt.
+                  </p>
+                </div>
+              </div>
+            );
+          }}
+        </Form.Item>
+
+        {/* Conditional document picker — shown only when requireAck is checked */}
+        <Form.Item
+          noStyle
+          shouldUpdate={(prev, curr) =>
+            prev.tasks?.[field.name]?.requireAck !==
+            curr.tasks?.[field.name]?.requireAck
+          }>
+          {({ getFieldValue }) => {
+            const needsAck = getFieldValue(["tasks", field.name, "requireAck"]);
+            if (!needsAck) return null;
+            return (
+              <div className="overflow-hidden rounded-xl border border-blue-200 bg-gradient-to-b from-blue-50/70 to-transparent">
+                {/* Header */}
+                <div className="flex items-center gap-3 border-b border-blue-100/80 bg-blue-50/60 px-4 py-2.5">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-100">
+                    <BookOpen className="h-3.5 w-3.5 text-blue-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-blue-800">
+                      {t("onboarding.template.editor.task.required_docs_label") ?? "Tài liệu xác nhận"}
+                    </p>
+                    <p className="text-[10px] text-blue-500">
+                      Nhân viên phải đọc và xác nhận trước khi hoàn thành
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-500">
+                    Bắt buộc
+                  </span>
+                </div>
+                {/* Picker */}
+                <div className="p-3">
+                  <Form.Item
+                    name={[field.name, "requiredDocumentIds"]}
+                    className="mb-0"
+                    rules={
+                      readOnly
+                        ? []
+                        : [
+                            {
+                              required: true,
+                              type: "array",
+                              min: 1,
+                              message:
+                                t(
+                                  "onboarding.template.editor.task.required_docs_error",
+                                ) ?? "Vui lòng chọn ít nhất một tài liệu",
+                            },
+                          ]
+                    }>
+                    <DocumentPickerField
+                      documents={documents ?? []}
+                      isLoading={isLoadingDocs ?? false}
+                      disabled={readOnly}
+                    />
+                  </Form.Item>
+                </div>
+              </div>
+            );
+          }}
+        </Form.Item>
       </div>
     </div>
   );
@@ -496,6 +1006,17 @@ const TaskForm = memo(function TaskForm({
   const skipSync = useRef(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
 
+  // Fetch document list once — used for requiredDocumentIds picker
+  const { data: docData, isLoading: isLoadingDocs } = useQuery({
+    queryKey: ["documents"],
+    queryFn: () => apiGetDocuments(),
+    staleTime: 10 * 60 * 1000,
+  });
+  const documents = docData?.items ?? [];
+
+  // Fetch user list once — used for approverUserId picker
+  const { data: users = [], isLoading: isLoadingUsers } = useUsersQuery();
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor),
@@ -512,6 +1033,8 @@ const TaskForm = memo(function TaskForm({
         requireAck: tk.requireAck,
         requireDoc: tk.requireDoc,
         requiresManagerApproval: tk.requiresManagerApproval,
+        approverUserId: tk.approverUserId,
+        requiredDocumentIds: tk.requiredDocumentIds,
         assignee: tk.assignee,
       })),
     });
@@ -543,12 +1066,22 @@ const TaskForm = memo(function TaskForm({
               requireAck: boolean;
               requireDoc: boolean;
               requiresManagerApproval: boolean;
+              approverUserId?: string;
+              requiredDocumentIds?: string[];
               assignee: string;
             },
             ti: number,
           ) => {
             const orig = checklist.tasks[ti];
             if (!orig) return;
+            // When approval is unchecked, clear approverUserId
+            const approverUserId = tk.requiresManagerApproval
+              ? (tk.approverUserId ?? undefined)
+              : undefined;
+            // When requireAck is unchecked, clear requiredDocumentIds
+            const requiredDocumentIds = tk.requireAck
+              ? (tk.requiredDocumentIds ?? undefined)
+              : undefined;
             if (
               tk.name !== orig.name ||
               tk.description !== orig.description ||
@@ -556,6 +1089,9 @@ const TaskForm = memo(function TaskForm({
               tk.requireAck !== orig.requireAck ||
               tk.requireDoc !== orig.requireDoc ||
               tk.requiresManagerApproval !== orig.requiresManagerApproval ||
+              approverUserId !== orig.approverUserId ||
+              JSON.stringify(requiredDocumentIds) !==
+                JSON.stringify(orig.requiredDocumentIds) ||
               tk.assignee !== orig.assignee
             ) {
               onUpdateTask(ti, {
@@ -565,6 +1101,8 @@ const TaskForm = memo(function TaskForm({
                 requireAck: tk.requireAck,
                 requireDoc: tk.requireDoc,
                 requiresManagerApproval: tk.requiresManagerApproval,
+                approverUserId,
+                requiredDocumentIds,
                 assignee: tk.assignee as TaskDraft["assignee"],
               });
             }
@@ -637,6 +1175,10 @@ const TaskForm = memo(function TaskForm({
                         onCloneTask={onCloneTask}
                         onRemoveTask={onRemoveTask}
                         readOnly={readOnly}
+                        documents={documents}
+                        isLoadingDocs={isLoadingDocs}
+                        users={users}
+                        isLoadingUsers={isLoadingUsers}
                       />
                     );
                   })
@@ -686,9 +1228,6 @@ export const TasksPanel = ({
       label: `${m.code} · ${t(o.label)}`,
     };
   });
-
-  const meta = getStageMeta(checklist.stageType);
-  const accent = STAGE_ACCENTS[meta.accent];
 
   // Sync form when switching stages
   useEffect(() => {

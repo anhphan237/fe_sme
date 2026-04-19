@@ -262,7 +262,11 @@ const AdminUsers = () => {
     description: t("user.import.description"),
     fields: [
       { key: "email", label: t("user.import.field.email"), required: true },
-      { key: "fullName", label: t("user.import.field.full_name"), required: true },
+      {
+        key: "fullName",
+        label: t("user.import.field.full_name"),
+        required: true,
+      },
       { key: "phone", label: t("user.import.field.phone") },
       { key: "roleCode", label: t("user.import.field.role") },
       { key: "departmentId", label: t("user.import.field.department") },
@@ -324,7 +328,9 @@ const AdminUsers = () => {
           <p className="text-sm font-medium text-slate-700">
             {t("user.empty_title")}
           </p>
-          <p className="text-xs text-slate-400">{t("user.empty_description")}</p>
+          <p className="text-xs text-slate-400">
+            {t("user.empty_description")}
+          </p>
         </div>
       }
     />
@@ -334,11 +340,11 @@ const AdminUsers = () => {
     <div className="flex h-full flex-col gap-4 p-4">
       {/* ── Actions ── */}
       <div className="flex shrink-0 items-center justify-end gap-2">
-        <BaseButton
+        {/* <BaseButton
           icon={<Upload className="h-4 w-4" />}
           onClick={() => setImportOpen(true)}
           label="user.import_csv"
-        />
+        /> */}
         <BaseButton
           type="primary"
           icon={<Plus className="h-4 w-4" />}

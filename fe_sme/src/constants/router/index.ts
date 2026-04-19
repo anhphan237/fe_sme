@@ -25,7 +25,6 @@ export const AppRouters = {
   ONBOARDING_TASK_LIBRARY: "/onboarding/task-library",
   ONBOARDING_TASK_LIBRARY_DETAIL: "/onboarding/task-library/:templateId",
   ONBOARDING_TASKS: "/onboarding/tasks",
-  ONBOARDING_MY_JOURNEY: "/onboarding/my-journey",
   // Documents
   DOCUMENTS: "/documents",
   // Surveys

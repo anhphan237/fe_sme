@@ -25,6 +25,7 @@ import {
   apiCancelInstance,
   apiCompleteInstance,
   apiListTasks,
+  apiListTasksByAssignee,
   apiUpdateTaskStatus,
   apiGetTaskDetailFull,
   apiListTaskComments,
@@ -60,6 +61,7 @@ import { TaskDrawer } from "./components/TaskDrawer";
 import { StageProgressCard } from "./components/StageProgressCard";
 import { STATUS_DONE, STATUS_DONE_API, STATUS_TAG_COLOR } from "./constants";
 import type { OnboardingTask } from "@/shared/types";
+import { AppLoading } from "@/components/page-loading";
 
 // ── Activity Feed ─────────────────────────────────────────────────────────────
 
@@ -238,11 +240,13 @@ const EmployeeDetail = () => {
     data: instance,
     isLoading: instanceLoading,
     isError: instanceError,
+    isFetching: instanceFetching,
     refetch: refetchInstance,
   } = useQuery({
     queryKey: ["instance", instanceId],
     queryFn: () => apiGetInstance(instanceId!),
     enabled: Boolean(instanceId),
+    refetchOnMount: "always",
     select: (res: unknown) => {
       const r = res as Record<string, unknown>;
       const raw = r?.instance ?? r?.data ?? r?.result ?? r?.payload ?? res;
@@ -252,21 +256,44 @@ const EmployeeDetail = () => {
     },
   });
 
-  const { data: tasks = [], isLoading: tasksLoading } = useQuery({
+  const { data: tasks = [], isLoading: tasksLoading, isFetching: tasksFetching } = useQuery({
     queryKey: [
       "onboarding-tasks-by-instance",
       instance?.id ?? instanceId ?? "",
+      isEmployee ? "assignee" : "manager",
     ],
-    queryFn: () => apiListTasks(instance?.id ?? instanceId!),
-    enabled: Boolean(instance?.id ?? instanceId),
-    select: (res: unknown) =>
-      extractList(
+    // Chờ instance load để luôn filter chính xác theo onboarding hiện tại
+    enabled: Boolean(instance?.id),
+    refetchOnMount: "always",
+    queryFn: () => {
+      if (isEmployee) {
+        // Nhân viên xem task của chính mình → dùng listByAssignee
+        return apiListTasksByAssignee({ size: 100 });
+      }
+      // HR/Manager xem task của instance → dùng listByOnboarding
+      return apiListTasks(instance!.id);
+    },
+    select: (res: unknown) => {
+      const all = extractList(
         res as Record<string, unknown>,
         "tasks",
         "content",
         "items",
         "list",
-      ).map(mapTask) as OnboardingTask[],
+      ).map(mapTask) as OnboardingTask[];
+
+      if (isEmployee) {
+        // Filter về đúng onboarding instance đang xem
+        const currentInstanceId = instance?.id;
+        if (!currentInstanceId) return all;
+        return all.filter((tk) => tk.onboardingId === currentInstanceId);
+      }
+      // HR/Manager view: chỉ tính task được assign cho nhân viên của instance
+      // (khớp ngữ nghĩa listByAssignee để thống kê chính xác)
+      const employeeUserId = instance?.employeeUserId;
+      if (!employeeUserId) return all;
+      return all.filter((tk) => tk.assignedUserId === employeeUserId);
+    },
   });
 
   const { data: templateDetail } = useQuery({
@@ -299,7 +326,10 @@ const EmployeeDetail = () => {
   const { data: taskDetail, isLoading: taskDetailLoading } = useQuery({
     queryKey: ["onboarding-task-detail", selectedTaskId ?? ""],
     queryFn: () =>
-      apiGetTaskDetailFull(selectedTaskId!, { includeActivityLogs: true }),
+      apiGetTaskDetailFull(selectedTaskId!, {
+        includeActivityLogs: true,
+        includeComments: false,
+      }),
     enabled: Boolean(selectedTaskId),
     select: (res: unknown) => {
       const r = res as Record<string, unknown>;
@@ -586,16 +616,30 @@ const EmployeeDetail = () => {
     }
   };
 
+  const handleStartTask = async (task: OnboardingTask): Promise<boolean> => {
+    try {
+      await updateTaskStatus.mutateAsync({
+        taskId: task.id,
+        status: "IN_PROGRESS",
+      });
+      invalidateTasks();
+      notify.success(t("onboarding.task.toast.started"));
+      return true;
+    } catch {
+      notify.error(t("onboarding.detail.toast.task_failed"));
+      return false;
+    }
+  };
+
   const handleToggleTask = async (task: OnboardingTask) => {
     const isDone = task.status === STATUS_DONE;
+    const rawStatus = task.rawStatus ?? "";
 
     // Revert DONE → TODO
     if (isDone) {
       try {
         await updateTaskStatus.mutateAsync({ taskId: task.id, status: "TODO" });
-        queryClient.invalidateQueries({
-          queryKey: ["onboarding-tasks-by-instance"],
-        });
+        invalidateTasks();
         notify.success(t("onboarding.detail.toast.task_undone"));
       } catch {
         notify.error(t("onboarding.detail.toast.task_failed"));
@@ -603,8 +647,14 @@ const EmployeeDetail = () => {
       return;
     }
 
-    // Guard: requireAck — phải acknowledge trước khi DONE
-    if (task.requireAck && task.rawStatus !== "WAIT_ACK") {
+    // API flow: TODO/ASSIGNED -> IN_PROGRESS trước khi thao tác tiếp theo
+    if (rawStatus === "TODO" || rawStatus === "ASSIGNED") {
+      await handleStartTask(task);
+      return;
+    }
+
+    // requireAck flow: IN_PROGRESS -> acknowledge -> WAIT_ACK -> DONE
+    if (task.requireAck && rawStatus === "IN_PROGRESS") {
       try {
         await acknowledgeMutation.mutateAsync(task.id);
       } catch {
@@ -613,16 +663,28 @@ const EmployeeDetail = () => {
       return;
     }
 
-    // Guard: requiresManagerApproval — phải submit để manager approve, không được set DONE trực tiếp
-    if (task.requiresManagerApproval) {
+    if (rawStatus === "WAIT_ACK") {
+      try {
+        await updateTaskStatus.mutateAsync({
+          taskId: task.id,
+          status: STATUS_DONE_API,
+        });
+        invalidateTasks();
+        notify.success(t("onboarding.detail.toast.task_done"));
+      } catch {
+        notify.error(t("onboarding.detail.toast.task_failed"));
+      }
+      return;
+    }
+
+    // requiresManagerApproval flow: IN_PROGRESS -> PENDING_APPROVAL
+    if (task.requiresManagerApproval && rawStatus === "IN_PROGRESS") {
       try {
         await updateTaskStatus.mutateAsync({
           taskId: task.id,
           status: "PENDING_APPROVAL",
         });
-        queryClient.invalidateQueries({
-          queryKey: ["onboarding-tasks-by-instance"],
-        });
+        invalidateTasks();
         notify.success(t("onboarding.task.toast.submitted_approval"));
       } catch {
         notify.error(t("onboarding.detail.toast.task_failed"));
@@ -630,15 +692,16 @@ const EmployeeDetail = () => {
       return;
     }
 
-    // Normal: mark DONE
+    // Chỉ cho DONE khi task đang IN_PROGRESS
+    if (rawStatus !== "IN_PROGRESS") return;
+
+    // Normal flow: IN_PROGRESS -> DONE
     try {
       await updateTaskStatus.mutateAsync({
         taskId: task.id,
         status: STATUS_DONE_API,
       });
-      queryClient.invalidateQueries({
-        queryKey: ["onboarding-tasks-by-instance"],
-      });
+      invalidateTasks();
       notify.success(t("onboarding.detail.toast.task_done"));
     } catch {
       notify.error(t("onboarding.detail.toast.task_failed"));
@@ -773,7 +836,8 @@ const EmployeeDetail = () => {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-6">
+      {(instanceFetching || tasksFetching) && !instanceLoading && <AppLoading />}
       {/* ── Page header ──────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -902,6 +966,11 @@ const EmployeeDetail = () => {
         onDrawerTabChange={setDrawerTab}
         onCommentChange={setCommentInput}
         onAddComment={handleAddComment}
+        onStart={async () => {
+          if (!taskDetail) return;
+          const task = tasks.find((tk) => tk.id === taskDetail.taskId);
+          if (task) await handleStartTask(task);
+        }}
         onAcknowledge={() =>
           taskDetail && acknowledgeMutation.mutate(taskDetail.taskId)
         }

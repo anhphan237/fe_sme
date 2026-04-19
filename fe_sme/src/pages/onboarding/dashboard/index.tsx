@@ -9,8 +9,8 @@ const OnboardingDashboard = () => {
 
   if (roles.includes("HR")) return <HrDashboard />;
   if (roles.includes("MANAGER")) return <ManagerDashboard />;
-  // EMPLOYEE → redirect to My Journey
-  return <Navigate to="/onboarding/my-journey" replace />;
+  // EMPLOYEE → redirect to employee dashboard (merged view)
+  return <Navigate to="/dashboard/employee" replace />;
 };
 
 export default OnboardingDashboard;

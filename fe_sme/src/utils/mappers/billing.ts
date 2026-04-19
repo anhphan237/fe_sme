@@ -40,6 +40,7 @@ export const mapPlan = (p: any): BillingPlan => {
     id: p.planId ?? p.id ?? "",
     code: p.code ?? "",
     name: p.name ?? "",
+    status: p.status ?? "",
     price: formatVnd(p.priceVndMonthly),
     priceYearly: formatVnd(p.priceVndYearly),
     priceRaw,

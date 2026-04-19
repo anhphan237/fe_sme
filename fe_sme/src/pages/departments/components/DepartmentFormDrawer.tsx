@@ -5,8 +5,7 @@ import BaseButton from "@/components/button";
 import BaseInput from "@core/components/Input/InputWithLabel";
 import BaseSelect from "@core/components/Select/BaseSelect";
 import { useLocale } from "@/i18n";
-import { DEPARTMENT_TYPES } from "../constants";
-import type { DepartmentItem } from "@/interface/company";
+import type { DepartmentItem, DepartmentTypeItem } from "@/interface/company";
 import type { User } from "@/shared/types";
 
 interface FormState {
@@ -20,6 +19,7 @@ export type DepartmentDrawerMode = "create" | "edit" | null;
 export interface DepartmentFormDrawerProps {
   mode: DepartmentDrawerMode;
   department: DepartmentItem | null;
+  departmentTypes: DepartmentTypeItem[];
   users: User[];
   onClose: () => void;
   onSubmit: (
@@ -49,6 +49,7 @@ const SectionLabel = ({
 export const DepartmentFormDrawer = ({
   mode,
   department,
+  departmentTypes,
   users,
   onClose,
   onSubmit,
@@ -59,18 +60,19 @@ export const DepartmentFormDrawer = ({
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    const defaultType = departmentTypes[0]?.code ?? "";
     if (mode === "edit" && department) {
       form.setFieldsValue({
         name: department.name,
-        type: department.type ?? "OTHER",
+        type: department.type ?? defaultType,
         managerUserId: department.managerUserId ?? undefined,
       });
     } else {
       form.resetFields();
-      form.setFieldsValue({ type: "OTHER" });
+      form.setFieldsValue({ type: defaultType });
     }
     setFormError(null);
-  }, [mode, department, form]);
+  }, [mode, department, departmentTypes, form]);
 
   const handleFinish = async (values: FormState) => {
     setFormError(null);
@@ -176,9 +178,9 @@ export const DepartmentFormDrawer = ({
           name="type"
           label={t("department.field.type")}
           className="w-full"
-          options={DEPARTMENT_TYPES.map((opt) => ({
-            value: opt.value,
-            label: opt.label,
+          options={departmentTypes.map((t) => ({
+            value: t.code,
+            label: t.name,
           }))}
         />
 

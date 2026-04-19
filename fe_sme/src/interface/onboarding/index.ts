@@ -4,8 +4,6 @@
 // Operations: com.sme.onboarding.*
 // ============================================================
 
-import type { Role } from "../common";
-
 // ---------------------------
 // Onboarding Template
 // ---------------------------
@@ -14,9 +12,14 @@ import type { Role } from "../common";
 export interface TaskTemplateCreateItem {
   /** BE field is `title` — must NOT be sent as `name` or task is silently skipped */
   title: string;
-  /** USER | DEPARTMENT | ROLE */
+  /**
+   * BE's OnboardingTaskGenerateProcessor.applyOwnerAssignment resolves:
+   *   USER | DEPARTMENT | EMPLOYEE | MANAGER | IT_STAFF
+   * Any other value leaves the task unassigned.
+   */
   ownerType?: string;
-  ownerRefId: Role;
+  /** Only meaningful for USER (userId) or DEPARTMENT (deptId). Null otherwise. */
+  ownerRefId?: string | null;
   dueDaysOffset?: number;
   requireAck?: boolean;
   requireDoc?: boolean;
@@ -119,7 +122,8 @@ export interface TaskTemplateDetail {
   /** BE returns `title`; mapper also checks `name` as fallback */
   title?: string;
   name: string;
-  ownerRefId: Role;
+  /** String for flexibility — may be a userId (USER), deptId (DEPARTMENT), a role code (legacy), or null. */
+  ownerRefId?: string | null;
   ownerType?: string;
   dueDaysOffset: number;
   requireAck: boolean;
@@ -401,6 +405,34 @@ export interface TaskScheduleResponse {
 // Task Detail (full)
 // ---------------------------
 
+/** Nested checklist info in task detail response */
+export interface TaskDetailChecklistInfo {
+  checklistId: string;
+  name?: string;
+  /** PRE_BOARDING | DAY_1 | DAY_7 | DAY_30 | DAY_60 */
+  stage?: string;
+  onboardingId?: string;
+}
+
+/** Nested user info in task detail response */
+export interface TaskDetailUserInfo {
+  userId: string;
+  fullName?: string;
+  email?: string;
+}
+
+/** Nested department info in task detail response */
+export interface TaskDetailDepartmentInfo {
+  departmentId: string;
+  name?: string;
+}
+
+/** Required document reference in task detail */
+export interface RequiredDocumentItem {
+  documentId: string;
+  title?: string;
+}
+
 /** Attachment in task detail */
 export interface TaskAttachmentItem {
   attachmentId: string;
@@ -438,10 +470,10 @@ export interface TaskDetailResponse {
   createdAt?: string;
   updatedAt?: string;
   createdBy?: string;
-  // Assignee
+  // Assignee (flat fields — BE may also return nested assignedUser)
   assignedUserId?: string;
   assignedUserName?: string;
-  // Checklist
+  // Checklist (flat fields — BE may also return nested checklist)
   checklistId?: string;
   checklistName?: string;
   // Acknowledgment
@@ -467,6 +499,12 @@ export interface TaskDetailResponse {
   scheduleRescheduleReason?: string;
   scheduleCancelReason?: string;
   scheduleNoShowReason?: string;
+  // Nested objects returned by BE
+  checklist?: TaskDetailChecklistInfo;
+  assignedUser?: TaskDetailUserInfo;
+  createdByUser?: TaskDetailUserInfo;
+  assignedDepartment?: TaskDetailDepartmentInfo;
+  requiredDocuments?: RequiredDocumentItem[];
   // Collections
   comments?: CommentResponse[];
   attachments?: TaskAttachmentItem[];

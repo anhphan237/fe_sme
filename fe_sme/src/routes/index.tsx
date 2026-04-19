@@ -34,7 +34,6 @@ const NotificationsPage = lazy(
   () => import("@/pages/notifications/NotificationsPage"),
 );
 const OnboardingDashboard = lazy(() => import("@/pages/onboarding/dashboard"));
-const MyJourney = lazy(() => import("@/pages/onboarding/my-journey"));
 const Templates = lazy(() => import("@/pages/onboarding/Templates"));
 const TaskLibrary = lazy(() => import("@/pages/onboarding/task-library"));
 const TaskLibraryDetail = lazy(
@@ -52,7 +51,6 @@ const EmployeeDetail = lazy(
 );
 const OnboardingTasks = lazy(() => import("@/pages/onboarding/tasks"));
 const OnboardingApprovals = lazy(() => import("@/pages/onboarding/approvals"));
-const OnboardingReports = lazy(() => import("@/pages/onboarding/reports"));
 const OnboardingSchedule = lazy(() => import("@/pages/onboarding/schedule"));
 const Documents = lazy(() => import("@/pages/documents/Documents"));
 const DocumentDetail = lazy(() => import("@/pages/documents/DocumentDetail"));
@@ -252,10 +250,6 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: "/onboarding/reports",
-        element: suspense(withRoles(<OnboardingReports />, ["HR"])),
-      },
-      {
         path: "/onboarding/schedule",
         element: suspense(
           withRoles(<OnboardingSchedule />, ["HR", "MANAGER", "EMPLOYEE"]),
@@ -263,7 +257,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "/onboarding/my-journey",
-        element: suspense(withRoles(<MyJourney />, ["EMPLOYEE"])),
+        element: <Navigate to="/dashboard/employee" replace />,
       },
       // Legacy redirects — old role-namespaced URLs
       {
@@ -316,7 +310,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "/onboarding/employee",
-        element: <Navigate to="/onboarding/my-journey" replace />,
+        element: <Navigate to="/dashboard/employee" replace />,
       },
       {
         path: "/onboarding/employee/instances/:employeeId",

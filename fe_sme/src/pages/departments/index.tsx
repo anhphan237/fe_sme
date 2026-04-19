@@ -11,8 +11,12 @@ import {
 } from "@/api/company/company.api";
 import { useLocale } from "@/i18n";
 import { useUserStore } from "@/stores/user.store";
-import { getDeptTypeLabel, getDeptTypeStyle } from "./constants";
-import { useUsersQuery, useDepartmentsQuery } from "@/hooks/adminHooks";
+import { getDeptTypeStyle } from "./constants";
+import {
+  useUsersQuery,
+  useDepartmentsQuery,
+  useDepartmentTypesQuery,
+} from "@/hooks/adminHooks";
 import {
   DepartmentFormDrawer,
   type DepartmentDrawerMode,
@@ -39,6 +43,12 @@ const Departments = () => {
     refetch,
   } = useDepartmentsQuery();
   const { data: users = [] } = useUsersQuery();
+  const { data: departmentTypes = [] } = useDepartmentTypesQuery();
+
+  const deptTypeLabel = (code: string | null) => {
+    if (!code) return "";
+    return departmentTypes.find((t) => t.code === code)?.name ?? code;
+  };
 
   const resolveManagerName = (userId: string | null) => {
     if (!userId) return null;
@@ -65,7 +75,7 @@ const Departments = () => {
         (d) =>
           !q ||
           d.name.toLowerCase().includes(q) ||
-          getDeptTypeLabel(d.type).toLowerCase().includes(q),
+          deptTypeLabel(d.type).toLowerCase().includes(q),
       );
 
   const selected =
@@ -195,7 +205,7 @@ const Departments = () => {
                           "!py-0 !text-[10px]",
                           getDeptTypeStyle(dept.type),
                         )}>
-                        {getDeptTypeLabel(dept.type)}
+                        {deptTypeLabel(dept.type)}
                       </Tag>
                       <span className="truncate text-[11px] text-[#758BA5]">
                         {manager ?? t("department.not_assigned")}
@@ -236,7 +246,7 @@ const Departments = () => {
                           "!text-xs",
                           getDeptTypeStyle(selected.type),
                         )}>
-                        {getDeptTypeLabel(selected.type)}
+                        {deptTypeLabel(selected.type)}
                       </Tag>
                       <span className="text-xs text-[#758BA5]">
                         {memberCountByDept[selected.departmentId] ?? 0}{" "}
@@ -339,6 +349,7 @@ const Departments = () => {
       <DepartmentFormDrawer
         mode={modalMode}
         department={editingDept}
+        departmentTypes={departmentTypes}
         users={users}
         onClose={closeModal}
         onSubmit={handleModalSubmit}

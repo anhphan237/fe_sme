@@ -19,7 +19,10 @@ import {
   Users,
 } from "lucide-react";
 import { useUserStore } from "@/stores/user.store";
-import { apiGetCompanyOnboardingByDepartment } from "@/api/admin/admin.api";
+import {
+  apiGetManagerTeamSummary,
+  apiGetOnboardingByDepartment,
+} from "@/api/analytics/analytics.api";
 import {
   apiListInstances,
   apiListTasks,
@@ -37,22 +40,12 @@ type DashboardDepartmentStat = {
   completedTasks: number;
 };
 
-// ── Mock data — replace with com.sme.analytics.manager.team.summary ──────────
-
-const MOCK_AT_RISK = [
-  {
-    name: "Nguyễn Văn A",
-    role: "Software Engineer",
-    daysOverdue: 5,
-    taskCount: 3,
-  },
-  {
-    name: "Trần Thị B",
-    role: "Business Analyst",
-    daysOverdue: 3,
-    taskCount: 1,
-  },
-];
+type AtRiskEmployee = {
+  name: string;
+  role: string;
+  daysOverdue: number;
+  taskCount: number;
+};
 
 // ── Query hooks ────────────────────────────────────────────────────────────────
 
@@ -69,26 +62,21 @@ function useInstancesQuery(enabled = true) {
 }
 
 function useByDepartmentQuery(
-  companyId?: string,
   startDate?: string,
   endDate?: string,
   enabled = true,
 ) {
   return useQuery({
-    queryKey: [
-      "manager-by-dept",
-      companyId ?? "",
-      startDate ?? "",
-      endDate ?? "",
-    ],
-    queryFn: () =>
-      apiGetCompanyOnboardingByDepartment({
-        companyId: companyId ?? "",
-        startDate: startDate ?? "",
-        endDate: endDate ?? "",
-      }),
-    enabled:
-      enabled && Boolean(companyId) && Boolean(startDate) && Boolean(endDate),
+    queryKey: ["manager-by-dept", startDate ?? "", endDate ?? ""],
+    queryFn: () => apiGetOnboardingByDepartment({ startDate, endDate }),
+    enabled: enabled && Boolean(startDate) && Boolean(endDate),
+  });
+}
+
+function useManagerTeamSummaryQuery(startDate?: string, endDate?: string) {
+  return useQuery({
+    queryKey: ["manager-team-summary", startDate ?? "", endDate ?? ""],
+    queryFn: () => apiGetManagerTeamSummary({ startDate, endDate }),
   });
 }
 
@@ -117,14 +105,12 @@ function KpiCard({
   sub,
   icon,
   tone,
-  isMock,
 }: {
   label: string;
   value: string;
   sub?: string;
   icon: React.ReactNode;
   tone: "teal" | "emerald" | "amber" | "rose";
-  isMock?: boolean;
 }) {
   const toneClass: Record<typeof tone, string> = {
     teal: "bg-teal-50 text-teal-700",
@@ -145,11 +131,6 @@ function KpiCard({
             {value}
           </p>
           {sub && <p className="mt-0.5 text-xs text-muted">{sub}</p>}
-          {isMock && (
-            <span className="mt-1 inline-block text-[10px] text-orange-400">
-              ⏳ Chờ API BE
-            </span>
-          )}
         </div>
         <div className={`rounded-xl p-2.5 ${toneClass[tone]}`}>{icon}</div>
       </div>
@@ -199,9 +180,7 @@ function taskStatusColor(status?: string) {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function ManagerDashboard() {
-  const currentTenant = useUserStore((s) => s.currentTenant);
   const currentUser = useUserStore((s) => s.currentUser);
-  const companyId = currentTenant?.id ?? currentUser?.companyId ?? undefined;
 
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([
     null,
@@ -211,17 +190,25 @@ export default function ManagerDashboard() {
   const startDate = dateRange[0]?.format("YYYY-MM-DD");
   const endDate = dateRange[1]?.format("YYYY-MM-DD");
   const hasDateRange = Boolean(startDate && endDate);
-  const analyticsEnabled = Boolean(companyId) && hasDateRange;
 
   const { data: instances = [], isLoading: instancesLoading } =
     useInstancesQuery(true);
 
+  const teamInstances = useMemo(
+    () =>
+      instances.filter((inst) => {
+        if (!currentUser?.id) return true;
+        return !inst.managerUserId || inst.managerUserId === currentUser.id;
+      }),
+    [instances, currentUser?.id],
+  );
+
   const filteredInstances = useMemo(
     () =>
-      instances.filter((inst) =>
+      teamInstances.filter((inst) =>
         inRange(parseDate(inst.startDate), startDate, endDate),
       ),
-    [instances, startDate, endDate],
+    [teamInstances, startDate, endDate],
   );
 
   const latestInstance = filteredInstances
@@ -232,7 +219,10 @@ export default function ManagerDashboard() {
     useTasksForInstanceQuery(latestInstance?.id);
 
   const { data: byDepartmentRaw, isLoading: byDepartmentLoading } =
-    useByDepartmentQuery(companyId, startDate, endDate, analyticsEnabled);
+    useByDepartmentQuery(startDate, endDate, hasDateRange);
+
+  const { data: managerTeamSummaryRaw, isLoading: managerTeamSummaryLoading } =
+    useManagerTeamSummaryQuery(startDate, endDate);
 
   const byDepartment = (byDepartmentRaw ?? { departments: [] }) as {
     departments?: DashboardDepartmentStat[];
@@ -263,6 +253,43 @@ export default function ManagerDashboard() {
             100,
         )
       : null;
+
+  const atRiskEmployees = useMemo<AtRiskEmployee[]>(() => {
+    const rows = extractList<Record<string, unknown>>(
+      managerTeamSummaryRaw,
+      "atRiskEmployees",
+      "atRisk",
+      "employees",
+      "items",
+      "list",
+    );
+
+    return rows
+      .map((item) => {
+        const daysOverdue = Number(
+          item.daysOverdue ?? item.overdueDays ?? item.maxDaysOverdue ?? 0,
+        );
+        const taskCount = Number(
+          item.taskCount ?? item.overdueTaskCount ?? item.pendingTaskCount ?? 0,
+        );
+
+        return {
+          name: String(
+            item.employeeName ??
+              item.fullName ??
+              item.name ??
+              item.employeeId ??
+              "Không rõ",
+          ),
+          role: String(item.role ?? item.title ?? "—"),
+          daysOverdue: Number.isFinite(daysOverdue)
+            ? Math.max(daysOverdue, 0)
+            : 0,
+          taskCount: Number.isFinite(taskCount) ? Math.max(taskCount, 0) : 0,
+        };
+      })
+      .filter((item) => item.daysOverdue > 0 || item.taskCount > 0);
+  }, [managerTeamSummaryRaw]);
 
   return (
     <div className="space-y-4">
@@ -477,39 +504,43 @@ export default function ManagerDashboard() {
         </Card>
       )}
 
-      {/* At-Risk — mock data, awaiting com.sme.analytics.manager.team.summary */}
       <Card className="border border-orange-200 bg-orange-50/30 shadow-sm">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <h2 className="text-base font-semibold text-ink">
             Nhân viên cần chú ý
           </h2>
-          <span className="ml-auto rounded bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-600">
-            ⏳ Demo data — Chờ API BE
-          </span>
         </div>
         <p className="mt-1 text-sm text-muted">
           Nhân viên có task quá hạn và chưa có tiến triển.
         </p>
         <div className="mt-4 space-y-2">
-          {MOCK_AT_RISK.map((emp) => (
-            <div
-              key={emp.name}
-              className="flex items-center justify-between rounded-lg border border-orange-200 bg-white px-3 py-2.5">
-              <div>
-                <p className="text-sm font-medium text-ink">{emp.name}</p>
-                <p className="text-xs text-muted">{emp.role}</p>
+          {managerTeamSummaryLoading ? (
+            <Skeleton active paragraph={{ rows: 3 }} title={false} />
+          ) : atRiskEmployees.length === 0 ? (
+            <p className="text-sm text-muted py-4">
+              Không có nhân viên cần chú ý trong kỳ đã chọn.
+            </p>
+          ) : (
+            atRiskEmployees.map((emp, index) => (
+              <div
+                key={`${emp.name}-${index}`}
+                className="flex items-center justify-between rounded-lg border border-orange-200 bg-white px-3 py-2.5">
+                <div>
+                  <p className="text-sm font-medium text-ink">{emp.name}</p>
+                  <p className="text-xs text-muted">{emp.role}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-red-500">
+                    Quá hạn {emp.daysOverdue} ngày
+                  </p>
+                  <p className="text-xs text-muted">
+                    {emp.taskCount} task chưa hoàn thành
+                  </p>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-sm font-semibold text-red-500">
-                  Quá hạn {emp.daysOverdue} ngày
-                </p>
-                <p className="text-xs text-muted">
-                  {emp.taskCount} task chưa hoàn thành
-                </p>
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </Card>
     </div>

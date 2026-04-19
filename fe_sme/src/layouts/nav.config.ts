@@ -93,13 +93,8 @@ export const NAV_SECTIONS: NavSection[] = [
         requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
       },
       {
-        titleKey: "nav.onboarding.reports",
-        to: "/onboarding/reports",
-        requiredRoles: ["HR"],
-      },
-      {
         titleKey: "nav.onboarding.my_journey",
-        to: "/onboarding/my-journey",
+        to: "/dashboard/employee",
         requiredRoles: ["EMPLOYEE"],
       },
     ],
