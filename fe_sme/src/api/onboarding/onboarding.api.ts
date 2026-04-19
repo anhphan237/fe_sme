@@ -19,6 +19,9 @@ import type {
   TaskScheduleMarkNoShowRequest,
   TaskScheduleResponse,
   TaskDetailResponse,
+  TaskLibraryListResponse,
+  TaskLibraryImportResponse,
+  OnboardingTemplateGetResponse,
 } from "@/interface/onboarding";
 
 // ── Templates ──────────────────────────────────────────────
@@ -337,3 +340,78 @@ export const apiGetTaskDetailFull = (
       includeActivityLogs: options?.includeActivityLogs ?? false,
     },
   );
+
+// ── Task Libraries (REST — direct, not gateway) ─────────────
+// Endpoints: GET/POST /api/v1/task-libraries/*
+
+const _TASK_LIB_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+const _getTaskLibBase = (): string =>
+  import.meta.env.DEV && _TASK_LIB_BASE_URL
+    ? ""
+    : _TASK_LIB_BASE_URL.replace(/\/$/, "");
+
+const _taskLibHeaders = (): Record<string, string> => {
+  const token = localStorage.getItem("auth_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+async function _taskLibFetch<T>(res: Response): Promise<T> {
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok)
+    throw new Error(
+      (json as Record<string, unknown>).message as string ??
+        (json as Record<string, unknown>).errorCode as string ??
+        `Error ${res.status}`,
+    );
+  return ((json as Record<string, unknown>).data !== undefined
+    ? (json as Record<string, unknown>).data
+    : json) as T;
+}
+
+/** GET /api/v1/task-libraries */
+export const apiListTaskLibraries = (params?: {
+  status?: string;
+  page?: number;
+  size?: number;
+}) => {
+  const p = new URLSearchParams();
+  if (params?.status) p.set("status", params.status);
+  if (params?.page != null) p.set("page", String(params.page));
+  if (params?.size != null) p.set("size", String(params.size));
+  const qs = p.toString() ? `?${p.toString()}` : "";
+  return fetch(`${_getTaskLibBase()}/api/v1/task-libraries${qs}`, {
+    headers: _taskLibHeaders(),
+  }).then((r) => _taskLibFetch<TaskLibraryListResponse>(r));
+};
+
+/** GET /api/v1/task-libraries/{templateId} */
+export const apiGetTaskLibrary = (templateId: string) =>
+  fetch(`${_getTaskLibBase()}/api/v1/task-libraries/${templateId}`, {
+    headers: _taskLibHeaders(),
+  }).then((r) => _taskLibFetch<OnboardingTemplateGetResponse>(r));
+
+/** GET /api/v1/task-libraries/excel-template — triggers browser download */
+export const apiDownloadTaskLibraryTemplate = async (): Promise<void> => {
+  const res = await fetch(
+    `${_getTaskLibBase()}/api/v1/task-libraries/excel-template`,
+    { headers: _taskLibHeaders() },
+  );
+  if (!res.ok) throw new Error(`Download failed (${res.status})`);
+  const blob = await res.blob();
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = "task-library-template.xlsx";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(href);
+};
+
+/** POST /api/v1/task-libraries/import-excel (multipart/form-data) */
+export const apiImportTaskLibraryExcel = (formData: FormData) =>
+  fetch(`${_getTaskLibBase()}/api/v1/task-libraries/import-excel`, {
+    method: "POST",
+    headers: _taskLibHeaders(),
+    body: formData,
+  }).then((r) => _taskLibFetch<TaskLibraryImportResponse>(r));

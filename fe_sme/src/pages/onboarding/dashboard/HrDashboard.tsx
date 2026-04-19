@@ -15,6 +15,7 @@ import { CheckCircle, ClipboardList, Clock, Users } from "lucide-react";
 import { extractList } from "@/api/core/types";
 import { apiListInstances } from "@/api/onboarding/onboarding.api";
 import { mapInstance } from "@/utils/mappers/onboarding";
+import { useUserNameMap } from "@/utils/resolvers/userResolver";
 import { useLocale } from "@/i18n";
 import type { OnboardingInstance } from "@/shared/types";
 
@@ -36,6 +37,7 @@ const formatDate = (value?: string) => {
 
 const HrDashboard = () => {
   const { t } = useLocale();
+  const { resolveName } = useUserNameMap();
 
   const { data: allInstances = [], isLoading } = useQuery({
     queryKey: ["hr-onboarding-all-instances"],
@@ -220,7 +222,6 @@ const HrDashboard = () => {
         </Col>
       </Row>
 
-      {/* Recent onboarding instances */}
       <Card>
         <div className="mb-3 flex items-center justify-between">
           <Title level={5} className="!mb-0">
@@ -242,9 +243,15 @@ const HrDashboard = () => {
               title: t("onboarding.hr.dashboard.col.employee_id"),
               dataIndex: "employeeId",
               key: "employeeId",
-              render: (id: string, record: OnboardingInstance) => (
+              render: (_id: string, record: OnboardingInstance) => (
                 <Link to={`/onboarding/employees/${record.id}`}>
-                  <Text className="text-blue-500 hover:underline">{id}</Text>
+                  <Text className="text-blue-500 hover:underline">
+                    {record.employeeName ||
+                      resolveName(
+                        record.employeeUserId,
+                        record.employeeId || "—",
+                      )}
+                  </Text>
                 </Link>
               ),
             },
@@ -253,7 +260,11 @@ const HrDashboard = () => {
               dataIndex: "status",
               key: "status",
               render: (status: string) => (
-                <Tag color={statusColor[status] ?? "default"}>{status}</Tag>
+                <Tag color={statusColor[status] ?? "default"}>
+                  {t(`onboarding.instance.status.${status}`, {
+                    defaultValue: status,
+                  })}
+                </Tag>
               ),
             },
             {

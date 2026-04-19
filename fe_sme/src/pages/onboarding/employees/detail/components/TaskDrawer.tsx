@@ -594,38 +594,6 @@ const TaskInfoTab = ({
         </div>
       )}
 
-      {/* Assignment (manager/HR only) */}
-      {canManage && assignableUsers.length > 0 && (
-        <>
-          <Divider orientationMargin={0}>
-            <span className="flex items-center gap-1 text-xs text-gray-400">
-              <Users className="h-3 w-3" />
-              {t("onboarding.task.assign.section_title")}
-            </span>
-          </Divider>
-          <div className="flex items-center gap-2">
-            <Select
-              showSearch
-              allowClear
-              style={{ flex: 1 }}
-              placeholder={t("onboarding.task.assign.placeholder")}
-              defaultValue={taskDetail.assignedUserId ?? undefined}
-              filterOption={(input, option) =>
-                String(option?.label ?? "")
-                  .toLowerCase()
-                  .includes(input.toLowerCase())
-              }
-              options={assignableUsers.map((u) => ({
-                value: u.userId,
-                label: u.fullName || u.email,
-              }))}
-              loading={isAssigning}
-              onSelect={(userId: string) => onAssign(userId)}
-            />
-          </div>
-        </>
-      )}
-
       {/* Schedule section */}
       <ScheduleSection
         taskDetail={taskDetail}
@@ -915,6 +883,74 @@ const TaskDocumentsTab = ({
 
 // ── Activity Tab ──────────────────────────────────────────────────────────────
 
+function parseActivityChange(
+  action: string,
+  oldJson: string | undefined,
+  newJson: string | undefined,
+  t: (key: string) => string,
+): { label: string; detail: string | null } {
+  const parseJson = (s?: string) => {
+    try {
+      return s ? JSON.parse(s) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const old = parseJson(oldJson);
+  const next = parseJson(newJson);
+
+  const statusLabel = (s?: string | null): string => {
+    if (!s) return "";
+    const key = `onboarding.task.status.${s.toLowerCase()}`;
+    const tr = t(key);
+    return tr.startsWith("onboarding.task.status.") ? s : tr;
+  };
+
+  const approvalLabel = (s?: string | null): string | null => {
+    if (!s || s === "NONE") return null;
+    const key = `onboarding.task.approval.status.${s.toLowerCase()}`;
+    const tr = t(key);
+    return tr.startsWith("onboarding.task.approval.status.") ? s : tr;
+  };
+
+  switch (action) {
+    case "STATUS_CHANGED": {
+      const parts: string[] = [];
+      if (old?.status !== next?.status) {
+        parts.push(`${statusLabel(old?.status)} → ${statusLabel(next?.status)}`);
+      }
+      if (old?.approvalStatus !== next?.approvalStatus) {
+        const aLabel = approvalLabel(next?.approvalStatus);
+        if (aLabel) parts.push(aLabel);
+      }
+      return {
+        label: t("onboarding.task.activity.action.status_changed") || "Status changed",
+        detail: parts.join(" · ") || null,
+      };
+    }
+    case "ASSIGNED": {
+      const wasAssigned = !!old?.assignedUserId;
+      const isAssigned = !!next?.assignedUserId;
+      let detail: string | null = null;
+      if (!wasAssigned && isAssigned) detail = `${statusLabel("TODO")} → ${statusLabel("ASSIGNED")}`;
+      else if (wasAssigned && !isAssigned) detail = "Unassigned";
+      else if (wasAssigned && isAssigned) detail = "Reassigned";
+      return {
+        label: t("onboarding.task.activity.action.assigned") || "Assigned",
+        detail,
+      };
+    }
+    default: {
+      const label = action
+        .replace(/_/g, " ")
+        .toLowerCase()
+        .replace(/^\w/, (c) => c.toUpperCase());
+      return { label, detail: null };
+    }
+  }
+}
+
 const TaskActivityTab = ({
   taskDetail,
 }: {
@@ -932,29 +968,35 @@ const TaskActivityTab = ({
             </span>
           </Divider>
           <div className="space-y-1.5">
-            {taskDetail.activityLogs.map((log) => (
-              <div
-                key={log.logId}
-                className="flex items-start gap-2 rounded-md bg-gray-50 px-3 py-2 text-xs">
-                <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-blue-400" />
-                <div className="flex-1">
-                  <span className="font-medium text-gray-700">
-                    {log.action}
+            {taskDetail.activityLogs.map((log) => {
+              const { label, detail } = parseActivityChange(
+                log.action,
+                log.oldValue,
+                log.newValue,
+                t,
+              );
+              return (
+                <div
+                  key={log.logId}
+                  className="flex items-start gap-2 rounded-md bg-gray-50 px-3 py-2 text-xs">
+                  <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-blue-400" />
+                  <div className="flex-1">
+                    <span className="font-medium text-gray-700">{label}</span>
+                    {detail && (
+                      <span className="ml-1 text-gray-500">{detail}</span>
+                    )}
+                    {log.actorName && (
+                      <span className="ml-1 text-gray-400">
+                        · {log.actorName}
+                      </span>
+                    )}
+                  </div>
+                  <span className="shrink-0 text-gray-400">
+                    {formatDate(log.createdAt)}
                   </span>
-                  {log.newValue && (
-                    <span className="ml-1 text-gray-500">→ {log.newValue}</span>
-                  )}
-                  {log.actorName && (
-                    <span className="ml-1 text-gray-400">
-                      · {log.actorName}
-                    </span>
-                  )}
                 </div>
-                <span className="shrink-0 text-gray-400">
-                  {formatDate(log.createdAt)}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       ) : (

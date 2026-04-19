@@ -1009,7 +1009,6 @@ const MyJourney = () => {
                   )}
 
                 {selectedTaskDetail.requireDoc &&
-                  selectedTaskDetail.status !== "DONE" &&
                   selectedTaskDetail.status !== "PENDING_APPROVAL" && (
                     <div className="flex items-center gap-1.5 rounded-md border border-amber-100 bg-amber-50/70 px-3 py-2 text-xs text-amber-700">
                       <AlertTriangle className="h-3.5 w-3.5 shrink-0" />

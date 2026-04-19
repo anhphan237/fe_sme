@@ -55,6 +55,8 @@ export interface OnboardingStage {
   id: string;
   name: string;
   stageType?: string;
+  /** Deadline in days from onboarding start date */
+  deadlineDays?: number;
   tasks: OnboardingTask[];
 }
 
@@ -71,6 +73,10 @@ export interface OnboardingTask {
   requireDoc?: boolean;
   /** requiresManagerApproval flag: employee must submit PENDING_APPROVAL; cannot set DONE directly */
   requiresManagerApproval?: boolean;
+  /** Designated approver user ID (overrides default manager). Used when requiresManagerApproval=true */
+  approverUserId?: string;
+  /** IDs of document templates required for this task (used in template context) */
+  requiredDocumentIds?: string[];
   /** UI-friendly mapped status */
   status?: "Pending" | "In Progress" | "Done" | "Wait Ack" | "Pending Approval";
   /** Raw API status: TODO | IN_PROGRESS | ASSIGNED | WAIT_ACK | PENDING_APPROVAL | DONE */
