@@ -5,6 +5,7 @@ import type {
   UploadDocumentResponse,
   AcknowledgeDocumentRequest,
   AcknowledgeDocumentResponse,
+  AcknowledgmentListResponse,
 } from "@/interface/document";
 import { useUserStore } from "@/stores/user.store";
 
@@ -88,7 +89,7 @@ export const apiSaveDocument = (payload: UploadDocumentRequest) =>
 
 /** com.sme.document.acknowledgment.list */
 export const apiListAcknowledgments = () =>
-  gatewayRequest<Record<string, never>, unknown>(
+  gatewayRequest<Record<string, never>, AcknowledgmentListResponse>(
     "com.sme.document.acknowledgment.list",
     {},
   );

@@ -77,6 +77,49 @@ const extractErrorMessage = (err: unknown, fallback: string): string => {
   return fallback;
 };
 
+const normalizeRequiredDocuments = (
+  detail: Record<string, unknown>,
+  fallbackTask?: OnboardingTask,
+): Array<{ documentId: string; title?: string }> => {
+  const source =
+    detail.requiredDocuments ??
+    detail.requiredDocumentIds ??
+    detail.requiredDocs ??
+    fallbackTask?.requiredDocumentIds ??
+    [];
+
+  const list = Array.isArray(source) ? source : [];
+  return list
+    .map((item) => {
+      if (typeof item === "string") {
+        const id = item.trim();
+        return id ? { documentId: id } : null;
+      }
+
+      if (item && typeof item === "object") {
+        const raw = item as Record<string, unknown>;
+        const documentId = String(
+          raw.documentId ?? raw.id ?? raw.document_id ?? "",
+        ).trim();
+        if (!documentId) return null;
+
+        const title =
+          typeof raw.title === "string" && raw.title.trim()
+            ? raw.title.trim()
+            : typeof raw.name === "string" && raw.name.trim()
+              ? raw.name.trim()
+              : undefined;
+
+        return { documentId, title };
+      }
+
+      return null;
+    })
+    .filter((doc): doc is { documentId: string; title?: string } =>
+      Boolean(doc?.documentId),
+    );
+};
+
 // ── Activity Feed ─────────────────────────────────────────────────────────────
 
 const ACTIVITY_STATUS_ICON: Record<string, ReactNode> = {
@@ -270,7 +313,11 @@ const EmployeeDetail = () => {
     },
   });
 
-  const { data: tasks = [], isLoading: tasksLoading, isFetching: tasksFetching } = useQuery({
+  const {
+    data: tasks = [],
+    isLoading: tasksLoading,
+    isFetching: tasksFetching,
+  } = useQuery({
     queryKey: [
       "onboarding-tasks-by-instance",
       instance?.id ?? instanceId ?? "",
@@ -347,11 +394,23 @@ const EmployeeDetail = () => {
     enabled: Boolean(selectedTaskId),
     select: (res: unknown) => {
       const r = res as Record<string, unknown>;
-      return (r?.task ??
-        r?.data ??
-        r?.result ??
-        r?.payload ??
-        res) as TaskDetailResponse;
+      const rawCandidate =
+        r?.task ?? r?.data ?? r?.result ?? r?.payload ?? r?.item ?? res;
+      const detail =
+        rawCandidate && typeof rawCandidate === "object"
+          ? (rawCandidate as Record<string, unknown>)
+          : {};
+
+      const selectedTask = tasks.find((tk) => tk.id === selectedTaskId);
+      const requiredDocuments = normalizeRequiredDocuments(
+        detail,
+        selectedTask,
+      );
+
+      return {
+        ...(detail as unknown as TaskDetailResponse),
+        requiredDocuments,
+      } as TaskDetailResponse;
     },
   });
 
@@ -870,7 +929,9 @@ const EmployeeDetail = () => {
 
   return (
     <div className="relative space-y-6">
-      {(instanceFetching || tasksFetching) && !instanceLoading && <AppLoading />}
+      {(instanceFetching || tasksFetching) && !instanceLoading && (
+        <AppLoading />
+      )}
       {/* ── Page header ──────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div>

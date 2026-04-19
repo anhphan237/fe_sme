@@ -606,6 +606,8 @@ export interface CommentResponse {
   taskId: string;
   authorId: string;
   authorName?: string;
+  createdBy?: string;
+  createdByName?: string;
   message?: string;
   content?: string;
   createdAt: string;

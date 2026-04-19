@@ -37,13 +37,13 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: Shield,
     children: [
       {
-        titleKey: "nav.organization.departments",
-        to: "/hr/departments",
+        titleKey: "nav.organization.department_types",
+        to: "/hr/department-types",
         requiredRoles: ["HR"],
       },
       {
-        titleKey: "nav.organization.department_types",
-        to: "/hr/department-types",
+        titleKey: "nav.organization.departments",
+        to: "/hr/departments",
         requiredRoles: ["HR"],
       },
       {
@@ -91,11 +91,6 @@ export const NAV_SECTIONS: NavSection[] = [
         titleKey: "nav.onboarding.schedule",
         to: "/onboarding/schedule",
         requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
-      },
-      {
-        titleKey: "nav.onboarding.my_journey",
-        to: "/dashboard/employee",
-        requiredRoles: ["EMPLOYEE"],
       },
     ],
   },

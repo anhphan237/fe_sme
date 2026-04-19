@@ -6,6 +6,7 @@ import {
   Badge,
   Button,
   Card,
+  Collapse,
   Drawer,
   Empty,
   Progress,
@@ -19,6 +20,7 @@ import {
   AlertCircle,
   AlertTriangle,
   BellRing,
+  Calendar,
   CalendarClock,
   CheckCircle2,
   CircleDashed,
@@ -26,6 +28,8 @@ import {
   Clock,
   FileText,
   Layers,
+  Paperclip,
+  ThumbsDown,
   User,
   UserCheck,
 } from "lucide-react";
@@ -156,7 +160,12 @@ export default function EmployeeDashboard() {
 
   const { data: taskDetail, isLoading: taskDetailLoading } = useQuery({
     queryKey: ["employee-task-detail", selectedTaskId ?? ""],
-    queryFn: () => apiGetTaskDetailFull(selectedTaskId!),
+    queryFn: () =>
+      apiGetTaskDetailFull(selectedTaskId!, {
+        includeComments: true,
+        includeAttachments: true,
+        includeActivityLogs: true,
+      }),
     enabled: Boolean(selectedTaskId),
     select: (res: unknown) => {
       const r = res as Record<string, unknown>;
@@ -207,8 +216,29 @@ export default function EmployeeDashboard() {
     const ms = dayjs(t.dueDate).diff(dayjs(), "millisecond");
     return ms >= 0 && ms <= 3 * 24 * 60 * 60 * 1000;
   });
-  const completionPct =
-    totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+  // Rejected tasks: tasks where approvalStatus === "REJECTED"
+  const rejectedTasks = useMemo(
+    () => allAssigneeTasks.filter((t) => t.approvalStatus === "REJECTED"),
+    [allAssigneeTasks],
+  );
+
+  // Upcoming scheduled tasks: scheduleStatus PROPOSED or CONFIRMED
+  const scheduledTasks = useMemo(
+    () =>
+      allAssigneeTasks.filter(
+        (t) =>
+          t.scheduleStatus === "PROPOSED" || t.scheduleStatus === "CONFIRMED",
+      ),
+    [allAssigneeTasks],
+  );
+
+  // Use latestInstance.progress from BE when available, fallback to manual calc
+  const completionPct = useMemo(() => {
+    if (latestInstance && (latestInstance.progress ?? 0) > 0)
+      return latestInstance.progress;
+    return totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  }, [latestInstance, totalTasks, completedTasks]);
 
   const pendingDocs = documents.filter((d) => docNeedsAck(d.status));
 
@@ -270,8 +300,7 @@ export default function EmployeeDashboard() {
   const actionNeededTasks = useMemo(
     () =>
       pendingList.filter(
-        (t) =>
-          t.rawStatus === "WAIT_ACK" || t.rawStatus === "PENDING_APPROVAL",
+        (t) => t.rawStatus === "WAIT_ACK" || t.rawStatus === "PENDING_APPROVAL",
       ),
     [pendingList],
   );
@@ -481,6 +510,86 @@ export default function EmployeeDashboard() {
         </div>
       </div>
 
+      {/* ── Rejected tasks alert ─────────────────────────── */}
+      {rejectedTasks.length > 0 && (
+        <Card
+          className="border border-red-300 bg-red-50 shadow-sm"
+          styles={{ body: { padding: "12px 16px" } }}>
+          <div className="mb-2 flex items-center gap-2">
+            <ThumbsDown className="h-4 w-4 text-red-600" />
+            <Typography.Text strong className="text-red-700">
+              Task bị từ chối ({rejectedTasks.length})
+            </Typography.Text>
+          </div>
+          <div className="space-y-2">
+            {rejectedTasks.map((task) => (
+              <div
+                key={task.id}
+                className="flex cursor-pointer items-start justify-between rounded-lg border border-red-200 bg-white px-3 py-2 hover:bg-red-50"
+                onClick={() => setSelectedTaskId(task.id)}>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-red-800">
+                    {task.title}
+                  </p>
+                  {task.checklistName && (
+                    <p className="text-xs text-red-500">{task.checklistName}</p>
+                  )}
+                </div>
+                <div className="ml-2 flex shrink-0 flex-col items-end gap-1">
+                  <Tag color="error">Bị từ chối</Tag>
+                  <Typography.Text className="text-xs text-muted">
+                    Xem chi tiết
+                  </Typography.Text>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* ── Upcoming scheduled tasks ─────────────────────── */}
+      {scheduledTasks.length > 0 && (
+        <Card
+          className="border border-sky-300 bg-sky-50 shadow-sm"
+          styles={{ body: { padding: "12px 16px" } }}>
+          <div className="mb-2 flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-sky-600" />
+            <Typography.Text strong className="text-sky-700">
+              Lịch sắp tới ({scheduledTasks.length})
+            </Typography.Text>
+          </div>
+          <div className="space-y-2">
+            {scheduledTasks.map((task) => (
+              <div
+                key={task.id}
+                className="flex cursor-pointer items-start justify-between rounded-lg border border-sky-200 bg-white px-3 py-2 hover:bg-sky-50"
+                onClick={() => setSelectedTaskId(task.id)}>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-sky-800">
+                    {task.title}
+                  </p>
+                  {task.dueDate && (
+                    <p className="text-xs text-sky-500">
+                      Hạn: {dayjs(task.dueDate).format("DD/MM/YYYY")}
+                    </p>
+                  )}
+                </div>
+                <div className="ml-2 flex shrink-0 flex-col items-end gap-1">
+                  <Tag
+                    color={
+                      task.scheduleStatus === "CONFIRMED" ? "cyan" : "geekblue"
+                    }>
+                    {task.scheduleStatus === "CONFIRMED"
+                      ? "Đã xác nhận"
+                      : "Đề xuất"}
+                  </Tag>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* ── Row 2: Actionable urgent list + Milestone ───────── */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="border border-stroke shadow-sm">
@@ -548,6 +657,37 @@ export default function EmployeeDashboard() {
                             <span className="text-xs text-muted">
                               · {task.checklistName}
                             </span>
+                          )}
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {task.requireDoc && (
+                            <Tag
+                              color="orange"
+                              className="!m-0 !px-1.5 !py-0 !text-[10px]">
+                              <Paperclip className="mr-0.5 inline h-2.5 w-2.5" />
+                              Cần tài liệu
+                            </Tag>
+                          )}
+                          {task.requireAck && (
+                            <Tag
+                              color="blue"
+                              className="!m-0 !px-1.5 !py-0 !text-[10px]">
+                              👁 Cần xác nhận
+                            </Tag>
+                          )}
+                          {task.requiresManagerApproval && (
+                            <Tag
+                              color="purple"
+                              className="!m-0 !px-1.5 !py-0 !text-[10px]">
+                              ✅ Cần duyệt
+                            </Tag>
+                          )}
+                          {task.approvalStatus === "REJECTED" && (
+                            <Tag
+                              color="error"
+                              className="!m-0 !px-1.5 !py-0 !text-[10px]">
+                              Bị từ chối
+                            </Tag>
                           )}
                         </div>
                       </div>
@@ -752,9 +892,7 @@ export default function EmployeeDashboard() {
                   </Typography.Text>
                 </div>
                 <Tag color="processing">
-                  {task.rawStatus === "WAIT_ACK"
-                    ? "Cần xác nhận"
-                    : "Chờ duyệt"}
+                  {task.rawStatus === "WAIT_ACK" ? "Cần xác nhận" : "Chờ duyệt"}
                 </Tag>
               </div>
             ))}
@@ -868,6 +1006,7 @@ export default function EmployeeDashboard() {
               </Typography.Paragraph>
             </div>
 
+            {/* Rejection reason alert */}
             {taskDetail.rejectionReason && (
               <Alert
                 type="error"
@@ -877,6 +1016,31 @@ export default function EmployeeDashboard() {
               />
             )}
 
+            {/* Approval status */}
+            {taskDetail.approvalStatus && (
+              <div className="flex items-center gap-2 rounded-lg border border-gray-200 p-3">
+                <Typography.Text type="secondary" className="shrink-0">
+                  Phê duyệt:
+                </Typography.Text>
+                <Tag
+                  color={
+                    taskDetail.approvalStatus === "APPROVED"
+                      ? "success"
+                      : taskDetail.approvalStatus === "REJECTED"
+                        ? "error"
+                        : "warning"
+                  }>
+                  {taskDetail.approvalStatus}
+                </Tag>
+                {taskDetail.approvedBy && (
+                  <Typography.Text type="secondary" className="text-xs">
+                    bởi {taskDetail.approvedBy}
+                  </Typography.Text>
+                )}
+              </div>
+            )}
+
+            {/* Status + Due */}
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg border border-gray-200 p-3">
                 <Typography.Text type="secondary">Trạng thái</Typography.Text>
@@ -896,32 +1060,216 @@ export default function EmployeeDashboard() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-lg border border-gray-200 p-3 text-center">
-                <Typography.Text type="secondary">Bình luận</Typography.Text>
-                <p className="!mb-0 mt-1 text-lg font-semibold">
-                  {Array.isArray(taskDetail.comments)
-                    ? taskDetail.comments.length
-                    : 0}
-                </p>
+            {/* Schedule info */}
+            {(taskDetail.scheduleStatus ||
+              taskDetail.scheduledStartAt ||
+              taskDetail.scheduledEndAt) && (
+              <div className="rounded-lg border border-sky-100 bg-sky-50 p-3">
+                <div className="mb-1.5 flex items-center gap-1.5">
+                  <Calendar className="h-4 w-4 text-sky-500" />
+                  <Typography.Text strong className="text-sky-700">
+                    Lịch
+                  </Typography.Text>
+                  {taskDetail.scheduleStatus && (
+                    <Tag
+                      color={
+                        taskDetail.scheduleStatus === "CONFIRMED"
+                          ? "cyan"
+                          : "geekblue"
+                      }
+                      className="!ml-auto">
+                      {taskDetail.scheduleStatus}
+                    </Tag>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  {taskDetail.scheduledStartAt && (
+                    <div>
+                      <span className="text-xs text-muted">Bắt đầu: </span>
+                      {dayjs(taskDetail.scheduledStartAt).format(
+                        "DD/MM/YYYY HH:mm",
+                      )}
+                    </div>
+                  )}
+                  {taskDetail.scheduledEndAt && (
+                    <div>
+                      <span className="text-xs text-muted">Kết thúc: </span>
+                      {dayjs(taskDetail.scheduledEndAt).format(
+                        "DD/MM/YYYY HH:mm",
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="rounded-lg border border-gray-200 p-3 text-center">
-                <Typography.Text type="secondary">Tệp đính kèm</Typography.Text>
-                <p className="!mb-0 mt-1 text-lg font-semibold">
-                  {Array.isArray(taskDetail.attachments)
-                    ? taskDetail.attachments.length
-                    : 0}
-                </p>
+            )}
+
+            {/* Requirements badges */}
+            {(taskDetail.requireDoc ||
+              taskDetail.requireAck ||
+              taskDetail.requiresManagerApproval) && (
+              <div className="flex flex-wrap gap-2">
+                {taskDetail.requireDoc && (
+                  <Tag color="orange">
+                    <Paperclip className="mr-1 inline h-3 w-3" />
+                    Cần tài liệu
+                  </Tag>
+                )}
+                {taskDetail.requireAck && (
+                  <Tag color="blue">👁 Cần xác nhận</Tag>
+                )}
+                {taskDetail.requiresManagerApproval && (
+                  <Tag color="purple">✅ Cần duyệt quản lý</Tag>
+                )}
               </div>
-              <div className="rounded-lg border border-gray-200 p-3 text-center">
-                <Typography.Text type="secondary">Hoạt động</Typography.Text>
-                <p className="!mb-0 mt-1 text-lg font-semibold">
-                  {Array.isArray(taskDetail.activityLogs)
-                    ? taskDetail.activityLogs.length
-                    : 0}
-                </p>
-              </div>
-            </div>
+            )}
+
+            {/* Inline comments */}
+            {Array.isArray(taskDetail.comments) &&
+              taskDetail.comments.length > 0 && (
+                <Collapse
+                  size="small"
+                  items={[
+                    {
+                      key: "comments",
+                      label: (
+                        <span className="flex items-center gap-1.5 text-sm">
+                          <BellRing className="h-3.5 w-3.5" />
+                          Bình luận ({taskDetail.comments.length})
+                        </span>
+                      ),
+                      children: (
+                        <div className="max-h-52 space-y-2 overflow-y-auto">
+                          {taskDetail.comments.map((c) => (
+                            <div
+                              key={
+                                (c as { commentId?: string }).commentId ??
+                                Math.random()
+                              }
+                              className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                              <div className="flex items-center justify-between">
+                                <Typography.Text strong className="text-xs">
+                                  {(c as { authorName?: string }).authorName ??
+                                    "Ẩn danh"}
+                                </Typography.Text>
+                                <Typography.Text
+                                  type="secondary"
+                                  className="text-[10px]">
+                                  {(c as { createdAt?: string }).createdAt
+                                    ? dayjs(
+                                        (c as { createdAt?: string }).createdAt,
+                                      ).format("DD/MM HH:mm")
+                                    : ""}
+                                </Typography.Text>
+                              </div>
+                              <p className="mt-1 text-xs">
+                                {(c as { content?: string; message?: string })
+                                  .content ??
+                                  (c as { content?: string; message?: string })
+                                    .message}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ),
+                    },
+                  ]}
+                />
+              )}
+
+            {/* Attachments */}
+            {Array.isArray(taskDetail.attachments) &&
+              taskDetail.attachments.length > 0 && (
+                <Collapse
+                  size="small"
+                  items={[
+                    {
+                      key: "attachments",
+                      label: (
+                        <span className="flex items-center gap-1.5 text-sm">
+                          <Paperclip className="h-3.5 w-3.5" />
+                          Tệp đính kèm ({taskDetail.attachments.length})
+                        </span>
+                      ),
+                      children: (
+                        <div className="space-y-1.5">
+                          {taskDetail.attachments.map((att) => (
+                            <div
+                              key={
+                                (att as { attachmentId?: string })
+                                  .attachmentId ?? Math.random()
+                              }
+                              className="flex items-center gap-2 rounded border border-gray-100 bg-gray-50 px-3 py-1.5 text-sm">
+                              <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted" />
+                              <span className="min-w-0 flex-1 truncate">
+                                {(att as { fileName?: string; name?: string })
+                                  .fileName ??
+                                  (att as { fileName?: string; name?: string })
+                                    .name ??
+                                  "Tệp không tên"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ),
+                    },
+                  ]}
+                />
+              )}
+
+            {/* Activity log */}
+            {Array.isArray(taskDetail.activityLogs) &&
+              taskDetail.activityLogs.length > 0 && (
+                <Collapse
+                  size="small"
+                  items={[
+                    {
+                      key: "activity",
+                      label: (
+                        <span className="flex items-center gap-1.5 text-sm">
+                          <Clock className="h-3.5 w-3.5" />
+                          Lịch sử hoạt động ({taskDetail.activityLogs.length})
+                        </span>
+                      ),
+                      children: (
+                        <div className="max-h-52 space-y-1.5 overflow-y-auto">
+                          {taskDetail.activityLogs.map((log) => (
+                            <div
+                              key={
+                                (log as { logId?: string }).logId ??
+                                Math.random()
+                              }
+                              className="flex items-start gap-2 text-xs">
+                              <div className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400" />
+                              <div>
+                                <span className="font-medium">
+                                  {(log as { action?: string }).action ??
+                                    ""}{" "}
+                                </span>
+                                <span className="text-muted">
+                                  {(log as { performedBy?: string })
+                                    .performedBy &&
+                                    `bởi ${
+                                      (log as { performedBy?: string })
+                                        .performedBy
+                                    }`}
+                                </span>
+                                {(log as { createdAt?: string }).createdAt && (
+                                  <span className="ml-2 text-[10px] text-muted">
+                                    ·{" "}
+                                    {dayjs(
+                                      (log as { createdAt?: string }).createdAt,
+                                    ).format("DD/MM HH:mm")}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ),
+                    },
+                  ]}
+                />
+              )}
 
             {taskDetail.status !== "DONE" && (
               <div className="space-y-2 pt-2">
@@ -1025,7 +1373,8 @@ export default function EmployeeDashboard() {
                   taskDetail.status !== "PENDING_APPROVAL" && (
                     <div className="flex items-center gap-1.5 rounded-md border border-amber-100 bg-amber-50/70 px-3 py-2 text-xs text-amber-700">
                       <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                      Task này yêu cầu tài liệu. Hãy vào trang Tasks để đính kèm.
+                      Task này yêu cầu tài liệu. Hãy vào trang Tasks để đính
+                      kèm.
                     </div>
                   )}
               </div>
