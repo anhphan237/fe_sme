@@ -212,7 +212,15 @@ const useTaskCommentsQuery = (taskId?: string) =>
     select: (res: unknown) => {
       const record = res as Record<string, unknown>;
       const list = record?.comments ?? record?.data ?? [];
-      return (Array.isArray(list) ? list : []) as CommentResponse[];
+      return (Array.isArray(list) ? list : []).map((item) => {
+        const c = item as Record<string, unknown>;
+        const content = String(c.content ?? c.message ?? "");
+        return {
+          ...(c as unknown as CommentResponse),
+          message: content,
+          content,
+        };
+      }) as CommentResponse[];
     },
   });
 
@@ -1105,8 +1113,8 @@ const Tasks = () => {
   );
 
   const addCommentMutation = useMutation({
-    mutationFn: ({ taskId, message }: { taskId: string; message: string }) =>
-      apiAddTaskComment(taskId, message),
+    mutationFn: ({ taskId, content }: { taskId: string; content: string }) =>
+      apiAddTaskComment(taskId, content),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["onboarding-task-comments", selectedTaskId],
@@ -1159,7 +1167,7 @@ const Tasks = () => {
     if (!selectedTaskId || !commentInput.trim()) return;
     addCommentMutation.mutate({
       taskId: selectedTaskId,
-      message: commentInput.trim(),
+      content: commentInput.trim(),
     });
   };
 
@@ -1303,14 +1311,6 @@ const Tasks = () => {
     () => instances.find((i) => i.id === onboardingId),
     [instances, onboardingId],
   );
-
-  const roleLabel = isHr
-    ? t("onboarding.task.role.hr")
-    : isManager
-      ? t("onboarding.task.role.manager")
-      : isEmployee
-        ? t("onboarding.task.role.employee")
-        : t("onboarding.task.role.other");
 
   return (
     <div className="space-y-5">
@@ -2348,7 +2348,9 @@ const Tasks = () => {
                         {c.authorName ??
                           t("onboarding.task.comments.unknown_author")}
                       </p>
-                      <p className="text-sm text-gray-600">{c.message}</p>
+                      <p className="text-sm text-gray-600">
+                        {c.message ?? c.content ?? ""}
+                      </p>
                       {c.createdAt && (
                         <p className="mt-1 text-[11px] text-gray-400">
                           {formatDateTime(c.createdAt)}

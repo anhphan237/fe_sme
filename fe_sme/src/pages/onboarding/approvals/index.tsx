@@ -53,6 +53,7 @@ import {
 } from "@/api/onboarding/onboarding.api";
 import { extractList } from "@/api/core/types";
 import { mapInstance, mapTask } from "@/utils/mappers/onboarding";
+import { useUserNameMap } from "@/utils/resolvers/userResolver";
 import type { OnboardingInstance, OnboardingTask } from "@/shared/types";
 import type {
   TaskDetailResponse,
@@ -114,6 +115,7 @@ interface TaskApprovalItemProps {
   task: OnboardingTask;
   approvingTaskId: string | null;
   rejectingTaskId: string | null;
+  resolveUserName: (id: string | null | undefined, fallback?: string) => string;
   onApprove: (task: OnboardingTask) => void;
   onReject: (task: OnboardingTask) => void;
   onDetail: (task: OnboardingTask) => void;
@@ -123,6 +125,7 @@ const TaskApprovalItem = ({
   task,
   approvingTaskId,
   rejectingTaskId,
+  resolveUserName,
   onApprove,
   onReject,
   onDetail,
@@ -132,6 +135,9 @@ const TaskApprovalItem = ({
   const isApprovingThis = approvingTaskId === task.id;
   const isRejectingThis = rejectingTaskId === task.id;
   const isBusy = isApprovingThis || isRejectingThis;
+  const assigneeName =
+    task.assignedUserName ??
+    resolveUserName(task.assignedUserId, t("global.not_available") ?? "—");
 
   return (
     <div
@@ -186,10 +192,10 @@ const TaskApprovalItem = ({
                 `Hạn: ${task.dueDate}`}
             </span>
           )}
-          {task.assignedUserName && (
+          {assigneeName && (
             <span className="flex items-center gap-1">
               <UserIcon className="h-3 w-3" />
-              {task.assignedUserName}
+              {assigneeName}
             </span>
           )}
           <span className="flex items-center gap-1">
@@ -248,6 +254,7 @@ interface EmployeeApprovalGroupProps {
   tasks: OnboardingTask[];
   approvingTaskId: string | null;
   rejectingTaskId: string | null;
+  resolveUserName: (id: string | null | undefined, fallback?: string) => string;
   onApprove: (task: OnboardingTask) => void;
   onReject: (task: OnboardingTask) => void;
   onDetail: (task: OnboardingTask) => void;
@@ -258,12 +265,19 @@ const EmployeeApprovalGroup = ({
   tasks,
   approvingTaskId,
   rejectingTaskId,
+  resolveUserName,
   onApprove,
   onReject,
   onDetail,
 }: EmployeeApprovalGroupProps) => {
   const { t } = useLocale();
   const hasOverdue = tasks.some((tk) => isOverdue(tk.dueDate));
+  const employeeName =
+    instance.employeeName ??
+    resolveUserName(
+      instance.employeeUserId,
+      t("onboarding.task.instance.unknown_employee") ?? "Nhân viên",
+    );
 
   return (
     <Card
@@ -276,9 +290,7 @@ const EmployeeApprovalGroup = ({
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-gray-800">
-            {instance.employeeName ??
-              t("onboarding.task.instance.unknown_employee") ??
-              "Nhân viên"}
+            {employeeName}
           </p>
           {instance.templateName && (
             <p className="truncate text-xs text-gray-400">
@@ -301,15 +313,16 @@ const EmployeeApprovalGroup = ({
       {/* Tasks */}
       <div className="space-y-2">
         {tasks.map((task) => (
-          <TaskApprovalItem
-            key={task.id}
-            task={task}
-            approvingTaskId={approvingTaskId}
-            rejectingTaskId={rejectingTaskId}
-            onApprove={onApprove}
-            onReject={onReject}
-            onDetail={onDetail}
-          />
+            <TaskApprovalItem
+              key={task.id}
+              task={task}
+              approvingTaskId={approvingTaskId}
+              rejectingTaskId={rejectingTaskId}
+              resolveUserName={resolveUserName}
+              onApprove={onApprove}
+              onReject={onReject}
+              onDetail={onDetail}
+            />
         ))}
       </div>
     </Card>
@@ -326,6 +339,7 @@ interface ApprovalDetailDrawerProps {
   commentsLoading: boolean;
   isApproving: boolean;
   isRejecting: boolean;
+  resolveUserName: (id: string | null | undefined, fallback?: string) => string;
   onClose: () => void;
   onApprove: () => void;
   onReject: () => void;
@@ -339,12 +353,20 @@ const ApprovalDetailDrawer = ({
   commentsLoading,
   isApproving,
   isRejecting,
+  resolveUserName,
   onClose,
   onApprove,
   onReject,
 }: ApprovalDetailDrawerProps) => {
   const { t } = useLocale();
   const [tab, setTab] = useState<"info" | "comments">("info");
+  const assigneeName = taskDetail
+    ? (taskDetail.assignedUserName ??
+      resolveUserName(taskDetail.assignedUserId, taskDetail.assignedUserId))
+    : undefined;
+  const approverName = taskDetail?.approverUserId
+    ? resolveUserName(taskDetail.approverUserId, taskDetail.approverUserId)
+    : undefined;
 
   const tabs = [
     {
@@ -435,7 +457,7 @@ const ApprovalDetailDrawer = ({
                     </div>
                   </div>
                 </Col>
-                {(taskDetail.assignedUserName || taskDetail.assignedUserId) && (
+                {assigneeName && (
                   <Col span={12}>
                     <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
                       <Typography.Text
@@ -446,8 +468,7 @@ const ApprovalDetailDrawer = ({
                       </Typography.Text>
                       <div className="mt-0.5 flex items-center gap-1 text-sm font-medium text-gray-800">
                         <UserIcon className="h-3.5 w-3.5 text-gray-400" />
-                        {taskDetail.assignedUserName ??
-                          taskDetail.assignedUserId}
+                        {assigneeName}
                       </div>
                     </div>
                   </Col>
@@ -500,7 +521,7 @@ const ApprovalDetailDrawer = ({
                     <UserIcon className="h-3 w-3 text-gray-400" />
                     {t("onboarding.task.field.approved_by") ?? "Phê duyệt bởi"}:{" "}
                     <span className="font-medium text-gray-700">
-                      {taskDetail.approverUserId}
+                      {approverName}
                     </span>
                   </div>
                 )}
@@ -652,6 +673,7 @@ const ApprovalsPage = () => {
   const isManager =
     (currentUser?.roles ?? []).includes("MANAGER") &&
     !(currentUser?.roles ?? []).includes("HR");
+  const { resolveName: resolveUserName } = useUserNameMap({ enabled: canManage });
 
   const [search, setSearch] = useState("");
   const [overdueFirst, setOverdueFirst] = useState(false);
@@ -793,7 +815,12 @@ const ApprovalsPage = () => {
             tasks: tasks.filter(
               (tk) =>
                 tk.title.toLowerCase().includes(q) ||
-                (instance.employeeName ?? "").toLowerCase().includes(q),
+                (
+                  instance.employeeName ??
+                  resolveUserName(instance.employeeUserId, "")
+                )
+                  .toLowerCase()
+                  .includes(q),
             ),
           }))
           .filter(({ tasks }) => tasks.length > 0)
@@ -998,6 +1025,7 @@ const ApprovalsPage = () => {
               tasks={tasks}
               approvingTaskId={approvingTaskId}
               rejectingTaskId={rejectingTaskId}
+              resolveUserName={resolveUserName}
               onApprove={handleApprove}
               onReject={handleOpenReject}
               onDetail={openDetail}
@@ -1015,6 +1043,7 @@ const ApprovalsPage = () => {
         commentsLoading={commentsLoading}
         isApproving={approveMutation.isPending}
         isRejecting={rejectMutation.isPending}
+        resolveUserName={resolveUserName}
         onClose={() => {
           setDrawerOpen(false);
           setSelectedTaskId(null);

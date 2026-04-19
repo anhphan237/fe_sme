@@ -3,6 +3,7 @@ import type {
   OnboardingTemplateCreateRequest,
   OnboardingTemplateUpdateRequest,
   OnboardingInstanceCreateRequest,
+  OnboardingInstanceActivateRequest,
   CompanySetupRequest,
   ListTasksByOnboardingOptions,
   OnboardingTaskAcknowledgeRequest,
@@ -102,10 +103,12 @@ export const apiCreateInstance = (payload: OnboardingInstanceCreateRequest) =>
   );
 
 /** com.sme.onboarding.instance.activate */
-export const apiActivateInstance = (instanceId: string, requestNo?: string) =>
-  gatewayRequest<{ instanceId: string; requestNo?: string }, unknown>(
+export const apiActivateInstance = (
+  payload: OnboardingInstanceActivateRequest,
+) =>
+  gatewayRequest<OnboardingInstanceActivateRequest, unknown>(
     "com.sme.onboarding.instance.activate",
-    { instanceId, requestNo },
+    payload,
   );
 
 /** com.sme.onboarding.instance.cancel */
@@ -196,10 +199,10 @@ export const apiListTaskComments = (taskId: string) =>
   );
 
 /** com.sme.onboarding.task.comment.add */
-export const apiAddTaskComment = (taskId: string, message: string) =>
-  gatewayRequest<{ taskId: string; message: string }, unknown>(
+export const apiAddTaskComment = (taskId: string, content: string) =>
+  gatewayRequest<{ taskId: string; content: string }, unknown>(
     "com.sme.onboarding.task.comment.add",
-    { taskId, message },
+    { taskId, content },
   );
 
 // ── Task Actions (Acknowledge / Approve / Reject) ──────────
@@ -359,13 +362,15 @@ async function _taskLibFetch<T>(res: Response): Promise<T> {
   const json = await res.json().catch(() => ({}));
   if (!res.ok)
     throw new Error(
-      (json as Record<string, unknown>).message as string ??
-        (json as Record<string, unknown>).errorCode as string ??
+      ((json as Record<string, unknown>).message as string) ??
+        ((json as Record<string, unknown>).errorCode as string) ??
         `Error ${res.status}`,
     );
-  return ((json as Record<string, unknown>).data !== undefined
-    ? (json as Record<string, unknown>).data
-    : json) as T;
+  return (
+    (json as Record<string, unknown>).data !== undefined
+      ? (json as Record<string, unknown>).data
+      : json
+  ) as T;
 }
 
 /** GET /api/v1/task-libraries */

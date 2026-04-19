@@ -93,7 +93,6 @@ export const apiGetOnboardingScoreboard = (params: {
   gatewayRequest<typeof params, ScoreboardResponse>(
     "com.sme.analytics.onboarding.template.scoreboard",
     params,
-    { flatPayload: true },
   );
 
 /** com.sme.analytics.company.onboarding.summary */
@@ -104,7 +103,6 @@ export const apiGetOnboardingSummary = (params?: {
   gatewayRequest<Record<string, unknown>, OnboardingSummaryResponse>(
     "com.sme.analytics.company.onboarding.summary",
     params ?? {},
-    { flatPayload: true },
   );
 
 /** com.sme.analytics.company.onboarding.funnel */
@@ -115,7 +113,6 @@ export const apiGetOnboardingFunnel = (params?: {
   gatewayRequest<Record<string, unknown>, OnboardingFunnelResponse>(
     "com.sme.analytics.company.onboarding.funnel",
     params ?? {},
-    { flatPayload: true },
   );
 
 /** com.sme.analytics.company.onboarding.byDepartment */
@@ -126,7 +123,6 @@ export const apiGetOnboardingByDepartment = (params?: {
   gatewayRequest<Record<string, unknown>, OnboardingByDepartmentResponse>(
     "com.sme.analytics.company.onboarding.byDepartment",
     params ?? {},
-    { flatPayload: true },
   );
 
 /** com.sme.analytics.company.task.completion */
@@ -137,7 +133,6 @@ export const apiGetTaskCompletion = (params?: {
   gatewayRequest<Record<string, unknown>, TaskCompletionResponse>(
     "com.sme.analytics.company.task.completion",
     params ?? {},
-    { flatPayload: true },
   );
 
 /** com.sme.analytics.manager.team.summary */
@@ -148,5 +143,4 @@ export const apiGetManagerTeamSummary = (params?: {
   gatewayRequest<Record<string, unknown>, ManagerTeamSummaryResponse>(
     "com.sme.analytics.manager.team.summary",
     params ?? {},
-    { flatPayload: true },
   );

@@ -214,6 +214,12 @@ export interface OnboardingInstanceCreateRequest {
 /** com.sme.onboarding.instance.activate */
 export interface OnboardingInstanceActivateRequest {
   instanceId: string;
+  /** Idempotency key */
+  requestNo?: string;
+  /** Optional override manager to persist on instance before task generation */
+  managerUserId?: string;
+  /** Optional override IT staff assignee to persist on instance before task generation */
+  itStaffUserId?: string;
 }
 
 /** com.sme.onboarding.instance.cancel */
@@ -591,7 +597,7 @@ export interface CommentListRequest {
 /** com.sme.onboarding.task.comment.add */
 export interface CommentAddRequest {
   taskId: string;
-  message: string;
+  content: string;
 }
 
 /** Single comment in response */
@@ -600,7 +606,8 @@ export interface CommentResponse {
   taskId: string;
   authorId: string;
   authorName?: string;
-  message: string;
+  message?: string;
+  content?: string;
   createdAt: string;
 }
 

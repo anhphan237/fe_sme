@@ -63,6 +63,20 @@ import { STATUS_DONE, STATUS_DONE_API, STATUS_TAG_COLOR } from "./constants";
 import type { OnboardingTask } from "@/shared/types";
 import { AppLoading } from "@/components/page-loading";
 
+const extractErrorMessage = (err: unknown, fallback: string): string => {
+  if (err instanceof Error && err.message.trim()) return err.message;
+  if (
+    typeof err === "object" &&
+    err !== null &&
+    "message" in err &&
+    typeof (err as { message?: unknown }).message === "string"
+  ) {
+    const msg = (err as { message: string }).message.trim();
+    if (msg) return msg;
+  }
+  return fallback;
+};
+
 // ── Activity Feed ─────────────────────────────────────────────────────────────
 
 const ACTIVITY_STATUS_ICON: Record<string, ReactNode> = {
@@ -348,7 +362,15 @@ const EmployeeDetail = () => {
     select: (res: unknown) => {
       const r = res as Record<string, unknown>;
       const list = r?.comments ?? r?.data ?? [];
-      return (Array.isArray(list) ? list : []) as CommentResponse[];
+      return (Array.isArray(list) ? list : []).map((item) => {
+        const c = item as Record<string, unknown>;
+        const content = String(c.content ?? c.message ?? "");
+        return {
+          ...(c as unknown as CommentResponse),
+          message: content,
+          content,
+        };
+      }) as CommentResponse[];
     },
   });
 
@@ -386,7 +408,13 @@ const EmployeeDetail = () => {
   });
 
   const activateInstance = useMutation({
-    mutationFn: (id: string) => apiActivateInstance(id),
+    mutationFn: ({
+      instanceId,
+      managerUserId,
+    }: {
+      instanceId: string;
+      managerUserId?: string;
+    }) => apiActivateInstance({ instanceId, managerUserId }),
   });
   const cancelInstance = useMutation({
     mutationFn: (id: string) => apiCancelInstance(id),
@@ -428,8 +456,8 @@ const EmployeeDetail = () => {
   });
 
   const addCommentMutation = useMutation({
-    mutationFn: ({ taskId, message }: { taskId: string; message: string }) =>
-      apiAddTaskComment(taskId, message),
+    mutationFn: ({ taskId, content }: { taskId: string; content: string }) =>
+      apiAddTaskComment(taskId, content),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["onboarding-task-comments", selectedTaskId],
@@ -464,7 +492,6 @@ const EmployeeDetail = () => {
       });
       notify.success(t("onboarding.task.toast.attachment_added"));
     },
-    onError: () => notify.error(t("onboarding.task.toast.failed")),
   });
 
   const scheduleProposeMutation = useMutation({
@@ -584,7 +611,10 @@ const EmployeeDetail = () => {
   const handleActivate = async () => {
     if (!instanceId) return;
     try {
-      await activateInstance.mutateAsync(instanceId);
+      await activateInstance.mutateAsync({
+        instanceId,
+        managerUserId: instance?.managerUserId ?? undefined,
+      });
       queryClient.invalidateQueries({ queryKey: ["instance", instanceId] });
       notify.success(t("onboarding.detail.toast.activated"));
     } catch {
@@ -732,7 +762,7 @@ const EmployeeDetail = () => {
     if (!selectedTaskId || !commentInput.trim()) return;
     addCommentMutation.mutate({
       taskId: selectedTaskId,
-      message: commentInput.trim(),
+      content: commentInput.trim(),
     });
   };
 
@@ -744,6 +774,9 @@ const EmployeeDetail = () => {
       formData.append("file", file);
       formData.append("name", file.name);
       const uploadRes = await apiUploadDocumentFile(formData);
+      if (!uploadRes.fileUrl) {
+        throw new Error("Upload succeeded but file URL is missing");
+      }
       await addAttachmentMutation.mutateAsync({
         taskId: selectedTaskId,
         fileName: file.name,
@@ -751,8 +784,8 @@ const EmployeeDetail = () => {
         fileType: file.type,
         fileSizeBytes: file.size,
       });
-    } catch {
-      notify.error(t("onboarding.task.toast.failed"));
+    } catch (err) {
+      notify.error(extractErrorMessage(err, t("onboarding.task.toast.failed")));
     } finally {
       setUploadingFile(false);
     }

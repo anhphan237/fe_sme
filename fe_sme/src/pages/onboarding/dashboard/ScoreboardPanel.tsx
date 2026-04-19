@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
-  Badge,
   Card,
   Col,
   Empty,
@@ -11,20 +10,11 @@ import {
   Row,
   Select,
   Skeleton,
-  Space,
   Table,
   Tag,
   Tooltip,
   Typography,
 } from "antd";
-import {
-  AlertTriangle,
-  Award,
-  BarChart2,
-  CheckCircle,
-  Clock,
-  TrendingUp,
-} from "lucide-react";
 import { extractList } from "@/api/core/types";
 import { apiListTemplates } from "@/api/onboarding/onboarding.api";
 import {
@@ -38,18 +28,6 @@ import type { OnboardingTemplate } from "@/shared/types";
 const { Text, Title } = Typography;
 
 // ── Helpers ─────────────────────────────────────────────────
-
-const rankColors: Record<number, string> = {
-  1: "#FFD700",
-  2: "#C0C0C0",
-  3: "#CD7F32",
-};
-
-const rankLabels: Record<number, string> = {
-  1: "🥇",
-  2: "🥈",
-  3: "🥉",
-};
 
 const qualityColor = (score: number): string => {
   if (score >= 80) return "#52c41a";
@@ -70,52 +48,40 @@ const toSafeNumber = (value: unknown): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
-type FitAssessment = "FIT" | "CONSIDER" | "NOT_FIT";
+type FitAssessment = "FIT" | "NOT_FIT";
 
 const getFitAssessment = (
   item: CandidateScoreItem,
 ): { assessment: FitAssessment; color: string } => {
-  const hasStrongExecution =
-    item.qualityScore >= 75 &&
-    item.completionRate >= 85 &&
+  const isFit =
+    item.qualityScore >= 70 &&
+    item.completionRate >= 80 &&
     item.overdueTasks === 0 &&
     item.lateCompletedTasks <= 1;
-  if (hasStrongExecution) {
+  if (isFit) {
     return { assessment: "FIT", color: "success" };
   }
-
-  const canStillGrow =
-    item.qualityScore >= 55 &&
-    item.completionRate >= 70 &&
-    item.overdueTasks <= 2;
-  if (canStillGrow) {
-    return { assessment: "CONSIDER", color: "processing" };
-  }
-
   return { assessment: "NOT_FIT", color: "error" };
 };
 
 // ── Sub-component: Stat Card ─────────────────────────────────
 
 interface StatCardProps {
-  icon: React.ReactNode;
   label: string;
   value: string | number;
-  color: string;
-  bg: string;
+  valueClassName?: string;
 }
 
-const StatCard = ({ icon, label, value, color, bg }: StatCardProps) => (
+const StatCard = ({ label, value, valueClassName }: StatCardProps) => (
   <Card size="small" className="h-full">
-    <div className="flex items-center gap-3">
-      <div className={`rounded-lg p-2 ${bg}`}>
-        <div className={color}>{icon}</div>
-      </div>
+    <div>
       <div>
         <Text type="secondary" className="block text-xs">
           {label}
         </Text>
-        <p className="text-xl font-bold text-gray-900">{value}</p>
+        <p className={`text-xl font-bold ${valueClassName ?? "text-gray-900"}`}>
+          {value}
+        </p>
       </div>
     </div>
   </Card>
@@ -130,7 +96,7 @@ const ScoreboardPanel = () => {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
     null,
   );
-  const [statusFilter, setStatusFilter] = useState<string>("ACTIVE");
+  const [statusFilter, setStatusFilter] = useState<string>("COMPLETED");
   const [limitFilter, setLimitFilter] = useState<number>(20);
   const [minimumQuality, setMinimumQuality] = useState<number>(0);
 
@@ -228,7 +194,9 @@ const ScoreboardPanel = () => {
       filteredCandidates.reduce((s, c) => s + c.progressPercent, 0) /
         filteredCandidates.length,
     );
-    const withOverdue = filteredCandidates.filter((c) => c.overdueTasks > 0).length;
+    const withOverdue = filteredCandidates.filter(
+      (c) => c.overdueTasks > 0,
+    ).length;
     return { avgQuality, avgProgress, withOverdue };
   }, [filteredCandidates]);
 
@@ -237,11 +205,10 @@ const ScoreboardPanel = () => {
       (acc, c) => {
         const value = getFitAssessment(c).assessment;
         if (value === "FIT") acc.fit += 1;
-        else if (value === "CONSIDER") acc.consider += 1;
         else acc.notFit += 1;
         return acc;
       },
-      { fit: 0, consider: 0, notFit: 0 },
+      { fit: 0, notFit: 0 },
     );
   }, [filteredCandidates]);
 
@@ -253,19 +220,7 @@ const ScoreboardPanel = () => {
         dataIndex: "rank",
         key: "rank",
         width: 60,
-        render: (rank: number) =>
-          rank <= 3 ? (
-            <span
-              className="text-xl"
-              style={{ color: rankColors[rank] }}
-              title={`#${rank}`}>
-              {rankLabels[rank]}
-            </span>
-          ) : (
-            <Text type="secondary" className="font-mono">
-              #{rank}
-            </Text>
-          ),
+        render: (rank: number) => <Text className="font-mono">#{rank}</Text>,
       },
       {
         title: t("onboarding.scoreboard.col.employee"),
@@ -274,10 +229,40 @@ const ScoreboardPanel = () => {
         render: (_: string, record: CandidateScoreItem) => (
           <Link to={`/onboarding/employees/${record.instanceId}`}>
             <Text className="text-blue-500 hover:underline">
-              {resolveName(undefined, record.employeeId)}
+              {resolveName(record.employeeId, record.employeeId)}
             </Text>
           </Link>
         ),
+      },
+      {
+        title: t("onboarding.scoreboard.col.fit_status"),
+        key: "fit_status",
+        width: 130,
+        render: (_: unknown, record: CandidateScoreItem) => {
+          const decision = getFitAssessment(record);
+          return (
+            <Tag color={decision.color}>
+              {t(
+                `onboarding.scoreboard.recommendation.${decision.assessment.toLowerCase()}`,
+              )}
+            </Tag>
+          );
+        },
+      },
+      {
+        title: t("onboarding.scoreboard.col.fit_reason"),
+        key: "fit_reason",
+        width: 240,
+        render: (_: unknown, record: CandidateScoreItem) => {
+          const decision = getFitAssessment(record);
+          return (
+            <Text className="text-xs text-gray-600">
+              {t(
+                `onboarding.scoreboard.recommendation.reason.${decision.assessment.toLowerCase()}`,
+              )}
+            </Text>
+          );
+        },
       },
       {
         title: t("onboarding.scoreboard.col.progress"),
@@ -312,26 +297,6 @@ const ScoreboardPanel = () => {
         ),
       },
       {
-        title: t("onboarding.scoreboard.col.recommendation"),
-        key: "recommendation",
-        width: 170,
-        render: (_: unknown, record: CandidateScoreItem) => {
-          const decision = getFitAssessment(record);
-          return (
-            <Tooltip
-              title={t(
-                `onboarding.scoreboard.recommendation.reason.${decision.assessment.toLowerCase()}`,
-              )}>
-              <Tag color={decision.color}>
-                {t(
-                  `onboarding.scoreboard.recommendation.${decision.assessment.toLowerCase()}`,
-                )}
-              </Tag>
-            </Tooltip>
-          );
-        },
-      },
-      {
         title: t("onboarding.scoreboard.col.completion_rate"),
         dataIndex: "completionRate",
         key: "completionRate",
@@ -348,34 +313,57 @@ const ScoreboardPanel = () => {
         ),
       },
       {
+        title: t("onboarding.scoreboard.col.total_tasks"),
+        dataIndex: "totalTasks",
+        key: "totalTasks",
+        width: 100,
+        sorter: (a: CandidateScoreItem, b: CandidateScoreItem) =>
+          b.totalTasks - a.totalTasks,
+      },
+      {
+        title: t("onboarding.scoreboard.col.completed_tasks"),
+        dataIndex: "completedTasks",
+        key: "completedTasks",
+        width: 120,
+        sorter: (a: CandidateScoreItem, b: CandidateScoreItem) =>
+          b.completedTasks - a.completedTasks,
+      },
+      {
+        title: t("onboarding.scoreboard.col.pending_tasks"),
+        key: "pendingTasks",
+        width: 110,
+        render: (_: unknown, record: CandidateScoreItem) =>
+          Math.max(record.totalTasks - record.completedTasks, 0),
+      },
+      {
         title: t("onboarding.scoreboard.col.overdue"),
         dataIndex: "overdueTasks",
         key: "overdueTasks",
         width: 100,
         sorter: (a: CandidateScoreItem, b: CandidateScoreItem) =>
           a.overdueTasks - b.overdueTasks,
-        render: (count: number) =>
-          count > 0 ? (
-            <Badge count={count} color="#ff4d4f">
-              <Tooltip title={t("onboarding.scoreboard.overdue_tooltip")}>
-                <AlertTriangle className="h-4 w-4 text-red-500" />
-              </Tooltip>
-            </Badge>
-          ) : (
-            <CheckCircle className="h-4 w-4 text-green-500" />
-          ),
+        render: (count: number) => (
+          <Text className={count > 0 ? "font-semibold text-red-500" : ""}>
+            {count}
+          </Text>
+        ),
       },
       {
         title: t("onboarding.scoreboard.col.late_completed"),
         dataIndex: "lateCompletedTasks",
         key: "lateCompletedTasks",
-        width: 100,
-        render: (count: number) =>
-          count > 0 ? (
-            <Tag color="orange">{count}</Tag>
-          ) : (
-            <Text type="secondary">0</Text>
-          ),
+        width: 110,
+      },
+      {
+        title: t("onboarding.scoreboard.col.on_time_rate"),
+        key: "onTimeRate",
+        width: 120,
+        render: (_: unknown, record: CandidateScoreItem) => {
+          const completed = Math.max(record.completedTasks, 0);
+          if (completed === 0) return "0%";
+          const onTime = Math.max(completed - record.lateCompletedTasks, 0);
+          return `${((onTime * 100) / completed).toFixed(1)}%`;
+        },
       },
     ],
     [resolveName, t],
@@ -486,38 +474,29 @@ const ScoreboardPanel = () => {
             <Row gutter={[12, 12]}>
               <Col xs={12} sm={6}>
                 <StatCard
-                  icon={<Award className="h-4 w-4" />}
                   label={t("onboarding.scoreboard.stat.total_candidates")}
                   value={totalCandidates}
-                  color="text-blue-600"
-                  bg="bg-blue-50"
                 />
               </Col>
               <Col xs={12} sm={6}>
                 <StatCard
-                  icon={<TrendingUp className="h-4 w-4" />}
                   label={t("onboarding.scoreboard.stat.avg_quality")}
                   value={stats.avgQuality}
-                  color="text-emerald-600"
-                  bg="bg-emerald-50"
                 />
               </Col>
               <Col xs={12} sm={6}>
                 <StatCard
-                  icon={<BarChart2 className="h-4 w-4" />}
                   label={t("onboarding.scoreboard.stat.avg_progress")}
                   value={`${stats.avgProgress}%`}
-                  color="text-violet-600"
-                  bg="bg-violet-50"
                 />
               </Col>
               <Col xs={12} sm={6}>
                 <StatCard
-                  icon={<Clock className="h-4 w-4" />}
                   label={t("onboarding.scoreboard.stat.with_overdue")}
                   value={stats.withOverdue}
-                  color="text-red-500"
-                  bg="bg-red-50"
+                  valueClassName={
+                    stats.withOverdue > 0 ? "text-red-500" : undefined
+                  }
                 />
               </Col>
             </Row>
@@ -535,103 +514,23 @@ const ScoreboardPanel = () => {
           )}
 
           {filteredCandidates.length > 0 && (
-            <Card size="small" title={t("onboarding.scoreboard.fit_summary_title")}>
-              <Row gutter={[12, 12]}>
-                <Col xs={24} sm={8}>
-                  <StatCard
-                    icon={<CheckCircle className="h-4 w-4" />}
-                    label={t("onboarding.scoreboard.stat.fit")}
-                    value={assessmentStats.fit}
-                    color="text-emerald-600"
-                    bg="bg-emerald-50"
-                  />
-                </Col>
-                <Col xs={24} sm={8}>
-                  <StatCard
-                    icon={<Clock className="h-4 w-4" />}
-                    label={t("onboarding.scoreboard.stat.consider")}
-                    value={assessmentStats.consider}
-                    color="text-blue-600"
-                    bg="bg-blue-50"
-                  />
-                </Col>
-                <Col xs={24} sm={8}>
-                  <StatCard
-                    icon={<AlertTriangle className="h-4 w-4" />}
-                    label={t("onboarding.scoreboard.stat.not_fit")}
-                    value={assessmentStats.notFit}
-                    color="text-red-600"
-                    bg="bg-red-50"
-                  />
-                </Col>
-              </Row>
-            </Card>
-          )}
-
-          {/* Top 3 podium (when ≥3 candidates) */}
-          {filteredCandidates.length >= 3 && (
             <Card
               size="small"
-              title={
-                <Space>
-                  <Award className="h-4 w-4 text-yellow-500" />
-                  <span>{t("onboarding.scoreboard.top3_title")}</span>
-                </Space>
-              }>
-              <Row gutter={[12, 12]} justify="center">
-                {/* 2nd place */}
-                <Col xs={8} className="flex flex-col items-center">
-                  <div className="mb-1 text-3xl">{rankLabels[2]}</div>
-                  <Link
-                    to={`/onboarding/employees/${filteredCandidates[1]?.instanceId}`}>
-                    <Text className="block text-center text-xs text-blue-500 hover:underline">
-                      {resolveName(
-                        undefined,
-                        filteredCandidates[1]?.employeeId ?? "",
-                      )}
-                    </Text>
-                  </Link>
-                  <Tag
-                    color={qualityColor(filteredCandidates[1]?.qualityScore ?? 0)}
-                    className="mt-1">
-                    {filteredCandidates[1]?.qualityScore.toFixed(1)}
-                  </Tag>
+              title={t("onboarding.scoreboard.fit_summary_title")}>
+              <Row gutter={[12, 12]}>
+                <Col xs={24} sm={12}>
+                  <StatCard
+                    label={t("onboarding.scoreboard.stat.fit")}
+                    value={assessmentStats.fit}
+                    valueClassName="text-emerald-600"
+                  />
                 </Col>
-                {/* 1st place */}
-                <Col xs={8} className="flex flex-col items-center">
-                  <div className="mb-1 text-4xl">{rankLabels[1]}</div>
-                  <Link
-                    to={`/onboarding/employees/${filteredCandidates[0]?.instanceId}`}>
-                    <Text className="block text-center text-sm font-semibold text-blue-500 hover:underline">
-                      {resolveName(
-                        undefined,
-                        filteredCandidates[0]?.employeeId ?? "",
-                      )}
-                    </Text>
-                  </Link>
-                  <Tag
-                    color={qualityColor(filteredCandidates[0]?.qualityScore ?? 0)}
-                    className="mt-1">
-                    {filteredCandidates[0]?.qualityScore.toFixed(1)}
-                  </Tag>
-                </Col>
-                {/* 3rd place */}
-                <Col xs={8} className="flex flex-col items-center">
-                  <div className="mb-1 text-3xl">{rankLabels[3]}</div>
-                  <Link
-                    to={`/onboarding/employees/${filteredCandidates[2]?.instanceId}`}>
-                    <Text className="block text-center text-xs text-blue-500 hover:underline">
-                      {resolveName(
-                        undefined,
-                        filteredCandidates[2]?.employeeId ?? "",
-                      )}
-                    </Text>
-                  </Link>
-                  <Tag
-                    color={qualityColor(filteredCandidates[2]?.qualityScore ?? 0)}
-                    className="mt-1">
-                    {filteredCandidates[2]?.qualityScore.toFixed(1)}
-                  </Tag>
+                <Col xs={24} sm={12}>
+                  <StatCard
+                    label={t("onboarding.scoreboard.stat.not_fit")}
+                    value={assessmentStats.notFit}
+                    valueClassName="text-red-600"
+                  />
                 </Col>
               </Row>
             </Card>
@@ -642,12 +541,9 @@ const ScoreboardPanel = () => {
             size="small"
             title={
               <div className="flex items-center justify-between">
-                <Space>
-                  <BarChart2 className="h-4 w-4 text-blue-500" />
-                  <Title level={5} className="!mb-0">
-                    {t("onboarding.scoreboard.table_title")}
-                  </Title>
-                </Space>
+                <Title level={5} className="!mb-0">
+                  {t("onboarding.scoreboard.table_title")}
+                </Title>
                 <Text type="secondary" className="text-xs">
                   {t("onboarding.scoreboard.showing", {
                     showing: filteredCandidates.length,

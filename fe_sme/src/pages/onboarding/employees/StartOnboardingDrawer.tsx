@@ -110,7 +110,11 @@ export const StartOnboardingDrawer = ({
       })) as CreatedInstance;
 
       try {
-        await apiActivateInstance(raw.instanceId);
+        await apiActivateInstance({
+          instanceId: raw.instanceId,
+          managerUserId: form.managerId,
+          itStaffUserId: form.itStaffId || undefined,
+        });
       } catch (err) {
         notify.error(
           err instanceof Error
