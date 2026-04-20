@@ -185,22 +185,17 @@ export const DepartmentFormDrawer = ({
         />
 
         {/* Section: Management */}
-        {/* <SectionLabel
+        <SectionLabel
           label={t("department.section.management")}
           className="mt-4"
-        /> */}
+        />
 
-        {/* <BaseSelect
+        <BaseSelect
           name="managerUserId"
           label={
             <span className="flex items-center gap-1.5">
               <Users className="h-3.5 w-3.5" />
-              {t("department.field.manager")}
-              {mode === "create" && (
-                <span className="text-red-500" aria-hidden="true">
-                  *
-                </span>
-              )}
+              {t("department.field.manager")}F
             </span>
           }
           className="w-full"
@@ -227,7 +222,7 @@ export const DepartmentFormDrawer = ({
               },
             ],
           }}
-        /> */}
+        />
       </Form>
     </Drawer>
   );
