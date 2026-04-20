@@ -3056,5 +3056,7 @@
   "dashboard.hr.chart.total_tasks": "Total tasks",
   "dashboard.hr.chart.completed": "Completed",
   "dashboard.hr.chart.employees": "Employees",
-  "dashboard.hr.chart.onboarding_count": "Onboarding count"
+  "dashboard.hr.chart.onboarding_count": "Onboarding count",
+  "dashboard.hr.chart.responses": "Responses",
+  "dashboard.hr.chart.avg_score": "Average score"
 }

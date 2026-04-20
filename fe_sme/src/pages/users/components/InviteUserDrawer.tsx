@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { KeyRound, Mail, UserPlus } from "lucide-react";
 import { Drawer, Form, Segmented } from "antd";
-import dayjs from "dayjs";
 import BaseButton from "@/components/button";
 import BaseInput from "@core/components/Input/InputWithLabel";
 import BaseSelect from "@core/components/Select/BaseSelect";
-import BaseDatePicker from "@core/components/DatePicker";
 import { useLocale } from "@/i18n";
 import { ROLE_OPTIONS } from "../constants";
 import type { User } from "@/shared/types";
@@ -56,7 +54,6 @@ function generateEmployeeCode(): string {
   return `EMP-${year}-${rand}`;
 }
 
-// Internal form type (startDate is Dayjs while editing)
 interface RawForm {
   email: string;
   name: string;
@@ -67,7 +64,6 @@ interface RawForm {
   phone: string;
   jobTitle: string;
   employeeCode: string;
-  startDate: dayjs.Dayjs | null;
   workLocation: string;
 }
 
@@ -83,7 +79,6 @@ export const InviteUserDrawer = ({
   open,
   onClose,
   onSubmit,
-  users,
   departments,
 }: InviteUserDrawerProps) => {
   const { t } = useLocale();
@@ -100,15 +95,6 @@ export const InviteUserDrawer = ({
       })),
     [t],
   );
-
-  const selectedDeptId = Form.useWatch("departmentId", form);
-
-  const managerOptions = useMemo(() => {
-    const filtered = selectedDeptId
-      ? users.filter((u) => u.departmentId === selectedDeptId)
-      : users;
-    return filtered.map((u) => ({ value: u.id, label: u.name || u.email }));
-  }, [users, selectedDeptId]);
 
   const reset = () => {
     form.resetFields();
@@ -143,11 +129,7 @@ export const InviteUserDrawer = ({
         phone: values.phone ?? "",
         jobTitle: values.jobTitle ?? "",
         employeeCode: values.employeeCode ?? "",
-        startDate: values.startDate
-          ? dayjs.isDayjs(values.startDate)
-            ? values.startDate.format("YYYY-MM-DD")
-            : String(values.startDate)
-          : "",
+        startDate: "",
         workLocation: values.workLocation ?? "",
       });
       reset();
@@ -354,7 +336,12 @@ export const InviteUserDrawer = ({
           <div className="grid gap-x-4 sm:grid-cols-2">
             <BaseSelect
               name="departmentId"
-              label={t("user.invite.department_id")}
+              label={
+                <>
+                  {t("user.invite.department_id")}
+                  <RequiredMark />
+                </>
+              }
               showSearch
               allowClear
               placeholder={t("user.invite.department_placeholder")}
@@ -362,20 +349,14 @@ export const InviteUserDrawer = ({
                 value: d.departmentId,
                 label: d.name,
               }))}
-              filterOption={(input, option) =>
-                String(option?.label ?? "")
-                  .toLowerCase()
-                  .includes(input.toLowerCase())
-              }
-              onChange={() => form.setFieldValue("managerUserId", undefined)}
-            />
-            <BaseSelect
-              name="managerUserId"
-              label={t("user.invite.manager_id")}
-              showSearch
-              allowClear
-              placeholder={t("user.invite.department_placeholder")}
-              options={managerOptions}
+              formItemProps={{
+                rules: [
+                  {
+                    required: true,
+                    message: t("user.invite.department_id") + " is required",
+                  },
+                ],
+              }}
               filterOption={(input, option) =>
                 String(option?.label ?? "")
                   .toLowerCase()
@@ -409,20 +390,11 @@ export const InviteUserDrawer = ({
               placeholder={t("user.form.job_title_placeholder")}
             />
           </div>
-          <div className="grid gap-x-4 sm:grid-cols-2">
-            <BaseInput
-              name="employeeCode"
-              label={t("user.detail.employee_code")}
-              placeholder="EMP-2026-xxxx"
-            />
-            <BaseDatePicker
-              name="startDate"
-              label={t("user.detail.start_date")}
-              placeholder="DD-MM-YYYY"
-              style={{ width: "100%" }}
-              disabledDate={(d) => d && d.isAfter(dayjs(), "day")}
-            />
-          </div>
+          <BaseInput
+            name="employeeCode"
+            label={t("user.detail.employee_code")}
+            placeholder="EMP-2026-xxxx"
+          />
           <BaseInput
             name="workLocation"
             label={t("user.detail.work_location")}

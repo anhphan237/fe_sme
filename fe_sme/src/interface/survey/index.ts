@@ -215,10 +215,30 @@ export interface SurveyAnalyticsReportRequest {
 
 /** com.sme.survey.analytics.report → response data */
 export interface SurveyAnalyticsReport {
-  totalSurveys: number;
-  completionRate: number;
-  averageScore: number;
-  byQuestion: {
+  totalSurveys?: number;
+  completionRate?: number;
+  averageScore?: number;
+  sentCount?: number;
+  submittedCount?: number;
+  responseRate?: number;
+  overallSatisfactionScore?: number;
+  stageTrends?: Array<{
+    stage?: string;
+    stageCode?: string;
+    submittedCount?: number;
+    responseCount?: number;
+    averageOverall?: number;
+    averageScore?: number;
+  }>;
+  timeTrends?: Array<{
+    bucket?: string;
+    month?: string;
+    submittedCount?: number;
+    responseCount?: number;
+    averageScore?: number;
+    averageOverall?: number;
+  }>;
+  byQuestion?: {
     questionId: string;
     text: string;
     averageRating: number;
@@ -252,7 +272,6 @@ export interface SurveyQuestionFullUpdateRequest {
   scaleMin?: number;
   scaleMax?: number;
 }
-
 
 export interface ImportSurveyQuestionsRequest {
   templateId: string;

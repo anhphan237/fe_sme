@@ -3103,5 +3103,7 @@
   "dashboard.hr.chart.total_tasks": "Tổng task",
   "dashboard.hr.chart.completed": "Hoàn thành",
   "dashboard.hr.chart.employees": "Nhân viên",
-  "dashboard.hr.chart.onboarding_count": "Số onboarding"
+  "dashboard.hr.chart.onboarding_count": "Số onboarding",
+  "dashboard.hr.chart.responses": "Phản hồi",
+  "dashboard.hr.chart.avg_score": "Điểm trung bình"
 }

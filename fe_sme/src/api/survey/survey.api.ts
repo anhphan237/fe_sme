@@ -16,6 +16,7 @@ import type {
   SurveySubmitRequest,
   SurveyResponseListRequest,
   SurveyAnalyticsReportRequest,
+  SurveyAnalyticsReport,
   ImportSurveyQuestionsRequest,
 } from "@/interface/survey";
 
@@ -178,7 +179,7 @@ export const apiGetSatisfactionReport = (
 export const apiGetSurveyAnalyticsReport = (
   params?: SurveyAnalyticsReportRequest,
 ) =>
-  gatewayRequest<SurveyAnalyticsReportRequest, unknown>(
+  gatewayRequest<SurveyAnalyticsReportRequest, SurveyAnalyticsReport>(
     "com.sme.survey.analytics.report",
     params ?? {},
   );
@@ -201,7 +202,7 @@ export const apiSaveSurveyDraft = (payload: {
     payload,
   );
 
-  export const apiDeleteSurveyTemplate = (payload: { templateId: string }) =>
+export const apiDeleteSurveyTemplate = (payload: { templateId: string }) =>
   gatewayRequest<typeof payload, unknown>(
     "com.sme.survey.template.delete",
     payload,
