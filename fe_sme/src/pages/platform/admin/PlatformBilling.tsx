@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { Card, Empty, Skeleton, Modal, message, DatePicker } from "antd";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { RefreshCw, DollarSign, TrendingUp, Users, AlertTriangle } from "lucide-react";
+import {
+  RefreshCw,
+  DollarSign,
+  TrendingUp,
+  Users,
+  AlertTriangle,
+} from "lucide-react";
 import dayjs from "dayjs";
 import {
   apiGetPlatformPaymentList,
@@ -100,11 +106,15 @@ const PlatformBilling = () => {
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<Tab>("payments");
-  const [dateRange, setDateRange] = useState<[string, string]>([DEFAULT_START, DEFAULT_END]);
+  const [dateRange, setDateRange] = useState<[string, string]>([
+    DEFAULT_START,
+    DEFAULT_END,
+  ]);
   const [paymentStatus, setPaymentStatus] = useState("");
   const [invoiceStatus, setInvoiceStatus] = useState("");
   const [subscriptionStatus, setSubscriptionStatus] = useState("");
-  const [retryTarget, setRetryTarget] = useState<PlatformSubscriptionItem | null>(null);
+  const [retryTarget, setRetryTarget] =
+    useState<PlatformSubscriptionItem | null>(null);
 
   // ── Status label helpers (dùng t() key, không hiện raw status) ────
   const paymentStatusLabel = (status: string) =>
@@ -114,7 +124,7 @@ const PlatformBilling = () => {
       PENDING: t("platform.payments.status_pending"),
       FAILED: t("platform.payments.status_failed"),
       REFUNDED: t("platform.payments.status_refunded"),
-    }[status] ?? status);
+    })[status] ?? status;
 
   const invoiceStatusLabel = (status: string) =>
     ({
@@ -123,7 +133,7 @@ const PlatformBilling = () => {
       OVERDUE: t("platform.invoices.status_overdue"),
       VOID: t("platform.invoices.status_void"),
       DRAFT: t("platform.invoices.status_draft"),
-    }[status] ?? status);
+    })[status] ?? status;
 
   const subscriptionStatusLabel = (status: string) =>
     ({
@@ -133,19 +143,22 @@ const PlatformBilling = () => {
       CANCELLED: t("platform.subscriptions.status_cancelled"),
       SUSPENDED: t("platform.subscriptions.status_suspended"),
       EXPIRED: t("platform.subscriptions.status_expired"),
-    }[status] ?? status);
+    })[status] ?? status;
 
   const billingCycleLabel = (cycle: string) =>
     ({
       MONTHLY: t("platform.billing.monthly"),
       YEARLY: t("platform.billing.yearly"),
-    }[cycle] ?? cycle);
+    })[cycle] ?? cycle;
 
   // ── Queries ────────────────────────────────────────────────────────
   const financialQuery = useQuery({
     queryKey: ["platform-financial-dashboard", dateRange],
     queryFn: () =>
-      apiGetPlatformFinancialDashboard({ startDate: dateRange[0], endDate: dateRange[1] }),
+      apiGetPlatformFinancialDashboard({
+        startDate: dateRange[0],
+        endDate: dateRange[1],
+      }),
     select: (res: any) => res?.data ?? res,
   });
   const fin = financialQuery.data as any;
@@ -153,16 +166,26 @@ const PlatformBilling = () => {
   const paymentsQuery = useQuery({
     queryKey: ["platform-payment-list", paymentStatus],
     queryFn: () =>
-      apiGetPlatformPaymentList({ page: 0, size: PAGE_SIZE, status: paymentStatus || undefined }),
-    select: (res: any) => (res?.data?.items ?? res?.items ?? []) as PlatformPaymentItem[],
+      apiGetPlatformPaymentList({
+        page: 0,
+        size: PAGE_SIZE,
+        status: paymentStatus || undefined,
+      }),
+    select: (res: any) =>
+      (res?.data?.items ?? res?.items ?? []) as PlatformPaymentItem[],
     enabled: activeTab === "payments",
   });
 
   const invoicesQuery = useQuery({
     queryKey: ["platform-invoice-list", invoiceStatus],
     queryFn: () =>
-      apiGetPlatformInvoiceList({ page: 0, size: PAGE_SIZE, status: invoiceStatus || undefined }),
-    select: (res: any) => (res?.data?.items ?? res?.items ?? []) as PlatformInvoiceItem[],
+      apiGetPlatformInvoiceList({
+        page: 0,
+        size: PAGE_SIZE,
+        status: invoiceStatus || undefined,
+      }),
+    select: (res: any) =>
+      (res?.data?.items ?? res?.items ?? []) as PlatformInvoiceItem[],
     enabled: activeTab === "invoices",
   });
 
@@ -170,11 +193,12 @@ const PlatformBilling = () => {
     queryKey: ["platform-subscription-list", subscriptionStatus],
     queryFn: () =>
       apiGetPlatformSubscriptionList({
-        page: 0,
+        page: 1,
         size: PAGE_SIZE,
         status: subscriptionStatus || undefined,
       }),
-    select: (res: any) => (res?.data?.items ?? res?.items ?? []) as PlatformSubscriptionItem[],
+    select: (res: any) =>
+      (res?.data?.items ?? res?.items ?? []) as PlatformSubscriptionItem[],
     enabled: activeTab === "subscriptions",
   });
 
@@ -183,7 +207,9 @@ const PlatformBilling = () => {
     mutationFn: (subscriptionId: string) => apiRetryDunning({ subscriptionId }),
     onSuccess: () => {
       message.success(t("platform.subscriptions.retry_success"));
-      queryClient.invalidateQueries({ queryKey: ["platform-subscription-list"] });
+      queryClient.invalidateQueries({
+        queryKey: ["platform-subscription-list"],
+      });
     },
     onError: () => message.error(t("platform.subscriptions.retry_error")),
   });
@@ -233,7 +259,9 @@ const PlatformBilling = () => {
                 </span>
               </div>
               <p className="text-lg font-bold text-emerald-700">
-                {fin?.mrr != null ? Number(fin.mrr).toLocaleString("vi-VN") + "₫" : "—"}
+                {fin?.mrr != null
+                  ? Number(fin.mrr).toLocaleString("vi-VN") + "₫"
+                  : "—"}
               </p>
             </div>
             <div className="rounded-xl bg-blue-50 p-3">
@@ -279,7 +307,9 @@ const PlatformBilling = () => {
                 </span>
               </div>
               <p className="text-lg font-bold text-amber-700">
-                {fin?.churnRate != null ? `${(fin.churnRate * 100).toFixed(1)}%` : "—"}
+                {fin?.churnRate != null
+                  ? `${(fin.churnRate * 100).toFixed(1)}%`
+                  : "—"}
               </p>
             </div>
             <div className="rounded-xl bg-rose-50 p-3">
@@ -327,11 +357,21 @@ const PlatformBilling = () => {
                   value={paymentStatus}
                   onChange={(e) => setPaymentStatus(e.target.value)}>
                   <option value="">{t("platform.payments.status_all")}</option>
-                  <option value="SUCCEEDED">{t("platform.payments.status_succeeded")}</option>
-                  <option value="PROCESSING">{t("platform.payments.status_processing")}</option>
-                  <option value="PENDING">{t("platform.payments.status_pending")}</option>
-                  <option value="FAILED">{t("platform.payments.status_failed")}</option>
-                  <option value="REFUNDED">{t("platform.payments.status_refunded")}</option>
+                  <option value="SUCCEEDED">
+                    {t("platform.payments.status_succeeded")}
+                  </option>
+                  <option value="PROCESSING">
+                    {t("platform.payments.status_processing")}
+                  </option>
+                  <option value="PENDING">
+                    {t("platform.payments.status_pending")}
+                  </option>
+                  <option value="FAILED">
+                    {t("platform.payments.status_failed")}
+                  </option>
+                  <option value="REFUNDED">
+                    {t("platform.payments.status_refunded")}
+                  </option>
                 </select>
               </div>
               <Card className="p-0">
@@ -344,47 +384,70 @@ const PlatformBilling = () => {
                   retryText={t("global.retry")}
                   onRefetch={paymentsQuery.refetch}
                 />
-                {!paymentsQuery.isLoading && !paymentsQuery.isError && !!paymentsQuery.data?.length && (
-                  <table className="w-full">
-                    <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase text-muted">
-                      <tr>
-                        <th className="px-4 py-3">{t("platform.payments.col_transaction")}</th>
-                        <th className="px-4 py-3">{t("platform.payments.col_company")}</th>
-                        <th className="px-4 py-3">{t("platform.payments.col_invoice")}</th>
-                        <th className="px-4 py-3">{t("platform.payments.col_amount")}</th>
-                        <th className="px-4 py-3">{t("platform.payments.col_provider")}</th>
-                        <th className="px-4 py-3">{t("platform.payments.col_status")}</th>
-                        <th className="px-4 py-3">{t("platform.payments.col_date")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paymentsQuery.data.map((tx) => (
-                        <tr
-                          key={tx.paymentId}
-                          className="border-t border-stroke hover:bg-slate-50">
-                          <td className="px-4 py-3 font-mono text-xs text-muted">
-                            {tx.paymentId}
-                          </td>
-                          <td className="px-4 py-3 font-medium">{tx.companyName}</td>
-                          <td className="px-4 py-3 font-mono text-xs text-muted">
-                            {tx.invoiceId}
-                          </td>
-                          <td className="px-4 py-3 font-medium">
-                            {tx.amount?.toLocaleString("vi-VN")} {tx.currency?.toUpperCase()}
-                          </td>
-                          <td className="px-4 py-3 text-muted capitalize">{tx.provider}</td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${PAYMENT_STATUS_STYLE[tx.status] ?? "bg-slate-100 text-slate-700"}`}>
-                              {paymentStatusLabel(tx.status)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-muted">{tx.createdAt}</td>
+                {!paymentsQuery.isLoading &&
+                  !paymentsQuery.isError &&
+                  !!paymentsQuery.data?.length && (
+                    <table className="w-full">
+                      <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase text-muted">
+                        <tr>
+                          <th className="px-4 py-3">
+                            {t("platform.payments.col_transaction")}
+                          </th>
+                          <th className="px-4 py-3">
+                            {t("platform.payments.col_company")}
+                          </th>
+                          <th className="px-4 py-3">
+                            {t("platform.payments.col_invoice")}
+                          </th>
+                          <th className="px-4 py-3">
+                            {t("platform.payments.col_amount")}
+                          </th>
+                          <th className="px-4 py-3">
+                            {t("platform.payments.col_provider")}
+                          </th>
+                          <th className="px-4 py-3">
+                            {t("platform.payments.col_status")}
+                          </th>
+                          <th className="px-4 py-3">
+                            {t("platform.payments.col_date")}
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+                      </thead>
+                      <tbody>
+                        {paymentsQuery.data.map((tx) => (
+                          <tr
+                            key={tx.paymentId}
+                            className="border-t border-stroke hover:bg-slate-50">
+                            <td className="px-4 py-3 font-mono text-xs text-muted">
+                              {tx.paymentId}
+                            </td>
+                            <td className="px-4 py-3 font-medium">
+                              {tx.companyName}
+                            </td>
+                            <td className="px-4 py-3 font-mono text-xs text-muted">
+                              {tx.invoiceId}
+                            </td>
+                            <td className="px-4 py-3 font-medium">
+                              {tx.amount?.toLocaleString("vi-VN")}{" "}
+                              {tx.currency?.toUpperCase()}
+                            </td>
+                            <td className="px-4 py-3 text-muted capitalize">
+                              {tx.provider}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${PAYMENT_STATUS_STYLE[tx.status] ?? "bg-slate-100 text-slate-700"}`}>
+                                {paymentStatusLabel(tx.status)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-muted">
+                              {tx.createdAt}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
               </Card>
             </>
           )}
@@ -401,11 +464,21 @@ const PlatformBilling = () => {
                   value={invoiceStatus}
                   onChange={(e) => setInvoiceStatus(e.target.value)}>
                   <option value="">{t("platform.payments.status_all")}</option>
-                  <option value="PAID">{t("platform.invoices.status_paid")}</option>
-                  <option value="UNPAID">{t("platform.invoices.status_unpaid")}</option>
-                  <option value="OVERDUE">{t("platform.invoices.status_overdue")}</option>
-                  <option value="VOID">{t("platform.invoices.status_void")}</option>
-                  <option value="DRAFT">{t("platform.invoices.status_draft")}</option>
+                  <option value="PAID">
+                    {t("platform.invoices.status_paid")}
+                  </option>
+                  <option value="UNPAID">
+                    {t("platform.invoices.status_unpaid")}
+                  </option>
+                  <option value="OVERDUE">
+                    {t("platform.invoices.status_overdue")}
+                  </option>
+                  <option value="VOID">
+                    {t("platform.invoices.status_void")}
+                  </option>
+                  <option value="DRAFT">
+                    {t("platform.invoices.status_draft")}
+                  </option>
                 </select>
               </div>
               <Card className="p-0">
@@ -418,45 +491,70 @@ const PlatformBilling = () => {
                   retryText={t("global.retry")}
                   onRefetch={invoicesQuery.refetch}
                 />
-                {!invoicesQuery.isLoading && !invoicesQuery.isError && !!invoicesQuery.data?.length && (
-                  <table className="w-full">
-                    <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase text-muted">
-                      <tr>
-                        <th className="px-4 py-3">{t("platform.invoices.col_invoice")}</th>
-                        <th className="px-4 py-3">{t("platform.invoices.col_company")}</th>
-                        <th className="px-4 py-3">{t("platform.invoices.col_amount")}</th>
-                        <th className="px-4 py-3">{t("platform.invoices.col_status")}</th>
-                        <th className="px-4 py-3">{t("platform.invoices.col_due_date")}</th>
-                        <th className="px-4 py-3">{t("platform.invoices.col_paid_at")}</th>
-                        <th className="px-4 py-3">{t("platform.invoices.col_created")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {invoicesQuery.data.map((inv) => (
-                        <tr
-                          key={inv.invoiceId}
-                          className="border-t border-stroke hover:bg-slate-50">
-                          <td className="px-4 py-3 font-mono text-xs text-muted">
-                            {inv.invoiceId}
-                          </td>
-                          <td className="px-4 py-3 font-medium">{inv.companyName}</td>
-                          <td className="px-4 py-3 font-medium">
-                            {inv.amount?.toLocaleString("vi-VN")} {inv.currency?.toUpperCase()}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${INVOICE_STATUS_STYLE[inv.status] ?? "bg-slate-100 text-slate-700"}`}>
-                              {invoiceStatusLabel(inv.status)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-muted">{inv.dueDate ?? "—"}</td>
-                          <td className="px-4 py-3 text-muted">{inv.paidAt ?? "—"}</td>
-                          <td className="px-4 py-3 text-muted">{inv.createdAt}</td>
+                {!invoicesQuery.isLoading &&
+                  !invoicesQuery.isError &&
+                  !!invoicesQuery.data?.length && (
+                    <table className="w-full">
+                      <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase text-muted">
+                        <tr>
+                          <th className="px-4 py-3">
+                            {t("platform.invoices.col_invoice")}
+                          </th>
+                          <th className="px-4 py-3">
+                            {t("platform.invoices.col_company")}
+                          </th>
+                          <th className="px-4 py-3">
+                            {t("platform.invoices.col_amount")}
+                          </th>
+                          <th className="px-4 py-3">
+                            {t("platform.invoices.col_status")}
+                          </th>
+                          <th className="px-4 py-3">
+                            {t("platform.invoices.col_due_date")}
+                          </th>
+                          <th className="px-4 py-3">
+                            {t("platform.invoices.col_paid_at")}
+                          </th>
+                          <th className="px-4 py-3">
+                            {t("platform.invoices.col_created")}
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+                      </thead>
+                      <tbody>
+                        {invoicesQuery.data.map((inv) => (
+                          <tr
+                            key={inv.invoiceId}
+                            className="border-t border-stroke hover:bg-slate-50">
+                            <td className="px-4 py-3 font-mono text-xs text-muted">
+                              {inv.invoiceId}
+                            </td>
+                            <td className="px-4 py-3 font-medium">
+                              {inv.companyName}
+                            </td>
+                            <td className="px-4 py-3 font-medium">
+                              {inv.amount?.toLocaleString("vi-VN")}{" "}
+                              {inv.currency?.toUpperCase()}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${INVOICE_STATUS_STYLE[inv.status] ?? "bg-slate-100 text-slate-700"}`}>
+                                {invoiceStatusLabel(inv.status)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-muted">
+                              {inv.dueDate ?? "—"}
+                            </td>
+                            <td className="px-4 py-3 text-muted">
+                              {inv.paidAt ?? "—"}
+                            </td>
+                            <td className="px-4 py-3 text-muted">
+                              {inv.createdAt}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
               </Card>
             </>
           )}
@@ -473,12 +571,24 @@ const PlatformBilling = () => {
                   value={subscriptionStatus}
                   onChange={(e) => setSubscriptionStatus(e.target.value)}>
                   <option value="">{t("platform.payments.status_all")}</option>
-                  <option value="ACTIVE">{t("platform.subscriptions.status_active")}</option>
-                  <option value="TRIAL">{t("platform.subscriptions.status_trial")}</option>
-                  <option value="PAST_DUE">{t("platform.subscriptions.status_past_due")}</option>
-                  <option value="CANCELLED">{t("platform.subscriptions.status_cancelled")}</option>
-                  <option value="SUSPENDED">{t("platform.subscriptions.status_suspended")}</option>
-                  <option value="EXPIRED">{t("platform.subscriptions.status_expired")}</option>
+                  <option value="ACTIVE">
+                    {t("platform.subscriptions.status_active")}
+                  </option>
+                  <option value="TRIAL">
+                    {t("platform.subscriptions.status_trial")}
+                  </option>
+                  <option value="PAST_DUE">
+                    {t("platform.subscriptions.status_past_due")}
+                  </option>
+                  <option value="CANCELLED">
+                    {t("platform.subscriptions.status_cancelled")}
+                  </option>
+                  <option value="SUSPENDED">
+                    {t("platform.subscriptions.status_suspended")}
+                  </option>
+                  <option value="EXPIRED">
+                    {t("platform.subscriptions.status_expired")}
+                  </option>
                 </select>
               </div>
               <Card className="p-0">
@@ -497,12 +607,24 @@ const PlatformBilling = () => {
                     <table className="w-full">
                       <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase text-muted">
                         <tr>
-                          <th className="px-4 py-3">{t("platform.subscriptions.col_company")}</th>
-                          <th className="px-4 py-3">{t("platform.subscriptions.col_plan")}</th>
-                          <th className="px-4 py-3">{t("platform.subscriptions.col_status")}</th>
-                          <th className="px-4 py-3">{t("platform.subscriptions.col_billing")}</th>
-                          <th className="px-4 py-3">{t("platform.subscriptions.col_renewal")}</th>
-                          <th className="px-4 py-3 text-right">{t("global.action")}</th>
+                          <th className="px-4 py-3">
+                            {t("platform.subscriptions.col_company")}
+                          </th>
+                          <th className="px-4 py-3">
+                            {t("platform.subscriptions.col_plan")}
+                          </th>
+                          <th className="px-4 py-3">
+                            {t("platform.subscriptions.col_status")}
+                          </th>
+                          <th className="px-4 py-3">
+                            {t("platform.subscriptions.col_billing")}
+                          </th>
+                          <th className="px-4 py-3">
+                            {t("platform.subscriptions.col_renewal")}
+                          </th>
+                          <th className="px-4 py-3 text-right">
+                            {t("global.action")}
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -510,8 +632,12 @@ const PlatformBilling = () => {
                           <tr
                             key={sub.subscriptionId}
                             className="border-t border-stroke hover:bg-slate-50">
-                            <td className="px-4 py-3 font-medium">{sub.companyName}</td>
-                            <td className="px-4 py-3 text-muted">{sub.planCode}</td>
+                            <td className="px-4 py-3 font-medium">
+                              {sub.companyName}
+                            </td>
+                            <td className="px-4 py-3 text-muted">
+                              {sub.planCode}
+                            </td>
                             <td className="px-4 py-3">
                               <span
                                 className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${SUBSCRIPTION_STATUS_STYLE[sub.status] ?? "bg-slate-100 text-slate-700"}`}>
@@ -521,9 +647,12 @@ const PlatformBilling = () => {
                             <td className="px-4 py-3 text-muted">
                               {billingCycleLabel(sub.billingCycle)}
                             </td>
-                            <td className="px-4 py-3 text-muted">{sub.currentPeriodEnd}</td>
+                            <td className="px-4 py-3 text-muted">
+                              {sub.currentPeriodEnd}
+                            </td>
                             <td className="px-4 py-3 text-right">
-                              {(sub.status === "PAST_DUE" || sub.status === "SUSPENDED") && (
+                              {(sub.status === "PAST_DUE" ||
+                                sub.status === "SUSPENDED") && (
                                 <button
                                   className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100"
                                   onClick={() => setRetryTarget(sub)}>
