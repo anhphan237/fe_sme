@@ -32,7 +32,6 @@ import {
 } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
 import { BookOpen, FileCheck, Files, FolderOpen } from "lucide-react";
-import BaseButton from "@/components/button";
 import BaseModal from "@core/components/Modal/BaseModal";
 import BaseInput from "@core/components/Input/InputWithLabel";
 import BaseSelect from "@core/components/Select/BaseSelect";
@@ -96,9 +95,6 @@ const STATUS_COLOR: Record<string, string> = {
   INACTIVE: "default",
   DRAFT: "gold",
 };
-
-const FOLDERS = ["Company", "Department", "Compliance", "Security"];
-const folderOptions = FOLDERS.map((f) => ({ label: f, value: f }));
 
 // ── Query ────────────────────────────────────────────────────────────────────
 
@@ -347,6 +343,25 @@ const Documents = () => {
     selectedFolder ?? undefined,
   );
 
+  // Derive categories dynamically from all documents
+  const folderMap = useMemo(() => {
+    const map = new Map<string, number>();
+    allDocs.forEach((doc) => {
+      if (doc.documentCategoryId) {
+        map.set(
+          doc.documentCategoryId,
+          (map.get(doc.documentCategoryId) ?? 0) + 1,
+        );
+      }
+    });
+    return map;
+  }, [allDocs]);
+
+  const folderOptions = useMemo(
+    () => Array.from(folderMap.keys()).map((k) => ({ label: k, value: k })),
+    [folderMap],
+  );
+
   const displayedDocs = useMemo(() => {
     const base = data ?? [];
     if (!searchText.trim()) return base;
@@ -498,7 +513,7 @@ const Documents = () => {
             </span>
           </button>
 
-          {FOLDERS.map((folder) => (
+          {Array.from(folderMap.entries()).map(([folder, count]) => (
             <button
               key={folder}
               className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm transition ${
@@ -511,6 +526,14 @@ const Documents = () => {
               }>
               <FolderOutlined />
               <span className="flex-1 truncate">{folder}</span>
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${
+                  selectedFolder === folder
+                    ? "bg-white/20 text-white"
+                    : "bg-slate-100 text-muted"
+                }`}>
+                {count}
+              </span>
             </button>
           ))}
         </div>

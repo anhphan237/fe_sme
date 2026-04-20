@@ -57,3 +57,20 @@ export interface AcknowledgeDocumentResponse {
   onboardingId?: string;
   taskMarkedDone: boolean;
 }
+
+// ---------------------------
+// Acknowledgment List
+// ---------------------------
+
+/** Single item returned by com.sme.document.acknowledgment.list */
+export interface AcknowledgmentListItem {
+  documentAcknowledgementId: string;
+  documentId: string;
+  onboardingId?: string;
+  taskMarkedDone: boolean;
+}
+
+/** com.sme.document.acknowledgment.list → response data */
+export interface AcknowledgmentListResponse {
+  items: AcknowledgmentListItem[];
+}

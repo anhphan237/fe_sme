@@ -197,6 +197,43 @@ export interface BulkCreateUsersResponse {
 }
 
 // ---------------------------
+// Excel bulk import (POST /api/v1/users/bulk-import/validate|commit)
+// ---------------------------
+
+export interface BulkUserImportValidateRowResult {
+  rowNumber: number;
+  email: string | null;
+  fullName: string | null;
+  /** "VALID" | "INVALID" */
+  status: string;
+  errors: string[];
+}
+
+export interface BulkUserImportValidateResponse {
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  rows: BulkUserImportValidateRowResult[];
+}
+
+export interface BulkUserImportCommitRowResult {
+  rowNumber: number;
+  email: string | null;
+  fullName: string | null;
+  /** "CREATED" | "FAILED_VALIDATION" | "FAILED_CREATE" */
+  status: string;
+  userId: string | null;
+  errors: string[];
+}
+
+export interface BulkUserImportCommitResponse {
+  totalRows: number;
+  createdRows: number;
+  failedRows: number;
+  rows: BulkUserImportCommitRowResult[];
+}
+
+// ---------------------------
 // App-level normalized User (used by store / pages)
 // ---------------------------
 

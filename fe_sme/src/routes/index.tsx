@@ -95,6 +95,9 @@ const PlatformFeedback = lazy(
 const PlatformSystem = lazy(
   () => import("@/pages/platform/admin/PlatformSystem"),
 );
+const PlatformBilling = lazy(
+  () => import("@/pages/platform/admin/PlatformBilling"),
+);
 const Forbidden = lazy(() => import("@/pages/Forbidden"));
 const SurveySend = lazy(() => import("@/pages/surveys/SurveySendPage"));
 const PageSkeleton = () => (
@@ -404,10 +407,20 @@ export const router = createBrowserRouter([
         element: suspense(withRoles(<PlatformCompanyDetail />, ["ADMIN"])),
       },
       {
+        path: "/platform/admin/billing",
+        element: suspense(withRoles(<PlatformBilling />, ["ADMIN"])),
+      },
+      {
+        path: "/platform/admin/payments",
+        element: <Navigate to="/platform/admin/billing" replace />,
+      },
+      {
         path: "/platform/admin/subscriptions",
-        element: (
-          <Navigate to="/platform/admin/companies?tab=subscriptions" replace />
-        ),
+        element: <Navigate to="/platform/admin/billing" replace />,
+      },
+      {
+        path: "/platform/admin/invoices",
+        element: <Navigate to="/platform/admin/billing" replace />,
       },
       {
         path: "/platform/admin/plans",

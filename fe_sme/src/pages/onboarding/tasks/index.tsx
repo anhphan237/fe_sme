@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -12,13 +12,9 @@ import {
   CheckSquare,
   ThumbsUp,
   XCircle,
-  Activity,
   Play,
-  UserPlus,
   List,
   BarChart2,
-  CalendarClock,
-  RefreshCw,
 } from "lucide-react";
 import {
   Button,
@@ -40,6 +36,7 @@ import {
   Timeline,
   Tooltip,
   Typography,
+  Upload,
 } from "antd";
 import type { Dayjs } from "dayjs";
 
@@ -59,12 +56,19 @@ import {
   apiApproveTask,
   apiRejectTask,
   apiAssignTask,
-  apiGetTaskTimeline,
   apiProposeTaskSchedule,
   apiConfirmTaskSchedule,
   apiAddTaskAttachment,
+  apiRescheduleTask,
+  apiCancelTaskSchedule,
+  apiMarkTaskNoShow,
 } from "@/api/onboarding/onboarding.api";
+import { TaskDrawer } from "@/pages/onboarding/employees/detail/components/TaskDrawer";
 import { apiSearchUsers } from "@/api/identity/identity.api";
+import {
+  apiUploadDocumentFile,
+  apiAcknowledgeDocument,
+} from "@/api/document/document.api";
 import type {
   CommentResponse,
   TaskDetailResponse,
@@ -87,6 +91,20 @@ type StatusFilter =
   | "overdue"
   | "mine";
 type ViewMode = "list" | "timeline";
+type SortMode = "default" | "due_asc";
+
+const STAGE_PRIORITY: Record<string, number> = {
+  PRE_BOARDING: 0,
+  DAY_1: 1,
+  DAY_7: 2,
+  DAY_30: 3,
+  DAY_60: 4,
+};
+
+const getStagePriority = (name: string): number => {
+  const upper = name.toUpperCase().replace(/[\s-]+/g, "_");
+  return STAGE_PRIORITY[upper] ?? 99;
+};
 
 const extractErrorMessage = (err: unknown, fallback: string): string => {
   if (!err) return fallback;
@@ -190,11 +208,22 @@ const useTaskDetailQuery = (taskId?: string) =>
     enabled: Boolean(taskId),
     select: (res: unknown) => {
       const record = res as Record<string, unknown>;
-      return (record?.task ??
+      const raw = (record?.task ??
         record?.data ??
         record?.result ??
         record?.payload ??
-        res) as TaskDetailResponse;
+        res) as TaskDetailResponse & {
+        assignedUser?: { userId?: string; fullName?: string; name?: string };
+      };
+      // Normalize flat assignedUserId/Name from nested assignedUser when BE omits flat fields
+      if (!raw.assignedUserId && raw.assignedUser?.userId) {
+        raw.assignedUserId = raw.assignedUser.userId;
+      }
+      if (!raw.assignedUserName && raw.assignedUser) {
+        raw.assignedUserName =
+          raw.assignedUser.fullName ?? raw.assignedUser.name;
+      }
+      return raw as TaskDetailResponse;
     },
   });
 
@@ -221,31 +250,6 @@ const useTaskCommentsQuery = (taskId?: string) =>
           content,
         };
       }) as CommentResponse[];
-    },
-  });
-
-const useTaskTimelineQuery = (onboardingId?: string) =>
-  useQuery({
-    queryKey: ["onboarding-task-timeline", onboardingId ?? ""],
-    queryFn: () =>
-      apiGetTaskTimeline({ onboardingId: onboardingId!, includeDone: true }),
-    enabled: Boolean(onboardingId),
-    select: (res: unknown) => {
-      const r = res as Record<string, unknown>;
-      return (r?.assignees ?? r?.data ?? []) as Array<{
-        assigneeUserId: string;
-        assigneeUserName?: string;
-        taskCount: number;
-        tasks: Array<{
-          taskId: string;
-          checklistName?: string;
-          title?: string;
-          status?: string;
-          dueDate?: string;
-          scheduledStartAt?: string;
-          scheduleStatus?: string;
-        }>;
-      }>;
     },
   });
 
@@ -550,7 +554,9 @@ const TaskItem = ({
   const canAct = canManage || isAssignee;
 
   return (
-    <li className="transition-colors hover:bg-slate-50">
+    <li
+      className="cursor-pointer transition-colors hover:bg-slate-50"
+      onClick={() => onInspect(task)}>
       <div className="flex flex-col gap-0 px-4 py-3 sm:flex-row sm:items-start sm:gap-3">
         {/* Status indicator dot */}
         <div className="mt-1.5 shrink-0">
@@ -628,7 +634,7 @@ const TaskItem = ({
             </p>
           )}
 
-          {/* Row 3: meta + actions */}
+          {/* Row 3: meta + quick actions */}
           <div className="flex flex-wrap items-center gap-3">
             {task.dueDate ? (
               <span
@@ -645,16 +651,19 @@ const TaskItem = ({
               </span>
             )}
 
-            {canManage && task.assignedUserId && (
+            {(task.assignedUserName ?? (canManage && task.assignedUserId)) && (
               <Tooltip title={t("onboarding.task.field.assignee")}>
                 <span className="flex items-center gap-1 text-xs text-gray-400">
                   <User className="h-3 w-3" />
-                  {task.assignedUserId}
+                  {task.assignedUserName ?? task.assignedUserId}
                 </span>
               </Tooltip>
             )}
 
-            <div className="ml-auto flex items-center gap-2">
+            {/* Quick actions — stop propagation so clicking buttons doesn't open drawer */}
+            <div
+              className="ml-auto flex items-center gap-2"
+              onClick={(e) => e.stopPropagation()}>
               <TaskAction
                 task={task}
                 canAct={canAct}
@@ -667,9 +676,6 @@ const TaskItem = ({
                 onApprove={onApprove ? () => onApprove(task) : undefined}
                 onReject={onReject ? () => onReject(task) : undefined}
               />
-              <Button size="small" onClick={() => onInspect(task)}>
-                {t("onboarding.task.detail.view")}
-              </Button>
             </div>
           </div>
         </div>
@@ -800,21 +806,114 @@ const InfoField = ({
   </div>
 );
 
-// ── Timeline View ──────────────────────────────────────────────────────────────
+// ── Stage Timeline View ────────────────────────────────────────────────────────
 
-const TimelineView = ({
-  onboardingId,
+const TaskSuggestion = ({
+  task,
+  isOverdue,
+  isToday,
+  daysOverdue,
+  daysUntilDue,
+  t,
+}: {
+  task: OnboardingTask;
+  isOverdue: boolean;
+  isToday: boolean;
+  daysOverdue: number;
+  daysUntilDue: number | null;
+  t: (key: string, vars?: Record<string, unknown>) => string;
+}) => {
+  const isDone = task.rawStatus === STATUS_DONE_API;
+  if (isDone) return null;
+
+  const isSoon = daysUntilDue !== null && daysUntilDue > 0 && daysUntilDue <= 3;
+  const needsDoc = task.requireDoc;
+  const needsAck = task.requireAck && task.rawStatus === "IN_PROGRESS";
+  const needsApproval =
+    task.requiresManagerApproval && task.rawStatus === "IN_PROGRESS";
+
+  if (
+    !isOverdue &&
+    !isToday &&
+    !isSoon &&
+    !needsDoc &&
+    !needsAck &&
+    !needsApproval
+  )
+    return null;
+
+  const items: { icon: string; text: string; color: string }[] = [];
+
+  if (isOverdue) {
+    items.push({
+      icon: "🔴",
+      text: t("onboarding.task.suggestion.overdue", { days: daysOverdue }),
+      color: "bg-red-50 border-red-200 text-red-700",
+    });
+  } else if (isToday) {
+    items.push({
+      icon: "⏰",
+      text: t("onboarding.task.suggestion.today"),
+      color: "bg-orange-50 border-orange-200 text-orange-700",
+    });
+  } else if (isSoon) {
+    items.push({
+      icon: "📌",
+      text: t("onboarding.task.suggestion.soon", { days: daysUntilDue }),
+      color: "bg-amber-50 border-amber-200 text-amber-700",
+    });
+  }
+
+  if (needsDoc) {
+    items.push({
+      icon: "📎",
+      text: t("onboarding.task.suggestion.needs_doc"),
+      color: "bg-cyan-50 border-cyan-200 text-cyan-700",
+    });
+  }
+  if (needsAck) {
+    items.push({
+      icon: "✅",
+      text: t("onboarding.task.suggestion.needs_ack"),
+      color: "bg-blue-50 border-blue-200 text-blue-700",
+    });
+  }
+  if (needsApproval) {
+    items.push({
+      icon: "👍",
+      text: t("onboarding.task.suggestion.needs_approval"),
+      color: "bg-yellow-50 border-yellow-200 text-yellow-700",
+    });
+  }
+
+  return (
+    <div className="mt-2 flex flex-col gap-1">
+      {items.map((item, i) => (
+        <div
+          key={i}
+          className={`flex items-start gap-1.5 rounded-md border px-2.5 py-1.5 text-xs ${item.color}`}>
+          <span className="shrink-0 leading-tight">{item.icon}</span>
+          <span className="leading-tight">{item.text}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const StageTimelineView = ({
+  tasks,
+  currentUserId,
+  canManage,
   onInspect,
 }: {
-  onboardingId: string;
-  onInspect: (taskId: string) => void;
+  tasks: OnboardingTask[];
+  currentUserId?: string;
+  canManage: boolean;
+  onInspect: (task: OnboardingTask) => void;
 }) => {
   const { t } = useLocale();
-  const { data: groups = [], isLoading } = useTaskTimelineQuery(onboardingId);
 
-  if (isLoading) return <LoadingState />;
-
-  if (groups.length === 0) {
+  if (tasks.length === 0) {
     return (
       <Card>
         <div className="py-8">
@@ -824,86 +923,367 @@ const TimelineView = ({
     );
   }
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today.getTime() + 86_400_000);
+
+  // Group by checklist/stage and sort stages by onboarding milestone order
+  const stageMap = new Map<string, OnboardingTask[]>();
+  for (const task of tasks) {
+    const key = task.checklistName ?? "Other";
+    if (!stageMap.has(key)) stageMap.set(key, []);
+    stageMap.get(key)!.push(task);
+  }
+  const sortedStages = Array.from(stageMap.entries()).sort(
+    ([a], [b]) => getStagePriority(a) - getStagePriority(b),
+  );
+
   return (
     <div className="space-y-4">
-      {groups.map((group) => (
-        <Card
-          key={group.assigneeUserId}
-          size="small"
-          title={
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
-                {(group.assigneeUserName ??
-                  group.assigneeUserId)[0]?.toUpperCase()}
-              </div>
-              <span className="text-sm font-semibold text-gray-700">
-                {group.assigneeUserName ?? group.assigneeUserId}
-              </span>
-              <Tag color="blue" style={{ margin: 0 }}>
-                {group.taskCount} {t("onboarding.task.timeline.tasks_count")}
+      {/* Stage progress pills */}
+      <div className="flex flex-wrap gap-2">
+        {sortedStages.map(([stageName, stageTasks]) => {
+          const done = stageTasks.filter(
+            (tk) => tk.rawStatus === STATUS_DONE_API,
+          ).length;
+          const total = stageTasks.length;
+          const isComplete = done === total && total > 0;
+          const hasOverdue = stageTasks.some(
+            (tk) =>
+              tk.dueDate &&
+              tk.rawStatus !== STATUS_DONE_API &&
+              new Date(tk.dueDate) < today,
+          );
+          const stageInfo = getStageLabel(stageName, t);
+          return (
+            <div
+              key={stageName}
+              className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                isComplete
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : hasOverdue
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : done > 0
+                      ? "border-blue-200 bg-blue-50 text-blue-700"
+                      : "border-gray-200 bg-gray-50 text-gray-500"
+              }`}>
+              {isComplete ? (
+                <CheckCircle2 className="h-3 w-3" />
+              ) : hasOverdue ? (
+                <AlertTriangle className="h-3 w-3" />
+              ) : null}
+              <Tag color={stageInfo.color} style={{ margin: 0, fontSize: 11 }}>
+                {stageInfo.label}
               </Tag>
+              <span className="opacity-70">
+                {done}/{total}
+              </span>
             </div>
-          }>
-          <Timeline
-            items={group.tasks.map((task) => ({
-              color:
-                task.status === "DONE"
-                  ? "green"
-                  : task.status === "PENDING_APPROVAL"
-                    ? "orange"
-                    : task.status === "IN_PROGRESS"
-                      ? "blue"
-                      : "gray",
-              children: (
-                <div
-                  className="flex cursor-pointer items-start justify-between gap-2 rounded-lg p-2 transition hover:bg-slate-50"
-                  onClick={() => onInspect(task.taskId)}>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-800">
-                      {task.title}
-                    </p>
-                    {task.checklistName && (
-                      <p className="text-xs text-gray-400">
-                        {task.checklistName}
-                      </p>
-                    )}
-                    {task.scheduledStartAt && (
-                      <p className="mt-0.5 flex items-center gap-1 text-xs text-blue-500">
-                        <CalendarClock className="h-3 w-3" />
-                        {formatDateTime(task.scheduledStartAt)}
-                        {task.scheduleStatus && (
-                          <Tag
-                            color={
-                              SCHEDULE_STATUS_COLOR[task.scheduleStatus] ??
-                              "default"
-                            }
-                            style={{ margin: 0, fontSize: 10 }}>
-                            {task.scheduleStatus}
-                          </Tag>
-                        )}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    {task.status && (
-                      <Tag
-                        color={STATUS_TAG_COLOR[task.status] ?? "default"}
-                        style={{ margin: 0, fontSize: 11 }}>
-                        {task.status}
-                      </Tag>
-                    )}
-                    {task.dueDate && (
-                      <span className="text-[11px] text-gray-400">
-                        {formatDate(task.dueDate)}
-                      </span>
-                    )}
-                  </div>
+          );
+        })}
+      </div>
+
+      {/* Timeline per stage */}
+      {sortedStages.map(([stageName, stageTasks]) => {
+        const stageInfo = getStageLabel(stageName, t);
+        const done = stageTasks.filter(
+          (tk) => tk.rawStatus === STATUS_DONE_API,
+        ).length;
+        const total = stageTasks.length;
+        const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+        const overdueCount = stageTasks.filter(
+          (tk) =>
+            tk.dueDate &&
+            tk.rawStatus !== STATUS_DONE_API &&
+            new Date(tk.dueDate) < today,
+        ).length;
+
+        // Sort: overdue first → then by due date asc → then undated
+        const sorted = [...stageTasks].sort((a, b) => {
+          const aOver =
+            a.dueDate &&
+            a.rawStatus !== STATUS_DONE_API &&
+            new Date(a.dueDate) < today;
+          const bOver =
+            b.dueDate &&
+            b.rawStatus !== STATUS_DONE_API &&
+            new Date(b.dueDate) < today;
+          if (aOver && !bOver) return -1;
+          if (!aOver && bOver) return 1;
+          if (!a.dueDate && !b.dueDate) return 0;
+          if (!a.dueDate) return 1;
+          if (!b.dueDate) return -1;
+          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        });
+
+        return (
+          <Card
+            key={stageName}
+            size="small"
+            className={overdueCount > 0 ? "border-amber-200" : ""}
+            title={
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {pct === 100 ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  ) : (
+                    <div className="h-4 w-4 rounded-full border-2 border-blue-300" />
+                  )}
+                  <Tag color={stageInfo.color} style={{ margin: 0 }}>
+                    {stageInfo.label}
+                  </Tag>
+                  {overdueCount > 0 && (
+                    <Tag color="error" style={{ margin: 0, fontSize: 11 }}>
+                      {overdueCount} {t("onboarding.task.stat.overdue")}
+                    </Tag>
+                  )}
                 </div>
-              ),
-            }))}
-          />
-        </Card>
-      ))}
+                <span className="text-xs font-normal text-gray-400">
+                  {done}/{total} · {pct}%
+                </span>
+              </div>
+            }>
+            <Timeline
+              items={sorted.map((task) => {
+                const isDone = task.rawStatus === STATUS_DONE_API;
+                const dueMs = task.dueDate
+                  ? new Date(task.dueDate).getTime()
+                  : null;
+                const isOverdue =
+                  !isDone && dueMs !== null && dueMs < today.getTime();
+                const isToday =
+                  !isDone &&
+                  dueMs !== null &&
+                  dueMs >= today.getTime() &&
+                  dueMs < tomorrow.getTime();
+                const daysOverdue =
+                  isOverdue && dueMs !== null
+                    ? Math.floor((today.getTime() - dueMs) / 86_400_000)
+                    : 0;
+                const daysUntilDue =
+                  !isDone && !isOverdue && !isToday && dueMs !== null
+                    ? Math.ceil((dueMs - today.getTime()) / 86_400_000)
+                    : null;
+                const isSoon =
+                  daysUntilDue !== null &&
+                  daysUntilDue > 0 &&
+                  daysUntilDue <= 3;
+
+                const dotColor: string = isDone
+                  ? "green"
+                  : isOverdue
+                    ? "red"
+                    : isToday
+                      ? "orange"
+                      : isSoon
+                        ? "orange"
+                        : task.rawStatus === "IN_PROGRESS" ||
+                            task.rawStatus === "ASSIGNED"
+                          ? "blue"
+                          : "gray";
+
+                return {
+                  color: dotColor,
+                  children: (
+                    <div
+                      className="group -mx-2 cursor-pointer rounded-lg px-2 py-2 transition-colors hover:bg-slate-50"
+                      onClick={() => onInspect(task)}>
+                      {/* Row 1: title + status */}
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+                          <span
+                            className={`text-sm font-medium leading-snug ${
+                              isDone
+                                ? "text-gray-400 line-through"
+                                : isOverdue
+                                  ? "text-red-700"
+                                  : "text-gray-800"
+                            }`}>
+                            {task.title}
+                          </span>
+                          {isOverdue && (
+                            <Tag
+                              color="error"
+                              style={{
+                                margin: 0,
+                                fontSize: 10,
+                                padding: "0 4px",
+                              }}>
+                              {t("onboarding.task.stat.overdue")}
+                            </Tag>
+                          )}
+                          {isToday && (
+                            <Tag
+                              color="warning"
+                              style={{
+                                margin: 0,
+                                fontSize: 10,
+                                padding: "0 4px",
+                              }}>
+                              {t("onboarding.task.timeline.today")}
+                            </Tag>
+                          )}
+                          {isSoon && (
+                            <Tag
+                              color="gold"
+                              style={{
+                                margin: 0,
+                                fontSize: 10,
+                                padding: "0 4px",
+                              }}>
+                              {t("onboarding.task.timeline.soon", {
+                                days: daysUntilDue,
+                              })}
+                            </Tag>
+                          )}
+                        </div>
+                        <StatusBadge rawStatus={task.rawStatus} />
+                      </div>
+
+                      {/* Row 2: description */}
+                      {task.description && !isDone && (
+                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-gray-500">
+                          {task.description}
+                        </p>
+                      )}
+
+                      {/* Row 3: meta info */}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1">
+                        {task.dueDate ? (
+                          <span
+                            className={`flex items-center gap-1 text-xs ${
+                              isOverdue
+                                ? "font-medium text-red-500"
+                                : isToday
+                                  ? "font-medium text-orange-500"
+                                  : isSoon
+                                    ? "font-medium text-amber-600"
+                                    : "text-gray-400"
+                            }`}>
+                            <Clock className="h-3 w-3" />
+                            {t("onboarding.task.due", {
+                              date: formatDate(task.dueDate),
+                            })}
+                            {isOverdue && daysOverdue > 0 && (
+                              <span className="font-semibold">
+                                &nbsp;(
+                                {t("onboarding.task.timeline.days_overdue", {
+                                  days: daysOverdue,
+                                })}
+                                )
+                              </span>
+                            )}
+                            {daysUntilDue !== null && daysUntilDue <= 3 && (
+                              <span className="font-semibold">
+                                &nbsp;(
+                                {t("onboarding.task.timeline.days_left", {
+                                  days: daysUntilDue,
+                                })}
+                                )
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-xs text-gray-300">
+                            <Clock className="h-3 w-3" />
+                            {t("onboarding.task.no_due_date")}
+                          </span>
+                        )}
+
+                        {(task.assignedUserName ??
+                          (canManage && task.assignedUserId)) && (
+                          <span className="flex items-center gap-1 text-xs text-gray-400">
+                            <User className="h-3 w-3" />
+                            {task.assignedUserName ?? task.assignedUserId}
+                          </span>
+                        )}
+
+                        {/* Requirement flags */}
+                        {!isDone && (
+                          <div className="flex items-center gap-1">
+                            {task.requireAck && (
+                              <Tooltip
+                                title={t("onboarding.task.flag.requires_ack")}>
+                                <Tag
+                                  color="orange"
+                                  style={{
+                                    margin: 0,
+                                    fontSize: 10,
+                                    padding: "0 4px",
+                                  }}>
+                                  <CheckSquare className="mr-0.5 inline h-2.5 w-2.5" />
+                                  Ack
+                                </Tag>
+                              </Tooltip>
+                            )}
+                            {task.requiresManagerApproval && (
+                              <Tooltip
+                                title={t(
+                                  "onboarding.task.flag.requires_approval",
+                                )}>
+                                <Tag
+                                  color="gold"
+                                  style={{
+                                    margin: 0,
+                                    fontSize: 10,
+                                    padding: "0 4px",
+                                  }}>
+                                  <ThumbsUp className="mr-0.5 inline h-2.5 w-2.5" />
+                                  {t("onboarding.task.flag.approval_short")}
+                                </Tag>
+                              </Tooltip>
+                            )}
+                            {task.requireDoc && (
+                              <Tooltip
+                                title={t("onboarding.task.flag.requires_doc")}>
+                                <Tag
+                                  color="cyan"
+                                  style={{
+                                    margin: 0,
+                                    fontSize: 10,
+                                    padding: "0 4px",
+                                  }}>
+                                  <Paperclip className="mr-0.5 inline h-2.5 w-2.5" />
+                                  Doc
+                                </Tag>
+                              </Tooltip>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Schedule status */}
+                        {task.scheduleStatus &&
+                          task.scheduleStatus !== "UNSCHEDULED" && (
+                            <Tag
+                              color={
+                                SCHEDULE_STATUS_COLOR[task.scheduleStatus] ??
+                                "default"
+                              }
+                              style={{ margin: 0, fontSize: 10 }}>
+                              {t(
+                                `onboarding.task.schedule.status.${task.scheduleStatus}`,
+                              )}
+                            </Tag>
+                          )}
+                      </div>
+
+                      {/* Row 4: suggestion callout */}
+                      <TaskSuggestion
+                        task={task}
+                        isOverdue={isOverdue}
+                        isToday={isToday}
+                        daysOverdue={daysOverdue}
+                        daysUntilDue={daysUntilDue}
+                        t={t}
+                      />
+                    </div>
+                  ),
+                };
+              })}
+            />
+          </Card>
+        );
+      })}
     </div>
   );
 };
@@ -922,8 +1302,9 @@ const Tasks = () => {
   const isHr = roles.includes("HR");
   const canManage = canManageOnboarding(roles);
 
-  // ── View mode ─────────────────────────────────────────────────────────────
+  // ── View mode & sort ──────────────────────────────────────────────────────
   const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [sortMode, setSortMode] = useState<SortMode>("default");
 
   // ── Instance loading ──────────────────────────────────────────────────────
 
@@ -987,32 +1368,37 @@ const Tasks = () => {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [keyword, setKeyword] = useState("");
   const [commentInput, setCommentInput] = useState("");
-  const [attFileUrl, setAttFileUrl] = useState("");
-  const [attFileName, setAttFileName] = useState("");
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [acknowledgedDocIds, setAcknowledgedDocIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [acknowledgingDocId, setAcknowledgingDocId] = useState<string | null>(
+    null,
+  );
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
-
-  // ── Assign task state ─────────────────────────────────────────────────────
-  const [assignUserId, setAssignUserId] = useState("");
-  const [assignLoading, setAssignLoading] = useState(false);
+  const [drawerTab, setDrawerTab] = useState("info");
+  const [scheduleMode, setScheduleMode] = useState<
+    null | "propose" | "reschedule"
+  >(null);
+  const [scheduleReason, setScheduleReason] = useState("");
+  const [cancelScheduleReason, setCancelScheduleReason] = useState("");
+  const [noShowReason, setNoShowReason] = useState("");
 
   // User directory — lazy-loaded for assign dropdown (HR/Manager only)
-  const { data: assignableUsers = [], isLoading: assignUsersLoading } =
-    useQuery({
-      queryKey: ["onboarding-task-assignable-users"],
-      queryFn: () => apiSearchUsers({ status: "ACTIVE" }),
-      enabled: canManage && Boolean(selectedTaskId),
-      select: (res: unknown) =>
-        extractList(
-          res as Record<string, unknown>,
-          "users",
-          "items",
-          "list",
-        ) as UserListItem[],
-    });
+  const { data: assignableUsers = [] } = useQuery({
+    queryKey: ["onboarding-task-assignable-users"],
+    queryFn: () => apiSearchUsers({ status: "ACTIVE" }),
+    enabled: canManage && Boolean(selectedTaskId),
+    select: (res: unknown) =>
+      extractList(
+        res as Record<string, unknown>,
+        "users",
+        "items",
+        "list",
+      ) as UserListItem[],
+  });
 
-  // ── Schedule propose state ─────────────────────────────────────────────────
-  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [scheduleDates, setScheduleDates] = useState<
     [Dayjs | null, Dayjs | null]
   >([null, null]);
@@ -1085,7 +1471,8 @@ const Tasks = () => {
       queryClient.invalidateQueries({
         queryKey: ["onboarding-task-timeline", onboardingId ?? ""],
       });
-      setScheduleModalOpen(false);
+      invalidateTasks();
+      setScheduleMode(null);
       setScheduleDates([null, null]);
       notify.success(t("onboarding.task.schedule.toast.proposed"));
     },
@@ -1102,7 +1489,58 @@ const Tasks = () => {
       queryClient.invalidateQueries({
         queryKey: ["onboarding-task-timeline", onboardingId ?? ""],
       });
+      invalidateTasks();
       notify.success(t("onboarding.task.schedule.toast.confirmed"));
+    },
+    onError: (err: unknown) =>
+      notify.error(extractErrorMessage(err, t("onboarding.task.toast.failed"))),
+  });
+
+  const rescheduleMutation = useMutation({
+    mutationFn: (payload: Parameters<typeof apiRescheduleTask>[0]) =>
+      apiRescheduleTask(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-detail", selectedTaskId],
+      });
+      invalidateTimeline();
+      invalidateTasks();
+      setScheduleMode(null);
+      setScheduleDates([null, null]);
+      setScheduleReason("");
+      notify.success(t("onboarding.task.toast.rescheduled"));
+    },
+    onError: (err: unknown) =>
+      notify.error(extractErrorMessage(err, t("onboarding.task.toast.failed"))),
+  });
+
+  const cancelScheduleMutation = useMutation({
+    mutationFn: (payload: { taskId: string; reason?: string }) =>
+      apiCancelTaskSchedule(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-detail", selectedTaskId],
+      });
+      invalidateTimeline();
+      invalidateTasks();
+      setCancelScheduleReason("");
+      notify.success(t("onboarding.task.toast.schedule_cancelled"));
+    },
+    onError: (err: unknown) =>
+      notify.error(extractErrorMessage(err, t("onboarding.task.toast.failed"))),
+  });
+
+  const markNoShowMutation = useMutation({
+    mutationFn: (payload: { taskId: string; reason?: string }) =>
+      apiMarkTaskNoShow(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-detail", selectedTaskId],
+      });
+      invalidateTimeline();
+      invalidateTasks();
+      setNoShowReason("");
+      notify.success(t("onboarding.task.toast.no_show_marked"));
     },
     onError: (err: unknown) =>
       notify.error(extractErrorMessage(err, t("onboarding.task.toast.failed"))),
@@ -1126,26 +1564,29 @@ const Tasks = () => {
       notify.error(extractErrorMessage(err, t("onboarding.task.toast.failed"))),
   });
 
-  const addAttachmentMutation = useMutation({
-    mutationFn: ({
-      taskId,
-      fileUrl,
-      fileName,
-    }: {
-      taskId: string;
-      fileUrl: string;
-      fileName: string;
-    }) => apiAddTaskAttachment({ taskId, fileUrl, fileName }),
-    onSuccess: () => {
+  const handleUploadAttachment = async (file: File) => {
+    if (!selectedTaskId) return;
+    setUploadingFile(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const uploaded = await apiUploadDocumentFile(formData);
+      await apiAddTaskAttachment({
+        taskId: selectedTaskId,
+        fileName: file.name,
+        fileUrl: uploaded.fileUrl,
+      });
       queryClient.invalidateQueries({
         queryKey: ["onboarding-task-detail", selectedTaskId],
       });
-      setAttFileUrl("");
-      setAttFileName("");
+      invalidateTasks();
       notify.success(t("onboarding.task.attachment.toast_added"));
-    },
-    onError: () => notify.error(t("onboarding.task.attachment.toast_failed")),
-  });
+    } catch {
+      notify.error(t("onboarding.task.attachment.toast_failed"));
+    } finally {
+      setUploadingFile(false);
+    }
+  };
 
   const { data: taskDetail, isLoading: taskDetailLoading } = useTaskDetailQuery(
     selectedTaskId ?? undefined,
@@ -1154,13 +1595,46 @@ const Tasks = () => {
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const invalidateTasks = () => {
-    // Invalidate both keys — only the active one will refetch
     queryClient.invalidateQueries({
       queryKey: ["onboarding-tasks-by-assignee", userId ?? ""],
     });
     queryClient.invalidateQueries({
       queryKey: ["onboarding-tasks-by-instance", onboardingId ?? ""],
     });
+  };
+
+  const invalidateTimeline = () => {
+    queryClient.invalidateQueries({
+      queryKey: ["onboarding-task-timeline", onboardingId ?? ""],
+    });
+  };
+
+  // Reset doc ack state when switching to a different task
+  useEffect(() => {
+    setAcknowledgedDocIds(new Set());
+    setAcknowledgingDocId(null);
+  }, [selectedTaskId]);
+
+  const handleAcknowledgeDocument = async (documentId: string) => {
+    if (!documentId) return;
+    setAcknowledgingDocId(documentId);
+    try {
+      const taskOnboardingId =
+        taskDetail?.checklist?.onboardingId ?? onboardingId ?? undefined;
+      await apiAcknowledgeDocument(documentId, taskOnboardingId);
+      setAcknowledgedDocIds((prev) => new Set([...prev, documentId]));
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-detail", selectedTaskId],
+      });
+      invalidateTasks();
+      notify.success(t("onboarding.task.doc.ack_toast_success"));
+    } catch (err) {
+      notify.error(
+        extractErrorMessage(err, t("onboarding.task.doc.ack_toast_failed")),
+      );
+    } finally {
+      setAcknowledgingDocId(null);
+    }
   };
 
   const handleAddComment = () => {
@@ -1178,6 +1652,9 @@ const Tasks = () => {
         status: "IN_PROGRESS",
       });
       invalidateTasks();
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-detail", task.id],
+      });
       notify.success(t("onboarding.task.toast.started"));
     } catch (err) {
       notify.error(extractErrorMessage(err, t("onboarding.task.toast.failed")));
@@ -1195,6 +1672,9 @@ const Tasks = () => {
         status: "PENDING_APPROVAL",
       });
       invalidateTasks();
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-detail", task.id],
+      });
       notify.success(t("onboarding.task.toast.submitted_approval"));
     } catch (err) {
       notify.error(extractErrorMessage(err, t("onboarding.task.toast.failed")));
@@ -1208,6 +1688,9 @@ const Tasks = () => {
         status: STATUS_DONE_API,
       });
       invalidateTasks();
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-detail", task.id],
+      });
       notify.success(t("onboarding.task.toast.done"));
     } catch (err) {
       notify.error(extractErrorMessage(err, t("onboarding.task.toast.failed")));
@@ -1223,21 +1706,17 @@ const Tasks = () => {
     setRejectModalOpen(true);
   };
 
-  const handleAssignTask = async () => {
-    if (!selectedTaskId || !assignUserId.trim()) return;
-    setAssignLoading(true);
+  const handleAssign = async (assigneeUserId: string) => {
+    if (!selectedTaskId) return;
     try {
-      await apiAssignTask(selectedTaskId, assignUserId.trim());
+      await apiAssignTask(selectedTaskId, assigneeUserId);
       queryClient.invalidateQueries({
         queryKey: ["onboarding-task-detail", selectedTaskId],
       });
       invalidateTasks();
-      setAssignUserId("");
       notify.success(t("onboarding.task.toast.assigned"));
     } catch (err) {
       notify.error(extractErrorMessage(err, t("onboarding.task.toast.failed")));
-    } finally {
-      setAssignLoading(false);
     }
   };
 
@@ -1248,6 +1727,24 @@ const Tasks = () => {
       startAt: scheduleDates[0].toISOString(),
       endAt: scheduleDates[1].toISOString(),
     });
+  };
+
+  const handleReschedule = () => {
+    if (!selectedTaskId || !scheduleDates[0]) return;
+    rescheduleMutation.mutate({
+      taskId: selectedTaskId,
+      scheduledStartAt: scheduleDates[0].toISOString(),
+      scheduledEndAt: scheduleDates[1]?.toISOString(),
+      reason: scheduleReason || undefined,
+    });
+  };
+
+  const closeDrawer = () => {
+    setSelectedTaskId(null);
+    setDrawerTab("info");
+    setScheduleMode(null);
+    setScheduleDates([null, null]);
+    setScheduleReason("");
   };
 
   // ── Filtered tasks ────────────────────────────────────────────────────────
@@ -1291,8 +1788,23 @@ const Tasks = () => {
       const key = task.checklistName ?? "Other";
       map.set(key, [...(map.get(key) ?? []), task]);
     }
-    return Array.from(map.entries());
-  }, [filteredTasks]);
+    // Sort stages by onboarding milestone order
+    const sorted = Array.from(map.entries()).sort(
+      ([a], [b]) => getStagePriority(a) - getStagePriority(b),
+    );
+    // Optionally sort tasks within each stage by due date
+    if (sortMode === "due_asc") {
+      for (const [, stageTasks] of sorted) {
+        stageTasks.sort((a, b) => {
+          if (!a.dueDate && !b.dueDate) return 0;
+          if (!a.dueDate) return 1;
+          if (!b.dueDate) return -1;
+          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        });
+      }
+    }
+    return sorted;
+  }, [filteredTasks, sortMode]);
 
   const instanceSelectOptions = instances.map((inst) => {
     const progressLabel = inst.progress > 0 ? ` · ${inst.progress}%` : "";
@@ -1318,7 +1830,7 @@ const Tasks = () => {
       <Card>
         <Row gutter={[16, 12]} align="middle">
           {canManage && (
-            <Col xs={24} md={8}>
+            <Col xs={24} md={7}>
               <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
                 {t("onboarding.task.instance.select_label")}
               </p>
@@ -1344,7 +1856,7 @@ const Tasks = () => {
               )}
             </Col>
           )}
-          <Col xs={24} md={canManage ? 8 : 12}>
+          <Col xs={24} md={canManage ? 5 : 8}>
             <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
               {t("onboarding.task.quickview.search_placeholder")}
             </p>
@@ -1377,7 +1889,6 @@ const Tasks = () => {
                   label: t("onboarding.task.quickview.filter_done"),
                   value: "done",
                 },
-                // Show pending_approval & overdue for both managers and employees
                 ...(canManage || isEmployee
                   ? [
                       {
@@ -1392,7 +1903,6 @@ const Tasks = () => {
                       },
                     ]
                   : []),
-                // "mine" only makes sense for managers watching multiple assignees
                 ...(canManage
                   ? [
                       {
@@ -1413,7 +1923,68 @@ const Tasks = () => {
               ]}
             />
           </Col>
+          <Col xs={24} md={canManage ? 4 : 4}>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
+              {t("onboarding.task.view.label")}
+            </p>
+            <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5">
+              <button
+                type="button"
+                onClick={() => setViewMode("list")}
+                className={`flex flex-1 items-center justify-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition ${
+                  viewMode === "list"
+                    ? "bg-brand/10 text-brand"
+                    : "text-slate-500 hover:bg-slate-50"
+                }`}>
+                <List className="h-3.5 w-3.5" />
+                {t("onboarding.task.view.list")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("timeline")}
+                className={`flex flex-1 items-center justify-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition ${
+                  viewMode === "timeline"
+                    ? "bg-brand/10 text-brand"
+                    : "text-slate-500 hover:bg-slate-50"
+                }`}>
+                <BarChart2 className="h-3.5 w-3.5" />
+                {t("onboarding.task.view.timeline")}
+              </button>
+            </div>
+          </Col>
         </Row>
+
+        {/* Sort options (list mode only) */}
+        {viewMode === "list" && tasks.length > 0 && (
+          <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-3">
+            <span className="text-xs text-gray-400">
+              {t("onboarding.task.sort.label")}:
+            </span>
+            <div className="flex items-center gap-1">
+              {(
+                [
+                  { key: "default", label: t("onboarding.task.sort.default") },
+                  {
+                    key: "due_asc",
+                    label: t("onboarding.task.sort.due_asc"),
+                  },
+                ] as { key: SortMode; label: string }[]
+              ).map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setSortMode(key)}
+                  className={`rounded-md border px-2.5 py-0.5 text-xs transition ${
+                    sortMode === key
+                      ? "border-blue-300 bg-blue-50 text-blue-700 font-medium"
+                      : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
+                  }`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* ── Employee Progress Banner ────────────────────────── */}
@@ -1454,7 +2025,7 @@ const Tasks = () => {
         </Card>
       )}
 
-      {/* ── Instance Info Banner + View Mode (HR/Manager) ───────── */}
+      {/* ── Instance Info Banner (HR/Manager) ───────────────────── */}
       {canManage && selectedInstance && (
         <Card size="small" className="border-blue-100 bg-blue-50/30">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
@@ -1479,38 +2050,12 @@ const Tasks = () => {
                 {selectedInstance.managerName}
               </div>
             )}
-            <div className="ml-auto flex items-center gap-3">
+            <div className="ml-auto">
               <Progress
                 percent={selectedInstance.progress}
                 size="small"
                 style={{ width: 120, marginBottom: 0 }}
               />
-              {onboardingId && (
-                <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("list")}
-                    className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition ${
-                      viewMode === "list"
-                        ? "bg-brand/10 text-brand"
-                        : "text-slate-500 hover:bg-slate-50"
-                    }`}>
-                    <List className="h-3.5 w-3.5" />
-                    {t("onboarding.task.view.list")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("timeline")}
-                    className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition ${
-                      viewMode === "timeline"
-                        ? "bg-brand/10 text-brand"
-                        : "text-slate-500 hover:bg-slate-50"
-                    }`}>
-                    <BarChart2 className="h-3.5 w-3.5" />
-                    {t("onboarding.task.view.timeline")}
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         </Card>
@@ -1522,10 +2067,12 @@ const Tasks = () => {
       )}
 
       {/* ── Timeline View ────────────────────────────────────────── */}
-      {viewMode === "timeline" && onboardingId && (
-        <TimelineView
-          onboardingId={onboardingId}
-          onInspect={(taskId) => setSelectedTaskId(taskId)}
+      {viewMode === "timeline" && (
+        <StageTimelineView
+          tasks={tasks}
+          currentUserId={userId}
+          canManage={canManage}
+          onInspect={(task) => setSelectedTaskId(task.id)}
         />
       )}
 
@@ -1597,793 +2144,142 @@ const Tasks = () => {
         ))}
 
       {/* ── Task Detail Drawer ─────────────────────────────────── */}
-      <Drawer
-        title={
-          <div className="flex items-center gap-2">
-            <Activity className="h-4 w-4 text-blue-500" />
-            <span>{t("onboarding.task.detail.title")}</span>
-          </div>
-        }
-        width={canManage ? 720 : 600}
-        open={Boolean(selectedTaskId)}
-        onClose={() => setSelectedTaskId(null)}>
-        {taskDetailLoading ? (
-          <Skeleton active paragraph={{ rows: 8 }} />
-        ) : taskDetail ? (
-          <div className="space-y-5">
-            {/* ── Employee context (HR/Manager view) ───────────────── */}
-            {canManage && selectedInstance && (
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-blue-100 bg-blue-50/40 px-3 py-2 text-xs text-gray-500">
-                <span className="flex items-center gap-1 font-medium text-gray-700">
-                  <User className="h-3.5 w-3.5 text-blue-400" />
-                  {selectedInstance.employeeName ??
-                    selectedInstance.employeeId ??
-                    "-"}
-                </span>
-                {selectedInstance.managerName && (
-                  <span>Manager: {selectedInstance.managerName}</span>
-                )}
-                <span>
-                  <Progress
-                    percent={selectedInstance.progress}
-                    size="small"
-                    style={{ width: 100, marginBottom: 0 }}
-                  />
-                </span>
-              </div>
-            )}
-
-            {/* ── Header: Title + Stage ─────────────────────────── */}
-            <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4">
-              <div className="mb-2 flex flex-wrap items-start gap-2">
-                <Typography.Title
-                  level={5}
-                  className="!mb-0 flex-1 !text-gray-800">
-                  {String(taskDetail.title ?? "-")}
-                </Typography.Title>
-                <StatusBadge rawStatus={taskDetail.status} />
-              </div>
-              {taskDetail.checklistName && (
-                <div className="mt-1 flex items-center gap-1.5">
-                  <span className="text-xs text-gray-500">
-                    {t("onboarding.task.field.checklist")}:
-                  </span>
-                  {(() => {
-                    const info = getStageLabel(taskDetail.checklistName, t);
-                    return (
-                      <Tag
-                        color={info.color}
-                        style={{ margin: 0, fontSize: 11 }}>
-                        {info.label}
-                      </Tag>
-                    );
-                  })()}
-                </div>
-              )}
-              {taskDetail.overdue && (
-                <div className="mt-2 flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">
-                  <AlertTriangle className="h-3 w-3" />
-                  {t("onboarding.task.stat.overdue")}
-                  {taskDetail.dueInHours != null &&
-                    ` — ${Math.abs(Math.round(taskDetail.dueInHours))}h`}
-                </div>
-              )}
-            </div>
-
-            {/* ── Info Grid ───────────────────────────────────────── */}
-            <Row gutter={[12, 12]}>
-              <Col span={12}>
-                <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-                  <InfoField
-                    label={t(
-                      "onboarding.employee.home.task_detail.field_due_date",
-                    )}>
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-3.5 w-3.5 text-gray-400" />
-                      {formatDate(taskDetail.dueDate)}
-                    </span>
-                  </InfoField>
-                </div>
-              </Col>
-              <Col span={12}>
-                <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-                  <InfoField label={t("onboarding.task.field.completed_at")}>
-                    <span className="flex items-center gap-1">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-gray-400" />
-                      {formatDate(taskDetail.completedAt)}
-                    </span>
-                  </InfoField>
-                </div>
-              </Col>
-              {(taskDetail.assignedUserName || taskDetail.assignedUserId) && (
-                <Col span={12}>
-                  <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-                    <InfoField label={t("onboarding.task.field.assignee")}>
-                      <span className="flex items-center gap-1">
-                        <User className="h-3.5 w-3.5 text-gray-400" />
-                        {taskDetail.assignedUserName ??
-                          taskDetail.assignedUserId}
-                      </span>
-                    </InfoField>
-                  </div>
-                </Col>
-              )}
-              {taskDetail.createdAt && (
-                <Col
-                  span={
-                    taskDetail.assignedUserName || taskDetail.assignedUserId
-                      ? 12
-                      : 24
-                  }>
-                  <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-                    <InfoField label={t("onboarding.task.field.created_at")}>
-                      {formatDateTime(taskDetail.createdAt)}
-                    </InfoField>
-                  </div>
-                </Col>
-              )}
-            </Row>
-
-            {/* ── Description ─────────────────────────────────────── */}
-            {taskDetail.description && (
-              <div>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  {t("onboarding.employee.home.task_detail.field_description")}
-                </Typography.Text>
-                <div className="mt-1.5 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-700">
-                  {String(taskDetail.description)}
-                </div>
-              </div>
-            )}
-
-            {/* ── Attachments upload (assignee / HR / Manager only) ── */}
-            {(taskDetail.assignedUserId === userId || canManage) &&
-              taskDetail.status !== "DONE" && (
-                <>
-                  <Divider orientationMargin={0}>
-                    <span className="flex items-center gap-1 text-xs text-gray-400">
-                      <Paperclip className="h-3 w-3" />
-                      {t("onboarding.task.attachment.section_title")}
-                    </span>
-                  </Divider>
-                  <div className="flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50/40 p-3">
-                    <Input
-                      size="small"
-                      placeholder={t(
-                        "onboarding.task.attachment.name_placeholder",
-                      )}
-                      value={attFileName}
-                      onChange={(e) => setAttFileName(e.target.value)}
-                      prefix={<Paperclip className="h-3 w-3 text-gray-400" />}
-                    />
-                    <Input
-                      size="small"
-                      placeholder={t(
-                        "onboarding.task.attachment.url_placeholder",
-                      )}
-                      value={attFileUrl}
-                      onChange={(e) => setAttFileUrl(e.target.value)}
-                    />
-                    <Button
-                      size="small"
-                      type="primary"
-                      icon={<Paperclip className="h-3 w-3" />}
-                      loading={addAttachmentMutation.isPending}
-                      disabled={!attFileName.trim() || !attFileUrl.trim()}
-                      onClick={() => {
-                        if (!selectedTaskId) return;
-                        addAttachmentMutation.mutate({
-                          taskId: selectedTaskId,
-                          fileName: attFileName.trim(),
-                          fileUrl: attFileUrl.trim(),
-                        });
-                      }}>
-                      {t("onboarding.task.attachment.add_action")}
-                    </Button>
-                    {taskDetail.requireDoc && (
-                      <p className="!mb-0 text-xs text-cyan-600">
-                        {t("onboarding.task.attachment.required_hint")}
-                      </p>
-                    )}
-                  </div>
-                </>
-              )}
-
-            {/* ── Assign Task (HR/Manager only) ────────────────────── */}
-            {canManage && (
-              <>
-                <Divider orientationMargin={0}>
-                  <span className="flex items-center gap-1 text-xs text-gray-400">
-                    <UserPlus className="h-3 w-3" />
-                    {t("onboarding.task.assign.section_title")}
-                  </span>
-                </Divider>
-                <div className="flex gap-2">
-                  <Select
-                    style={{ flex: 1 }}
-                    size="small"
-                    placeholder={t(
-                      "onboarding.task.assign.user_select_placeholder",
-                    )}
-                    value={assignUserId || undefined}
-                    onChange={(v) => setAssignUserId(v)}
-                    showSearch
-                    loading={assignUsersLoading}
-                    filterOption={(input, option) =>
-                      ((option?.label as string) ?? "")
-                        .toLowerCase()
-                        .includes(input.toLowerCase())
-                    }
-                    options={assignableUsers.map((u) => ({
-                      label: `${u.fullName || u.email} · ${(u.roles ?? []).join("/") || "USER"}`,
-                      value: u.userId,
-                    }))}
-                  />
-                  <Button
-                    size="small"
-                    type="primary"
-                    loading={assignLoading}
-                    icon={<UserPlus className="h-3 w-3" />}
-                    onClick={handleAssignTask}
-                    disabled={!assignUserId.trim()}>
-                    {t("onboarding.task.assign.action")}
-                  </Button>
-                </div>
-              </>
-            )}
-
-            {/* ── Acknowledgment Section ──────────────────────────── */}
-            {taskDetail.requireAck && (
-              <>
-                <Divider orientationMargin={0}>
-                  <span className="flex items-center gap-1 text-xs text-gray-400">
-                    <CheckSquare className="h-3 w-3" />
-                    {t("onboarding.task.ack.section_title")}
-                  </span>
-                </Divider>
-                <div className="rounded-lg border border-orange-100 bg-orange-50/40 p-3">
-                  {taskDetail.acknowledgedAt ? (
-                    <Row gutter={[12, 8]}>
-                      <Col span={12}>
-                        <InfoField
-                          label={t("onboarding.task.field.acknowledged_by")}>
-                          {taskDetail.acknowledgedBy ?? "-"}
-                        </InfoField>
-                      </Col>
-                      <Col span={12}>
-                        <InfoField
-                          label={t("onboarding.task.field.acknowledged_at")}>
-                          {formatDateTime(taskDetail.acknowledgedAt)}
-                        </InfoField>
-                      </Col>
-                    </Row>
-                  ) : (
-                    <span className="text-sm text-orange-600">
-                      {t("onboarding.task.ack.not_yet")}
-                    </span>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* ── Approval Section ────────────────────────────────── */}
-            {taskDetail.requiresManagerApproval && (
-              <>
-                <Divider orientationMargin={0}>
-                  <span className="flex items-center gap-1 text-xs text-gray-400">
-                    <ThumbsUp className="h-3 w-3" />
-                    {t("onboarding.task.approval.section_title")}
-                  </span>
-                </Divider>
-                <div
-                  className={`rounded-lg border p-3 ${
-                    taskDetail.approvalStatus === "REJECTED"
-                      ? "border-red-100 bg-red-50/40"
-                      : taskDetail.approvalStatus === "APPROVED"
-                        ? "border-emerald-100 bg-emerald-50/40"
-                        : "border-yellow-100 bg-yellow-50/40"
-                  }`}>
-                  <div className="mb-2 flex items-center gap-2">
-                    <span className="text-xs text-gray-500">
-                      {t("onboarding.employee.home.task_detail.field_status")}:
-                    </span>
-                    <Tag
-                      color={
-                        APPROVAL_STATUS_COLOR[
-                          taskDetail.approvalStatus ?? "NONE"
-                        ] ?? "default"
-                      }
-                      style={{ margin: 0 }}>
-                      {t(
-                        `onboarding.task.approval.status.${(taskDetail.approvalStatus ?? "NONE").toLowerCase()}`,
-                      )}
-                    </Tag>
-                  </div>
-                  {(taskDetail.approvedBy || taskDetail.approvedAt) && (
-                    <Row gutter={[12, 8]}>
-                      {taskDetail.approvedBy && (
-                        <Col span={12}>
-                          <InfoField
-                            label={t("onboarding.task.field.approved_by")}>
-                            {taskDetail.approvedBy}
-                          </InfoField>
-                        </Col>
-                      )}
-                      {taskDetail.approvedAt && (
-                        <Col span={12}>
-                          <InfoField
-                            label={t("onboarding.task.field.approved_at")}>
-                            {formatDateTime(taskDetail.approvedAt)}
-                          </InfoField>
-                        </Col>
-                      )}
-                    </Row>
-                  )}
-                  {taskDetail.rejectionReason && (
-                    <div className="mt-2 rounded-md border border-red-200 bg-red-50 p-2">
-                      <Typography.Text type="danger" style={{ fontSize: 12 }}>
-                        <XCircle className="mr-1 inline h-3 w-3" />
-                        <span className="font-medium">
-                          {t("onboarding.task.rejection_reason_label")}:
-                        </span>{" "}
-                        {taskDetail.rejectionReason}
-                      </Typography.Text>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* ── Schedule Section ────────────────────────────────── */}
-            <>
-              <Divider orientationMargin={0}>
-                <span className="flex items-center gap-1 text-xs text-gray-400">
-                  <CalendarClock className="h-3 w-3" />
-                  {t("onboarding.task.schedule.section_title")}
-                </span>
-              </Divider>
-              {taskDetail.scheduleStatus &&
-              taskDetail.scheduleStatus !== "UNSCHEDULED" ? (
-                <div className="rounded-lg border border-blue-100 bg-blue-50/30 p-3">
-                  <div className="mb-2 flex items-center gap-2">
-                    <span className="text-xs text-gray-500">
-                      {t("onboarding.employee.home.task_detail.field_status")}:
-                    </span>
-                    <Tag
-                      color={
-                        SCHEDULE_STATUS_COLOR[taskDetail.scheduleStatus] ??
-                        "default"
-                      }
-                      style={{ margin: 0 }}>
-                      {t(
-                        `onboarding.task.schedule.status.${taskDetail.scheduleStatus}`,
-                      )}
-                    </Tag>
-                  </div>
-                  <Row gutter={[12, 8]}>
-                    {taskDetail.scheduledStartAt && (
-                      <Col span={12}>
-                        <InfoField
-                          label={t("onboarding.task.schedule.field.start")}>
-                          {formatDateTime(taskDetail.scheduledStartAt)}
-                        </InfoField>
-                      </Col>
-                    )}
-                    {taskDetail.scheduledEndAt && (
-                      <Col span={12}>
-                        <InfoField
-                          label={t("onboarding.task.schedule.field.end")}>
-                          {formatDateTime(taskDetail.scheduledEndAt)}
-                        </InfoField>
-                      </Col>
-                    )}
-                  </Row>
-                  {/* Confirm button (HR/Manager) when status is PROPOSED */}
-                  {canManage && taskDetail.scheduleStatus === "PROPOSED" && (
-                    <div className="mt-3">
-                      <Button
-                        size="small"
-                        type="primary"
-                        loading={scheduleConfirmMutation.isPending}
-                        icon={<CheckCircle2 className="h-3 w-3" />}
-                        onClick={() =>
-                          scheduleConfirmMutation.mutate(taskDetail.taskId)
-                        }>
-                        {t("onboarding.task.schedule.action.confirm")}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/40 p-3">
-                  <p className="mb-2 text-xs text-gray-400">
-                    {t("onboarding.task.schedule.not_scheduled")}
-                  </p>
-                  <Button
-                    size="small"
-                    icon={<CalendarClock className="h-3 w-3" />}
-                    onClick={() => setScheduleModalOpen(true)}>
-                    {t("onboarding.task.schedule.action.propose")}
-                  </Button>
-                </div>
-              )}
-            </>
-
-            {/* ── Role-aware action buttons ─────────────────────── */}
-            <Divider orientationMargin={0}>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {t("onboarding.task.detail.title")}
-              </Typography.Text>
-            </Divider>
-
-            {(() => {
-              const isDetailAssignee =
-                Boolean(userId) && taskDetail.assignedUserId === userId;
-              const canActOnDetail = canManage || isDetailAssignee;
-              const hasAttachment = (taskDetail.attachments?.length ?? 0) > 0;
-              const scheduleNeededUnmet = Boolean(
-                taskDetail.scheduleStatus &&
-                taskDetail.scheduleStatus !== "UNSCHEDULED" &&
-                taskDetail.scheduleStatus !== "CONFIRMED" &&
-                taskDetail.scheduleStatus !== "CANCELLED",
-              );
-              const docRequiredUnmet = Boolean(
-                taskDetail.requireDoc && !hasAttachment,
-              );
-              const ackRequiredUnmet = Boolean(
-                taskDetail.requireAck && !taskDetail.acknowledgedAt,
-              );
-              const blockMarkDone =
-                docRequiredUnmet || ackRequiredUnmet || scheduleNeededUnmet;
-              const blockSubmitApproval = docRequiredUnmet;
-              const prerequisiteHint = blockMarkDone
-                ? docRequiredUnmet
-                  ? t("onboarding.task.prereq.needs_doc")
-                  : ackRequiredUnmet
-                    ? t("onboarding.task.prereq.needs_ack")
-                    : t("onboarding.task.prereq.needs_schedule")
-                : null;
-              return (
-                <>
-                  {prerequisiteHint && canActOnDetail && (
-                    <div className="mb-1 flex items-center gap-1.5 rounded-md border border-amber-100 bg-amber-50/70 px-3 py-2 text-xs text-amber-700">
-                      <AlertTriangle className="h-3.5 w-3.5" />
-                      {prerequisiteHint}
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap gap-2">
-                    {/* Assignee: Acknowledge */}
-                    {canActOnDetail &&
-                      taskDetail.requireAck &&
-                      !taskDetail.acknowledgedAt &&
-                      (taskDetail.status === "TODO" ||
-                        taskDetail.status === "IN_PROGRESS") && (
-                        <Button
-                          type="primary"
-                          icon={<CheckSquare className="h-3.5 w-3.5" />}
-                          loading={acknowledgeMutation.isPending}
-                          onClick={() =>
-                            acknowledgeMutation.mutate(taskDetail.taskId)
-                          }>
-                          {t("onboarding.task.action.acknowledge")}
-                        </Button>
-                      )}
-
-                    {/* Assignee: Start task */}
-                    {canActOnDetail &&
-                      (taskDetail.status === "TODO" ||
-                        taskDetail.status === "ASSIGNED") && (
-                        <Button
-                          icon={<Play className="h-3.5 w-3.5" />}
-                          loading={updateStatus.isPending}
-                          onClick={async () => {
-                            try {
-                              await updateStatus.mutateAsync({
-                                taskId: taskDetail.taskId,
-                                status: "IN_PROGRESS",
-                              });
-                              invalidateTasks();
-                              queryClient.invalidateQueries({
-                                queryKey: [
-                                  "onboarding-task-detail",
-                                  selectedTaskId,
-                                ],
-                              });
-                              notify.success(
-                                t("onboarding.task.toast.started"),
-                              );
-                            } catch (err) {
-                              notify.error(
-                                extractErrorMessage(
-                                  err,
-                                  t("onboarding.task.toast.failed"),
-                                ),
-                              );
-                            }
-                          }}>
-                          {t("onboarding.task.action.start")}
-                        </Button>
-                      )}
-
-                    {/* Assignee: Confirm Complete (WAIT_ACK) */}
-                    {canActOnDetail && taskDetail.status === "WAIT_ACK" && (
-                      <Button
-                        type="primary"
-                        icon={<CheckCircle2 className="h-3.5 w-3.5" />}
-                        loading={updateStatus.isPending}
-                        onClick={async () => {
-                          try {
-                            await updateStatus.mutateAsync({
-                              taskId: taskDetail.taskId,
-                              status: STATUS_DONE_API,
-                            });
-                            invalidateTasks();
-                            queryClient.invalidateQueries({
-                              queryKey: [
-                                "onboarding-task-detail",
-                                selectedTaskId,
-                              ],
-                            });
-                            setSelectedTaskId(null);
-                            notify.success(t("onboarding.task.toast.done"));
-                          } catch (err) {
-                            notify.error(
-                              extractErrorMessage(
-                                err,
-                                t("onboarding.task.toast.failed"),
-                              ),
-                            );
-                          }
-                        }}>
-                        {t("onboarding.task.action.confirm_complete")}
-                      </Button>
-                    )}
-
-                    {/* Assignee: Submit for Approval */}
-                    {canActOnDetail &&
-                      taskDetail.requiresManagerApproval &&
-                      taskDetail.status === "IN_PROGRESS" && (
-                        <Button
-                          type="primary"
-                          icon={<Send className="h-3.5 w-3.5" />}
-                          loading={updateStatus.isPending}
-                          disabled={blockSubmitApproval}
-                          onClick={async () => {
-                            try {
-                              await updateStatus.mutateAsync({
-                                taskId: taskDetail.taskId,
-                                status: "PENDING_APPROVAL",
-                              });
-                              invalidateTasks();
-                              queryClient.invalidateQueries({
-                                queryKey: [
-                                  "onboarding-task-detail",
-                                  selectedTaskId,
-                                ],
-                              });
-                              setSelectedTaskId(null);
-                              notify.success(
-                                t("onboarding.task.toast.submitted_approval"),
-                              );
-                            } catch (err) {
-                              notify.error(
-                                extractErrorMessage(
-                                  err,
-                                  t("onboarding.task.toast.failed"),
-                                ),
-                              );
-                            }
-                          }}>
-                          {t("onboarding.task.action.submit_approval")}
-                        </Button>
-                      )}
-
-                    {/* Assignee: Normal done */}
-                    {canActOnDetail &&
-                      !taskDetail.requireAck &&
-                      !taskDetail.requiresManagerApproval &&
-                      taskDetail.status === "IN_PROGRESS" && (
-                        <Button
-                          type="primary"
-                          icon={<CheckCircle2 className="h-3.5 w-3.5" />}
-                          loading={updateStatus.isPending}
-                          disabled={blockMarkDone}
-                          onClick={async () => {
-                            try {
-                              await updateStatus.mutateAsync({
-                                taskId: taskDetail.taskId,
-                                status: STATUS_DONE_API,
-                              });
-                              invalidateTasks();
-                              queryClient.invalidateQueries({
-                                queryKey: [
-                                  "onboarding-task-detail",
-                                  selectedTaskId,
-                                ],
-                              });
-                              setSelectedTaskId(null);
-                              notify.success(t("onboarding.task.toast.done"));
-                            } catch (err) {
-                              notify.error(
-                                extractErrorMessage(
-                                  err,
-                                  t("onboarding.task.toast.failed"),
-                                ),
-                              );
-                            }
-                          }}>
-                          {t(
-                            "onboarding.employee.home.today_actions.mark_done",
-                          )}
-                        </Button>
-                      )}
-
-                    {/* Manager/HR: Approve */}
-                    {canManage && taskDetail.status === "PENDING_APPROVAL" && (
-                      <Button
-                        type="primary"
-                        icon={<ThumbsUp className="h-3.5 w-3.5" />}
-                        loading={approveMutation.isPending}
-                        onClick={() =>
-                          approveMutation.mutate(taskDetail.taskId)
-                        }>
-                        {t("onboarding.task.action.approve")}
-                      </Button>
-                    )}
-
-                    {/* Manager/HR: Reject */}
-                    {canManage && taskDetail.status === "PENDING_APPROVAL" && (
-                      <Button
-                        danger
-                        icon={<XCircle className="h-3.5 w-3.5" />}
-                        loading={rejectMutation.isPending}
-                        onClick={() => setRejectModalOpen(true)}>
-                        {t("onboarding.task.action.reject")}
-                      </Button>
-                    )}
-
-                    <Button onClick={() => setSelectedTaskId(null)}>
-                      {t("global.close")}
-                    </Button>
-                  </div>
-                </>
-              );
-            })()}
-
-            {/* ── Activity Logs ──────────────────────────────────── */}
-            {taskDetail.activityLogs && taskDetail.activityLogs.length > 0 && (
-              <>
-                <Divider orientationMargin={0}>
-                  <span className="flex items-center gap-1 text-xs text-gray-400">
-                    <Activity className="h-3 w-3" />
-                    {t("onboarding.task.activity.section_title")}
-                  </span>
-                </Divider>
-                <div className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
-                  {taskDetail.activityLogs.map((log) => (
-                    <div
-                      key={log.logId}
-                      className="flex items-start gap-2 rounded-md bg-gray-50 px-3 py-2 text-xs">
-                      <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-blue-400" />
-                      <div className="flex-1">
-                        <span className="font-medium text-gray-700">
-                          {log.action}
-                        </span>
-                        {log.newValue && (
-                          <span className="ml-1 text-gray-500">
-                            → {log.newValue}
-                          </span>
-                        )}
-                        {log.actorName && (
-                          <span className="ml-1 text-gray-400">
-                            · {log.actorName}
-                          </span>
-                        )}
-                      </div>
-                      <span className="shrink-0 text-gray-400">
-                        {formatDate(log.createdAt)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* ── Attachments ─────────────────────────────────────── */}
-            {taskDetail.attachments && taskDetail.attachments.length > 0 && (
-              <>
-                <Divider orientationMargin={0}>
-                  <span className="flex items-center gap-1 text-xs text-gray-400">
-                    <Paperclip className="h-3 w-3" />
-                    {t(
-                      "onboarding.employee.home.task_detail.field_attachments",
-                    )}
-                  </span>
-                </Divider>
-                <div className="space-y-1.5">
-                  {taskDetail.attachments.map((att) => (
-                    <a
-                      key={att.attachmentId}
-                      href={att.fileUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-blue-600 transition-colors hover:bg-blue-50">
-                      <Paperclip className="h-3.5 w-3.5 shrink-0" />
-                      <span className="flex-1 truncate">{att.fileName}</span>
-                      {att.fileSizeBytes && (
-                        <span className="shrink-0 text-xs text-gray-400">
-                          {(att.fileSizeBytes / 1024).toFixed(0)} KB
-                        </span>
-                      )}
-                    </a>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* ── Comments ─────────────────────────────────────────── */}
-            <Divider orientationMargin={0}>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {t("onboarding.task.comments.title")}
-              </Typography.Text>
-            </Divider>
-
-            {commentsLoading ? (
-              <Skeleton active paragraph={{ rows: 2 }} />
-            ) : (comments?.length ?? 0) === 0 ? (
-              <Empty
-                description={t("onboarding.task.comments.empty")}
-                imageStyle={{ height: 40 }}
-              />
-            ) : (
-              <div className="max-h-52 space-y-3 overflow-y-auto pr-1">
-                {comments?.map((c) => (
-                  <div key={c.commentId} className="flex gap-2">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
-                      {(c.authorName ?? "U")[0].toUpperCase()}
-                    </div>
-                    <div className="flex-1 rounded-lg bg-gray-50 px-3 py-2">
-                      <p className="text-xs font-semibold text-gray-700">
-                        {c.authorName ??
-                          t("onboarding.task.comments.unknown_author")}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {c.message ?? c.content ?? ""}
-                      </p>
-                      {c.createdAt && (
-                        <p className="mt-1 text-[11px] text-gray-400">
-                          {formatDateTime(c.createdAt)}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="mt-3 flex gap-2">
-              <Input
-                placeholder={t("onboarding.task.comments.placeholder")}
-                value={commentInput}
-                onChange={(e) => setCommentInput(e.target.value)}
-                onPressEnter={handleAddComment}
-                maxLength={500}
-              />
-              <Button
-                type="primary"
-                icon={<Send className="h-3.5 w-3.5" />}
-                loading={addCommentMutation.isPending}
-                onClick={handleAddComment}
-                disabled={!commentInput.trim()}>
-                {t("onboarding.task.comments.send")}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <Empty description={t("onboarding.task.detail.not_found")} />
-        )}
-      </Drawer>
+      {(() => {
+        const taskIndex = selectedTaskId
+          ? tasks.findIndex((tk) => tk.id === selectedTaskId)
+          : -1;
+        return (
+          <TaskDrawer
+            open={Boolean(selectedTaskId)}
+            taskDetail={taskDetail}
+            taskDetailLoading={taskDetailLoading}
+            tasks={tasks}
+            selectedTaskId={selectedTaskId}
+            comments={comments}
+            commentsLoading={commentsLoading}
+            commentInput={commentInput}
+            drawerTab={drawerTab}
+            isEmployee={isEmployee}
+            canManage={canManage}
+            isAcknowledging={acknowledgeMutation.isPending}
+            isUpdatingStatus={updateStatus.isPending}
+            isApproving={approveMutation.isPending}
+            isRejecting={rejectMutation.isPending}
+            isAddingComment={addCommentMutation.isPending}
+            isAssigning={false}
+            uploadingFile={uploadingFile}
+            assignableUsers={assignableUsers}
+            acknowledgedDocIds={acknowledgedDocIds}
+            acknowledgingDocId={acknowledgingDocId}
+            onAcknowledgeDocument={handleAcknowledgeDocument}
+            scheduleMode={scheduleMode}
+            scheduleDates={scheduleDates}
+            scheduleReason={scheduleReason}
+            cancelScheduleReason={cancelScheduleReason}
+            noShowReason={noShowReason}
+            isProposingSchedule={scheduleProposeMutation.isPending}
+            isConfirmingSchedule={scheduleConfirmMutation.isPending}
+            isRescheduling={rescheduleMutation.isPending}
+            isCancellingSchedule={cancelScheduleMutation.isPending}
+            isMarkingNoShow={markNoShowMutation.isPending}
+            onClose={closeDrawer}
+            onDrawerTabChange={setDrawerTab}
+            onCommentChange={setCommentInput}
+            onAddComment={handleAddComment}
+            onStart={async () => {
+              const task = tasks.find((tk) => tk.id === selectedTaskId);
+              if (task) await handleStart(task);
+            }}
+            onAcknowledge={() => {
+              const task = tasks.find((tk) => tk.id === selectedTaskId);
+              if (task) handleAcknowledge(task);
+            }}
+            onConfirmComplete={async () => {
+              if (!taskDetail) return;
+              try {
+                await updateStatus.mutateAsync({
+                  taskId: taskDetail.taskId,
+                  status: STATUS_DONE_API,
+                });
+                invalidateTasks();
+                closeDrawer();
+                notify.success(t("onboarding.task.toast.done"));
+              } catch (err) {
+                notify.error(
+                  extractErrorMessage(err, t("onboarding.task.toast.failed")),
+                );
+              }
+            }}
+            onSubmitApproval={async () => {
+              if (!taskDetail) return;
+              try {
+                await updateStatus.mutateAsync({
+                  taskId: taskDetail.taskId,
+                  status: "PENDING_APPROVAL",
+                });
+                invalidateTasks();
+                closeDrawer();
+                notify.success(t("onboarding.task.toast.submitted_approval"));
+              } catch (err) {
+                notify.error(
+                  extractErrorMessage(err, t("onboarding.task.toast.failed")),
+                );
+              }
+            }}
+            onMarkDone={async () => {
+              const task = tasks.find((tk) => tk.id === selectedTaskId);
+              if (task) await handleMarkDone(task);
+              closeDrawer();
+            }}
+            onApprove={() =>
+              taskDetail && approveMutation.mutate(taskDetail.taskId)
+            }
+            onReject={() => setRejectModalOpen(true)}
+            onAssign={handleAssign}
+            onUploadAttachment={handleUploadAttachment}
+            onNavigatePrev={() => {
+              if (taskIndex > 0) {
+                setSelectedTaskId(tasks[taskIndex - 1].id);
+                setDrawerTab("info");
+                setScheduleMode(null);
+                setScheduleDates([null, null]);
+              }
+            }}
+            onNavigateNext={() => {
+              if (taskIndex >= 0 && taskIndex < tasks.length - 1) {
+                setSelectedTaskId(tasks[taskIndex + 1].id);
+                setDrawerTab("info");
+                setScheduleMode(null);
+                setScheduleDates([null, null]);
+              }
+            }}
+            onScheduleModeChange={setScheduleMode}
+            onScheduleDatesChange={setScheduleDates}
+            onScheduleReasonChange={setScheduleReason}
+            onCancelScheduleReasonChange={setCancelScheduleReason}
+            onNoShowReasonChange={setNoShowReason}
+            onProposeSchedule={handleProposeSchedule}
+            onConfirmSchedule={() =>
+              selectedTaskId && scheduleConfirmMutation.mutate(selectedTaskId)
+            }
+            onReschedule={handleReschedule}
+            onCancelSchedule={() =>
+              selectedTaskId &&
+              cancelScheduleMutation.mutate({
+                taskId: selectedTaskId,
+                reason: cancelScheduleReason || undefined,
+              })
+            }
+            onMarkNoShow={() =>
+              selectedTaskId &&
+              markNoShowMutation.mutate({
+                taskId: selectedTaskId,
+                reason: noShowReason || undefined,
+              })
+            }
+          />
+        );
+      })()}
 
       {/* ── Reject Reason Modal ──────────────────────────────────── */}
       <Modal
@@ -2416,60 +2312,6 @@ const Tasks = () => {
             placeholder={t("onboarding.task.action.reject_reason_placeholder")}
             maxLength={500}
           />
-        </div>
-      </Modal>
-
-      {/* ── Schedule Propose Modal ───────────────────────────────── */}
-      <Modal
-        title={
-          <div className="flex items-center gap-2">
-            <CalendarClock className="h-4 w-4 text-blue-500" />
-            <span>{t("onboarding.task.schedule.action.propose")}</span>
-          </div>
-        }
-        open={scheduleModalOpen}
-        onCancel={() => {
-          setScheduleModalOpen(false);
-          setScheduleDates([null, null]);
-        }}
-        onOk={handleProposeSchedule}
-        okText={t("onboarding.task.schedule.action.propose")}
-        okButtonProps={{
-          loading: scheduleProposeMutation.isPending,
-          disabled: !scheduleDates[0] || !scheduleDates[1],
-        }}
-        cancelText={t("global.close")}>
-        <div className="mt-3 space-y-3">
-          <p className="text-sm text-gray-500">
-            {t("onboarding.task.schedule.propose_hint")}
-          </p>
-          <div>
-            <p className="mb-1.5 text-xs font-semibold text-gray-500">
-              {t("onboarding.task.schedule.field.start")}
-            </p>
-            <DatePicker
-              showTime
-              style={{ width: "100%" }}
-              value={scheduleDates[0]}
-              onChange={(d) => setScheduleDates([d, scheduleDates[1]])}
-            />
-          </div>
-          <div>
-            <p className="mb-1.5 text-xs font-semibold text-gray-500">
-              {t("onboarding.task.schedule.field.end")}
-            </p>
-            <DatePicker
-              showTime
-              style={{ width: "100%" }}
-              value={scheduleDates[1]}
-              onChange={(d) => setScheduleDates([scheduleDates[0], d])}
-              disabledDate={(d) =>
-                scheduleDates[0]
-                  ? d.isBefore(scheduleDates[0], "minute")
-                  : false
-              }
-            />
-          </div>
         </div>
       </Modal>
     </div>

@@ -132,6 +132,9 @@ export const mapTask = (t: any): OnboardingTask => ({
   requireAck: Boolean(t.requireAck ?? t.required ?? false),
   requireDoc: Boolean(t.requireDoc ?? false),
   requiresManagerApproval: Boolean(t.requiresManagerApproval ?? false),
+  requiredDocumentIds: Array.isArray(t.requiredDocumentIds)
+    ? t.requiredDocumentIds.filter((id: unknown) => typeof id === "string")
+    : undefined,
   status: mapTaskStatus(t.status),
   rawStatus: t.status ?? undefined,
   dueDate: t.dueDate,

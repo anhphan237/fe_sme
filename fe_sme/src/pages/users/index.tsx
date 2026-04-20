@@ -30,12 +30,7 @@ import {
   type InviteForm,
 } from "./components/InviteUserDrawer";
 import { UserDetailDrawer } from "./components/UserDetailDrawer";
-import { BulkImportModal } from "@/components/bulk-import";
-import { apiBulkCreateUsers } from "@/api/identity/identity.api";
-import type {
-  BulkImportConfig,
-  ImportRowResult,
-} from "@/components/bulk-import";
+import UserExcelImportModal from "./components/UserExcelImportModal";
 import type { User } from "@/shared/types";
 
 const COMPANY_ROLE_OPTIONS = ROLE_OPTIONS.filter((o) => !o.isPlatform);
@@ -257,51 +252,6 @@ const AdminUsers = () => {
     }
   };
 
-  const importConfig: BulkImportConfig = {
-    title: t("user.import.title"),
-    description: t("user.import.description"),
-    fields: [
-      { key: "email", label: t("user.import.field.email"), required: true },
-      {
-        key: "fullName",
-        label: t("user.import.field.full_name"),
-        required: true,
-      },
-      { key: "phone", label: t("user.import.field.phone") },
-      { key: "roleCode", label: t("user.import.field.role") },
-      { key: "departmentId", label: t("user.import.field.department") },
-      { key: "jobTitle", label: t("user.import.field.job_title") },
-      { key: "employeeCode", label: t("user.import.field.employee_code") },
-      { key: "startDate", label: t("user.import.field.start_date") },
-      { key: "workLocation", label: t("user.import.field.work_location") },
-    ],
-    templateFileName: "users-import-template.csv",
-  };
-
-  const handleBulkImport = useCallback(
-    async (rows: Record<string, string>[]): Promise<ImportRowResult[]> => {
-      const res = await apiBulkCreateUsers({
-        users: rows.map((r) => ({
-          email: r.email ?? "",
-          fullName: r.fullName ?? "",
-          phone: r.phone,
-          roleCode: r.roleCode,
-          departmentId: r.departmentId,
-          jobTitle: r.jobTitle,
-          employeeCode: r.employeeCode,
-          startDate: r.startDate,
-          workLocation: r.workLocation,
-        })),
-      });
-      return (res.results ?? []).map((r) => ({
-        index: r.index,
-        success: r.success,
-        message: r.message,
-      }));
-    },
-    [],
-  );
-
   const userColumns = buildUserColumns({
     t,
     disablingId,
@@ -345,6 +295,11 @@ const AdminUsers = () => {
           onClick={() => setImportOpen(true)}
           label="user.import_csv"
         /> */}
+        <BaseButton
+          icon={<Upload className="h-4 w-4" />}
+          onClick={() => setImportOpen(true)}
+          label="user.import_excel"
+        />
         <BaseButton
           type="primary"
           icon={<Plus className="h-4 w-4" />}
@@ -542,14 +497,12 @@ const AdminUsers = () => {
         users={users ?? []}
         departments={departments}
       />
-      <BulkImportModal
+      <UserExcelImportModal
         open={importOpen}
-        onClose={() => {
+        onClose={(shouldRefetch?: boolean) => {
           setImportOpen(false);
-          refetch();
+          if (shouldRefetch) void refetch();
         }}
-        config={importConfig}
-        onSubmit={handleBulkImport}
       />
     </div>
   );

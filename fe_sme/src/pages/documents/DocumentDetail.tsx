@@ -2,8 +2,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Card, Divider, Skeleton, Tag, Tooltip } from "antd";
 import {
   ArrowLeftOutlined,
-  CheckCircleOutlined,
-  ClockCircleOutlined,
   DownloadOutlined,
   FilePdfOutlined,
   FileWordOutlined,
@@ -12,14 +10,13 @@ import {
   FileExcelOutlined,
   FileOutlined,
   SafetyOutlined,
-  FileProtectOutlined,
+  FolderOutlined,
+  InfoCircleOutlined,
+  LinkOutlined,
 } from "@ant-design/icons";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useLocale } from "@/i18n";
-import {
-  apiGetDocuments,
-  apiAcknowledgeDocument,
-} from "@/api/document/document.api";
+import { apiGetDocuments } from "@/api/document/document.api";
 import type { DocumentItem } from "@/interface/document";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -50,7 +47,8 @@ function getExtColor(url?: string): string {
 function FileIconLarge({ url }: { url?: string }) {
   const ext = getFileExt(url);
   const cls = "text-5xl";
-  if (ext === "pdf") return <FilePdfOutlined className={`${cls} text-red-500`} />;
+  if (ext === "pdf")
+    return <FilePdfOutlined className={`${cls} text-red-500`} />;
   if (["doc", "docx"].includes(ext))
     return <FileWordOutlined className={`${cls} text-blue-600`} />;
   if (["ppt", "pptx"].includes(ext))
@@ -68,7 +66,7 @@ const STATUS_COLOR: Record<string, string> = {
   DRAFT: "gold",
 };
 
-// ── Query / Mutation ──────────────────────────────────────────────────────────
+// ── Query ─────────────────────────────────────────────────────────────────────
 
 const useDocumentDetail = (documentId?: string) =>
   useQuery({
@@ -78,16 +76,6 @@ const useDocumentDetail = (documentId?: string) =>
       res.items.find((d: DocumentItem) => d.documentId === documentId) ?? null,
     enabled: Boolean(documentId),
   });
-
-const useAcknowledgeDocument = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (documentId: string) => apiAcknowledgeDocument(documentId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["acknowledgments"] });
-    },
-  });
-};
 
 // ── Preview ───────────────────────────────────────────────────────────────────
 
@@ -100,7 +88,9 @@ function DocumentPreview({ doc }: { doc: DocumentItem }) {
     return (
       <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-dashed border-stroke bg-slate-50">
         <FileOutlined className="text-4xl text-slate-300" />
-        <p className="mt-3 text-sm text-muted">{t("document.detail.no_preview")}</p>
+        <p className="mt-3 text-sm text-muted">
+          {t("document.detail.no_preview")}
+        </p>
       </div>
     );
   }
@@ -117,8 +107,7 @@ function DocumentPreview({ doc }: { doc: DocumentItem }) {
 
   // Non-PDF: download card
   return (
-    <div
-      className="flex flex-col items-center justify-center gap-6 rounded-xl border border-stroke bg-slate-50 py-16">
+    <div className="flex flex-col items-center justify-center gap-6 rounded-xl border border-stroke bg-slate-50 py-16">
       <div
         className="flex h-20 w-20 items-center justify-center rounded-2xl"
         style={{ backgroundColor: `${accentColor}18` }}>
@@ -148,8 +137,13 @@ const DocumentDetail = () => {
   const { t } = useLocale();
   const navigate = useNavigate();
   const { documentId } = useParams();
-  const { data: doc, isLoading, isError, refetch } = useDocumentDetail(documentId);
-  const acknowledge = useAcknowledgeDocument();
+  const {
+    data: doc,
+    isLoading,
+    isError,
+    refetch,
+  } = useDocumentDetail(documentId);
+
   const accentColor = getExtColor(doc?.fileUrl);
   const ext = getFileExt(doc?.fileUrl);
 
@@ -226,7 +220,10 @@ const DocumentDetail = () => {
         className="overflow-hidden border border-stroke bg-white shadow-sm"
         bodyStyle={{ padding: 0 }}>
         {/* Accent top bar */}
-        <div className="h-1.5 w-full" style={{ backgroundColor: accentColor }} />
+        <div
+          className="h-1.5 w-full"
+          style={{ backgroundColor: accentColor }}
+        />
         <div className="flex flex-wrap items-start gap-4 p-4 sm:p-5">
           {/* File icon */}
           <div
@@ -302,62 +299,70 @@ const DocumentDetail = () => {
 
         {/* Sidebar (1/3) */}
         <div className="space-y-4">
-          {/* Acknowledge card */}
+          {/* File info */}
           <Card className="border border-stroke bg-white shadow-sm">
             <div className="flex items-center gap-2">
-              <FileProtectOutlined className="text-base text-brand" />
+              <InfoCircleOutlined className="text-base text-brand" />
               <h2 className="text-base font-semibold text-ink">
-                {t("document.detail.progress_title")}
+                {t("document.detail.subtitle")}
               </h2>
             </div>
-            <p className="mt-1.5 text-xs text-muted">
-              {t("document.detail.ack_description")}
-            </p>
             <Divider className="my-3" />
-
-            {acknowledge.isSuccess ? (
-              <div className="flex flex-col items-center gap-2 py-3 text-center">
-                <CheckCircleOutlined className="text-3xl text-emerald-500" />
-                <p className="text-sm font-semibold text-emerald-600">
-                  {t("document.ack.status.acknowledged")}
-                </p>
-                <p className="text-xs text-muted">
-                  {t("document.detail.ack_done_desc")}
-                </p>
-              </div>
-            ) : (
-              <button
-                className={`w-full rounded-xl py-2.5 text-sm font-semibold transition active:scale-95 ${
-                  acknowledge.isPending
-                    ? "cursor-not-allowed bg-slate-100 text-muted"
-                    : "bg-brand text-white shadow-sm hover:bg-brandDark"
-                }`}
-                disabled={acknowledge.isPending}
-                onClick={() => acknowledge.mutate(doc.documentId)}>
-                {acknowledge.isPending ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <ClockCircleOutlined className="animate-spin" />
-                    {t("global.loading")}
+            <div className="space-y-3">
+              <InfoRow
+                label={t("document.field.name")}
+                value={
+                  <span className="text-sm font-medium text-ink">
+                    {doc.name}
                   </span>
-                ) : (
-                  <span className="flex items-center justify-center gap-2">
-                    <CheckCircleOutlined />
-                    {t("document.action.acknowledge")}
-                  </span>
-                )}
-              </button>
-            )}
-
-            {acknowledge.isError && (
-              <p className="mt-2 text-center text-xs text-red-500">
-                {acknowledge.error instanceof Error
-                  ? acknowledge.error.message
-                  : t("document.upload.failed")}
-              </p>
-            )}
+                }
+              />
+              <InfoRow
+                label={t("document.detail.file_type")}
+                value={
+                  ext ? (
+                    <span
+                      className="rounded-md px-2 py-0.5 text-xs font-bold uppercase text-white"
+                      style={{ backgroundColor: accentColor }}>
+                      {ext}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-muted">—</span>
+                  )
+                }
+              />
+              <InfoRow
+                label="Status"
+                value={
+                  doc.status ? (
+                    <Tag
+                      color={STATUS_COLOR[doc.status] ?? "default"}
+                      className="m-0 text-xs">
+                      {doc.status}
+                    </Tag>
+                  ) : (
+                    <span className="text-sm text-muted">—</span>
+                  )
+                }
+              />
+              <InfoRow
+                label={t("document.field.description")}
+                value={
+                  doc.description ? (
+                    <span className="text-right text-sm text-ink">
+                      {doc.description}
+                    </span>
+                  ) : (
+                    <span className="text-sm italic text-slate-300">
+                      {t("document.empty.no_description")}
+                    </span>
+                  )
+                }
+              />
+            </div>
           </Card>
 
-          {/* Document info */}
+          {/* Access & visibility */}
           <Card className="border border-stroke bg-white shadow-sm">
             <div className="flex items-center gap-2">
               <SafetyOutlined className="text-base text-muted" />
@@ -368,35 +373,11 @@ const DocumentDetail = () => {
             <Divider className="my-3" />
             <div className="space-y-3">
               <InfoRow
-                label={t("document.detail.file_type")}
-                value={ext ? (
-                  <span
-                    className="rounded-md px-2 py-0.5 text-xs font-bold uppercase text-white"
-                    style={{ backgroundColor: accentColor }}>
-                    {ext}
-                  </span>
-                ) : (
-                  <span className="text-sm text-muted">—</span>
-                )}
-              />
-              <InfoRow
                 label={t("document.detail.visibility")}
                 value={
                   <span className="text-sm font-medium text-ink">
                     {t("document.detail.visibility_tenant")}
                   </span>
-                }
-              />
-              <InfoRow
-                label="Status"
-                value={
-                  doc.status ? (
-                    <Tag color={STATUS_COLOR[doc.status] ?? "default"} className="m-0 text-xs">
-                      {doc.status}
-                    </Tag>
-                  ) : (
-                    <span className="text-sm text-muted">—</span>
-                  )
                 }
               />
               <InfoRow
@@ -409,8 +390,42 @@ const DocumentDetail = () => {
                   </Tooltip>
                 }
               />
+              {doc.documentCategoryId && (
+                <InfoRow
+                  label={t("document.field.category")}
+                  value={
+                    <span className="flex items-center gap-1 text-sm text-ink">
+                      <FolderOutlined className="text-amber-500" />
+                      {doc.documentCategoryId}
+                    </span>
+                  }
+                />
+              )}
             </div>
           </Card>
+
+          {/* File URL */}
+          {doc.fileUrl && (
+            <Card className="border border-stroke bg-white shadow-sm">
+              <div className="flex items-center gap-2">
+                <LinkOutlined className="text-base text-muted" />
+                <h2 className="text-base font-semibold text-ink">
+                  {t("document.field.file_url")}
+                </h2>
+              </div>
+              <Divider className="my-3" />
+              <Tooltip title={doc.fileUrl}>
+                <a
+                  href={doc.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 break-all text-xs text-brand hover:underline">
+                  <DownloadOutlined className="shrink-0" />
+                  <span className="line-clamp-3">{doc.fileUrl}</span>
+                </a>
+              </Tooltip>
+            </Card>
+          )}
 
           {/* Version info */}
           <Card className="border border-stroke bg-white shadow-sm">
@@ -442,13 +457,7 @@ const DocumentDetail = () => {
 
 // ── Helper component ──────────────────────────────────────────────────────────
 
-function InfoRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) {
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-2">
       <span className="text-xs text-muted">{label}</span>
