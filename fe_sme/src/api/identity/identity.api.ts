@@ -12,6 +12,8 @@ import type {
   UpdateUserRequest,
   BulkCreateUsersRequest,
   BulkCreateUsersResponse,
+  BulkUserImportValidateResponse,
+  BulkUserImportCommitResponse,
 } from "@/interface/identity";
 import type { Role } from "@/interface/common";
 
@@ -124,3 +126,57 @@ export const apiBulkCreateUsers = (payload: BulkCreateUsersRequest) =>
     "com.sme.identity.user.bulkCreate",
     payload,
   );
+
+// ── Excel Bulk Import ─────────────────────────────────────
+
+const BULK_IMPORT_BASE = `${import.meta.env.VITE_API_BASE_URL ?? ""}/api/v1/users/bulk-import`;
+
+const getBulkImportHeaders = () => {
+  const token =
+    (typeof window !== "undefined" && localStorage.getItem("auth_token")) || "";
+  return { Authorization: `Bearer ${token}` };
+};
+
+/** GET /api/v1/users/bulk-import/excel-template — download .xlsx template */
+export const apiDownloadBulkImportTemplate = async (): Promise<Blob> => {
+  const res = await fetch(`${BULK_IMPORT_BASE}/excel-template`, {
+    method: "GET",
+    headers: getBulkImportHeaders(),
+  });
+  if (!res.ok) throw new Error(`Failed to download template (${res.status})`);
+  return res.blob();
+};
+
+/** POST /api/v1/users/bulk-import/validate — validate uploaded .xlsx file */
+export const apiValidateBulkImportExcel = async (
+  file: File,
+): Promise<BulkUserImportValidateResponse> => {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${BULK_IMPORT_BASE}/validate`, {
+    method: "POST",
+    headers: getBulkImportHeaders(),
+    body: form,
+  });
+  const json = await res.json();
+  if (!res.ok)
+    throw new Error(json?.message ?? `Validation failed (${res.status})`);
+  return json.data as BulkUserImportValidateResponse;
+};
+
+/** POST /api/v1/users/bulk-import/commit — create users from uploaded .xlsx file */
+export const apiCommitBulkImportExcel = async (
+  file: File,
+): Promise<BulkUserImportCommitResponse> => {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${BULK_IMPORT_BASE}/commit`, {
+    method: "POST",
+    headers: getBulkImportHeaders(),
+    body: form,
+  });
+  const json = await res.json();
+  if (!res.ok)
+    throw new Error(json?.message ?? `Commit failed (${res.status})`);
+  return json.data as BulkUserImportCommitResponse;
+};

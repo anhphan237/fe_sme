@@ -79,12 +79,20 @@ export function Sidebar({ open, onClose, collapsed }: Props) {
           )}>
           {collapsed ? (
             <Tooltip title={t("app.name")} placement="right">
-              <img src="/Logo.png" className="h-9 w-9 object-contain cursor-pointer" alt="logo" />
+              <img
+                src="/Logo.png"
+                className="h-9 w-9 object-contain cursor-pointer"
+                alt="logo"
+              />
             </Tooltip>
           ) : (
             <>
               <div className="flex items-center gap-3">
-                <img src="/Logo.png" className="h-9 w-9 object-contain" alt="logo" />
+                <img
+                  src="/Logo.png"
+                  className="h-9 w-9 object-contain"
+                  alt="logo"
+                />
                 <div>
                   <p className="text-[14px] font-semibold tracking-tight text-white">
                     {t("app.name")}
@@ -183,12 +191,6 @@ export function Sidebar({ open, onClose, collapsed }: Props) {
             </>
           ) : (
             <>
-              <Link
-                to="/settings/notifications"
-                className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[13px] text-slate-400 transition-colors hover:bg-slate-900 hover:text-white">
-                <LifeBuoy className="h-4 w-4" />
-                {t("layout.sidebar.support")}
-              </Link>
               <button
                 type="button"
                 onClick={toggleSidebarCollapsed}

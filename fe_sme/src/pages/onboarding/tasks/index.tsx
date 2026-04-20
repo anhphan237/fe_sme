@@ -1471,6 +1471,7 @@ const Tasks = () => {
       queryClient.invalidateQueries({
         queryKey: ["onboarding-task-timeline", onboardingId ?? ""],
       });
+      invalidateTasks();
       setScheduleMode(null);
       setScheduleDates([null, null]);
       notify.success(t("onboarding.task.schedule.toast.proposed"));
@@ -1488,6 +1489,7 @@ const Tasks = () => {
       queryClient.invalidateQueries({
         queryKey: ["onboarding-task-timeline", onboardingId ?? ""],
       });
+      invalidateTasks();
       notify.success(t("onboarding.task.schedule.toast.confirmed"));
     },
     onError: (err: unknown) =>
@@ -1502,6 +1504,7 @@ const Tasks = () => {
         queryKey: ["onboarding-task-detail", selectedTaskId],
       });
       invalidateTimeline();
+      invalidateTasks();
       setScheduleMode(null);
       setScheduleDates([null, null]);
       setScheduleReason("");
@@ -1519,6 +1522,7 @@ const Tasks = () => {
         queryKey: ["onboarding-task-detail", selectedTaskId],
       });
       invalidateTimeline();
+      invalidateTasks();
       setCancelScheduleReason("");
       notify.success(t("onboarding.task.toast.schedule_cancelled"));
     },
@@ -1534,6 +1538,7 @@ const Tasks = () => {
         queryKey: ["onboarding-task-detail", selectedTaskId],
       });
       invalidateTimeline();
+      invalidateTasks();
       setNoShowReason("");
       notify.success(t("onboarding.task.toast.no_show_marked"));
     },
@@ -1574,6 +1579,7 @@ const Tasks = () => {
       queryClient.invalidateQueries({
         queryKey: ["onboarding-task-detail", selectedTaskId],
       });
+      invalidateTasks();
       notify.success(t("onboarding.task.attachment.toast_added"));
     } catch {
       notify.error(t("onboarding.task.attachment.toast_failed"));
@@ -1620,6 +1626,7 @@ const Tasks = () => {
       queryClient.invalidateQueries({
         queryKey: ["onboarding-task-detail", selectedTaskId],
       });
+      invalidateTasks();
       notify.success(t("onboarding.task.doc.ack_toast_success"));
     } catch (err) {
       notify.error(
@@ -1645,6 +1652,9 @@ const Tasks = () => {
         status: "IN_PROGRESS",
       });
       invalidateTasks();
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-detail", task.id],
+      });
       notify.success(t("onboarding.task.toast.started"));
     } catch (err) {
       notify.error(extractErrorMessage(err, t("onboarding.task.toast.failed")));
@@ -1662,6 +1672,9 @@ const Tasks = () => {
         status: "PENDING_APPROVAL",
       });
       invalidateTasks();
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-detail", task.id],
+      });
       notify.success(t("onboarding.task.toast.submitted_approval"));
     } catch (err) {
       notify.error(extractErrorMessage(err, t("onboarding.task.toast.failed")));
@@ -1675,6 +1688,9 @@ const Tasks = () => {
         status: STATUS_DONE_API,
       });
       invalidateTasks();
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-detail", task.id],
+      });
       notify.success(t("onboarding.task.toast.done"));
     } catch (err) {
       notify.error(extractErrorMessage(err, t("onboarding.task.toast.failed")));

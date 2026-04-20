@@ -717,34 +717,14 @@ function SortableTaskCard({
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
               {t("onboarding.template.editor.task.assignee_label")}
             </p>
-            <Form.Item name={[field.name, "assignee"]} className="mb-0">
-              <Select
-                size="small"
-                disabled={readOnly}
-                options={[
-                  {
-                    value: "EMPLOYEE",
-                    label: t(
-                      "onboarding.template.editor.task.assignee.employee",
-                    ),
-                  },
-                  {
-                    value: "HR",
-                    label: t("onboarding.template.editor.task.assignee.hr"),
-                  },
-                  {
-                    value: "MANAGER",
-                    label: t(
-                      "onboarding.template.editor.task.assignee.manager",
-                    ),
-                  },
-                  {
-                    value: "IT",
-                    label: t("onboarding.template.editor.task.assignee.it"),
-                  },
-                ]}
-              />
+            <Form.Item name={[field.name, "assignee"]} className="mb-0" hidden>
+              <input type="hidden" />
             </Form.Item>
+            <div className="flex h-[24px] items-center rounded-md border border-stroke bg-slate-50 px-2">
+              <span className="text-xs text-ink">
+                {t("onboarding.template.editor.task.assignee.employee")}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -875,11 +855,13 @@ function SortableTaskCard({
                           </div>
                         )
                       }
-                      options={(users ?? []).map((u) => ({
-                        value: u.id,
-                        label: u.name || u.email,
-                        email: u.email,
-                      }))}
+                      options={(users ?? [])
+                        .filter((u) => u.roles.includes("MANAGER"))
+                        .map((u) => ({
+                          value: u.id,
+                          label: u.name || u.email,
+                          email: u.email,
+                        }))}
                       optionRender={(opt) => {
                         const initials = String(opt.data.label ?? "?")
                           .split(" ")

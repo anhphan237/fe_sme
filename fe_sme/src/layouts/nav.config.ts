@@ -60,7 +60,7 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         titleKey: "nav.onboarding.dashboard",
         to: "/onboarding",
-        requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
+        requiredRoles: ["HR", "MANAGER"],
       },
       {
         titleKey: "nav.onboarding.employees",
@@ -189,6 +189,11 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         titleKey: "nav.platform.plans",
         to: "/platform/admin/plans",
+        requiredRoles: ["ADMIN"],
+      },
+      {
+        titleKey: "nav.platform.finance",
+        to: "/platform/admin/billing",
         requiredRoles: ["ADMIN"],
       },
       {
