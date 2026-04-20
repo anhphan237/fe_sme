@@ -320,12 +320,7 @@ export const InviteUserDrawer = ({
         <div className="flex flex-col gap-y-3">
           <BaseSelect
             name="roleCode"
-            label={
-              <>
-                {t("user.role")}
-                <RequiredMark />
-              </>
-            }
+            label={<>{t("user.role")}</>}
             options={roleOptions}
             formItemProps={{
               rules: [
@@ -336,12 +331,7 @@ export const InviteUserDrawer = ({
           <div className="grid gap-x-4 sm:grid-cols-2">
             <BaseSelect
               name="departmentId"
-              label={
-                <>
-                  {t("user.invite.department_id")}
-                  <RequiredMark />
-                </>
-              }
+              label={<>{t("user.invite.department_id")}</>}
               showSearch
               allowClear
               placeholder={t("user.invite.department_placeholder")}
