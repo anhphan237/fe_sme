@@ -77,11 +77,16 @@ const PlatformFeedback = () => {
     },
     {
       title: t("platform.feedback.col_message"),
-      dataIndex: "message",
-      key: "message",
+      dataIndex: "subject",
+      key: "subject",
       ellipsis: true,
-      render: (v: string) => (
-        <span className="text-sm text-slate-600">{v}</span>
+      render: (
+        _: string,
+        record: PlatformFeedbackItem & { message?: string },
+      ) => (
+        <span className="text-sm text-slate-600">
+          {record.subject ?? record.message ?? "—"}
+        </span>
       ),
     },
     {

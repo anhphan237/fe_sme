@@ -85,16 +85,16 @@ type DashboardDepartmentStat = {
 };
 
 type SurveyAnalytics = {
-  sentCount?: number;
-  submittedCount?: number;
-  responseRate?: number;
-  overallSatisfactionScore?: number;
-  stageTrends?: Array<{
+  sentCount: number;
+  submittedCount: number;
+  responseRate: number;
+  overallSatisfactionScore: number;
+  stageTrends: Array<{
     stage: string;
     submittedCount: number;
     averageOverall: number;
   }>;
-  timeTrends?: Array<{
+  timeTrends: Array<{
     bucket: string;
     submittedCount: number;
     averageScore: number;
@@ -123,6 +123,8 @@ type StageVolume = { stage: string; value: number };
 
 const FUNNEL_COLORS = ["#0f766e", "#2563eb", "#f59e0b", "#ef4444"];
 const SURVEY_COLORS = ["#6366f1", "#a78bfa", "#c4b5fd", "#818cf8", "#4f46e5"];
+const SURVEY_RESPONSE_KEY = "responses";
+const SURVEY_SCORE_KEY = "avgScore";
 const STAGE_LABELS: Record<string, string> = {
   PRE_BOARDING: "dashboard.hr.stage.pre_boarding",
   DAY_1: "dashboard.hr.stage.day_1",
@@ -156,6 +158,159 @@ const DATE_PRESETS = [
     getValue: (): [Dayjs, Dayjs] => [dayjs().startOf("year"), dayjs()],
   },
 ] as const;
+
+function toRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function toFiniteNumber(value: unknown, fallback = 0): number {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function pickNumber(
+  source: Record<string, unknown>,
+  keys: string[],
+  fallback = 0,
+): number {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return fallback;
+}
+
+function pickArray<T>(source: Record<string, unknown>, keys: string[]): T[] {
+  for (const key of keys) {
+    const value = source[key];
+    if (Array.isArray(value)) return value as T[];
+  }
+  return [];
+}
+
+function normalizePercent(value: unknown, fallback = 0): number {
+  const raw = toFiniteNumber(value, fallback);
+  const pct = raw > 0 && raw <= 1 ? raw * 100 : raw;
+  return Math.max(0, Math.min(100, Math.round(pct)));
+}
+
+function normalizeSummary(raw: unknown): DashboardSummary {
+  const data = toRecord(raw);
+  return {
+    totalEmployees: pickNumber(data, ["totalEmployees", "employeeCount"]),
+    completedCount: pickNumber(data, [
+      "completedCount",
+      "completedOnboardings",
+    ]),
+    totalOnboardings: pickNumber(data, ["totalOnboardings", "totalInstances"]),
+    activeOnboardings: pickNumber(data, ["activeOnboardings", "activeCount"]),
+    completedOnboardings: pickNumber(data, [
+      "completedOnboardings",
+      "completedCount",
+    ]),
+  };
+}
+
+function normalizeFunnel(raw: unknown): DashboardFunnel {
+  const data = toRecord(raw);
+  return {
+    stages: pickArray<{ stage?: string; count?: number }>(data, ["stages"]),
+    activeCount: pickNumber(data, ["activeCount", "activeOnboardings"]),
+    completedCount: pickNumber(data, [
+      "completedCount",
+      "completedOnboardings",
+    ]),
+    cancelledCount: pickNumber(data, ["cancelledCount", "canceledCount"]),
+    otherCount: pickNumber(data, ["otherCount", "draftCount"]),
+  };
+}
+
+function normalizeTaskCompletion(raw: unknown): DashboardTaskCompletion {
+  const data = toRecord(raw);
+  return {
+    totalTasks: pickNumber(data, ["totalTasks", "taskCount"]),
+    completedTasks: pickNumber(data, ["completedTasks", "doneTasks"]),
+    completionRate: normalizePercent(data.completionRate, 0),
+  };
+}
+
+function normalizeByDepartment(raw: unknown): {
+  departments: DashboardDepartmentStat[];
+} {
+  const data = toRecord(raw);
+  const departments = pickArray<Record<string, unknown>>(data, [
+    "departments",
+    "items",
+  ])
+    .map((item) => ({
+      departmentId: String(item.departmentId ?? item.id ?? ""),
+      departmentName: String(item.departmentName ?? item.name ?? "—"),
+      totalTasks: Math.max(0, toFiniteNumber(item.totalTasks, 0)),
+      completedTasks: Math.max(0, toFiniteNumber(item.completedTasks, 0)),
+    }))
+    .filter((item) => item.departmentId);
+
+  return { departments };
+}
+
+function normalizeSurveyAnalytics(raw: unknown): SurveyAnalytics {
+  const data = toRecord(raw);
+  const stageSource = pickArray<Record<string, unknown>>(data, [
+    "stageTrends",
+    "byStage",
+    "stages",
+  ]);
+  const timeSource = pickArray<Record<string, unknown>>(data, [
+    "timeTrends",
+    "byTime",
+    "monthlyTrends",
+  ]);
+
+  return {
+    sentCount: pickNumber(data, ["sentCount", "totalSent", "totalSurveys"]),
+    submittedCount: pickNumber(data, [
+      "submittedCount",
+      "totalSubmitted",
+      "completionCount",
+    ]),
+    responseRate: normalizePercent(
+      data.responseRate ?? data.completionRate ?? data.submitRate,
+      0,
+    ),
+    overallSatisfactionScore: toFiniteNumber(
+      data.overallSatisfactionScore ??
+        data.averageScore ??
+        data.satisfactionScore,
+      0,
+    ),
+    stageTrends: stageSource.map((row) => ({
+      stage: String(row.stage ?? row.stageCode ?? row.bucket ?? "UNKNOWN"),
+      submittedCount: Math.max(
+        0,
+        toFiniteNumber(row.submittedCount ?? row.responseCount, 0),
+      ),
+      averageOverall: toFiniteNumber(row.averageOverall ?? row.averageScore, 0),
+    })),
+    timeTrends: timeSource.map((row) => ({
+      bucket: String(row.bucket ?? row.month ?? ""),
+      submittedCount: Math.max(
+        0,
+        toFiniteNumber(row.submittedCount ?? row.responseCount, 0),
+      ),
+      averageScore: toFiniteNumber(row.averageScore ?? row.averageOverall, 0),
+    })),
+  };
+}
+
+function normalizeUserListResponse(res: unknown): UserListItem[] {
+  if (Array.isArray(res)) return res as UserListItem[];
+  const raw = toRecord(res);
+  if (Array.isArray(raw.users)) return raw.users as UserListItem[];
+  if (Array.isArray(raw.items)) return raw.items as UserListItem[];
+  return [];
+}
 
 // ── Query hooks ────────────────────────────────────────────────────────────────
 
@@ -266,7 +421,7 @@ function useSurveyAnalyticsQuery(
     queryKey: ["hr-survey-analytics", startDate ?? "", endDate ?? ""],
     queryFn: () => apiGetSurveyAnalyticsReport({ startDate, endDate }),
     enabled: enabled && Boolean(startDate) && Boolean(endDate),
-    select: (res: unknown) => res as SurveyAnalytics,
+    select: normalizeSurveyAnalytics,
   });
 }
 
@@ -275,12 +430,7 @@ function useEmployeeListQuery(enabled = true) {
     queryKey: ["hr-employees"],
     queryFn: () => apiSearchUsers(),
     enabled,
-    select: (res: unknown) => {
-      const raw = res as Record<string, unknown>;
-      const arr: UserListItem[] =
-        (raw?.users as UserListItem[]) ?? (Array.isArray(raw) ? raw : []);
-      return arr;
-    },
+    select: normalizeUserListResponse,
   });
 }
 
@@ -459,14 +609,6 @@ export default function HRDashboard() {
       true,
     );
 
-  const filteredInstances = useMemo(
-    () =>
-      instances.filter((inst) =>
-        inRange(parseDate(inst.startDate), startDate, endDate),
-      ),
-    [instances, startDate, endDate],
-  );
-
   const { data: summaryRaw, isLoading: summaryLoading } = useSummaryQuery(
     companyId,
     startDate,
@@ -493,19 +635,87 @@ export default function HRDashboard() {
   const { resolveName } = useUserNameMap();
 
   // ── Data derivation ──────────────────────────────────────────────────────
-  const summary = (summaryRaw ?? {}) as DashboardSummary;
-  const funnel = (funnelRaw ?? {}) as DashboardFunnel;
-  const taskCompletion = (taskCompletionRaw ?? {}) as DashboardTaskCompletion;
-  const byDepartment = (byDepartmentRaw ?? { departments: [] }) as {
-    departments?: DashboardDepartmentStat[];
-  };
+  const summary = normalizeSummary(summaryRaw);
+  const funnel = normalizeFunnel(funnelRaw);
+  const taskCompletion = normalizeTaskCompletion(taskCompletionRaw);
+  const byDepartment = normalizeByDepartment(byDepartmentRaw);
 
-  const activeInstances = filteredInstances.filter(
-    (it) => it.status === "ACTIVE",
-  ).length;
-  const completedInstances = filteredInstances.filter(
-    (it) => it.status === "COMPLETED",
-  ).length;
+  const {
+    activeInstances,
+    completedInstances,
+    cancelledInstances,
+    draftInstances,
+    trendData,
+    attentionInstances,
+    recentInstances,
+  } = useMemo(() => {
+    const filtered: OnboardingInstance[] = [];
+    const trendBucket = new Map<string, number>();
+    let active = 0;
+    let completed = 0;
+    let cancelled = 0;
+    let draft = 0;
+
+    for (const inst of instances) {
+      const parsed = parseDate(inst.startDate);
+      if (!inRange(parsed, startDate, endDate)) continue;
+
+      filtered.push(inst);
+
+      if (parsed) {
+        const key = dayjs(parsed).format("MM/YYYY");
+        trendBucket.set(key, (trendBucket.get(key) ?? 0) + 1);
+      }
+
+      switch (inst.status) {
+        case "ACTIVE": {
+          active += 1;
+          break;
+        }
+        case "COMPLETED": {
+          completed += 1;
+          break;
+        }
+        case "CANCELLED": {
+          cancelled += 1;
+          break;
+        }
+        case "DRAFT": {
+          draft += 1;
+          break;
+        }
+        default:
+          break;
+      }
+    }
+
+    const attention = filtered
+      .filter(
+        (inst) =>
+          inst.status === "ACTIVE" && toFiniteNumber(inst.progress, 0) < 30,
+      )
+      .sort(
+        (a, b) => toFiniteNumber(a.progress, 0) - toFiniteNumber(b.progress, 0),
+      )
+      .slice(0, 8);
+
+    const recent = [...filtered]
+      .sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? ""))
+      .slice(0, 10);
+
+    return {
+      activeInstances: active,
+      completedInstances: completed,
+      cancelledInstances: cancelled,
+      draftInstances: draft,
+      trendData: Array.from(trendBucket.entries()).map(([label, value]) => ({
+        label,
+        value,
+      })),
+      attentionInstances: attention,
+      recentInstances: recent,
+    };
+  }, [instances, startDate, endDate]);
 
   const summaryActive =
     typeof funnel.activeCount === "number"
@@ -533,34 +743,32 @@ export default function HRDashboard() {
       : completionTotal > 0
         ? Math.round((completionDone / completionTotal) * 100)
         : 0;
-  const completionRate =
-    completionRateRaw > 0 && completionRateRaw <= 1
-      ? Math.round(completionRateRaw * 100)
-      : Math.round(completionRateRaw);
+  const completionRate = normalizePercent(completionRateRaw, 0);
 
   // ── Survey metrics ────────────────────────────────────────────────────────
   const surveySentCount = surveyAnalytics?.sentCount ?? 0;
   const surveySubmittedCount = surveyAnalytics?.submittedCount ?? 0;
   const surveyResponseRate = surveyAnalytics?.responseRate
-    ? Math.round(
-        surveyAnalytics.responseRate <= 1
-          ? surveyAnalytics.responseRate * 100
-          : surveyAnalytics.responseRate,
-      )
+    ? normalizePercent(surveyAnalytics.responseRate, 0)
     : surveySentCount > 0
       ? Math.round((surveySubmittedCount / surveySentCount) * 100)
       : 0;
-  const satisfactionScore = surveyAnalytics?.overallSatisfactionScore ?? 0;
+  const satisfactionScore = toFiniteNumber(
+    surveyAnalytics?.overallSatisfactionScore,
+    0,
+  );
 
   // ── Survey stage trend data ───────────────────────────────────────────────
   const stageTrendData = useMemo(
     () =>
       (surveyAnalytics?.stageTrends ?? []).map((s) => ({
         stage: t(STAGE_LABELS[s.stage] ?? s.stage),
-        "Phản hồi": s.submittedCount,
-        "Điểm TB": Number(s.averageOverall.toFixed(2)),
+        [SURVEY_RESPONSE_KEY]: Math.max(0, toFiniteNumber(s.submittedCount, 0)),
+        [SURVEY_SCORE_KEY]: Number(
+          toFiniteNumber(s.averageOverall, 0).toFixed(2),
+        ),
       })),
-    [surveyAnalytics],
+    [surveyAnalytics, t],
   );
 
   // ── Survey time trend data ────────────────────────────────────────────────
@@ -568,8 +776,10 @@ export default function HRDashboard() {
     () =>
       (surveyAnalytics?.timeTrends ?? []).map((t) => ({
         label: t.bucket,
-        "Phản hồi": t.submittedCount,
-        "Điểm TB": Number(t.averageScore.toFixed(2)),
+        [SURVEY_RESPONSE_KEY]: Math.max(0, toFiniteNumber(t.submittedCount, 0)),
+        [SURVEY_SCORE_KEY]: Number(
+          toFiniteNumber(t.averageScore, 0).toFixed(2),
+        ),
       })),
     [surveyAnalytics],
   );
@@ -674,63 +884,23 @@ export default function HRDashboard() {
     },
     {
       stage: t("dashboard.hr.status.cancelled"),
-      value: Number(
-        funnel.cancelledCount ??
-          filteredInstances.filter((x) => x.status === "CANCELLED").length,
-      ),
+      value: Number(funnel.cancelledCount ?? cancelledInstances),
     },
     {
       stage: t("dashboard.hr.status.draft"),
-      value: Number(
-        funnel.otherCount ??
-          filteredInstances.filter((x) => x.status === "DRAFT").length,
-      ),
+      value: Number(funnel.otherCount ?? draftInstances),
     },
   ].filter((s) => s.value > 0);
 
-  // ── Trend data (instances by month) ──────────────────────────────────────
-  const trendData = useMemo(() => {
-    const bucket = new Map<string, number>();
-    filteredInstances.forEach((item) => {
-      const parsed = parseDate(item.startDate);
-      if (!parsed) return;
-      const key = dayjs(parsed).format("MM/YYYY");
-      bucket.set(key, (bucket.get(key) ?? 0) + 1);
-    });
-    return Array.from(bucket.entries()).map(([label, value]) => ({
-      label,
-      value,
-    }));
-  }, [filteredInstances]);
-
   // ── Department data ───────────────────────────────────────────────────────
-  const departmentStats = (byDepartment.departments ?? []).filter((item) =>
+  const departmentStats = byDepartment.departments.filter((item) =>
     departmentFilter ? item.departmentId === departmentFilter : true,
   );
 
-  const departmentOptions = (byDepartment.departments ?? []).map((item) => ({
+  const departmentOptions = byDepartment.departments.map((item) => ({
     value: item.departmentId,
     label: item.departmentName,
   }));
-
-  // ── Attention needed — ACTIVE instances with progress < 30% ──────────────
-  const attentionInstances = useMemo(
-    () =>
-      filteredInstances
-        .filter((i) => i.status === "ACTIVE" && (i.progress ?? 0) < 30)
-        .sort((a, b) => (a.progress ?? 0) - (b.progress ?? 0))
-        .slice(0, 8),
-    [filteredInstances],
-  );
-
-  // ── Recent table ─────────────────────────────────────────────────────────
-  const recentInstances = useMemo(
-    () =>
-      [...filteredInstances]
-        .sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? ""))
-        .slice(0, 10),
-    [filteredInstances],
-  );
 
   const isKpiLoading = summaryLoading || taskCompletionLoading;
   const isProgressLoading = instancesLoading || funnelLoading;
@@ -1047,7 +1217,8 @@ export default function HRDashboard() {
                   <Legend />
                   <Bar
                     yAxisId="left"
-                    dataKey="Phản hồi"
+                    dataKey={SURVEY_RESPONSE_KEY}
+                    name={t("dashboard.hr.chart.responses")}
                     fill="#6366f1"
                     radius={[4, 4, 0, 0]}>
                     {stageTrendData.map((_, i) => (
@@ -1060,7 +1231,8 @@ export default function HRDashboard() {
                   <Line
                     yAxisId="right"
                     type="monotone"
-                    dataKey="Điểm TB"
+                    dataKey={SURVEY_SCORE_KEY}
+                    name={t("dashboard.hr.chart.avg_score")}
                     stroke="#f59e0b"
                     strokeWidth={2}
                     dot={{ r: 4 }}
@@ -1097,7 +1269,8 @@ export default function HRDashboard() {
                   <Line
                     yAxisId="left"
                     type="monotone"
-                    dataKey="Phản hồi"
+                    dataKey={SURVEY_RESPONSE_KEY}
+                    name={t("dashboard.hr.chart.responses")}
                     stroke="#6366f1"
                     strokeWidth={2}
                     dot={{ r: 3 }}
@@ -1105,7 +1278,8 @@ export default function HRDashboard() {
                   <Line
                     yAxisId="right"
                     type="monotone"
-                    dataKey="Điểm TB"
+                    dataKey={SURVEY_SCORE_KEY}
+                    name={t("dashboard.hr.chart.avg_score")}
                     stroke="#f59e0b"
                     strokeWidth={2}
                     dot={{ r: 3 }}
@@ -1211,7 +1385,10 @@ export default function HRDashboard() {
                     width={80}
                   />
                   <Tooltip />
-                  <Bar dataKey="count" name="Nhân viên" radius={[0, 4, 4, 0]}>
+                  <Bar
+                    dataKey="count"
+                    name={t("dashboard.hr.chart.employees")}
+                    radius={[0, 4, 4, 0]}>
                     {roleBreakdown.map((_, i) => (
                       <Cell
                         key={`role-cell-${i}`}

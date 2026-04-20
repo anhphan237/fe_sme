@@ -1,7 +1,14 @@
 import { useState } from "react";
 import { Card, Table, Tag, Select, DatePicker, Tabs, Skeleton } from "antd";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, XCircle, AlertCircle, Cpu, HardDrive, Activity } from "lucide-react";
+import {
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Cpu,
+  HardDrive,
+  Activity,
+} from "lucide-react";
 import dayjs from "dayjs";
 import {
   apiGetSystemHealth,
@@ -75,7 +82,7 @@ const PlatformSystem = () => {
     queryKey: ["platform-system-error-log", errorPage, severity, dateRange],
     queryFn: () =>
       apiGetSystemErrorLog({
-        page: errorPage,
+        page: errorPage - 1,
         size: 20,
       }),
     select: (res: any) => res?.data ?? res,
@@ -85,7 +92,7 @@ const PlatformSystem = () => {
     queryKey: ["platform-system-activity-log", activityPage, dateRange],
     queryFn: () =>
       apiGetSystemActivityLog({
-        page: activityPage,
+        page: activityPage - 1,
         size: 20,
       }),
     select: (res: any) => res?.data ?? res,
@@ -136,17 +143,27 @@ const PlatformSystem = () => {
     },
     {
       title: t("platform.system.col_timestamp"),
-      dataIndex: "timestamp",
-      key: "timestamp",
-      render: (v: string) => new Date(v).toLocaleString(),
+      dataIndex: "createdAt",
+      key: "createdAt",
+      render: (
+        v: string,
+        r: PlatformSystemErrorLogItem & { timestamp?: string },
+      ) => {
+        const timestamp = v ?? r.timestamp;
+        return timestamp ? new Date(timestamp).toLocaleString() : "—";
+      },
     },
   ];
 
   const activityColumns = [
     {
       title: t("platform.system.col_actor"),
-      dataIndex: "actorId",
-      key: "actorId",
+      dataIndex: "userId",
+      key: "userId",
+      render: (
+        v: string,
+        r: PlatformSystemActivityLogItem & { actorId?: string },
+      ) => v ?? r.actorId ?? "—",
     },
     {
       title: t("platform.system.col_action"),
@@ -155,14 +172,24 @@ const PlatformSystem = () => {
     },
     {
       title: t("platform.system.col_resource"),
-      dataIndex: "resource",
-      key: "resource",
+      dataIndex: "entityType",
+      key: "entityType",
+      render: (
+        v: string,
+        r: PlatformSystemActivityLogItem & { resource?: string },
+      ) => v ?? r.resource ?? "—",
     },
     {
       title: t("platform.system.col_timestamp"),
-      dataIndex: "timestamp",
-      key: "timestamp",
-      render: (v: string) => new Date(v).toLocaleString(),
+      dataIndex: "createdAt",
+      key: "createdAt",
+      render: (
+        v: string,
+        r: PlatformSystemActivityLogItem & { timestamp?: string },
+      ) => {
+        const timestamp = v ?? r.timestamp;
+        return timestamp ? new Date(timestamp).toLocaleString() : "—";
+      },
     },
   ];
 
@@ -194,7 +221,7 @@ const PlatformSystem = () => {
       title: t("platform.system.col_timestamp"),
       dataIndex: "createdAt",
       key: "createdAt",
-      render: (v: string) => v ? new Date(v).toLocaleString() : "—",
+      render: (v: string) => (v ? new Date(v).toLocaleString() : "—"),
     },
   ];
 
@@ -269,13 +296,17 @@ const PlatformSystem = () => {
               </p>
             </div>
             <div className="rounded-xl bg-amber-50 p-3">
-              <span className="text-xs font-medium text-amber-700">{t("platform.system.max_memory")}</span>
+              <span className="text-xs font-medium text-amber-700">
+                {t("platform.system.max_memory")}
+              </span>
               <p className="text-lg font-bold text-amber-700 mt-1">
                 {mon.maxMemoryMb != null ? `${mon.maxMemoryMb} MB` : "—"}
               </p>
             </div>
             <div className="rounded-xl bg-rose-50 p-3">
-              <span className="text-xs font-medium text-rose-700">{t("platform.system.cpus")}</span>
+              <span className="text-xs font-medium text-rose-700">
+                {t("platform.system.cpus")}
+              </span>
               <p className="text-lg font-bold text-rose-700 mt-1">
                 {mon.availableProcessors ?? "—"}
               </p>
@@ -410,8 +441,10 @@ const PlatformSystem = () => {
                 <Table
                   dataSource={activityLogs}
                   columns={activityColumns}
-                  rowKey={(r: PlatformSystemActivityLogItem) =>
-                    `${r.userId}-${r.createdAt}`
+                  rowKey={(
+                    r: PlatformSystemActivityLogItem & { timestamp?: string },
+                  ) =>
+                    `${r.logId ?? "unknown"}-${r.createdAt ?? r.timestamp ?? "unknown"}`
                   }
                   loading={activityLogQuery.isLoading}
                   pagination={{
