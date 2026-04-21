@@ -362,17 +362,44 @@ export interface PlatformSystemHealthResponse {
 export interface PlatformSystemErrorLogRequest {
   page?: number;
   size?: number;
+
+  keyword?: string;
+  errorCode?: string;
+  severity?: string;
+  status?: string;
+  operationType?: string;
+  companyId?: string;
+  actorRole?: string;
+
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface PlatformSystemErrorLogItem {
-  errorId: string;
-  errorCode: string;
-  message: string;
-  requestId: string;
-  createdAt: string;
+  errorId?: string;
+  errorCode?: string;
+  message?: string;
   stackTrace?: string;
-}
+  requestId?: string;
+  createdAt?: string;
 
+  operationType?: string;
+  tenantId?: string;
+  companyId?: string;
+  actorUserId?: string;
+  actorRole?: string;
+  severity?: string;
+  status?: string;
+  payloadSnapshot?: string;
+
+  resolvedAt?: string;
+  resolvedBy?: string;
+  resolutionNote?: string;
+
+  // fallback cho data cũ
+  logId?: string;
+  timestamp?: string;
+}
 export interface PlatformSystemErrorLogResponse {
   items: PlatformSystemErrorLogItem[];
   total: number;
@@ -470,25 +497,44 @@ export interface PlatformInvoiceListResponse {
 export interface PlatformPaymentListRequest {
   page?: number;
   size?: number;
+
   companyId?: string;
+  subscriptionId?: string;
+  invoiceId?: string;
   status?: string;
+
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface PlatformPaymentItem {
-  paymentId: string;
-  companyId: string;
-  companyName: string;
-  invoiceId: string;
-  amount: number;
-  currency: string;
-  status: string;
-  provider: string;
-  createdAt: string;
+  transactionId?: string;
+  paymentTransactionId?: string;
+
+  companyId?: string;
+  companyName?: string;
+
+  subscriptionId?: string;
+  invoiceId?: string;
+
+  provider?: string;
+  providerTxnId?: string;
+
+  amount?: number;
+  currency?: string;
+  status?: string;
+  failureReason?: string;
+
+  createdAt?: string;
+  paidAt?: string;
 }
+
 
 export interface PlatformPaymentListResponse {
   items: PlatformPaymentItem[];
   total: number;
+  page?: number;
+  size?: number;
 }
 
 // ---------------------------
