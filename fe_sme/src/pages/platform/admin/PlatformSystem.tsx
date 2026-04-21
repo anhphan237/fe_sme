@@ -1,5 +1,15 @@
 import { useState } from "react";
-import { Card, Table, Tag, Select, DatePicker, Tabs, Skeleton } from "antd";
+import {
+  Card,
+  Table,
+  Tag,
+  Select,
+  DatePicker,
+  Tabs,
+  Skeleton,
+  Input,
+  Button,
+} from "antd";
 import { useQuery } from "@tanstack/react-query";
 import {
   CheckCircle2,
@@ -30,15 +40,22 @@ const DEFAULT_FROM = dayjs().subtract(7, "day").format("YYYY-MM-DD");
 const DEFAULT_TO = dayjs().format("YYYY-MM-DD");
 
 const SEVERITY_COLOR: Record<string, string> = {
+  LOW: "blue",
+  MEDIUM: "orange",
+  HIGH: "red",
+  CRITICAL: "volcano",
+
+  // fallback data cũ nếu còn
   ERROR: "red",
   WARN: "orange",
   INFO: "blue",
 };
 
-const SEVERITY_LABEL_KEY: Record<string, string> = {
-  ERROR: "platform.system.severity_error",
-  WARN: "platform.system.severity_warn",
-  INFO: "platform.system.severity_info",
+const STATUS_COLOR: Record<string, string> = {
+  OPEN: "red",
+  INVESTIGATING: "orange",
+  RESOLVED: "green",
+  IGNORED: "default",
 };
 
 const HealthStatusIcon = ({
@@ -55,10 +72,17 @@ const HealthStatusIcon = ({
 
 const PlatformSystem = () => {
   const { t } = useLocale();
+
   const [errorPage, setErrorPage] = useState(1);
   const [activityPage, setActivityPage] = useState(1);
   const [auditPage, setAuditPage] = useState(1);
+
   const [severity, setSeverity] = useState<string | undefined>(undefined);
+  const [status, setStatus] = useState<string | undefined>(undefined);
+  const [keyword, setKeyword] = useState("");
+  const [operationType, setOperationType] = useState("");
+  const [companyId, setCompanyId] = useState("");
+
   const [dateRange, setDateRange] = useState<[string, string]>([
     DEFAULT_FROM,
     DEFAULT_TO,
@@ -79,11 +103,27 @@ const PlatformSystem = () => {
   });
 
   const errorLogQuery = useQuery({
-    queryKey: ["platform-system-error-log", errorPage, severity, dateRange],
+    queryKey: [
+      "platform-system-error-log",
+      errorPage,
+      severity,
+      status,
+      keyword,
+      operationType,
+      companyId,
+      dateRange,
+    ],
     queryFn: () =>
       apiGetSystemErrorLog({
         page: errorPage - 1,
         size: 20,
+        severity,
+        status,
+        keyword: keyword || undefined,
+        operationType: operationType || undefined,
+        companyId: companyId || undefined,
+        startDate: dateRange[0],
+        endDate: dateRange[1],
       }),
     select: (res: any) => res?.data ?? res,
   });
@@ -110,6 +150,7 @@ const PlatformSystem = () => {
 
   const health = healthQuery.data as any;
   const mon = monitoringQuery.data as any;
+
   const errorLogs: PlatformSystemErrorLogItem[] =
     errorLogQuery.data?.items ?? [];
   const activityLogs: PlatformSystemActivityLogItem[] =
@@ -124,27 +165,78 @@ const PlatformSystem = () => {
         ? "border-l-4 border-amber-400 bg-amber-50"
         : "border-l-4 border-rose-400 bg-rose-50";
 
+  const resetErrorFilter = () => {
+    setSeverity(undefined);
+    setStatus(undefined);
+    setKeyword("");
+    setOperationType("");
+    setCompanyId("");
+    setErrorPage(1);
+  };
+
   const errorColumns = [
     {
-      title: t("platform.system.col_severity"),
+      title: "Mức độ",
       dataIndex: "severity",
       key: "severity",
+      width: 120,
       render: (v: string) => (
-        <Tag color={SEVERITY_COLOR[v] ?? "default"}>
-          {t(SEVERITY_LABEL_KEY[v] ?? v)}
-        </Tag>
+        <Tag color={SEVERITY_COLOR[v] ?? "default"}>{v ?? "—"}</Tag>
       ),
     },
     {
-      title: t("platform.system.col_message"),
+      title: "Trạng thái",
+      dataIndex: "status",
+      key: "status",
+      width: 140,
+      render: (v: string) => (
+        <Tag color={STATUS_COLOR[v] ?? "default"}>{v ?? "—"}</Tag>
+      ),
+    },
+    {
+      title: "Mã lỗi",
+      dataIndex: "errorCode",
+      key: "errorCode",
+      width: 160,
+      ellipsis: true,
+      render: (v: string) => v ?? "—",
+    },
+    {
+      title: "Operation Type",
+      dataIndex: "operationType",
+      key: "operationType",
+      width: 300,
+      ellipsis: true,
+      render: (v: string) => v ?? "—",
+    },
+    {
+      title: "Thông báo lỗi",
       dataIndex: "message",
       key: "message",
       ellipsis: true,
+      render: (v: string) => v ?? "—",
     },
     {
-      title: t("platform.system.col_timestamp"),
+      title: "Company ID",
+      dataIndex: "companyId",
+      key: "companyId",
+      width: 190,
+      ellipsis: true,
+      render: (v: string) => v ?? "—",
+    },
+    {
+      title: "Vai trò",
+      dataIndex: "actorRole",
+      key: "actorRole",
+      width: 140,
+      ellipsis: true,
+      render: (v: string) => v ?? "—",
+    },
+    {
+      title: "Thời gian",
       dataIndex: "createdAt",
       key: "createdAt",
+      width: 180,
       render: (
         v: string,
         r: PlatformSystemErrorLogItem & { timestamp?: string },
@@ -236,7 +328,6 @@ const PlatformSystem = () => {
         </p>
       </div>
 
-      {/* Monitoring Metrics */}
       <Card
         title={
           <span className="text-sm font-semibold">
@@ -258,6 +349,7 @@ const PlatformSystem = () => {
                 {mon.usedMemoryMb != null ? `${mon.usedMemoryMb} MB` : "—"}
               </p>
             </div>
+
             <div className="rounded-xl bg-slate-50 p-3">
               <div className="flex items-center gap-1 mb-1">
                 <HardDrive className="h-3.5 w-3.5 text-slate-600" />
@@ -271,6 +363,7 @@ const PlatformSystem = () => {
                   : "—"}
               </p>
             </div>
+
             <div className="rounded-xl bg-violet-50 p-3">
               <div className="flex items-center gap-1 mb-1">
                 <Cpu className="h-3.5 w-3.5 text-violet-600" />
@@ -284,6 +377,7 @@ const PlatformSystem = () => {
                   : "—"}
               </p>
             </div>
+
             <div className="rounded-xl bg-emerald-50 p-3">
               <div className="flex items-center gap-1 mb-1">
                 <Activity className="h-3.5 w-3.5 text-emerald-600" />
@@ -295,6 +389,7 @@ const PlatformSystem = () => {
                 {mon.threadCount ?? "—"}
               </p>
             </div>
+
             <div className="rounded-xl bg-amber-50 p-3">
               <span className="text-xs font-medium text-amber-700">
                 {t("platform.system.max_memory")}
@@ -303,6 +398,7 @@ const PlatformSystem = () => {
                 {mon.maxMemoryMb != null ? `${mon.maxMemoryMb} MB` : "—"}
               </p>
             </div>
+
             <div className="rounded-xl bg-rose-50 p-3">
               <span className="text-xs font-medium text-rose-700">
                 {t("platform.system.cpus")}
@@ -315,7 +411,6 @@ const PlatformSystem = () => {
         ) : null}
       </Card>
 
-      {/* System Health */}
       <Card
         title={
           <span className="text-sm font-semibold">
@@ -333,6 +428,7 @@ const PlatformSystem = () => {
                 {t("platform.system.overall_status")}: {health.status}
               </span>
             </div>
+
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {(health.services ?? []).map((svc: any) => (
                 <div
@@ -360,7 +456,6 @@ const PlatformSystem = () => {
         )}
       </Card>
 
-      {/* Date filter */}
       <div className="flex items-center gap-3">
         <span className="text-sm text-slate-500">
           {t("platform.system.date_range")}
@@ -368,12 +463,15 @@ const PlatformSystem = () => {
         <RangePicker
           defaultValue={[dayjs(DEFAULT_FROM), dayjs(DEFAULT_TO)]}
           onChange={(_, strs) => {
-            if (strs[0] && strs[1]) setDateRange([strs[0], strs[1]]);
+            if (strs[0] && strs[1]) {
+              setDateRange([strs[0], strs[1]]);
+              setErrorPage(1);
+              setActivityPage(1);
+            }
           }}
         />
       </div>
 
-      {/* Logs Tabs */}
       <Tabs
         items={[
           {
@@ -381,36 +479,86 @@ const PlatformSystem = () => {
             label: t("platform.system.tab_errors"),
             children: (
               <Card>
-                <div className="mb-4">
+                <div className="mb-4 flex flex-wrap gap-3">
+                  <Input
+                    allowClear
+                    placeholder="Tìm message / error code / requestId"
+                    style={{ width: 280 }}
+                    value={keyword}
+                    onChange={(e) => {
+                      setKeyword(e.target.value);
+                      setErrorPage(1);
+                    }}
+                  />
+
+                  <Input
+                    allowClear
+                    placeholder="Operation type"
+                    style={{ width: 280 }}
+                    value={operationType}
+                    onChange={(e) => {
+                      setOperationType(e.target.value);
+                      setErrorPage(1);
+                    }}
+                  />
+
+                  <Input
+                    allowClear
+                    placeholder="Company ID"
+                    style={{ width: 220 }}
+                    value={companyId}
+                    onChange={(e) => {
+                      setCompanyId(e.target.value);
+                      setErrorPage(1);
+                    }}
+                  />
+
                   <Select
                     allowClear
-                    placeholder={t("platform.system.filter_severity")}
-                    style={{ width: 160 }}
+                    placeholder="Mức độ"
+                    style={{ width: 150 }}
                     value={severity}
                     onChange={(v) => {
                       setSeverity(v);
                       setErrorPage(1);
                     }}
                     options={[
-                      {
-                        value: "ERROR",
-                        label: t("platform.system.severity_error"),
-                      },
-                      {
-                        value: "WARN",
-                        label: t("platform.system.severity_warn"),
-                      },
-                      {
-                        value: "INFO",
-                        label: t("platform.system.severity_info"),
-                      },
+                      { value: "LOW", label: "LOW" },
+                      { value: "MEDIUM", label: "MEDIUM" },
+                      { value: "HIGH", label: "HIGH" },
+                      { value: "CRITICAL", label: "CRITICAL" },
                     ]}
                   />
+
+                  <Select
+                    allowClear
+                    placeholder="Trạng thái"
+                    style={{ width: 170 }}
+                    value={status}
+                    onChange={(v) => {
+                      setStatus(v);
+                      setErrorPage(1);
+                    }}
+                    options={[
+                      { value: "OPEN", label: "OPEN" },
+                      { value: "INVESTIGATING", label: "INVESTIGATING" },
+                      { value: "RESOLVED", label: "RESOLVED" },
+                      { value: "IGNORED", label: "IGNORED" },
+                    ]}
+                  />
+
+                  <Button onClick={resetErrorFilter}>Reset</Button>
                 </div>
+
                 <Table
                   dataSource={errorLogs}
                   columns={errorColumns}
-                  rowKey="logId"
+                  rowKey={(record: PlatformSystemErrorLogItem) =>
+                    record.errorId ??
+                    record.logId ??
+                    record.requestId ??
+                    `${record.operationType}-${record.createdAt}`
+                  }
                   loading={errorLogQuery.isLoading}
                   pagination={{
                     current: errorPage,
@@ -419,15 +567,75 @@ const PlatformSystem = () => {
                     onChange: setErrorPage,
                     showSizeChanger: false,
                   }}
+                  scroll={{ x: 1300 }}
                   expandable={{
-                    expandedRowRender: (record: PlatformSystemErrorLogItem) =>
-                      record.stackTrace ? (
-                        <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg bg-slate-900 p-4 text-xs text-slate-100">
-                          {record.stackTrace}
-                        </pre>
-                      ) : null,
+                    expandedRowRender: (record: PlatformSystemErrorLogItem) => (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <div className="rounded-lg bg-slate-50 p-3 text-xs">
+                            <p className="font-semibold text-slate-700">
+                              Request ID
+                            </p>
+                            <p className="mt-1 break-all text-slate-500">
+                              {record.requestId ?? "—"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-lg bg-slate-50 p-3 text-xs">
+                            <p className="font-semibold text-slate-700">
+                              Tenant ID
+                            </p>
+                            <p className="mt-1 break-all text-slate-500">
+                              {record.tenantId ?? "—"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-lg bg-slate-50 p-3 text-xs">
+                            <p className="font-semibold text-slate-700">
+                              Actor User ID
+                            </p>
+                            <p className="mt-1 break-all text-slate-500">
+                              {record.actorUserId ?? "—"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-lg bg-slate-50 p-3 text-xs">
+                            <p className="font-semibold text-slate-700">
+                              Resolved
+                            </p>
+                            <p className="mt-1 text-slate-500">
+                              {record.resolvedAt
+                                ? new Date(record.resolvedAt).toLocaleString()
+                                : "—"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {record.payloadSnapshot && (
+                          <div>
+                            <p className="mb-1 text-xs font-semibold text-slate-700">
+                              Payload
+                            </p>
+                            <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg bg-slate-100 p-4 text-xs text-slate-700">
+                              {record.payloadSnapshot}
+                            </pre>
+                          </div>
+                        )}
+
+                        {record.stackTrace && (
+                          <div>
+                            <p className="mb-1 text-xs font-semibold text-slate-700">
+                              Stack trace
+                            </p>
+                            <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-900 p-4 text-xs text-slate-100">
+                              {record.stackTrace}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    ),
                     rowExpandable: (record: PlatformSystemErrorLogItem) =>
-                      !!record.stackTrace,
+                      !!record.stackTrace || !!record.payloadSnapshot,
                   }}
                 />
               </Card>

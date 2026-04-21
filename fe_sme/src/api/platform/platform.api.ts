@@ -269,7 +269,7 @@ export const apiGetSystemHealth = () =>
 /** com.sme.platform.system.errorLog */
 export const apiGetSystemErrorLog = (payload: PlatformSystemErrorLogRequest) =>
   gatewayRequest<PlatformSystemErrorLogRequest, unknown>(
-    "com.sme.platform.system.errorLog",
+    "com.sme.platform.errorLog.list",
     payload,
   );
 
