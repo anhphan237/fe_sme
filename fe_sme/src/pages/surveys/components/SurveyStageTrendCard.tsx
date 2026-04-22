@@ -17,16 +17,6 @@ type Props = {
   loading?: boolean;
 };
 
-const STAGE_LABELS: Record<string, string> = {
-  D7: "7 ngày",
-  DAY_7: "7 ngày",
-  D30: "30 ngày",
-  DAY_30: "30 ngày",
-  D60: "60 ngày",
-  DAY_60: "60 ngày",
-  CUSTOM: "Tùy chỉnh",
-};
-
 const STAGE_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444"];
 
 const toNumber = (value?: number | string | null) => {
@@ -35,17 +25,50 @@ const toNumber = (value?: number | string | null) => {
   return Number.isNaN(n) ? 0 : n;
 };
 
-const normalizeStageLabel = (stage?: string) => {
-  if (!stage) return "—";
-  return STAGE_LABELS[stage.toUpperCase()] || stage;
+const normalizeStage = (stage?: string) => {
+  const value = String(stage ?? "")
+    .trim()
+    .toUpperCase();
+
+  if (value === "DAY_7" || value === "D7") return "D7";
+  if (value === "DAY_30" || value === "D30") return "D30";
+  if (value === "DAY_60" || value === "D60") return "D60";
+  if (value === "CUSTOM") return "CUSTOM";
+
+  return value;
 };
 
 const SurveyStageTrendCard = ({ data, loading }: Props) => {
   const { t } = useLocale();
 
+  const tr = (key: string, fallback: string) => {
+    const value = t(key);
+    return value === key ? fallback : value;
+  };
+
+  const getStageLabel = (stage?: string) => {
+    const normalized = normalizeStage(stage);
+
+    if (!normalized) return "—";
+
+    const key = `survey.stage.${normalized.toLowerCase()}`;
+    const value = t(key);
+
+    if (value !== key) return value;
+
+    const fallbackMap: Record<string, string> = {
+      D7: tr("survey.reports.stage_d7", "Day 7"),
+      D30: tr("survey.reports.stage_d30", "Day 30"),
+      D60: tr("survey.reports.stage_d60", "Day 60"),
+      CUSTOM: tr("survey.reports.stage_custom", "Custom"),
+    };
+
+    return fallbackMap[normalized] ?? normalized;
+  };
+
   const chartData = (data ?? []).map((item) => ({
-    stage: item.stage,
-    label: normalizeStageLabel(item.stage),
+    stage: normalizeStage(item.stage),
+    label: getStageLabel(item.stage),
     score: toNumber(item.averageOverall),
     submittedCount: item.submittedCount ?? 0,
   }));
@@ -57,7 +80,10 @@ const SurveyStageTrendCard = ({ data, loading }: Props) => {
           {t("survey.reports.stage_trends")}
         </h3>
         <p className="mt-1 text-sm text-slate-500">
-          So sánh mức độ hài lòng theo từng giai đoạn onboarding.
+          {tr(
+            "survey.reports.stage_trends_desc",
+            "So sánh mức độ hài lòng theo từng giai đoạn onboarding.",
+          )}
         </p>
       </div>
 
@@ -80,12 +106,15 @@ const SurveyStageTrendCard = ({ data, loading }: Props) => {
                   type="category"
                   dataKey="label"
                   tick={{ fontSize: 12 }}
-                  width={70}
+                  width={90}
                 />
                 <Tooltip
                   formatter={(value: number, _name, props) => [
-                    `${value.toFixed(2)} | ${props.payload.submittedCount} phản hồi`,
-                    "Điểm trung bình",
+                    `${value.toFixed(2)} | ${props.payload.submittedCount} ${tr(
+                      "survey.reports.responses_lower",
+                      "responses",
+                    )}`,
+                    t("survey.reports.avg_score"),
                   ]}
                 />
                 <Bar dataKey="score" radius={[0, 8, 8, 0]} barSize={24}>
@@ -112,7 +141,8 @@ const SurveyStageTrendCard = ({ data, loading }: Props) => {
                       {item.label}
                     </div>
                     <div className="mt-1 text-xs text-slate-500">
-                      {item.submittedCount} phản hồi
+                      {item.submittedCount}{" "}
+                      {tr("survey.reports.responses_lower", "responses")}
                     </div>
                   </div>
 

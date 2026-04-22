@@ -296,3 +296,35 @@ export interface ImportSurveyQuestionsResponse {
   failedRows?: number;
   errors?: ImportSurveyQuestionError[];
 }
+
+export type SurveyAiSummaryPayload = {
+  templateId?: string;
+  startDate?: string;
+  endDate?: string;
+  language?: "vi" | "en";
+  forceRefresh?: boolean;
+  analyticsSnapshot: {
+    sentCount?: number;
+    submittedCount?: number;
+    responseRate?: number;
+    overallSatisfactionScore?: number;
+    dimensionStats?: unknown[];
+    lowScoreDimensions?: unknown[];
+    topPositiveDimensions?: unknown[];
+    stageTrends?: unknown[];
+    timeTrends?: unknown[];
+    questionStats?: unknown[];
+    textFeedbacks?: string[];
+  };
+};
+
+export type SurveyAiSummaryResponse = {
+  healthLevel?: "GOOD" | "STABLE" | "WARNING" | string;
+  summary?: string;
+  keyFindings?: string[];
+  recommendedActions?: string[];
+  riskExplanation?: string;
+  positiveSignal?: string;
+  fromCache?: boolean;
+  generatedAt?: string;
+};

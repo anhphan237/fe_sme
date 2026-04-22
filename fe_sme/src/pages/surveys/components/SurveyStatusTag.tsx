@@ -1,26 +1,61 @@
 import type { FC } from "react";
+import { useLocale } from "@/i18n";
 
 const DOT_FALLBACK = "bg-slate-400";
 const PILL_FALLBACK = "bg-slate-100 text-slate-500";
+
+const normalizeValue = (value?: string) =>
+  String(value ?? "")
+    .trim()
+    .toUpperCase();
 
 const StatusTag: FC<{
   value: string;
   dotStyles: Record<string, string>;
   pillStyles: Record<string, string>;
-  labels?: Record<string, string>;
+  labelKeys?: Record<string, string>;
+  fallbackLabels?: Record<string, string>;
   className?: string;
-}> = ({ value, dotStyles, pillStyles, labels, className = "" }) => (
-  <span
-    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
-      pillStyles[value] ?? PILL_FALLBACK
-    } ${className}`}
-  >
+}> = ({
+  value,
+  dotStyles,
+  pillStyles,
+  labelKeys,
+  fallbackLabels,
+  className = "",
+}) => {
+  const { t } = useLocale();
+  const normalized = normalizeValue(value);
+
+  const getLabel = () => {
+    const key = labelKeys?.[normalized];
+
+    if (key) {
+      const translated = t(key);
+      if (translated !== key) return translated;
+    }
+
+    return (
+      fallbackLabels?.[normalized] ||
+      normalized.charAt(0) + normalized.slice(1).toLowerCase()
+    );
+  };
+
+  return (
     <span
-      className={`h-1.5 w-1.5 rounded-full ${dotStyles[value] ?? DOT_FALLBACK}`}
-    />
-    {labels?.[value] ?? value.charAt(0) + value.slice(1).toLowerCase()}
-  </span>
-);
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+        pillStyles[normalized] ?? PILL_FALLBACK
+      } ${className}`}
+    >
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${
+          dotStyles[normalized] ?? DOT_FALLBACK
+        }`}
+      />
+      {getLabel()}
+    </span>
+  );
+};
 
 // ─── Template Status ──────────────────────────────────────────────────────────
 const TEMPLATE_DOT: Record<string, string> = {
@@ -37,7 +72,14 @@ const TEMPLATE_PILL: Record<string, string> = {
   DISABLED: "bg-red-50 text-red-700 ring-1 ring-inset ring-red-200",
 };
 
-const TEMPLATE_LABEL: Record<string, string> = {
+const TEMPLATE_LABEL_KEY: Record<string, string> = {
+  ACTIVE: "survey.status.template.active",
+  ARCHIVED: "survey.status.template.archived",
+  DRAFT: "survey.status.template.draft",
+  DISABLED: "survey.status.template.disabled",
+};
+
+const TEMPLATE_FALLBACK: Record<string, string> = {
   ACTIVE: "Active",
   ARCHIVED: "Archived",
   DRAFT: "Draft",
@@ -51,7 +93,8 @@ export const TemplateStatusTag: FC<{ status: string; className?: string }> = (
     value={p.status}
     dotStyles={TEMPLATE_DOT}
     pillStyles={TEMPLATE_PILL}
-    labels={TEMPLATE_LABEL}
+    labelKeys={TEMPLATE_LABEL_KEY}
+    fallbackLabels={TEMPLATE_FALLBACK}
     className={p.className}
   />
 );
@@ -71,14 +114,22 @@ const STAGE_PILL: Record<string, string> = {
   CUSTOM: "bg-violet-50 text-violet-700 ring-1 ring-inset ring-violet-200",
 };
 
-const STAGE_LABEL: Record<string, string> = {
+const STAGE_LABEL_KEY: Record<string, string> = {
+  D7: "survey.stage.d7",
+  D30: "survey.stage.d30",
+  D60: "survey.stage.d60",
+  CUSTOM: "survey.stage.custom",
+};
+
+const STAGE_FALLBACK: Record<string, string> = {
   D7: "Day 7",
   D30: "Day 30",
   D60: "Day 60",
   CUSTOM: "Custom",
 };
+
 const normalizeStage = (stage?: string) => {
-  const value = String(stage ?? "").trim().toUpperCase();
+  const value = normalizeValue(stage);
 
   if (value === "DAY_7" || value === "D7") return "D7";
   if (value === "DAY_30" || value === "D30") return "D30";
@@ -87,6 +138,7 @@ const normalizeStage = (stage?: string) => {
 
   return value;
 };
+
 export const StageTag: FC<{ stage: string; className?: string }> = (p) => {
   const normalizedStage = normalizeStage(p.stage);
 
@@ -95,7 +147,8 @@ export const StageTag: FC<{ stage: string; className?: string }> = (p) => {
       value={normalizedStage}
       dotStyles={STAGE_DOT}
       pillStyles={STAGE_PILL}
-      labels={STAGE_LABEL}
+      labelKeys={STAGE_LABEL_KEY}
+      fallbackLabels={STAGE_FALLBACK}
       className={p.className}
     />
   );
@@ -108,6 +161,8 @@ const INSTANCE_DOT: Record<string, string> = {
   SENT: "bg-blue-500",
   COMPLETED: "bg-emerald-500",
   EXPIRED: "bg-red-500",
+  CANCELLED: "bg-slate-500",
+  CANCELED: "bg-slate-500",
 };
 
 const INSTANCE_PILL: Record<string, string> = {
@@ -117,14 +172,28 @@ const INSTANCE_PILL: Record<string, string> = {
   COMPLETED:
     "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200",
   EXPIRED: "bg-red-50 text-red-700 ring-1 ring-inset ring-red-200",
+  CANCELLED: "bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200",
+  CANCELED: "bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200",
 };
 
-const INSTANCE_LABEL: Record<string, string> = {
+const INSTANCE_LABEL_KEY: Record<string, string> = {
+  SCHEDULED: "survey.status.instance.scheduled",
+  PENDING: "survey.status.instance.pending",
+  SENT: "survey.status.instance.sent",
+  COMPLETED: "survey.status.instance.completed",
+  EXPIRED: "survey.status.instance.expired",
+  CANCELLED: "survey.status.instance.cancelled",
+  CANCELED: "survey.status.instance.cancelled",
+};
+
+const INSTANCE_FALLBACK: Record<string, string> = {
   SCHEDULED: "Scheduled",
   PENDING: "Pending",
   SENT: "Sent",
   COMPLETED: "Completed",
   EXPIRED: "Expired",
+  CANCELLED: "Cancelled",
+  CANCELED: "Cancelled",
 };
 
 export const InstanceStatusTag: FC<{ status: string; className?: string }> = (
@@ -134,7 +203,8 @@ export const InstanceStatusTag: FC<{ status: string; className?: string }> = (
     value={p.status}
     dotStyles={INSTANCE_DOT}
     pillStyles={INSTANCE_PILL}
-    labels={INSTANCE_LABEL}
+    labelKeys={INSTANCE_LABEL_KEY}
+    fallbackLabels={INSTANCE_FALLBACK}
     className={p.className}
   />
 );
