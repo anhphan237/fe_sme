@@ -18,6 +18,8 @@ import type {
   SurveyAnalyticsReportRequest,
   SurveyAnalyticsReport,
   ImportSurveyQuestionsRequest,
+  SurveyAiSummaryPayload,
+  SurveyAiSummaryResponse,
 } from "@/interface/survey";
 
 // ── Template ────────────────────────────────────────────────
@@ -59,6 +61,13 @@ export const apiArchiveSurveyTemplate = (
     params,
   );
 
+/** com.sme.survey.template.delete */
+export const apiDeleteSurveyTemplate = (payload: { templateId: string }) =>
+  gatewayRequest<typeof payload, unknown>(
+    "com.sme.survey.template.delete",
+    payload,
+  );
+
 // ── Question ────────────────────────────────────────────────
 
 /** com.sme.survey.question.create */
@@ -77,12 +86,14 @@ export const apiListSurveyQuestions = (
     params,
   );
 
+/** com.sme.survey.question.update */
 export const apiUpdateSurveyQuestion = (payload: SurveyQuestionUpdateRequest) =>
   gatewayRequest<SurveyQuestionUpdateRequest, unknown>(
     "com.sme.survey.question.update",
     payload,
   );
 
+/** com.sme.survey.question.delete */
 export const apiDeleteSurveyQuestion = (payload: SurveyQuestionDeleteRequest) =>
   gatewayRequest<SurveyQuestionDeleteRequest, unknown>(
     "com.sme.survey.question.delete",
@@ -134,6 +145,13 @@ export const apiGetSurveyInstances = (filters?: SurveyInstanceListRequest) =>
     filters ?? {},
   );
 
+/** com.sme.survey.instance.get */
+export const apiGetSurveyInstance = (payload: { instanceId: string }) =>
+  gatewayRequest<typeof payload, unknown>(
+    "com.sme.survey.instance.get",
+    payload,
+  );
+
 /** com.sme.survey.instance.schedule */
 export const apiScheduleSurvey = (payload: SurveyScheduleRequest) =>
   gatewayRequest<SurveyScheduleRequest, unknown>(
@@ -164,6 +182,19 @@ export const apiListSurveyResponses = (params?: SurveyResponseListRequest) =>
     params ?? {},
   );
 
+/** com.sme.survey.response.saveDraft */
+export const apiSaveSurveyDraft = (payload: {
+  instanceId: string;
+  answers: Array<{
+    questionId: string;
+    value: string | number | string[] | null;
+  }>;
+}) =>
+  gatewayRequest<typeof payload, unknown>(
+    "com.sme.survey.response.saveDraft",
+    payload,
+  );
+
 // ── Reports ────────────────────────────────────────────────
 
 /** com.sme.survey.report.satisfaction */
@@ -184,26 +215,9 @@ export const apiGetSurveyAnalyticsReport = (
     params ?? {},
   );
 
-export const apiGetSurveyInstance = (payload: { instanceId: string }) =>
-  gatewayRequest<typeof payload, unknown>(
-    "com.sme.survey.instance.get",
-    payload,
-  );
-
-export const apiSaveSurveyDraft = (payload: {
-  instanceId: string;
-  answers: Array<{
-    questionId: string;
-    value: string | number | string[] | null;
-  }>;
-}) =>
-  gatewayRequest<typeof payload, unknown>(
-    "com.sme.survey.response.saveDraft",
-    payload,
-  );
-
-export const apiDeleteSurveyTemplate = (payload: { templateId: string }) =>
-  gatewayRequest<typeof payload, unknown>(
-    "com.sme.survey.template.delete",
+/** com.sme.survey.analytics.aiSummary */
+export const apiGetSurveyAiSummary = (payload: SurveyAiSummaryPayload) =>
+  gatewayRequest<SurveyAiSummaryPayload, SurveyAiSummaryResponse>(
+    "com.sme.survey.analytics.aiSummary",
     payload,
   );

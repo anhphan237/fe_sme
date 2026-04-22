@@ -1,4 +1,5 @@
 import { Empty } from "antd";
+import { useLocale } from "@/i18n";
 import type { InsightItem } from "../types/survey-report.types";
 import { formatScore, truncate } from "../utils/survey-report.utils";
 
@@ -18,14 +19,23 @@ const toneMap = {
 };
 
 const SurveyInsightCard = ({ title, items, tone = "danger" }: Props) => {
+  const { t } = useLocale();
   const currentTone = toneMap[tone];
+
+  const tr = (key: string, fallback: string) => {
+    const value = t(key);
+    return value === key ? fallback : value;
+  };
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <h3 className="text-base font-semibold text-[#223A59]">{title}</h3>
 
       {items.length === 0 ? (
-        <Empty className="mt-4" description="No data" />
+        <Empty
+          className="mt-4"
+          description={tr("survey.reports.no_data", "No data")}
+        />
       ) : (
         <div className="mt-4 space-y-3">
           {items.map((item, index) => (
@@ -38,7 +48,9 @@ const SurveyInsightCard = ({ title, items, tone = "danger" }: Props) => {
                   {truncate(item.label, 72)}
                 </div>
                 {item.subtext && (
-                  <div className="mt-1 text-xs text-slate-500">{item.subtext}</div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {item.subtext}
+                  </div>
                 )}
               </div>
 
