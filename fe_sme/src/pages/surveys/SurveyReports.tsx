@@ -1,4 +1,5 @@
-﻿import SurveyReportsFilterBar from "./components/SurveyReportsFilterBar";
+﻿import { useEffect, useRef, useState } from "react";
+import SurveyReportsFilterBar from "./components/SurveyReportsFilterBar";
 import SurveyReportsKpiRow from "./components/SurveyReportsKpiRow";
 import SurveyDimensionChartCard from "./components/SurveyDimensionChartCard";
 import SurveyTrendChartCard from "./components/SurveyTrendChartCard";
@@ -12,6 +13,14 @@ import SurveyExecutiveSummaryCard from "./components/SurveyExecutiveSummaryCard"
 import { useSurveyReportsPage } from "./hooks/useSurveyReportsPage";
 import { useSurveyAiSummary } from "./hooks/useSurveyAiSummary";
 import { useLocale } from "@/i18n";
+
+type SurveyReportFilters = {
+  templateId?: string;
+  startDate?: string;
+  endDate?: string;
+};
+
+const REFRESH_COOLDOWN_MS = 20_000;
 
 const SurveyReports = () => {
   const { t } = useLocale();
@@ -29,27 +38,58 @@ const SurveyReports = () => {
     strengthItems,
     questionTableData,
     setTemplateId,
+    setDateRange,
   } = useSurveyReportsPage();
 
   const aiSummaryMutation = useSurveyAiSummary();
+  const reportFilters = filters as SurveyReportFilters;
 
-  const reportFilters = filters as {
-    templateId?: string;
-    startDate?: string;
-    endDate?: string;
+  const [refreshBlocked, setRefreshBlocked] = useState(false);
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const basePayload = {
+    templateId: reportFilters.templateId || undefined,
+    startDate: reportFilters.startDate || undefined,
+    endDate: reportFilters.endDate || undefined,
+    language: "vi" as const,
+    analytics,
+    riskItems,
+    strengthItems,
+    questionStats: questionTableData,
   };
 
-  const generateAiSummary = (forceRefresh = false) => {
+  const generateAiSummary = () => {
     aiSummaryMutation.mutate({
-      templateId: reportFilters.templateId || undefined,
-      startDate: reportFilters.startDate,
-      endDate: reportFilters.endDate,
-      language: "vi",
-      forceRefresh,
-      analytics,
-      riskItems,
-      strengthItems,
-      questionStats: questionTableData,
+      ...basePayload,
+      forceRefresh: false,
+    });
+  };
+
+  const refreshAiSummary = () => {
+    if (refreshBlocked) return;
+
+    setRefreshBlocked(true);
+
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+    }
+
+    refreshTimeoutRef.current = setTimeout(() => {
+      setRefreshBlocked(false);
+      refreshTimeoutRef.current = null;
+    }, REFRESH_COOLDOWN_MS);
+
+    aiSummaryMutation.mutate({
+      ...basePayload,
+      forceRefresh: true,
     });
   };
 
@@ -58,7 +98,10 @@ const SurveyReports = () => {
       <SurveyReportsFilterBar
         templateOptions={templateOptions}
         templateId={filters.templateId}
+        startDate={filters.startDate}
+        endDate={filters.endDate}
         onTemplateChange={setTemplateId}
+        onDateRangeChange={setDateRange}
       />
 
       <SurveyReportsKpiRow analytics={analytics} loading={analyticsLoading} />
@@ -72,8 +115,9 @@ const SurveyReports = () => {
         loading={analyticsLoading}
         aiSummary={aiSummaryMutation.data ?? null}
         aiLoading={aiSummaryMutation.isPending}
-        onGenerateAi={() => generateAiSummary(false)}
-        onRefreshAi={() => generateAiSummary(false)}
+        onGenerateAi={generateAiSummary}
+        onRefreshAi={refreshAiSummary}
+        refreshBlocked={refreshBlocked}
       />
 
       <SurveyRecommendationCard
@@ -125,7 +169,10 @@ const SurveyReports = () => {
         loading={analyticsLoading}
       />
 
-      <SurveyResponsesTable responses={responses} loading={responsesLoading} />
+      <SurveyResponsesTable
+        responses={responses}
+        loading={responsesLoading}
+      />
     </div>
   );
 };

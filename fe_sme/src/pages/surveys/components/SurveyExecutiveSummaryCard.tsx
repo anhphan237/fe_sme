@@ -33,11 +33,11 @@ type Props = {
   questionStats?: SurveyQuestionStat[];
   stageTrends?: SurveyStageTrend[];
   loading?: boolean;
-
   aiSummary?: SurveyAiSummaryResponse | null;
   aiLoading?: boolean;
   onGenerateAi?: () => void;
   onRefreshAi?: () => void;
+  refreshBlocked?: boolean;
 };
 
 type HealthLevel = "good" | "stable" | "warning";
@@ -48,10 +48,7 @@ const toNumber = (value?: number | string | null) => {
   return Number.isFinite(numberValue) ? numberValue : 0;
 };
 
-const getHealthLevel = (
-  responseRate: number,
-  avgScore: number,
-): HealthLevel => {
+const getHealthLevel = (responseRate: number, avgScore: number): HealthLevel => {
   if (responseRate >= 80 && avgScore >= 4) return "good";
   if (responseRate >= 60 && avgScore >= 3) return "stable";
   return "warning";
@@ -78,6 +75,7 @@ const SurveyExecutiveSummaryCard = ({
   aiLoading,
   onGenerateAi,
   onRefreshAi,
+  refreshBlocked = false,
 }: Props) => {
   const { t } = useLocale();
 
@@ -148,9 +146,7 @@ const SurveyExecutiveSummaryCard = ({
 
   const stageInsight = (() => {
     const normalizeStage = (stage?: string | null) => {
-      const value = String(stage ?? "")
-        .trim()
-        .toUpperCase();
+      const value = String(stage ?? "").trim().toUpperCase();
 
       if (value === "DAY_7" || value === "D7") return "D7";
       if (value === "DAY_30" || value === "D30") return "D30";
@@ -317,11 +313,11 @@ const SurveyExecutiveSummaryCard = ({
   const usingAi = Boolean(aiSummary?.summary);
   const mainSummary = usingAi ? aiSummary?.summary : ruleMainSummary;
   const keyFindings = usingAi
-    ? (aiSummary?.keyFindings ?? [])
+    ? aiSummary?.keyFindings ?? []
     : [ruleScoreSummary, stageInsight].filter(Boolean);
 
   const actionItems = usingAi
-    ? (aiSummary?.recommendedActions ?? [])
+    ? aiSummary?.recommendedActions ?? []
     : ruleActionItems;
 
   const sampleFeedback = textFeedbacks[0];
@@ -372,11 +368,9 @@ const SurveyExecutiveSummaryCard = ({
             {healthMeta.label}
           </Tag>
 
-          {usingAi && (
-            <Tag color={aiSummary?.fromCache ? "blue" : "purple"}>
-              {aiSummary?.fromCache
-                ? tr("survey.reports.summary.from_cache", "Cache")
-                : "AI"}
+          {usingAi && aiSummary?.source && (
+            <Tag color={aiSummary.source === "AI" ? "purple" : "blue"}>
+              {aiSummary.source}
             </Tag>
           )}
 
@@ -385,7 +379,7 @@ const SurveyExecutiveSummaryCard = ({
               icon={<Bot className="h-4 w-4" />}
               loading={aiLoading}
               onClick={onGenerateAi}
-              disabled={!analytics || sentCount === 0}
+              disabled={!analytics}
             >
               {tr("survey.reports.summary.generate_ai", "Tạo tóm tắt AI")}
             </Button>
@@ -394,12 +388,19 @@ const SurveyExecutiveSummaryCard = ({
               icon={<RefreshCcw className="h-4 w-4" />}
               loading={aiLoading}
               onClick={onRefreshAi}
+              disabled={refreshBlocked}
             >
               {tr("survey.reports.summary.refresh_ai", "Làm mới AI")}
             </Button>
           )}
         </div>
       </div>
+
+      {aiSummary?.errorMessage && (
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          {aiSummary.errorMessage}
+        </div>
+      )}
 
       <div className="mt-5 grid gap-4 xl:grid-cols-[1.5fr_0.9fr]">
         <div className="space-y-4 rounded-2xl bg-slate-50 p-4">
@@ -432,10 +433,7 @@ const SurveyExecutiveSummaryCard = ({
             <div>
               <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
                 <AlertTriangle className="h-4 w-4 text-red-500" />
-                {tr(
-                  "survey.reports.summary.risk_explanation",
-                  "Giải thích rủi ro",
-                )}
+                {tr("survey.reports.summary.risk_explanation", "Giải thích rủi ro")}
               </div>
               <p className="text-sm leading-6 text-slate-700">
                 {aiSummary.riskExplanation}
@@ -447,10 +445,7 @@ const SurveyExecutiveSummaryCard = ({
             <div>
               <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
                 <Lightbulb className="h-4 w-4 text-emerald-500" />
-                {tr(
-                  "survey.reports.summary.positive_signal",
-                  "Tín hiệu tích cực",
-                )}
+                {tr("survey.reports.summary.positive_signal", "Tín hiệu tích cực")}
               </div>
               <p className="text-sm leading-6 text-slate-700">
                 {aiSummary.positiveSignal}
