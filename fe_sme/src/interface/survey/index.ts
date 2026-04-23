@@ -215,30 +215,10 @@ export interface SurveyAnalyticsReportRequest {
 
 /** com.sme.survey.analytics.report → response data */
 export interface SurveyAnalyticsReport {
-  totalSurveys?: number;
-  completionRate?: number;
-  averageScore?: number;
-  sentCount?: number;
-  submittedCount?: number;
-  responseRate?: number;
-  overallSatisfactionScore?: number;
-  stageTrends?: Array<{
-    stage?: string;
-    stageCode?: string;
-    submittedCount?: number;
-    responseCount?: number;
-    averageOverall?: number;
-    averageScore?: number;
-  }>;
-  timeTrends?: Array<{
-    bucket?: string;
-    month?: string;
-    submittedCount?: number;
-    responseCount?: number;
-    averageScore?: number;
-    averageOverall?: number;
-  }>;
-  byQuestion?: {
+  totalSurveys: number;
+  completionRate: number;
+  averageScore: number;
+  byQuestion: {
     questionId: string;
     text: string;
     averageRating: number;
@@ -296,7 +276,6 @@ export interface ImportSurveyQuestionsResponse {
   failedRows?: number;
   errors?: ImportSurveyQuestionError[];
 }
-
 export type SurveyAiSummaryPayload = {
   templateId?: string;
   startDate?: string;
@@ -308,12 +287,49 @@ export type SurveyAiSummaryPayload = {
     submittedCount?: number;
     responseRate?: number;
     overallSatisfactionScore?: number;
-    dimensionStats?: unknown[];
-    lowScoreDimensions?: unknown[];
-    topPositiveDimensions?: unknown[];
-    stageTrends?: unknown[];
-    timeTrends?: unknown[];
-    questionStats?: unknown[];
+
+    dimensionStats?: Array<{
+      dimensionCode?: string;
+      questionCount?: number;
+      responseCount?: number;
+      averageScore?: number;
+    }>;
+
+    lowScoreDimensions?: Array<{
+      label?: string;
+      value?: number;
+      subtext?: string;
+    }>;
+
+    topPositiveDimensions?: Array<{
+      label?: string;
+      value?: number;
+      subtext?: string;
+    }>;
+
+    stageTrends?: Array<{
+      stage?: string;
+      submittedCount?: number;
+      averageOverall?: number;
+    }>;
+
+    timeTrends?: Array<{
+      bucket?: string;
+      submittedCount?: number;
+      averageScore?: number;
+    }>;
+
+    questionStats?: Array<{
+      questionId?: string;
+      questionText?: string;
+      questionType?: string;
+      dimensionCode?: string;
+      responseCount?: number;
+      averageScore?: number;
+      completionRate?: number;
+      sampleTexts?: string[];
+    }>;
+
     textFeedbacks?: string[];
   };
 };
@@ -327,4 +343,7 @@ export type SurveyAiSummaryResponse = {
   positiveSignal?: string;
   fromCache?: boolean;
   generatedAt?: string;
+  source?: "AI" | "CACHE" | "FALLBACK" | string;
+  aiAvailable?: boolean;
+  errorMessage?: string;
 };
