@@ -73,4 +73,6 @@ export type InsightItem = {
 
 export type SurveyReportsFilterState = {
   templateId: string;
+  startDate: string;
+  endDate: string;
 };

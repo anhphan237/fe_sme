@@ -11,6 +11,7 @@ import {
   Input,
   Divider,
   Tag,
+  Table,
 } from "antd";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
@@ -59,6 +60,7 @@ import {
   apiChangePlanCompany,
   apiGetSubscriptionHistory,
   apiGetPlatformPlanList,
+  apiGetPlatformPaymentList,
 } from "@/api/platform/platform.api";
 import {
   apiGetCompanyOnboardingFunnel,
@@ -71,6 +73,8 @@ import type {
   PlatformSubscriptionDetailResponse,
   PlatformSubscriptionHistoryResponse,
   PlatformPlanListResponse,
+  PlatformPaymentListResponse,
+  PlatformPaymentItem,
 } from "@/interface/platform";
 import type {
   CompanyOnboardingFunnelResponse,
@@ -211,7 +215,20 @@ const useSubscriptionHistory = (subscriptionId?: string) =>
       (res?.data ?? res) as PlatformSubscriptionHistoryResponse,
     enabled: !!subscriptionId,
   });
-
+const useCompanyPaymentHistory = (companyId?: string, page = 0) =>
+  useQuery({
+    queryKey: ["company-payment-history", companyId, page],
+    queryFn: () =>
+      apiGetPlatformPaymentList({
+        companyId: companyId!,
+        startDate: START_DEFAULT,
+        endDate: TODAY,
+        page,
+        size: 20,
+      }),
+    select: (res: any) => (res?.data ?? res) as PlatformPaymentListResponse,
+    enabled: !!companyId,
+  });
 const usePlanList = () =>
   useQuery({
     queryKey: ["platform-plan-list"],
@@ -258,7 +275,9 @@ const InfoRow = ({
     )}
     <div className="min-w-0 flex-1">
       <p className="text-xs font-medium text-slate-400">{label}</p>
-      <div className="mt-0.5 text-sm font-medium text-slate-800">{children}</div>
+      <div className="mt-0.5 text-sm font-medium text-slate-800">
+        {children}
+      </div>
     </div>
   </div>
 );
@@ -287,6 +306,9 @@ const CompanyDetail = () => {
   const { data: taskCompletion } = useCompanyTaskCompletion(companyId!);
   const { data: subHistory, isLoading: subHistoryLoading } =
     useSubscriptionHistory(company?.subscriptionId);
+  const [paymentPage, setPaymentPage] = useState(1);
+  const { data: paymentHistory, isLoading: paymentHistoryLoading } =
+    useCompanyPaymentHistory(companyId, paymentPage - 1);
   const { data: planList } = usePlanList();
 
   // Helpers
@@ -361,11 +383,18 @@ const CompanyDetail = () => {
       notification.success({
         message: t("platform.company_detail.change_plan_success"),
       });
+
       setChangePlanOpen(false);
       setChangePlanData({ newPlanId: "", billingCycle: "MONTHLY", note: "" });
+
       invalidateCompany();
+
       queryClient.invalidateQueries({
         queryKey: ["subscription-history", company?.subscriptionId],
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ["company-payment-history", companyId],
       });
     },
     onError: () =>
@@ -423,6 +452,15 @@ const CompanyDetail = () => {
   const subStyle =
     SUB_STATUS_STYLE[company?.subscriptionStatus ?? ""] ??
     SUB_STATUS_STYLE.CANCELLED;
+  const PAYMENT_STATUS_STYLE: Record<string, { color: string; label: string }> =
+    {
+      SUCCESS: { color: "green", label: "SUCCESS" },
+      PAID: { color: "green", label: "PAID" },
+      PENDING: { color: "gold", label: "PENDING" },
+      FAILED: { color: "red", label: "FAILED" },
+      CANCELLED: { color: "default", label: "CANCELLED" },
+      REFUNDED: { color: "blue", label: "REFUNDED" },
+    };
 
   if (isError) {
     return (
@@ -433,19 +471,91 @@ const CompanyDetail = () => {
         </p>
         <button
           onClick={() => navigate(-1)}
-          className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium hover:bg-slate-200">
+          className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium hover:bg-slate-200"
+        >
           {t("global.back")}
         </button>
       </div>
     );
   }
+  const paymentColumns = [
+    {
+      title: "Transaction ID",
+      dataIndex: "transactionId",
+      key: "transactionId",
+      width: 180,
+      ellipsis: true,
+      render: (_: string, record: PlatformPaymentItem) =>
+        record.transactionId ?? record.paymentTransactionId ?? "—",
+    },
+    {
+      title: "Invoice ID",
+      dataIndex: "invoiceId",
+      key: "invoiceId",
+      width: 160,
+      ellipsis: true,
+      render: (v: string) => v ?? "—",
+    },
+    {
+      title: "Amount",
+      dataIndex: "amount",
+      key: "amount",
+      width: 140,
+      render: (amount: number, record: PlatformPaymentItem) => {
+        if (amount == null) return "—";
+        return `${amount.toLocaleString("vi-VN")} ${record.currency ?? "VND"}`;
+      },
+    },
+    {
+      title: "Provider",
+      dataIndex: "provider",
+      key: "provider",
+      width: 120,
+      render: (v: string) => v ?? "—",
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      width: 120,
+      render: (status: string) => {
+        const style = PAYMENT_STATUS_STYLE[status ?? ""] ?? {
+          color: "default",
+          label: status ?? "—",
+        };
 
+        return <Tag color={style.color}>{style.label}</Tag>;
+      },
+    },
+    {
+      title: "Failure Reason",
+      dataIndex: "failureReason",
+      key: "failureReason",
+      ellipsis: true,
+      render: (v: string) => v ?? "—",
+    },
+    {
+      title: "Created At",
+      dataIndex: "createdAt",
+      key: "createdAt",
+      width: 170,
+      render: (v: string) => (v ? dayjs(v).format("DD/MM/YYYY HH:mm") : "—"),
+    },
+    {
+      title: "Paid At",
+      dataIndex: "paidAt",
+      key: "paidAt",
+      width: 170,
+      render: (v: string) => (v ? dayjs(v).format("DD/MM/YYYY HH:mm") : "—"),
+    },
+  ];
   return (
     <div className="space-y-5">
       {/* ── Back ── */}
       <button
         onClick={() => navigate("/platform/admin/companies")}
-        className="flex items-center gap-1.5 rounded-xl border border-stroke px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+        className="flex items-center gap-1.5 rounded-xl border border-stroke px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+      >
         <ArrowLeft className="h-4 w-4" />
         {t("global.back")}
       </button>
@@ -469,7 +579,8 @@ const CompanyDetail = () => {
                     {company?.name}
                   </span>
                   <span
-                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${statusStyle.bg} ${statusStyle.text} ${statusStyle.ring}`}>
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${statusStyle.bg} ${statusStyle.text} ${statusStyle.ring}`}
+                  >
                     <span
                       className={`h-1.5 w-1.5 rounded-full ${statusStyle.dot}`}
                     />
@@ -504,7 +615,8 @@ const CompanyDetail = () => {
                   type="default"
                   icon={<Power className="h-3.5 w-3.5" />}
                   loading={activateMutation.isPending}
-                  onClick={() => activateMutation.mutate()}>
+                  onClick={() => activateMutation.mutate()}
+                >
                   {t("platform.company_detail.activate")}
                 </Button>
               )}
@@ -513,13 +625,15 @@ const CompanyDetail = () => {
                   <Button
                     icon={<AlertTriangle className="h-3.5 w-3.5" />}
                     loading={suspendMutation.isPending}
-                    onClick={() => setSuspendModalOpen(true)}>
+                    onClick={() => setSuspendModalOpen(true)}
+                  >
                     {t("platform.company_detail.suspend")}
                   </Button>
                   <Button
                     icon={<PowerOff className="h-3.5 w-3.5" />}
                     loading={deactivateMutation.isPending}
-                    onClick={() => deactivateMutation.mutate()}>
+                    onClick={() => deactivateMutation.mutate()}
+                  >
                     {t("platform.company_detail.deactivate")}
                   </Button>
                 </>
@@ -529,7 +643,8 @@ const CompanyDetail = () => {
                   type="primary"
                   ghost
                   icon={<RefreshCw className="h-3.5 w-3.5" />}
-                  onClick={() => setChangePlanOpen(true)}>
+                  onClick={() => setChangePlanOpen(true)}
+                >
                   {t("platform.company_detail.change_plan")}
                 </Button>
               )}
@@ -537,7 +652,8 @@ const CompanyDetail = () => {
                 danger
                 icon={<Trash2 className="h-3.5 w-3.5" />}
                 loading={deleteMutation.isPending}
-                onClick={handleDelete}>
+                onClick={handleDelete}
+              >
                 {t("global.delete")}
               </Button>
             </div>
@@ -561,27 +677,42 @@ const CompanyDetail = () => {
             <Skeleton active paragraph={{ rows: 4 }} title={false} />
           ) : (
             <div className="space-y-4">
-              <InfoRow icon={Hash} label={t("platform.company_detail.company_id")}>
+              <InfoRow
+                icon={Hash}
+                label={t("platform.company_detail.company_id")}
+              >
                 <span className="font-mono text-xs text-slate-600">
                   {companyId}
                 </span>
               </InfoRow>
               {company?.taxCode && (
-                <InfoRow icon={FileText} label={t("platform.company_detail.tax_code")}>
+                <InfoRow
+                  icon={FileText}
+                  label={t("platform.company_detail.tax_code")}
+                >
                   {company.taxCode}
                 </InfoRow>
               )}
               {company?.address && (
-                <InfoRow icon={MapPin} label={t("platform.company_detail.address")}>
+                <InfoRow
+                  icon={MapPin}
+                  label={t("platform.company_detail.address")}
+                >
                   {company.address}
                 </InfoRow>
               )}
-              <InfoRow icon={Users} label={t("platform.company_detail.user_count")}>
+              <InfoRow
+                icon={Users}
+                label={t("platform.company_detail.user_count")}
+              >
                 <span className="text-base font-bold text-violet-600">
                   {company?.userCount ?? 0}
                 </span>
               </InfoRow>
-              <InfoRow icon={Calendar} label={t("platform.company_detail.registered")}>
+              <InfoRow
+                icon={Calendar}
+                label={t("platform.company_detail.registered")}
+              >
                 {company?.createdAt
                   ? dayjs(company.createdAt).format("DD MMM YYYY")
                   : "—"}
@@ -604,21 +735,29 @@ const CompanyDetail = () => {
             <Skeleton active paragraph={{ rows: 4 }} title={false} />
           ) : company?.subscriptionId ? (
             <div className="space-y-4">
-              <InfoRow icon={CreditCard} label={t("platform.company_detail.plan")}>
+              <InfoRow
+                icon={CreditCard}
+                label={t("platform.company_detail.plan")}
+              >
                 <span className="font-semibold text-slate-800">
                   {company.planName ?? company.planCode ?? "—"}
                 </span>
               </InfoRow>
               <InfoRow
                 icon={CheckCircle2}
-                label={t("platform.company_detail.subscription_status")}>
+                label={t("platform.company_detail.subscription_status")}
+              >
                 <span
-                  className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${subStyle.bg} ${subStyle.text}`}>
+                  className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${subStyle.bg} ${subStyle.text}`}
+                >
                   {tSubStatus(company.subscriptionStatus)}
                 </span>
               </InfoRow>
-              {(subDetail?.billingCycle) && (
-                <InfoRow icon={RotateCcw} label={t("platform.company_detail.billing_cycle")}>
+              {subDetail?.billingCycle && (
+                <InfoRow
+                  icon={RotateCcw}
+                  label={t("platform.company_detail.billing_cycle")}
+                >
                   {subDetail.billingCycle === "MONTHLY"
                     ? t("platform.company_detail.billing_monthly")
                     : subDetail.billingCycle === "YEARLY"
@@ -627,10 +766,15 @@ const CompanyDetail = () => {
                 </InfoRow>
               )}
               {(subDetail?.currentPeriodStart || company.currentPeriodEnd) && (
-                <InfoRow icon={CalendarDays} label={t("platform.company_detail.billing_period")}>
+                <InfoRow
+                  icon={CalendarDays}
+                  label={t("platform.company_detail.billing_period")}
+                >
                   <span>
                     {subDetail?.currentPeriodStart
-                      ? dayjs(subDetail.currentPeriodStart).format("DD MMM YYYY")
+                      ? dayjs(subDetail.currentPeriodStart).format(
+                          "DD MMM YYYY",
+                        )
                       : "—"}
                     {" → "}
                     {company.currentPeriodEnd
@@ -640,14 +784,20 @@ const CompanyDetail = () => {
                 </InfoRow>
               )}
               {subDetail !== undefined && (
-                <InfoRow icon={RotateCcw} label={t("platform.company_detail.auto_renew")}>
+                <InfoRow
+                  icon={RotateCcw}
+                  label={t("platform.company_detail.auto_renew")}
+                >
                   <Tag color={subDetail?.autoRenew ? "green" : "default"}>
                     {subDetail?.autoRenew ? t("global.yes") : t("global.no")}
                   </Tag>
                 </InfoRow>
               )}
               <Divider className="my-2" />
-              <InfoRow icon={Hash} label={t("platform.company_detail.subscription_id")}>
+              <InfoRow
+                icon={Hash}
+                label={t("platform.company_detail.subscription_id")}
+              >
                 <span className="font-mono text-xs text-slate-500">
                   {company.subscriptionId}
                 </span>
@@ -663,7 +813,35 @@ const CompanyDetail = () => {
           )}
         </Card>
       </div>
+      <Card>
+        <div className="mb-4 flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100">
+            <CreditCard className="h-4 w-4 text-emerald-600" />
+          </div>
+          <p className="text-sm font-semibold text-slate-700">
+            Lịch sử thanh toán
+          </p>
+        </div>
 
+        <Table
+          dataSource={paymentHistory?.items ?? []}
+          columns={paymentColumns}
+          rowKey={(record: PlatformPaymentItem) =>
+            record.transactionId ??
+            record.paymentTransactionId ??
+            `${record.invoiceId}-${record.createdAt}`
+          }
+          loading={paymentHistoryLoading}
+          scroll={{ x: 1000 }}
+          pagination={{
+            current: paymentPage,
+            pageSize: 20,
+            total: paymentHistory?.total ?? 0,
+            showSizeChanger: false,
+            onChange: setPaymentPage,
+          }}
+        />
+      </Card>
       {/* ── KPI Row ── */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <KpiCard
@@ -723,7 +901,8 @@ const CompanyDetail = () => {
                             outerRadius={85}
                             label={({ name, percent }) =>
                               `${name} ${(percent * 100).toFixed(0)}%`
-                            }>
+                            }
+                          >
                             {funnelData.map((_, i) => (
                               <Cell
                                 key={i}
@@ -756,7 +935,8 @@ const CompanyDetail = () => {
                       ].map((row) => (
                         <div
                           key={row.label}
-                          className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+                          className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3"
+                        >
                           <div className="flex items-center gap-2">
                             <span
                               className={`h-2.5 w-2.5 rounded-full ${row.color}`}
@@ -804,7 +984,8 @@ const CompanyDetail = () => {
                           total: d.totalTasks,
                           completed: d.completedTasks,
                         }))}
-                        margin={{ top: 5, right: 20, left: 0, bottom: 40 }}>
+                        margin={{ top: 5, right: 20, left: 0, bottom: 40 }}
+                      >
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis
                           dataKey="name"
@@ -856,7 +1037,8 @@ const CompanyDetail = () => {
                             return (
                               <tr
                                 key={d.departmentId}
-                                className="border-t border-stroke">
+                                className="border-t border-stroke"
+                              >
                                 <td className="px-4 py-2 font-medium">
                                   {d.departmentName}
                                 </td>
@@ -931,7 +1113,8 @@ const CompanyDetail = () => {
                         {subHistory.items.map((item) => (
                           <tr
                             key={item.historyId}
-                            className="border-t border-stroke hover:bg-slate-50">
+                            className="border-t border-stroke hover:bg-slate-50"
+                          >
                             <td className="px-4 py-3 text-slate-500">
                               {item.oldPlanCode || "—"}
                             </td>
@@ -954,7 +1137,9 @@ const CompanyDetail = () => {
                             </td>
                             <td className="px-4 py-3 text-slate-500">
                               {item.effectiveFrom
-                                ? dayjs(item.effectiveFrom).format("DD MMM YYYY")
+                                ? dayjs(item.effectiveFrom).format(
+                                    "DD MMM YYYY",
+                                  )
                                 : "—"}
                               {item.effectiveTo
                                 ? ` → ${dayjs(item.effectiveTo).format("DD MMM YYYY")}`
@@ -984,7 +1169,8 @@ const CompanyDetail = () => {
         confirmLoading={suspendMutation.isPending}
         okButtonProps={{ danger: true }}
         okText={t("platform.company_detail.suspend")}
-        cancelText={t("global.cancel")}>
+        cancelText={t("global.cancel")}
+      >
         <div className="space-y-4 py-2">
           <div className="flex items-start gap-3 rounded-xl bg-amber-50 p-3">
             <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
@@ -1017,7 +1203,8 @@ const CompanyDetail = () => {
         confirmLoading={changePlanMutation.isPending}
         okText={t("global.save")}
         cancelText={t("global.cancel")}
-        okButtonProps={{ disabled: !changePlanData.newPlanId }}>
+        okButtonProps={{ disabled: !changePlanData.newPlanId }}
+      >
         <div className="space-y-4 py-2">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">

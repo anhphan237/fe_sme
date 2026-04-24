@@ -613,7 +613,7 @@ const SurveySendDrawer = ({ open, onClose }: Props) => {
       {selectModalOpen && (
         <SelectOnboardingModal
           open={selectModalOpen}
-          selectedIds={selectedOnboardings.map((item) => item.onboardingId)}
+          selectedIds={selectedOnboardings.map((item) => item.instanceId)}
           targetRole={modalTargetRole}
           onClose={() => setSelectModalOpen(false)}
           onConfirm={handleConfirmEmployees}

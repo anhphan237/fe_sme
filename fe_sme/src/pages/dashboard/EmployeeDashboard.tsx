@@ -1,24 +1,23 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
-  Badge,
   Button,
   Card,
-  Collapse,
   Drawer,
   Empty,
   Progress,
   Skeleton,
+  Table,
   Tag,
   Tooltip,
   Typography,
 } from "antd";
 import dayjs from "dayjs";
 import {
-  AlertCircle,
   AlertTriangle,
+  ArrowRight,
   BellRing,
   Calendar,
   CalendarClock,
@@ -26,15 +25,16 @@ import {
   CircleDashed,
   ClipboardList,
   Clock,
+  FileText,
   Layers,
   Paperclip,
+  RefreshCcw,
   ThumbsDown,
-  User,
   UserCheck,
 } from "lucide-react";
+
 import { useLocale } from "@/i18n";
 import { useUserStore } from "@/stores/user.store";
-import { AppLoading } from "@/components/page-loading";
 import {
   apiAcknowledgeTask,
   apiGetTaskDetailFull,
@@ -47,40 +47,239 @@ import { mapInstance, mapTask } from "@/utils/mappers/onboarding";
 import { notify } from "@/utils/notify";
 import type { OnboardingInstance, OnboardingTask } from "@/shared/types";
 import type { TaskDetailResponse } from "@/interface/onboarding";
+import { AppRouters } from "@/constants/router";
 
 const STATUS_DONE_API = "DONE";
+const STATUS_IN_PROGRESS_API = "IN_PROGRESS";
+
+type Tone = "teal" | "emerald" | "amber" | "rose" | "indigo" | "slate" | "sky";
+
+function toRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function getAnyString(obj: unknown, keys: string[]): string | undefined {
+  const record = toRecord(obj);
+
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+
+  return undefined;
+}
+
+function getAnyNumber(obj: unknown, keys: string[], fallback = 0): number {
+  const record = toRecord(obj);
+
+  for (const key of keys) {
+    const value = record[key];
+
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === "string") {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+
+  return fallback;
+}
+
+function normalizePercent(value: unknown, fallback = 0): number {
+  const raw = Number(value);
+  const safe = Number.isFinite(raw) ? raw : fallback;
+  const pct = safe > 0 && safe <= 1 ? safe * 100 : safe;
+
+  return Math.max(0, Math.min(100, Math.round(pct)));
+}
+
+function upper(value?: string | null) {
+  return value?.trim().toUpperCase() ?? "";
+}
 
 function isOverdue(dueDate?: string) {
   if (!dueDate) return false;
   return dayjs(dueDate).isBefore(dayjs(), "day");
 }
 
-function taskStatusVariant(
-  rawStatus?: string,
-): "success" | "processing" | "warning" | "error" {
-  switch (rawStatus) {
-    case "DONE":
-      return "success";
-    case "IN_PROGRESS":
-      return "processing";
-    case "PENDING_APPROVAL":
-    case "WAIT_ACK":
-      return "warning";
+function isDueSoon(dueDate?: string) {
+  if (!dueDate) return false;
+
+  const due = dayjs(dueDate);
+
+  return (
+    due.isSame(dayjs(), "day") ||
+    (due.isAfter(dayjs(), "day") && due.diff(dayjs(), "day") <= 3)
+  );
+}
+
+function getCurrentEmployeeId(user: unknown) {
+  return getAnyString(user, [
+    "employeeId",
+    "userId",
+    "id",
+    "operatorId",
+    "accountId",
+  ]);
+}
+
+function getCurrentUserName(user: unknown) {
+  return getAnyString(user, ["fullName", "name", "username", "email"]);
+}
+
+function getInstanceId(instance: OnboardingInstance) {
+  return getAnyString(instance, ["id", "instanceId", "onboardingId"]);
+}
+
+function getInstanceStatus(instance?: OnboardingInstance | null) {
+  return getAnyString(instance, ["status"]) ?? "—";
+}
+
+function getInstanceProgress(instance?: OnboardingInstance | null) {
+  if (!instance) return 0;
+  return normalizePercent(
+    getAnyNumber(instance, ["progress", "progressPercent"], 0),
+  );
+}
+
+function getInstanceStartDate(instance?: OnboardingInstance | null) {
+  return getAnyString(instance, ["startDate", "startedAt", "createdAt"]);
+}
+
+function getInstanceManagerName(instance?: OnboardingInstance | null) {
+  return getAnyString(instance, ["managerName", "managerFullName"]);
+}
+
+function getTaskId(task: OnboardingTask) {
+  return (
+    getAnyString(task, ["id", "taskId", "taskInstanceId"]) ??
+    `${getTaskTitle(task)}-${getTaskDueDate(task) ?? "no-due"}`
+  );
+}
+
+function getTaskTitle(task: OnboardingTask) {
+  return getAnyString(task, ["title", "taskName", "name"]) ?? "—";
+}
+
+function getTaskDescription(task: OnboardingTask) {
+  return getAnyString(task, ["description", "note", "content"]);
+}
+
+function getTaskStatus(task: OnboardingTask) {
+  return getAnyString(task, ["rawStatus", "status", "taskStatus"]) ?? "PENDING";
+}
+
+function getTaskApprovalStatus(task: OnboardingTask) {
+  return getAnyString(task, ["approvalStatus"]);
+}
+
+function getTaskScheduleStatus(task: OnboardingTask) {
+  return getAnyString(task, ["scheduleStatus"]);
+}
+
+function getTaskDueDate(task: OnboardingTask) {
+  return getAnyString(task, ["dueDate", "deadline", "scheduledEndAt"]);
+}
+
+function getTaskOnboardingId(task: OnboardingTask) {
+  return getAnyString(task, [
+    "onboardingId",
+    "instanceId",
+    "onboardingInstanceId",
+  ]);
+}
+
+function isTaskDone(task: OnboardingTask) {
+  const status = upper(getTaskStatus(task));
+  return status === "DONE" || status === "COMPLETED";
+}
+
+function isTaskInProgress(task: OnboardingTask) {
+  return upper(getTaskStatus(task)) === "IN_PROGRESS";
+}
+
+function isTaskWaitingAck(task: OnboardingTask) {
+  const status = upper(getTaskStatus(task));
+  return status === "WAIT_ACK" || status === "WAITING_ACK";
+}
+
+function isTaskPendingApproval(task: OnboardingTask) {
+  return upper(getTaskStatus(task)) === "PENDING_APPROVAL";
+}
+
+function isTaskRejected(task: OnboardingTask) {
+  return upper(getTaskApprovalStatus(task)) === "REJECTED";
+}
+
+function isTaskOverdue(task: OnboardingTask) {
+  if (isTaskDone(task)) return false;
+  return isOverdue(getTaskDueDate(task));
+}
+
+function isTaskDueSoon(task: OnboardingTask) {
+  if (isTaskDone(task)) return false;
+  return isDueSoon(getTaskDueDate(task));
+}
+
+function taskStatusColor(task: OnboardingTask) {
+  if (isTaskDone(task)) return "green";
+  if (isTaskRejected(task)) return "red";
+  if (isTaskOverdue(task)) return "red";
+  if (isTaskDueSoon(task)) return "gold";
+  if (isTaskInProgress(task)) return "blue";
+  if (isTaskPendingApproval(task)) return "purple";
+  if (isTaskWaitingAck(task)) return "orange";
+
+  return "default";
+}
+
+function instanceStatusColor(status?: string) {
+  switch (upper(status)) {
+    case "ACTIVE":
+      return "blue";
+    case "COMPLETED":
+      return "green";
+    case "CANCELLED":
+    case "CANCELED":
+      return "red";
+    case "OVERDUE":
+    case "RISK":
+      return "volcano";
+    case "DRAFT":
     default:
-      return "warning";
+      return "default";
   }
 }
 
+function taskStatusLabel(status?: string) {
+  switch (upper(status)) {
+    case "DONE":
+    case "COMPLETED":
+      return "Completed";
+    case "IN_PROGRESS":
+      return "In progress";
+    case "PENDING_APPROVAL":
+      return "Pending approval";
+    case "WAIT_ACK":
+    case "WAITING_ACK":
+      return "Waiting acknowledgment";
+    case "TODO":
+    case "ASSIGNED":
+      return "Assigned";
+    case "PENDING":
+      return "Pending";
+    default:
+      return status || "Pending";
+  }
+}
 
-export default function EmployeeDashboard() {
-  const { t } = useLocale();
-  const queryClient = useQueryClient();
-  const currentUser = useUserStore((s) => s.currentUser);
-  const employeeId = currentUser?.employeeId ?? currentUser?.id ?? undefined;
-
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-
-  const { data: instances = [], isLoading: instancesLoading } = useQuery({
+function useEmployeeInstancesQuery(employeeId?: string) {
+  return useQuery({
     queryKey: ["employee-instances", employeeId ?? ""],
     queryFn: () => apiListInstances({ employeeId }),
     enabled: Boolean(employeeId),
@@ -92,25 +291,10 @@ export default function EmployeeDashboard() {
         "list",
       ).map(mapInstance) as OnboardingInstance[],
   });
+}
 
-  const latestInstance = useMemo(() => {
-    if (!instances.length) return null;
-    const rank: Record<string, number> = {
-      ACTIVE: 0,
-      DRAFT: 1,
-      PENDING: 1,
-      COMPLETED: 2,
-      CANCELLED: 3,
-    };
-    return [...instances].sort((a, b) => {
-      const rd = (rank[a.status] ?? 99) - (rank[b.status] ?? 99);
-      if (rd !== 0) return rd;
-      return new Date(b.startDate).getTime() - new Date(a.startDate).getTime();
-    })[0];
-  }, [instances]);
-
-  // Employee tasks — ALWAYS via listByAssignee (current operator = logged-in employee)
-  const { data: allAssigneeTasks = [], isLoading: tasksLoading, isFetching: tasksFetching } = useQuery({
+function useEmployeeTasksQuery(employeeId?: string) {
+  return useQuery({
     queryKey: ["employee-tasks-by-assignee", employeeId ?? ""],
     queryFn: () =>
       apiListTasksByAssignee({
@@ -128,25 +312,18 @@ export default function EmployeeDashboard() {
         "list",
       ).map(mapTask) as OnboardingTask[],
   });
+}
 
-  // Focus statistics on the active instance when available; otherwise show all
-  const tasks = useMemo(() => {
-    if (!latestInstance?.id) return allAssigneeTasks;
-    return allAssigneeTasks.filter(
-      (t) => !t.onboardingId || t.onboardingId === latestInstance.id,
-    );
-  }, [allAssigneeTasks, latestInstance?.id]);
-
-
-  const { data: taskDetail, isLoading: taskDetailLoading, isFetching: taskDetailFetching } = useQuery({
-    queryKey: ["employee-task-detail", selectedTaskId ?? ""],
+function useTaskDetailQuery(taskId?: string | null) {
+  return useQuery({
+    queryKey: ["employee-task-detail", taskId ?? ""],
     queryFn: () =>
-      apiGetTaskDetailFull(selectedTaskId!, {
+      apiGetTaskDetailFull(taskId!, {
         includeComments: true,
         includeAttachments: true,
         includeActivityLogs: true,
       }),
-    enabled: Boolean(selectedTaskId),
+    enabled: Boolean(taskId),
     select: (res: unknown) => {
       const r = res as Record<string, unknown>;
       const raw = r?.task ?? r?.data ?? r?.result ?? r?.payload ?? res;
@@ -154,16 +331,187 @@ export default function EmployeeDashboard() {
       return raw as TaskDetailResponse;
     },
   });
+}
 
-  // ── Mutations ───────────────────────────────────────────────
+function KpiCard({
+  label,
+  value,
+  sub,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  icon: ReactNode;
+  tone: Tone;
+}) {
+  const toneClass: Record<Tone, string> = {
+    teal: "bg-teal-50 text-teal-700",
+    emerald: "bg-emerald-50 text-emerald-700",
+    amber: "bg-amber-50 text-amber-700",
+    rose: "bg-rose-50 text-rose-700",
+    indigo: "bg-indigo-50 text-indigo-700",
+    slate: "bg-slate-50 text-slate-700",
+    sky: "bg-sky-50 text-sky-700",
+  };
+
+  return (
+    <Card
+      size="small"
+      className="overflow-hidden border border-stroke bg-white shadow-sm transition-shadow hover:shadow-md"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+            {label}
+          </p>
+          <p className="mt-2 text-2xl font-bold tabular-nums text-ink">
+            {value}
+          </p>
+          {sub && <p className="mt-0.5 text-xs text-muted">{sub}</p>}
+        </div>
+        <div className={`rounded-xl p-2.5 ${toneClass[tone]}`}>{icon}</div>
+      </div>
+    </Card>
+  );
+}
+
+function ActionItem({
+  icon,
+  title,
+  value,
+  tone,
+}: {
+  icon: ReactNode;
+  title: string;
+  value: number;
+  tone: "red" | "amber" | "blue" | "green" | "slate";
+}) {
+  const toneClass = {
+    red: "border-red-200 bg-red-50 text-red-700",
+    amber: "border-amber-200 bg-amber-50 text-amber-700",
+    blue: "border-blue-200 bg-blue-50 text-blue-700",
+    green: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    slate: "border-slate-200 bg-slate-50 text-slate-700",
+  }[tone];
+
+  return (
+    <div
+      className={`flex items-center justify-between rounded-xl border px-3 py-3 ${toneClass}`}
+    >
+      <div className="flex items-center gap-3">
+        <div className="rounded-lg bg-white/70 p-2">{icon}</div>
+        <span className="text-sm font-medium">{title}</span>
+      </div>
+      <span className="text-lg font-bold tabular-nums">{value}</span>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value?: ReactNode }) {
+  return (
+    <div className="rounded-xl bg-slate-50 p-3">
+      <p className="text-xs font-medium text-slate-400">{label}</p>
+      <div className="mt-1 text-sm font-medium text-slate-800">
+        {value || "—"}
+      </div>
+    </div>
+  );
+}
+
+export default function EmployeeDashboard() {
+  const { t } = useLocale();
+  const queryClient = useQueryClient();
+  const currentUser = useUserStore((s) => s.currentUser);
+
+  const tr = (key: string, fallback: string) => {
+    const value = t(key);
+    return value === key ? fallback : value;
+  };
+
+  const formatMsg = (
+    key: string,
+    fallback: string,
+    params: Record<string, string | number>,
+  ) => {
+    let text = tr(key, fallback);
+
+    Object.entries(params).forEach(([k, v]) => {
+      text = text.replaceAll(`{${k}}`, String(v));
+    });
+
+    return text;
+  };
+
+  const employeeId = getCurrentEmployeeId(currentUser);
+  const employeeName = getCurrentUserName(currentUser) ?? "Employee";
+
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  const { data: instances = [], isLoading: instancesLoading } =
+    useEmployeeInstancesQuery(employeeId);
+
+  const {
+    data: allAssigneeTasks = [],
+    isLoading: tasksLoading,
+    isFetching: tasksFetching,
+  } = useEmployeeTasksQuery(employeeId);
+
+  const {
+    data: taskDetail,
+    isLoading: taskDetailLoading,
+    isFetching: taskDetailFetching,
+  } = useTaskDetailQuery(selectedTaskId);
+
+  const latestInstance = useMemo(() => {
+    if (!instances.length) return null;
+
+    const rank: Record<string, number> = {
+      ACTIVE: 0,
+      DRAFT: 1,
+      PENDING: 1,
+      COMPLETED: 2,
+      CANCELLED: 3,
+      CANCELED: 3,
+    };
+
+    return [...instances].sort((a, b) => {
+      const aStatus = upper(a.status);
+      const bStatus = upper(b.status);
+
+      const rd = (rank[aStatus] ?? 99) - (rank[bStatus] ?? 99);
+      if (rd !== 0) return rd;
+
+      return (
+        dayjs(getInstanceStartDate(b)).valueOf() -
+        dayjs(getInstanceStartDate(a)).valueOf()
+      );
+    })[0];
+  }, [instances]);
+
+  const tasks = useMemo(() => {
+    const latestId = getInstanceId(
+      latestInstance ?? ({} as OnboardingInstance),
+    );
+
+    if (!latestId) return allAssigneeTasks;
+
+    return allAssigneeTasks.filter((task) => {
+      const taskOnboardingId = getTaskOnboardingId(task);
+      return !taskOnboardingId || taskOnboardingId === latestId;
+    });
+  }, [allAssigneeTasks, latestInstance]);
 
   const invalidateTasks = () => {
     queryClient.invalidateQueries({
       queryKey: ["employee-tasks-by-assignee", employeeId ?? ""],
     });
+
     queryClient.invalidateQueries({
       queryKey: ["employee-instances", employeeId ?? ""],
     });
+
     if (selectedTaskId) {
       queryClient.invalidateQueries({
         queryKey: ["employee-task-detail", selectedTaskId],
@@ -171,1476 +519,777 @@ export default function EmployeeDashboard() {
     }
   };
 
-  const updateTaskStatus = useMutation({
+  const updateTaskStatusMutation = useMutation({
     mutationFn: ({ taskId, status }: { taskId: string; status: string }) =>
       apiUpdateTaskStatus(taskId, status),
+    onSuccess: () => {
+      invalidateTasks();
+      notify.success(
+        tr(
+          "dashboard.employee.notify.update_success",
+          "Cập nhật task thành công",
+        ),
+      );
+    },
+    onError: () => {
+      notify.error(tr("dashboard.employee.notify.error", "Có lỗi xảy ra"));
+    },
   });
 
   const acknowledgeMutation = useMutation({
     mutationFn: (taskId: string) => apiAcknowledgeTask({ taskId }),
     onSuccess: () => {
       invalidateTasks();
-      notify.success(t("dashboard.employee.notify.ack_success"));
+      notify.success(
+        tr("dashboard.employee.notify.ack_success", "Đã xác nhận task"),
+      );
     },
-    onError: () => notify.error(t("dashboard.employee.notify.error")),
+    onError: () => {
+      notify.error(tr("dashboard.employee.notify.error", "Có lỗi xảy ra"));
+    },
   });
-
-  // ── Derived stats ────────────────────────────────────────────
 
   const totalTasks = tasks.length;
-  const completedTasks = tasks.filter((t) => t.rawStatus === "DONE").length;
-  const pendingList = tasks.filter((t) => t.rawStatus !== "DONE");
-  const overdueList = pendingList.filter((t) => isOverdue(t.dueDate));
-  const dueSoonList = pendingList.filter((t) => {
-    if (!t.dueDate) return false;
-    const ms = dayjs(t.dueDate).diff(dayjs(), "millisecond");
-    return ms >= 0 && ms <= 3 * 24 * 60 * 60 * 1000;
+  const completedTasks = tasks.filter(isTaskDone).length;
+  const pendingTasks = tasks.filter((task) => !isTaskDone(task));
+  const overdueTasks = pendingTasks.filter(isTaskOverdue);
+  const dueSoonTasks = pendingTasks.filter(isTaskDueSoon);
+  const rejectedTasks = allAssigneeTasks.filter(isTaskRejected);
+  const scheduledTasks = allAssigneeTasks.filter((task) => {
+    const status = upper(getTaskScheduleStatus(task));
+    return status === "PROPOSED" || status === "CONFIRMED";
   });
 
-  // Rejected tasks: tasks where approvalStatus === "REJECTED"
-  const rejectedTasks = useMemo(
-    () => allAssigneeTasks.filter((t) => t.approvalStatus === "REJECTED"),
-    [allAssigneeTasks],
-  );
-
-  // Upcoming scheduled tasks: scheduleStatus PROPOSED or CONFIRMED
-  const scheduledTasks = useMemo(
-    () =>
-      allAssigneeTasks.filter(
-        (t) =>
-          t.scheduleStatus === "PROPOSED" || t.scheduleStatus === "CONFIRMED",
-      ),
-    [allAssigneeTasks],
-  );
-
-  // Use latestInstance.progress from BE when available, fallback to manual calc
   const completionPct = useMemo(() => {
-    if (latestInstance && (latestInstance.progress ?? 0) > 0)
-      return latestInstance.progress;
+    const instanceProgress = getInstanceProgress(latestInstance);
+
+    if (instanceProgress > 0) return instanceProgress;
+
     return totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   }, [latestInstance, totalTasks, completedTasks]);
 
-
-  const daysInOnboarding = latestInstance?.startDate
-    ? dayjs().diff(dayjs(latestInstance.startDate), "day") + 1
+  const daysInOnboarding = latestInstance
+    ? dayjs().diff(dayjs(getInstanceStartDate(latestInstance)), "day") + 1
     : null;
 
   const tasksByStatus = useMemo(
     () => ({
-      todo: tasks.filter(
-        (t) => !t.rawStatus || ["TODO", "ASSIGNED"].includes(t.rawStatus),
-      ).length,
-      inProgress: tasks.filter((t) => t.rawStatus === "IN_PROGRESS").length,
-      waitAck: tasks.filter((t) => t.rawStatus === "WAIT_ACK").length,
-      pendingApproval: tasks.filter((t) => t.rawStatus === "PENDING_APPROVAL")
-        .length,
+      todo: tasks.filter((task) => {
+        const status = upper(getTaskStatus(task));
+        return (
+          !status ||
+          status === "TODO" ||
+          status === "ASSIGNED" ||
+          status === "PENDING"
+        );
+      }).length,
+      inProgress: tasks.filter(isTaskInProgress).length,
+      waitAck: tasks.filter(isTaskWaitingAck).length,
+      pendingApproval: tasks.filter(isTaskPendingApproval).length,
       done: completedTasks,
     }),
     [tasks, completedTasks],
   );
 
-  const stageProgress = useMemo(() => {
-    const groups: Record<
-      string,
-      { name: string; total: number; done: number }
-    > = {};
-    for (const task of tasks) {
-      const key = task.checklistName ?? t("dashboard.employee.other_tasks");
-      if (!groups[key]) groups[key] = { name: key, total: 0, done: 0 };
-      groups[key].total++;
-      if (task.rawStatus === "DONE") groups[key].done++;
-    }
-    return Object.values(groups);
-  }, [tasks]);
+  const priorityTasks = useMemo(() => {
+    const map = new Map<string, OnboardingTask>();
 
-  // Timeline: simple start → estimated completion
-  const timelineData = useMemo(() => {
-    if (!latestInstance?.startDate) return null;
-    const startDate = latestInstance.startDate;
-    let estimatedEndDate: string | null = null;
-    if (totalTasks > 0 && completedTasks > 0 && daysInOnboarding) {
-      const estimatedTotal = Math.round(
-        daysInOnboarding * (totalTasks / completedTasks),
-      );
-      estimatedEndDate = dayjs(startDate)
-        .add(estimatedTotal, "day")
-        .format("DD/MM/YYYY");
-    }
-    return { startDate, estimatedEndDate };
-  }, [latestInstance?.startDate, totalTasks, completedTasks, daysInOnboarding]);
+    [
+      ...overdueTasks,
+      ...dueSoonTasks,
+      ...rejectedTasks,
+      ...pendingTasks,
+    ].forEach((task) => {
+      map.set(getTaskId(task), task);
+    });
 
-  const urgentTasks = useMemo(() => {
-    const score = (t: OnboardingTask) => {
-      if (!t.dueDate) return 999999999;
-      const due = new Date(t.dueDate).getTime();
-      return (due < Date.now() ? -1000000000 : 0) + due;
-    };
-    return [...pendingList].sort((a, b) => score(a) - score(b)).slice(0, 8);
-  }, [pendingList]);
+    return Array.from(map.values()).slice(0, 8);
+  }, [overdueTasks, dueSoonTasks, rejectedTasks, pendingTasks]);
 
-  const actionNeededTasks = useMemo(
+  const upcomingTasks = useMemo(
     () =>
-      pendingList.filter(
-        (t) => t.rawStatus === "WAIT_ACK" || t.rawStatus === "PENDING_APPROVAL",
-      ),
-    [pendingList],
+      pendingTasks
+        .filter((task) => getTaskDueDate(task))
+        .sort((a, b) =>
+          String(getTaskDueDate(a)).localeCompare(String(getTaskDueDate(b))),
+        )
+        .slice(0, 6),
+    [pendingTasks],
   );
 
-  // ── Handlers ────────────────────────────────────────────────
+  const kpis = [
+    {
+      label: tr("dashboard.employee.kpi.progress", "Tiến độ onboarding"),
+      value: `${completionPct}%`,
+      sub: latestInstance
+        ? `${getInstanceStatus(latestInstance)} • ${totalTasks} task`
+        : tr("dashboard.employee.kpi.no_onboarding", "Chưa có onboarding"),
+      icon: <Layers className="h-4 w-4" />,
+      tone: "teal" as const,
+    },
+    {
+      label: tr("dashboard.employee.kpi.completed_tasks", "Task đã hoàn thành"),
+      value: `${completedTasks}/${totalTasks}`,
+      sub: tr(
+        "dashboard.employee.kpi.current_onboarding",
+        "Trong onboarding hiện tại",
+      ),
+      icon: <CheckCircle2 className="h-4 w-4" />,
+      tone: "emerald" as const,
+    },
+    {
+      label: tr("dashboard.employee.kpi.pending_tasks", "Task cần xử lý"),
+      value: String(pendingTasks.length),
+      sub: tr("dashboard.employee.kpi.pending_desc", "Chưa hoàn thành"),
+      icon: <ClipboardList className="h-4 w-4" />,
+      tone: "amber" as const,
+    },
+    {
+      label: tr("dashboard.employee.kpi.overdue", "Quá hạn"),
+      value: String(overdueTasks.length),
+      sub: tr("dashboard.employee.kpi.overdue_desc", "Cần xử lý ngay"),
+      icon: <AlertTriangle className="h-4 w-4" />,
+      tone: overdueTasks.length > 0 ? ("rose" as const) : ("slate" as const),
+    },
+    {
+      label: tr("dashboard.employee.kpi.days", "Ngày onboarding"),
+      value: daysInOnboarding ? String(daysInOnboarding) : "—",
+      sub: latestInstance?.startDate
+        ? dayjs(getInstanceStartDate(latestInstance)).format("DD/MM/YYYY")
+        : tr("dashboard.employee.kpi.no_start_date", "Chưa có ngày bắt đầu"),
+      icon: <Calendar className="h-4 w-4" />,
+      tone: "indigo" as const,
+    },
+  ];
 
-  const handleToggleTask = async (task: OnboardingTask) => {
-    const isDone = task.rawStatus === "DONE";
-    if (isDone) {
-      try {
-        await updateTaskStatus.mutateAsync({ taskId: task.id, status: "TODO" });
-        invalidateTasks();
-        notify.success(t("dashboard.employee.notify.undo_done_success"));
-      } catch {
-        notify.error(t("dashboard.employee.notify.error"));
-      }
-      return;
-    }
+  const taskColumns = [
+    {
+      title: tr("dashboard.employee.table.task", "Task"),
+      key: "task",
+      render: (record: OnboardingTask) => (
+        <div className="min-w-0">
+          <button
+            type="button"
+            onClick={() => setSelectedTaskId(getTaskId(record))}
+            className="max-w-full truncate text-left font-medium text-blue-600 hover:underline"
+          >
+            {getTaskTitle(record)}
+          </button>
+          {getTaskDescription(record) && (
+            <p className="mt-0.5 line-clamp-1 text-xs text-muted">
+              {getTaskDescription(record)}
+            </p>
+          )}
+          {getTaskDueDate(record) && (
+            <p className="mt-1 text-xs text-muted">
+              {tr("dashboard.employee.table.due_date", "Hạn")}:{" "}
+              {dayjs(getTaskDueDate(record)).format("DD/MM/YYYY")}
+            </p>
+          )}
+        </div>
+      ),
+    },
+    {
+      title: tr("dashboard.employee.table.status", "Trạng thái"),
+      key: "status",
+      width: 160,
+      render: (record: OnboardingTask) => (
+        <Tag color={taskStatusColor(record)}>
+          {taskStatusLabel(getTaskStatus(record))}
+        </Tag>
+      ),
+    },
+    {
+      title: tr("dashboard.employee.table.action", "Hành động"),
+      key: "action",
+      width: 190,
+      render: (record: OnboardingTask) => {
+        const taskId = getTaskId(record);
 
-    if (task.requireAck && task.rawStatus !== "WAIT_ACK") {
-      try {
-        await acknowledgeMutation.mutateAsync(task.id);
-      } catch {
-        // handled by mutation onError
-      }
-      return;
-    }
+        if (isTaskDone(record)) {
+          return (
+            <Tag color="green">
+              {tr("dashboard.employee.action.completed", "Đã hoàn thành")}
+            </Tag>
+          );
+        }
 
-    if (task.requiresManagerApproval) {
-      try {
-        await updateTaskStatus.mutateAsync({
-          taskId: task.id,
-          status: "PENDING_APPROVAL",
-        });
-        invalidateTasks();
-        notify.success(t("dashboard.employee.notify.approval_sent"));
-      } catch {
-        notify.error(t("dashboard.employee.notify.error"));
-      }
-      return;
-    }
+        if (isTaskWaitingAck(record)) {
+          return (
+            <Button
+              size="small"
+              type="primary"
+              loading={acknowledgeMutation.isPending}
+              onClick={() => acknowledgeMutation.mutate(taskId)}
+            >
+              {tr("dashboard.employee.action.ack", "Xác nhận")}
+            </Button>
+          );
+        }
 
-    try {
-      await updateTaskStatus.mutateAsync({
-        taskId: task.id,
-        status: STATUS_DONE_API,
-      });
-      invalidateTasks();
-      notify.success(t("dashboard.employee.notify.done_success"));
-    } catch {
-      notify.error(t("dashboard.employee.notify.error"));
-    }
-  };
+        return (
+          <div className="flex flex-wrap gap-2">
+            {!isTaskInProgress(record) && (
+              <Button
+                size="small"
+                loading={updateTaskStatusMutation.isPending}
+                onClick={() =>
+                  updateTaskStatusMutation.mutate({
+                    taskId,
+                    status: STATUS_IN_PROGRESS_API,
+                  })
+                }
+              >
+                {tr("dashboard.employee.action.start", "Bắt đầu")}
+              </Button>
+            )}
 
-  const isMutating =
-    updateTaskStatus.isPending || acknowledgeMutation.isPending;
+            <Button
+              size="small"
+              type="primary"
+              loading={updateTaskStatusMutation.isPending}
+              onClick={() =>
+                updateTaskStatusMutation.mutate({
+                  taskId,
+                  status: STATUS_DONE_API,
+                })
+              }
+            >
+              {tr("dashboard.employee.action.done", "Hoàn tất")}
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
 
-  if (instancesLoading) {
+  const detailRecord = toRecord(taskDetail);
+  const detailTitle =
+    getAnyString(detailRecord, ["title", "taskName", "name"]) ??
+    tr("dashboard.employee.detail.title", "Chi tiết task");
+  const detailDescription = getAnyString(detailRecord, [
+    "description",
+    "note",
+    "content",
+  ]);
+  const detailStatus = getAnyString(detailRecord, [
+    "status",
+    "rawStatus",
+    "taskStatus",
+  ]);
+  const detailDueDate = getAnyString(detailRecord, ["dueDate", "deadline"]);
+  const detailAttachments = Array.isArray(detailRecord.attachments)
+    ? detailRecord.attachments
+    : [];
+  const detailComments = Array.isArray(detailRecord.comments)
+    ? detailRecord.comments
+    : [];
+  const detailLogs = Array.isArray(detailRecord.activityLogs)
+    ? detailRecord.activityLogs
+    : [];
+
+  const isLoading = instancesLoading || tasksLoading;
+
+  if (!employeeId) {
     return (
-      <div className="relative min-h-screen p-6">
-        <AppLoading />
-      </div>
+      <Alert
+        type="warning"
+        showIcon
+        message={tr(
+          "dashboard.employee.no_user",
+          "Không xác định được nhân viên hiện tại",
+        )}
+      />
     );
   }
 
-  // ── Render ──────────────────────────────────────────────────
-
   return (
-    <div className="relative space-y-4 p-6">
-      {(isMutating || (tasksFetching && !tasksLoading)) && <AppLoading />}
-      {/* ── Row 1: Progress + Stats ─────────────────────────── */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="border border-stroke shadow-sm">
-          <Typography.Text strong>
-            {t("dashboard.employee.section.progress")}
-          </Typography.Text>
-          <p className="text-xs text-muted">
-            {latestInstance
-              ? t("dashboard.employee.progress_label", {
-                  day: daysInOnboarding ?? 0,
-                  completed: completedTasks,
-                  total: totalTasks,
-                })
-              : t("dashboard.employee.no_active_onboarding")}
-          </p>
-          <div className="mt-4 flex flex-col items-center">
-            {tasksLoading ? (
-              <Skeleton.Avatar active size={120} />
-            ) : (
-              <>
-                <Progress
-                  type="circle"
-                  percent={completionPct}
-                  size={120}
-                  strokeColor="#0f766e"
-                  format={(pct) => (
-                    <span className="text-lg font-bold">{pct}%</span>
-                  )}
-                />
-                <p className="mt-3 text-center text-sm text-muted">
-                  {completionPct < 100
-                    ? t("dashboard.employee.tasks_remaining", {
-                        count: totalTasks - completedTasks,
-                      })
-                    : t("dashboard.employee.all_done")}
-                </p>
-              </>
-            )}
-          </div>
-          {latestInstance && (
-            <div className="mt-4 flex items-center justify-between border-t border-stroke pt-3">
-              <Typography.Text type="secondary" className="text-xs">
-                {t("dashboard.employee.status_label")}
-              </Typography.Text>
-              <Tag
-                color={
-                  latestInstance.status === "ACTIVE"
-                    ? "processing"
-                    : latestInstance.status === "COMPLETED"
-                      ? "success"
-                      : "gold"
-                }>
-                {t(`onboarding.status.${latestInstance.status.toLowerCase()}`)}
-              </Tag>
-            </div>
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-xl font-bold text-ink">
+          {tr("dashboard.employee.title", "Dashboard nhân viên")}
+        </h1>
+        <p className="text-sm text-muted">
+          {formatMsg(
+            "dashboard.employee.subtitle",
+            "Xin chào, {name}! Đây là tiến độ onboarding và task của bạn.",
+            { name: employeeName },
           )}
-        </Card>
+        </p>
+      </div>
 
-        <div className="grid grid-cols-2 content-start gap-3 lg:col-span-2">
-          {[
-            {
-              label: t("dashboard.employee.stat.total_tasks"),
-              value: totalTasks,
-              icon: <ClipboardList className="h-4 w-4" />,
-              bg: "bg-teal-50",
-              text: "text-teal-600",
-            },
-            {
-              label: t("dashboard.employee.stat.completed"),
-              value: completedTasks,
-              icon: <CheckCircle2 className="h-4 w-4" />,
-              bg: "bg-emerald-50",
-              text: "text-emerald-600",
-            },
-            {
-              label: t("dashboard.employee.stat.pending"),
-              value: pendingList.length,
-              icon: <Clock className="h-4 w-4" />,
-              bg: "bg-amber-50",
-              text: "text-amber-600",
-            },
-            {
-              label: t("dashboard.employee.stat.overdue"),
-              value: overdueList.length,
-              icon: <AlertCircle className="h-4 w-4" />,
-              bg: "bg-red-50",
-              text: "text-red-600",
-            },
-          ].map((s) => (
-            <Card
-              key={s.label}
-              size="small"
-              className="border border-stroke shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className={`rounded-lg p-2 ${s.bg} ${s.text}`}>
-                  {s.icon}
-                </div>
-                <div>
-                  <p className="text-lg font-bold tabular-nums">{s.value}</p>
-                  <p className="text-xs text-muted">{s.label}</p>
-                </div>
-              </div>
+      {isLoading ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          {Array.from({ length: 5 }, (_, i) => (
+            <Card key={`employee-kpi-sk-${i}`}>
+              <Skeleton active paragraph={{ rows: 2 }} title={false} />
             </Card>
           ))}
-
-          <Card
-            size="small"
-            className="col-span-2 border border-stroke shadow-sm">
-            <Typography.Text type="secondary" className="mb-2 block text-xs">
-              {t("dashboard.employee.status_breakdown")}
-            </Typography.Text>
-            <div className="grid grid-cols-5 gap-2">
-              {[
-                {
-                  label: t("dashboard.employee.tag.todo"),
-                  value: tasksByStatus.todo,
-                  cls: "bg-gray-100 text-gray-700",
-                },
-                {
-                  label: t("dashboard.employee.tag.in_progress"),
-                  value: tasksByStatus.inProgress,
-                  cls: "bg-blue-100 text-blue-700",
-                },
-                {
-                  label: t("dashboard.employee.tag.wait_ack"),
-                  value: tasksByStatus.waitAck,
-                  cls: "bg-orange-100 text-orange-700",
-                },
-                {
-                  label: t("dashboard.employee.tag.pending_approval"),
-                  value: tasksByStatus.pendingApproval,
-                  cls: "bg-amber-100 text-amber-700",
-                },
-                {
-                  label: t("dashboard.employee.tag.done"),
-                  value: tasksByStatus.done,
-                  cls: "bg-emerald-100 text-emerald-700",
-                },
-              ].map((s) => (
-                <div
-                  key={s.label}
-                  className={`rounded-lg p-2 text-center ${s.cls}`}>
-                  <p className="text-lg font-bold tabular-nums">{s.value}</p>
-                  <p className="text-[10px] leading-tight">{s.label}</p>
-                </div>
-              ))}
-            </div>
-          </Card>
         </div>
-      </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          {kpis.map((kpi) => (
+            <KpiCard key={kpi.label} {...kpi} />
+          ))}
+        </div>
+      )}
 
-      {/* ── Rejected tasks + Scheduled tasks (always visible) ── */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card
-          className={`border shadow-sm ${rejectedTasks.length > 0 ? "border-red-300 bg-red-50" : "border-stroke"}`}
-          styles={{ body: { padding: "12px 16px" } }}>
-          <div className="mb-2 flex items-center gap-2">
-            <ThumbsDown
-              className={`h-4 w-4 ${rejectedTasks.length > 0 ? "text-red-600" : "text-muted"}`}
-            />
-            <Typography.Text
-              strong
-              className={rejectedTasks.length > 0 ? "text-red-700" : undefined}>
-              {t("dashboard.employee.section.rejected", {
-                count: rejectedTasks.length,
-              })}
-            </Typography.Text>
-            {rejectedTasks.length > 0 && (
-              <span className="ml-auto rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
-                {rejectedTasks.length}
-              </span>
-            )}
-          </div>
-          {tasksLoading ? (
-            <Skeleton active paragraph={{ rows: 2 }} title={false} />
-          ) : rejectedTasks.length === 0 ? (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={
-                <span className="text-xs text-muted">
-                  {t("dashboard.employee.no_rejected_tasks")}
-                </span>
-              }
-            />
-          ) : (
-            <div className="space-y-2">
-              {rejectedTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="flex cursor-pointer items-start justify-between rounded-lg border border-red-200 bg-white px-3 py-2 hover:bg-red-50"
-                  onClick={() => setSelectedTaskId(task.id)}>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-red-800">
-                      {task.title}
-                    </p>
-                    {task.checklistName && (
-                      <p className="text-xs text-red-500">
-                        {task.checklistName}
-                      </p>
-                    )}
-                    {task.dueDate && (
-                      <p className="text-xs text-muted">
-                        {t("dashboard.employee.due_prefix")}
-                        {dayjs(task.dueDate).format("DD/MM/YYYY")}
-                      </p>
-                    )}
-                  </div>
-                  <div className="ml-2 flex shrink-0 flex-col items-end gap-1">
-                    <Tag color="error">
-                      {t("dashboard.employee.tag.rejected")}
-                    </Tag>
-                    <Typography.Text className="text-xs text-blue-500 hover:underline">
-                      {t("dashboard.employee.action.view_detail")}
-                    </Typography.Text>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        <Card
-          className={`border shadow-sm ${scheduledTasks.length > 0 ? "border-sky-300 bg-sky-50" : "border-stroke"}`}
-          styles={{ body: { padding: "12px 16px" } }}>
-          <div className="mb-2 flex items-center gap-2">
-            <Calendar
-              className={`h-4 w-4 ${scheduledTasks.length > 0 ? "text-sky-600" : "text-muted"}`}
-            />
-            <Typography.Text
-              strong
-              className={
-                scheduledTasks.length > 0 ? "text-sky-700" : undefined
-              }>
-              {t("dashboard.employee.section.scheduled", {
-                count: scheduledTasks.length,
-              })}
-            </Typography.Text>
-            {scheduledTasks.length > 0 && (
-              <span className="ml-auto rounded-full bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-700">
-                {scheduledTasks.length}
-              </span>
-            )}
-          </div>
-          {tasksLoading ? (
-            <Skeleton active paragraph={{ rows: 2 }} title={false} />
-          ) : scheduledTasks.length === 0 ? (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={
-                <span className="text-xs text-muted">
-                  {t("dashboard.employee.no_scheduled_tasks")}
-                </span>
-              }
-            />
-          ) : (
-            <div className="space-y-2">
-              {scheduledTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="flex cursor-pointer items-start justify-between rounded-lg border border-sky-200 bg-white px-3 py-2 hover:bg-sky-50"
-                  onClick={() => setSelectedTaskId(task.id)}>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-sky-800">
-                      {task.title}
-                    </p>
-                    {task.checklistName && (
-                      <p className="text-xs text-sky-500">
-                        {task.checklistName}
-                      </p>
-                    )}
-                    {task.dueDate && (
-                      <p className="text-xs text-muted">
-                        {t("dashboard.employee.due_prefix")}
-                        {dayjs(task.dueDate).format("DD/MM/YYYY")}
-                      </p>
-                    )}
-                  </div>
-                  <div className="ml-2 flex shrink-0 flex-col items-end gap-1">
-                    <Tag
-                      color={
-                        task.scheduleStatus === "CONFIRMED"
-                          ? "cyan"
-                          : "geekblue"
-                      }>
-                      {t(
-                        `onboarding.task.schedule.status.${task.scheduleStatus?.toLowerCase() ?? ""}`,
-                      )}
-                    </Tag>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
-
-      {/* ── Row 2: Actionable urgent list + Timeline ───────── */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border border-stroke shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Card className="border border-stroke bg-white shadow-sm xl:col-span-2">
+          <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <Typography.Text strong>
-                {t("dashboard.employee.section.urgent")}
-              </Typography.Text>
-              <p className="text-xs text-muted">
-                {t("dashboard.employee.section.urgent_subtitle")}
+              <h2 className="text-base font-semibold text-ink">
+                {tr(
+                  "dashboard.employee.section.current_onboarding",
+                  "Onboarding hiện tại",
+                )}
+              </h2>
+              <p className="text-sm text-muted">
+                {tr(
+                  "dashboard.employee.section.current_onboarding_desc",
+                  "Theo dõi tiến độ onboarding và người quản lý phụ trách.",
+                )}
               </p>
             </div>
-            <Link to="/onboarding/tasks">
-              <Typography.Text className="text-xs text-blue-500 hover:underline">
-                {t("dashboard.employee.action.view_all")}
-              </Typography.Text>
-            </Link>
-          </div>
-          <div className="space-y-2 overflow-y-auto" style={{ maxHeight: 360 }}>
-            {tasksLoading ? (
-              <Skeleton active paragraph={{ rows: 5 }} title={false} />
-            ) : !latestInstance ? (
-              <Empty
-                description={t("dashboard.employee.no_onboarding_active")}
-              />
-            ) : urgentTasks.length === 0 ? (
-              <p className="py-4 text-center text-sm text-muted">
-                {t("dashboard.employee.all_tasks_done")}
-              </p>
-            ) : (
-              urgentTasks.map((task) => {
-                const overdue = isOverdue(task.dueDate);
-                const isWaitAck = task.rawStatus === "WAIT_ACK";
-                const isPendingApproval = task.rawStatus === "PENDING_APPROVAL";
-                const ctaLabel = task.requireAck
-                  ? isWaitAck
-                    ? t("dashboard.employee.action.confirm_done")
-                    : t("dashboard.employee.action.confirm_received")
-                  : task.requiresManagerApproval
-                    ? t("dashboard.employee.action.send_approval")
-                    : t("dashboard.employee.action.mark_done");
 
-                return (
-                  <div
-                    key={task.id}
-                    className={`rounded-lg border px-3 py-2.5 transition-colors ${
-                      overdue
-                        ? "border-red-200 bg-red-50/40"
-                        : isWaitAck
-                          ? "border-orange-200 bg-orange-50/40"
-                          : isPendingApproval
-                            ? "border-amber-200 bg-amber-50/40"
-                            : "border-stroke/60 bg-slate-50"
-                    }`}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">
-                          {task.title ?? "Không có tiêu đề"}
-                        </p>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                          {task.dueDate && (
-                            <span
-                              className={`text-xs ${overdue ? "font-semibold text-red-500" : "text-muted"}`}>
-                              {overdue
-                                ? t("dashboard.employee.overdue_prefix")
-                                : t("dashboard.employee.due_prefix")}
-                              {dayjs(task.dueDate).format("DD/MM/YYYY")}
-                            </span>
-                          )}
-                          {task.checklistName && (
-                            <span className="text-xs text-muted">
-                              · {task.checklistName}
-                            </span>
-                          )}
-                        </div>
-                        <div className="mt-1.5 flex flex-wrap gap-1">
-                          {task.requireDoc && (
-                            <Tag
-                              color="orange"
-                              className="!m-0 !px-1.5 !py-0 !text-[10px]">
-                              <Paperclip className="mr-0.5 inline h-2.5 w-2.5" />
-                              {t("dashboard.employee.require_doc")}
-                            </Tag>
-                          )}
-                          {task.requireAck && (
-                            <Tag
-                              color="blue"
-                              className="!m-0 !px-1.5 !py-0 !text-[10px]">
-                              👁 {t("dashboard.employee.require_ack")}
-                            </Tag>
-                          )}
-                          {task.requiresManagerApproval && (
-                            <Tag
-                              color="purple"
-                              className="!m-0 !px-1.5 !py-0 !text-[10px]">
-                              {t("dashboard.employee.tag.pending_approval")}
-                            </Tag>
-                          )}
-                          {task.approvalStatus === "REJECTED" && (
-                            <Tag
-                              color="error"
-                              className="!m-0 !px-1.5 !py-0 !text-[10px]">
-                              {t("dashboard.employee.tag.rejected")}
-                            </Tag>
-                          )}
-                        </div>
-                      </div>
-                      <Badge
-                        status={taskStatusVariant(task.rawStatus)}
-                        text={
-                          <span className="whitespace-nowrap text-xs text-muted">
-                            {task.status}
-                          </span>
-                        }
-                      />
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <Button
-                        size="small"
-                        type="primary"
-                        loading={
-                          updateTaskStatus.isPending ||
-                          acknowledgeMutation.isPending
-                        }
-                        disabled={isPendingApproval}
-                        onClick={() => handleToggleTask(task)}>
-                        {ctaLabel}
-                      </Button>
-                      <Button
-                        size="small"
-                        onClick={() => setSelectedTaskId(task.id)}>
-                        {t("dashboard.employee.action.view_detail")}
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+            <Button
+              icon={<RefreshCcw className="h-4 w-4" />}
+              onClick={invalidateTasks}
+            >
+              {tr("global.refresh", "Refresh")}
+            </Button>
           </div>
-          <Alert
-            className="!mt-3"
-            type="info"
-            showIcon
-            icon={<UserCheck className="h-4 w-4" />}
-            message={t("dashboard.employee.tip_title")}
-            description={t("dashboard.employee.tip_text")}
-          />
-        </Card>
 
-        {/* ── Timeline progress widget ─────────────────────── */}
-        <Card className="border border-stroke shadow-sm">
-          <Typography.Text strong className="mb-3 block">
-            {t("dashboard.employee.section.timeline")}
-          </Typography.Text>
-          {!timelineData ? (
+          {!latestInstance ? (
             <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={
-                <span className="text-sm text-muted">
-                  {t("dashboard.employee.no_onboarding_active")}
-                </span>
-              }
+              description={tr(
+                "dashboard.employee.empty.no_onboarding",
+                "Bạn chưa có onboarding nào.",
+              )}
             />
           ) : (
             <div className="space-y-4">
-              <div className="flex items-center justify-between text-xs text-muted">
-                <div className="flex flex-col items-start gap-0.5">
-                  <span className="font-semibold text-teal-700">
-                    {t("dashboard.employee.timeline.start")}
-                  </span>
-                  <span>
-                    {dayjs(timelineData.startDate).format("DD/MM/YYYY")}
-                  </span>
-                </div>
-                <div className="flex flex-col items-end gap-0.5">
-                  <span className="font-semibold text-teal-700">
-                    {t("dashboard.employee.timeline.estimated_end")}
-                  </span>
-                  <span>{timelineData.estimatedEndDate ?? "—"}</span>
-                </div>
-              </div>
-              <Progress
-                percent={completionPct}
-                strokeColor="#0f766e"
-                trailColor="#e5e7eb"
-                showInfo={false}
-              />
-              <div className="flex items-center justify-between text-xs">
-                {daysInOnboarding != null && (
-                  <Typography.Text type="secondary">
-                    {t("dashboard.employee.timeline.days_elapsed", {
-                      day: daysInOnboarding,
-                    })}
-                  </Typography.Text>
-                )}
-                {timelineData.estimatedEndDate && daysInOnboarding != null && (
-                  <Typography.Text type="secondary">
-                    {t("dashboard.employee.timeline.estimated_remaining", {
-                      days: Math.max(
-                        0,
-                        dayjs(timelineData.estimatedEndDate, "DD/MM/YYYY").diff(
-                          dayjs(),
-                          "day",
-                        ),
-                      ),
-                    })}
-                  </Typography.Text>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-2 border-t border-stroke pt-3 text-xs">
-                <div>
-                  <span className="font-semibold uppercase text-muted">
-                    {t("dashboard.employee.stat.completed")}
-                  </span>
-                  <p className="mt-0.5 text-base font-bold text-emerald-600">
-                    {completedTasks}/{totalTasks}
-                  </p>
-                </div>
-                <div>
-                  <span className="font-semibold uppercase text-muted">
-                    {t("dashboard.employee.stat.overdue")}
-                  </span>
-                  <p
-                    className={`mt-0.5 text-base font-bold ${
-                      overdueList.length > 0 ? "text-red-600" : "text-muted"
-                    }`}>
-                    {overdueList.length}
-                  </p>
-                </div>
-                <div>
-                  <span className="font-semibold uppercase text-muted">
-                    {t("dashboard.employee.tag.wait_ack")}
-                  </span>
-                  <p className="mt-0.5 text-base font-bold text-amber-600">
-                    {tasksByStatus.waitAck}
-                  </p>
-                </div>
-                <div>
-                  <span className="font-semibold uppercase text-muted">
-                    {t("dashboard.employee.tag.pending_approval")}
-                  </span>
-                  <p className="mt-0.5 text-base font-bold text-violet-600">
-                    {tasksByStatus.pendingApproval}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </Card>
-      </div>
-
-      {/* ── Row 3: Stage / Checklist Progress (always visible) ── */}
-      <Card className="border border-stroke shadow-sm">
-        <div className="mb-3 flex items-center gap-2">
-          <Layers className="h-4 w-4 text-violet-500" />
-          <Typography.Text strong>
-            {t("dashboard.employee.section.stage_progress")}
-          </Typography.Text>
-          {stageProgress.length > 0 && (
-            <span className="ml-auto text-xs text-muted">
-              {
-                stageProgress.filter((s) => s.done === s.total && s.total > 0)
-                  .length
-              }
-              /{stageProgress.length} hoàn thành
-            </span>
-          )}
-        </div>
-        {tasksLoading ? (
-          <Skeleton active paragraph={{ rows: 3 }} />
-        ) : stageProgress.length === 0 ? (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={
-              <span className="text-xs text-muted">
-                {t("dashboard.employee.no_stage_progress")}
-              </span>
-            }
-          />
-        ) : (
-          <div className="space-y-3">
-            {stageProgress.map((stage) => {
-              const pct =
-                stage.total > 0
-                  ? Math.round((stage.done / stage.total) * 100)
-                  : 0;
-              const isDone = pct === 100 && stage.total > 0;
-              const isActive = !isDone && stage.done > 0;
-              return (
-                <div
-                  key={stage.name}
-                  className={`rounded-xl border px-4 py-3 ${
-                    isDone
-                      ? "border-emerald-200 bg-emerald-50"
-                      : isActive
-                        ? "border-teal-200 bg-teal-50"
-                        : "border-gray-200 bg-slate-50"
-                  }`}>
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {isDone ? (
-                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                      ) : isActive ? (
-                        <Clock className="h-4 w-4 text-teal-500" />
-                      ) : (
-                        <div className="h-4 w-4 rounded-full border-2 border-slate-300" />
-                      )}
-                      <Typography.Text
-                        strong
-                        className={`text-sm ${
-                          isDone
-                            ? "text-emerald-700"
-                            : isActive
-                              ? "text-teal-700"
-                              : "text-muted"
-                        }`}>
-                        {stage.name}
-                      </Typography.Text>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Typography.Text type="secondary" className="text-xs">
-                        {stage.done}/{stage.total} task
-                      </Typography.Text>
-                      {isDone && (
-                        <Tag color="success" className="!m-0 !text-xs">
-                          Xong
+              <div className="rounded-2xl border border-stroke bg-slate-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Tag color={instanceStatusColor(latestInstance.status)}>
+                        {getInstanceStatus(latestInstance)}
+                      </Tag>
+                      {getInstanceManagerName(latestInstance) && (
+                        <Tag color="blue">
+                          {tr("dashboard.employee.manager", "Quản lý")}:{" "}
+                          {getInstanceManagerName(latestInstance)}
                         </Tag>
                       )}
                     </div>
-                  </div>
-                  <Progress
-                    percent={pct}
-                    size="small"
-                    strokeColor={
-                      isDone ? "#10b981" : isActive ? "#0f766e" : undefined
-                    }
-                    showInfo={isDone}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
 
-      {/* ── Row 4: Reminder stream (always visible) ─────────── */}
-      <Card className="border border-stroke shadow-sm">
-        <div className="mb-3 flex items-center gap-2">
-          <BellRing className="h-4 w-4 text-amber-500" />
-          <Typography.Text strong>
-            {t("dashboard.employee.section.reminders")}
-          </Typography.Text>
-          {(overdueList.length > 0 ||
-            dueSoonList.length > 0 ||
-            actionNeededTasks.length > 0) && (
-            <div className="ml-auto flex gap-1.5">
-              {overdueList.length > 0 && (
-                <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
-                  {overdueList.length} {t("dashboard.employee.tag.overdue")}
-                </span>
-              )}
-              {dueSoonList.length > 0 && (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
-                  {dueSoonList.length} {t("dashboard.employee.tag.due_soon")}
-                </span>
-              )}
-              {actionNeededTasks.length > 0 && (
-                <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-700">
-                  {actionNeededTasks.length} cần xử lý
-                </span>
-              )}
+                    <p className="mt-3 text-sm text-muted">
+                      {tr("dashboard.employee.start_date", "Ngày bắt đầu")}:{" "}
+                      <span className="font-medium text-ink">
+                        {getInstanceStartDate(latestInstance)
+                          ? dayjs(getInstanceStartDate(latestInstance)).format(
+                              "DD/MM/YYYY",
+                            )
+                          : "—"}
+                      </span>
+                    </p>
+                  </div>
+
+                  <Link
+                    to={`${AppRouters.ONBOARDING_EMPLOYEES}/${getInstanceId(latestInstance)}`}
+                    className="flex items-center gap-1 text-sm font-medium text-blue-600 hover:underline"
+                  >
+                    {tr("dashboard.employee.view_detail", "Xem chi tiết")}
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
+
+                <div className="mt-5">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-sm font-medium text-ink">
+                      {tr("dashboard.employee.progress", "Tiến độ")}
+                    </span>
+                    <span className="text-sm font-bold text-ink">
+                      {completionPct}%
+                    </span>
+                  </div>
+                  <Progress percent={completionPct} />
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-5">
+                <ActionItem
+                  icon={<CircleDashed className="h-4 w-4" />}
+                  title={tr("dashboard.employee.status.todo", "Chưa làm")}
+                  value={tasksByStatus.todo}
+                  tone="slate"
+                />
+                <ActionItem
+                  icon={<Clock className="h-4 w-4" />}
+                  title={tr(
+                    "dashboard.employee.status.in_progress",
+                    "Đang làm",
+                  )}
+                  value={tasksByStatus.inProgress}
+                  tone="blue"
+                />
+                <ActionItem
+                  icon={<BellRing className="h-4 w-4" />}
+                  title={tr(
+                    "dashboard.employee.status.wait_ack",
+                    "Chờ xác nhận",
+                  )}
+                  value={tasksByStatus.waitAck}
+                  tone="amber"
+                />
+                <ActionItem
+                  icon={<UserCheck className="h-4 w-4" />}
+                  title={tr(
+                    "dashboard.employee.status.pending_approval",
+                    "Chờ duyệt",
+                  )}
+                  value={tasksByStatus.pendingApproval}
+                  tone="amber"
+                />
+                <ActionItem
+                  icon={<CheckCircle2 className="h-4 w-4" />}
+                  title={tr("dashboard.employee.status.done", "Hoàn tất")}
+                  value={tasksByStatus.done}
+                  tone="green"
+                />
+              </div>
             </div>
           )}
-        </div>
-        {tasksLoading ? (
-          <Skeleton active paragraph={{ rows: 3 }} title={false} />
-        ) : overdueList.length === 0 &&
-          dueSoonList.length === 0 &&
-          actionNeededTasks.length === 0 ? (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={
-              <span className="text-xs text-muted">
-                {t("dashboard.employee.no_reminders")}
-              </span>
-            }
-          />
-        ) : (
-          <div className="space-y-2">
-            {overdueList.map((task) => (
-              <div
-                key={`overdue-${task.id}`}
-                className="flex cursor-pointer items-center justify-between rounded-lg border border-red-200 bg-red-50 p-3 hover:bg-red-100"
-                onClick={() => setSelectedTaskId(task.id)}>
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{task.title}</p>
-                    {task.checklistName && (
-                      <p className="text-xs text-muted">{task.checklistName}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="ml-2 flex shrink-0 flex-col items-end gap-1">
-                  <Tag color="error">{t("dashboard.employee.tag.overdue")}</Tag>
-                  {task.dueDate && (
-                    <span className="text-[10px] text-red-500">
-                      {dayjs(task.dueDate).format("DD/MM/YYYY")}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-            {dueSoonList.map((task) => (
-              <div
-                key={`soon-${task.id}`}
-                className="flex cursor-pointer items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-3 hover:bg-amber-100"
-                onClick={() => setSelectedTaskId(task.id)}>
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <CircleDashed className="h-4 w-4 shrink-0 text-amber-500" />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{task.title}</p>
-                    {task.checklistName && (
-                      <p className="text-xs text-muted">{task.checklistName}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="ml-2 flex shrink-0 flex-col items-end gap-1">
-                  <Tag color="warning">
-                    {t("dashboard.employee.tag.due_soon")}
-                  </Tag>
-                  {task.dueDate && (
-                    <span className="text-[10px] text-amber-600">
-                      {dayjs(task.dueDate).format("DD/MM/YYYY")}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-            {actionNeededTasks.map((task) => (
-              <div
-                key={`action-${task.id}`}
-                className="flex cursor-pointer items-center justify-between rounded-lg border border-sky-200 bg-sky-50 p-3 hover:bg-sky-100"
-                onClick={() => setSelectedTaskId(task.id)}>
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <CalendarClock className="h-4 w-4 shrink-0 text-sky-500" />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{task.title}</p>
-                    {task.checklistName && (
-                      <p className="text-xs text-muted">{task.checklistName}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="ml-2 flex shrink-0 flex-col items-end gap-1">
-                  <Tag color="processing">
-                    {task.rawStatus === "WAIT_ACK"
-                      ? t("dashboard.employee.tag.wait_ack")
-                      : t("dashboard.employee.tag.pending_approval")}
-                  </Tag>
-                  {task.dueDate && (
-                    <span className="text-[10px] text-sky-600">
-                      {dayjs(task.dueDate).format("DD/MM/YYYY")}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+        </Card>
 
-      {/* ── Row 5: Contact info ─────────────────────────────── */}
-        <Card className="border border-stroke shadow-sm">
-          <div className="mb-3 flex items-center gap-2">
-            <User className="h-4 w-4 text-teal-500" />
-            <Typography.Text strong>
-              {t("dashboard.employee.section.support")}
-            </Typography.Text>
+        <Card className="border border-amber-200 bg-amber-50/30 shadow-sm">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <h2 className="text-base font-semibold text-ink">
+              {tr("dashboard.employee.section.action_center", "Việc cần xử lý")}
+            </h2>
           </div>
-          <div className="space-y-2">
-            <div className="rounded-lg border border-stroke bg-slate-50 px-3 py-2.5">
-              <p className="text-xs font-semibold uppercase text-muted">
-                {t("dashboard.employee.support.manager_label")}
-              </p>
-              <p className="mt-1 text-sm font-medium">
-                {latestInstance?.managerName ??
-                  currentUser?.manager ??
-                  currentUser?.managerUserId ??
-                  t("dashboard.employee.unassigned")}
-              </p>
-            </div>
-            <div className="rounded-lg border border-stroke bg-slate-50 px-3 py-2.5">
-              <p className="text-xs font-semibold uppercase text-muted">
-                {t("dashboard.employee.support.template_label")}
-              </p>
-              <p className="mt-1 text-sm font-medium">
-                {latestInstance?.templateName ?? "—"}
-              </p>
-            </div>
-            <div className="rounded-lg border border-stroke bg-slate-50 px-3 py-2.5">
-              <p className="text-xs font-semibold uppercase text-muted">
-                {t("dashboard.employee.support.start_date_label")}
-              </p>
-              <p className="mt-1 text-sm font-medium">
-                {latestInstance?.startDate
-                  ? dayjs(latestInstance.startDate).format("DD/MM/YYYY")
-                  : "—"}
-              </p>
-            </div>
-            {daysInOnboarding != null && (
-              <div className="rounded-lg border border-teal-100 bg-teal-50 px-3 py-2.5">
-                <p className="text-xs font-semibold uppercase text-teal-600">
-                  Ngày đang onboarding
-                </p>
-                <p className="mt-1 text-sm font-medium text-teal-700">
-                  Ngày thứ {daysInOnboarding}
-                </p>
-              </div>
+          <p className="mt-1 text-sm text-muted">
+            {tr(
+              "dashboard.employee.section.action_center_desc",
+              "Ưu tiên task quá hạn, sắp đến hạn hoặc bị từ chối.",
             )}
-            {latestInstance && (
-              <div className="rounded-lg border border-stroke bg-slate-50 px-3 py-2.5">
-                <p className="text-xs font-semibold uppercase text-muted">
-                  Trạng thái
-                </p>
-                <div className="mt-1">
-                  <Tag
-                    color={
-                      latestInstance.status === "ACTIVE"
-                        ? "processing"
-                        : latestInstance.status === "COMPLETED"
-                          ? "success"
-                          : "gold"
-                    }>
-                    {t(
-                      `onboarding.status.${latestInstance.status.toLowerCase()}`,
-                    )}
-                  </Tag>
-                </div>
-              </div>
+          </p>
+
+          <div className="mt-4 space-y-3">
+            <ActionItem
+              icon={<AlertTriangle className="h-4 w-4" />}
+              title={tr(
+                "dashboard.employee.action_center.overdue",
+                "Task quá hạn",
+              )}
+              value={overdueTasks.length}
+              tone={overdueTasks.length > 0 ? "red" : "slate"}
+            />
+            <ActionItem
+              icon={<CalendarClock className="h-4 w-4" />}
+              title={tr(
+                "dashboard.employee.action_center.due_soon",
+                "Sắp đến hạn",
+              )}
+              value={dueSoonTasks.length}
+              tone={dueSoonTasks.length > 0 ? "amber" : "slate"}
+            />
+            <ActionItem
+              icon={<ThumbsDown className="h-4 w-4" />}
+              title={tr(
+                "dashboard.employee.action_center.rejected",
+                "Bị từ chối",
+              )}
+              value={rejectedTasks.length}
+              tone={rejectedTasks.length > 0 ? "red" : "slate"}
+            />
+            <ActionItem
+              icon={<CalendarClock className="h-4 w-4" />}
+              title={tr(
+                "dashboard.employee.action_center.scheduled",
+                "Task có lịch",
+              )}
+              value={scheduledTasks.length}
+              tone={scheduledTasks.length > 0 ? "blue" : "slate"}
+            />
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card className="border border-stroke bg-white shadow-sm">
+          <h2 className="text-base font-semibold text-ink">
+            {tr("dashboard.employee.section.priority_tasks", "Task ưu tiên")}
+          </h2>
+          <p className="text-sm text-muted">
+            {tr(
+              "dashboard.employee.section.priority_tasks_desc",
+              "Các task cần hoàn thành sớm hoặc đang có vấn đề.",
+            )}
+          </p>
+
+          <div className="mt-4">
+            {tasksLoading || tasksFetching ? (
+              <Skeleton active paragraph={{ rows: 6 }} title={false} />
+            ) : priorityTasks.length === 0 ? (
+              <Empty
+                description={tr(
+                  "dashboard.employee.empty.no_priority",
+                  "Không có task cần ưu tiên.",
+                )}
+              />
+            ) : (
+              <Table
+                dataSource={priorityTasks}
+                columns={taskColumns}
+                rowKey={(record) => getTaskId(record)}
+                pagination={false}
+                scroll={{ x: 760 }}
+              />
             )}
           </div>
         </Card>
 
-      {/* ── Task detail drawer ──────────────────────────────── */}
-      <Drawer
-        title={t("dashboard.employee.drawer.title")}
-        width={560}
-        open={Boolean(selectedTaskId)}
-        onClose={() => setSelectedTaskId(null)}>
-        {taskDetailLoading || taskDetailFetching ? (
-          <div className="relative min-h-48">
-            <AppLoading />
-          </div>
-        ) : taskDetail ? (
-          <div className="space-y-3">
-            <div>
-              <Typography.Text type="secondary">
-                {t("dashboard.employee.drawer.title_label")}
-              </Typography.Text>
-              <Typography.Paragraph className="!mb-0 !mt-1" strong>
-                {taskDetail.title ?? "-"}
-              </Typography.Paragraph>
-            </div>
+        <Card className="border border-stroke bg-white shadow-sm">
+          <h2 className="text-base font-semibold text-ink">
+            {tr(
+              "dashboard.employee.section.upcoming_tasks",
+              "Lịch task sắp tới",
+            )}
+          </h2>
+          <p className="text-sm text-muted">
+            {tr(
+              "dashboard.employee.section.upcoming_tasks_desc",
+              "Các task có hạn xử lý gần nhất.",
+            )}
+          </p>
 
-            <div>
-              <Typography.Text type="secondary">
-                {t("dashboard.employee.drawer.description_label")}
-              </Typography.Text>
-              <Typography.Paragraph className="!mb-0 !mt-1">
-                {taskDetail.description ?? "-"}
-              </Typography.Paragraph>
-            </div>
-
-            {/* Rejection reason alert */}
-            {taskDetail.rejectionReason && (
-              <Alert
-                type="error"
-                showIcon
-                message={t("dashboard.employee.drawer.rejection_reason")}
-                description={taskDetail.rejectionReason}
+          <div className="mt-4 space-y-2">
+            {tasksLoading ? (
+              <Skeleton active paragraph={{ rows: 5 }} title={false} />
+            ) : upcomingTasks.length === 0 ? (
+              <Empty
+                description={tr(
+                  "dashboard.employee.empty.no_upcoming",
+                  "Không có task sắp tới.",
+                )}
               />
+            ) : (
+              upcomingTasks.map((task) => (
+                <button
+                  key={getTaskId(task)}
+                  type="button"
+                  onClick={() => setSelectedTaskId(getTaskId(task))}
+                  className="w-full rounded-xl border border-stroke bg-white px-3 py-3 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/40"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-ink">
+                        {getTaskTitle(task)}
+                      </p>
+                      <p className="mt-1 text-xs text-muted">
+                        {getTaskDueDate(task)
+                          ? dayjs(getTaskDueDate(task)).format("DD/MM/YYYY")
+                          : "—"}
+                      </p>
+                    </div>
+                    <Tag color={taskStatusColor(task)}>
+                      {taskStatusLabel(getTaskStatus(task))}
+                    </Tag>
+                  </div>
+                </button>
+              ))
             )}
+          </div>
+        </Card>
+      </div>
 
-            {/* Approval status */}
-            {taskDetail.approvalStatus && (
-              <div className="flex items-center gap-2 rounded-lg border border-gray-200 p-3">
-                <Typography.Text type="secondary" className="shrink-0">
-                  {t("dashboard.employee.drawer.approval_label")}:
-                </Typography.Text>
+      <Drawer
+        title={detailTitle}
+        width={620}
+        open={Boolean(selectedTaskId)}
+        onClose={() => setSelectedTaskId(null)}
+      >
+        {taskDetailLoading || taskDetailFetching ? (
+          <Skeleton active paragraph={{ rows: 8 }} />
+        ) : !taskDetail ? (
+          <Empty
+            description={tr(
+              "dashboard.employee.empty.no_task_detail",
+              "Không có dữ liệu chi tiết task.",
+            )}
+          />
+        ) : (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-stroke bg-white p-4">
+              <div className="flex flex-wrap items-center gap-2">
                 <Tag
-                  color={
-                    taskDetail.approvalStatus === "APPROVED"
-                      ? "success"
-                      : taskDetail.approvalStatus === "REJECTED"
-                        ? "error"
-                        : "warning"
-                  }>
-                  {t(
-                    `onboarding.task.approval.status.${taskDetail.approvalStatus.toLowerCase()}`,
+                  color={taskStatusColor(
+                    taskDetail as unknown as OnboardingTask,
                   )}
+                >
+                  {taskStatusLabel(detailStatus)}
                 </Tag>
-                {taskDetail.approvedBy && (
-                  <Typography.Text type="secondary" className="text-xs">
-                    {t("dashboard.employee.drawer.approved_by", {
-                      name: taskDetail.approvedBy,
-                    })}
-                  </Typography.Text>
+                {detailDueDate && isOverdue(detailDueDate) && (
+                  <Tag color="red">
+                    {tr("dashboard.employee.reason.overdue", "Quá hạn")}
+                  </Tag>
                 )}
               </div>
-            )}
 
-            {/* Status + Due */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-lg border border-gray-200 p-3">
-                <Typography.Text type="secondary">
-                  {t("dashboard.employee.drawer.status_label")}
-                </Typography.Text>
-                <div className="mt-1">
-                  <Tag color={taskStatusVariant(taskDetail.status)}>
-                    {taskDetail.status ?? "TODO"}
-                  </Tag>
-                </div>
-              </div>
-              <div className="rounded-lg border border-gray-200 p-3">
-                <Typography.Text type="secondary">
-                  {t("dashboard.employee.drawer.due_label")}
-                </Typography.Text>
-                <div className="mt-1 text-sm">
-                  {taskDetail.dueDate
-                    ? dayjs(taskDetail.dueDate).format("DD/MM/YYYY")
-                    : "—"}
-                </div>
+              {detailDescription && (
+                <Typography.Paragraph className="mt-4 text-sm text-slate-700">
+                  {detailDescription}
+                </Typography.Paragraph>
+              )}
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <DetailRow
+                  label={tr("dashboard.employee.detail.due_date", "Hạn xử lý")}
+                  value={
+                    detailDueDate
+                      ? dayjs(detailDueDate).format("DD/MM/YYYY")
+                      : "—"
+                  }
+                />
+                <DetailRow
+                  label={tr("dashboard.employee.detail.status", "Trạng thái")}
+                  value={taskStatusLabel(detailStatus)}
+                />
               </div>
             </div>
 
-            {/* Schedule info */}
-            {(taskDetail.scheduleStatus ||
-              taskDetail.scheduledStartAt ||
-              taskDetail.scheduledEndAt) && (
-              <div className="rounded-lg border border-sky-100 bg-sky-50 p-3">
-                <div className="mb-1.5 flex items-center gap-1.5">
-                  <Calendar className="h-4 w-4 text-sky-500" />
-                  <Typography.Text strong className="text-sky-700">
-                    {t("dashboard.employee.drawer.schedule_label")}
-                  </Typography.Text>
-                  {taskDetail.scheduleStatus && (
-                    <Tag
-                      color={
-                        taskDetail.scheduleStatus === "CONFIRMED"
-                          ? "cyan"
-                          : "geekblue"
-                      }
-                      className="!ml-auto">
-                      {t(
-                        `onboarding.task.schedule.status.${taskDetail.scheduleStatus.toLowerCase()}`,
-                      )}
-                    </Tag>
-                  )}
+            {detailAttachments.length > 0 && (
+              <Card size="small">
+                <div className="mb-3 flex items-center gap-2">
+                  <Paperclip className="h-4 w-4 text-slate-500" />
+                  <p className="font-semibold text-ink">
+                    {tr(
+                      "dashboard.employee.detail.attachments",
+                      "Tệp đính kèm",
+                    )}
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  {taskDetail.scheduledStartAt && (
-                    <div>
-                      <span className="text-xs text-muted">
-                        {t("dashboard.employee.drawer.schedule_start")}
-                      </span>
-                      {dayjs(taskDetail.scheduledStartAt).format(
-                        "DD/MM/YYYY HH:mm",
-                      )}
-                    </div>
-                  )}
-                  {taskDetail.scheduledEndAt && (
-                    <div>
-                      <span className="text-xs text-muted">
-                        {t("dashboard.employee.drawer.schedule_end")}
-                      </span>
-                      {dayjs(taskDetail.scheduledEndAt).format(
-                        "DD/MM/YYYY HH:mm",
-                      )}
-                    </div>
-                  )}
+
+                <div className="space-y-2">
+                  {detailAttachments.map((item: unknown, index: number) => {
+                    const file = toRecord(item);
+                    const name =
+                      getAnyString(file, [
+                        "fileName",
+                        "name",
+                        "originalName",
+                      ]) ?? `Attachment ${index + 1}`;
+
+                    return (
+                      <div
+                        key={`${name}-${index}`}
+                        className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2"
+                      >
+                        <FileText className="h-4 w-4 text-slate-500" />
+                        <span className="text-sm text-slate-700">{name}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
+              </Card>
             )}
 
-            {/* Requirements badges */}
-            {(taskDetail.requireDoc ||
-              taskDetail.requireAck ||
-              taskDetail.requiresManagerApproval) && (
-              <div className="flex flex-wrap gap-2">
-                {taskDetail.requireDoc && (
-                  <Tag color="orange">
-                    <Paperclip className="mr-1 inline h-3 w-3" />
-                    {t("dashboard.employee.require_doc")}
-                  </Tag>
-                )}
-                {taskDetail.requireAck && (
-                  <Tag color="blue">
-                    👁 {t("dashboard.employee.require_ack")}
-                  </Tag>
-                )}
-                {taskDetail.requiresManagerApproval && (
-                  <Tag color="purple">
-                    {t("dashboard.employee.require_manager_approval")}
-                  </Tag>
-                )}
-              </div>
+            {detailComments.length > 0 && (
+              <Card size="small">
+                <p className="mb-3 font-semibold text-ink">
+                  {tr("dashboard.employee.detail.comments", "Bình luận")}
+                </p>
+
+                <div className="space-y-3">
+                  {detailComments.map((item: unknown, index: number) => {
+                    const comment = toRecord(item);
+                    const content =
+                      getAnyString(comment, ["content", "message", "text"]) ??
+                      "—";
+                    const createdAt = getAnyString(comment, [
+                      "createdAt",
+                      "time",
+                    ]);
+
+                    return (
+                      <div
+                        key={`${content}-${index}`}
+                        className="rounded-xl bg-slate-50 px-3 py-2"
+                      >
+                        <p className="text-sm text-slate-700">{content}</p>
+                        {createdAt && (
+                          <p className="mt-1 text-xs text-slate-400">
+                            {dayjs(createdAt).format("DD/MM/YYYY HH:mm")}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
             )}
 
-            {/* Inline comments */}
-            {Array.isArray(taskDetail.comments) &&
-              taskDetail.comments.length > 0 && (
-                <Collapse
-                  size="small"
-                  items={[
-                    {
-                      key: "comments",
-                      label: (
-                        <span className="flex items-center gap-1.5 text-sm">
-                          <BellRing className="h-3.5 w-3.5" />
-                          {t("dashboard.employee.drawer.comments_count", {
-                            count: taskDetail.comments.length,
-                          })}
-                        </span>
-                      ),
-                      children: (
-                        <div className="max-h-52 space-y-2 overflow-y-auto">
-                          {taskDetail.comments.map((c) => (
-                            <div
-                              key={
-                                (c as { commentId?: string }).commentId ??
-                                Math.random()
-                              }
-                              className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-                              <div className="flex items-center justify-between">
-                                <Typography.Text strong className="text-xs">
-                                  {(c as { authorName?: string }).authorName ??
-                                    t("dashboard.employee.anonymous")}
-                                </Typography.Text>
-                                <Typography.Text
-                                  type="secondary"
-                                  className="text-[10px]">
-                                  {(c as { createdAt?: string }).createdAt
-                                    ? dayjs(
-                                        (c as { createdAt?: string }).createdAt,
-                                      ).format("DD/MM HH:mm")
-                                    : ""}
-                                </Typography.Text>
-                              </div>
-                              <p className="mt-1 text-xs">
-                                {(c as { content?: string; message?: string })
-                                  .content ??
-                                  (c as { content?: string; message?: string })
-                                    .message}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      ),
-                    },
-                  ]}
-                />
-              )}
-
-            {/* Attachments */}
-            {Array.isArray(taskDetail.attachments) &&
-              taskDetail.attachments.length > 0 && (
-                <Collapse
-                  size="small"
-                  items={[
-                    {
-                      key: "attachments",
-                      label: (
-                        <span className="flex items-center gap-1.5 text-sm">
-                          <Paperclip className="h-3.5 w-3.5" />
-                          {t("dashboard.employee.drawer.attachments_count", {
-                            count: taskDetail.attachments.length,
-                          })}
-                        </span>
-                      ),
-                      children: (
-                        <div className="space-y-1.5">
-                          {taskDetail.attachments.map((att) => (
-                            <div
-                              key={
-                                (att as { attachmentId?: string })
-                                  .attachmentId ?? Math.random()
-                              }
-                              className="flex items-center gap-2 rounded border border-gray-100 bg-gray-50 px-3 py-1.5 text-sm">
-                              <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted" />
-                              <span className="min-w-0 flex-1 truncate">
-                                {(att as { fileName?: string; name?: string })
-                                  .fileName ??
-                                  (att as { fileName?: string; name?: string })
-                                    .name ??
-                                  "Tệp không tên"}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      ),
-                    },
-                  ]}
-                />
-              )}
-
-            {/* Activity log */}
-            {Array.isArray(taskDetail.activityLogs) &&
-              taskDetail.activityLogs.length > 0 && (
-                <Collapse
-                  size="small"
-                  items={[
-                    {
-                      key: "activity",
-                      label: (
-                        <span className="flex items-center gap-1.5 text-sm">
-                          <Clock className="h-3.5 w-3.5" />
-                          {t("dashboard.employee.drawer.activity_count", {
-                            count: taskDetail.activityLogs.length,
-                          })}
-                        </span>
-                      ),
-                      children: (
-                        <div className="max-h-52 space-y-1.5 overflow-y-auto">
-                          {taskDetail.activityLogs.map((log) => (
-                            <div
-                              key={
-                                (log as { logId?: string }).logId ??
-                                Math.random()
-                              }
-                              className="flex items-start gap-2 text-xs">
-                              <div className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400" />
-                              <div>
-                                <span className="font-medium">
-                                  {(log as { action?: string }).action ??
-                                    ""}{" "}
-                                </span>
-                                <span className="text-muted">
-                                  {(log as { performedBy?: string })
-                                    .performedBy &&
-                                    t("dashboard.employee.drawer.approved_by", {
-                                      name: (log as { performedBy?: string })
-                                        .performedBy!,
-                                    })}
-                                </span>
-                                {(log as { createdAt?: string }).createdAt && (
-                                  <span className="ml-2 text-[10px] text-muted">
-                                    ·{" "}
-                                    {dayjs(
-                                      (log as { createdAt?: string }).createdAt,
-                                    ).format("DD/MM HH:mm")}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ),
-                    },
-                  ]}
-                />
-              )}
-
-            {taskDetail.status !== "DONE" && (
-              <div className="space-y-2 pt-2">
-                {taskDetail.requireAck &&
-                  ["TODO", "IN_PROGRESS", "ASSIGNED"].includes(
-                    taskDetail.status ?? "",
-                  ) && (
-                    <Button
-                      type="primary"
-                      block
-                      loading={acknowledgeMutation.isPending}
-                      onClick={() =>
-                        acknowledgeMutation.mutate(taskDetail.taskId!)
-                      }>
-                      {t("dashboard.employee.action.confirm_received")}
-                    </Button>
+            {detailLogs.length > 0 && (
+              <Card size="small">
+                <p className="mb-3 font-semibold text-ink">
+                  {tr(
+                    "dashboard.employee.detail.activity",
+                    "Lịch sử hoạt động",
                   )}
+                </p>
 
-                {taskDetail.status === "WAIT_ACK" && (
-                  <Tooltip
-                    title={
-                      taskDetail.requireDoc
-                        ? t("dashboard.employee.drawer.doc_required_tooltip")
-                        : undefined
-                    }>
-                    <Button
-                      type="primary"
-                      block
-                      loading={updateTaskStatus.isPending}
-                      disabled={Boolean(taskDetail.requireDoc)}
-                      onClick={() =>
-                        updateTaskStatus.mutate(
-                          { taskId: taskDetail.taskId!, status: "DONE" },
-                          {
-                            onSuccess: () => {
-                              invalidateTasks();
-                              notify.success(
-                                t(
-                                  "dashboard.employee.notify.confirm_done_success",
-                                ),
-                              );
-                            },
-                            onError: () =>
-                              notify.error(
-                                t("dashboard.employee.notify.error"),
-                              ),
-                          },
-                        )
-                      }>
-                      {t("dashboard.employee.action.confirm_done")}
-                    </Button>
-                  </Tooltip>
-                )}
+                <div className="space-y-2">
+                  {detailLogs.map((item: unknown, index: number) => {
+                    const log = toRecord(item);
+                    const action =
+                      getAnyString(log, ["action", "message", "description"]) ??
+                      "—";
+                    const createdAt = getAnyString(log, ["createdAt", "time"]);
 
-                {!taskDetail.requireAck &&
-                  taskDetail.requiresManagerApproval &&
-                  ["TODO", "IN_PROGRESS", "ASSIGNED"].includes(
-                    taskDetail.status ?? "",
-                  ) && (
-                    <Button
-                      block
-                      loading={updateTaskStatus.isPending}
-                      onClick={() =>
-                        updateTaskStatus.mutate(
-                          {
-                            taskId: taskDetail.taskId!,
-                            status: "PENDING_APPROVAL",
-                          },
-                          {
-                            onSuccess: () => {
-                              invalidateTasks();
-                              notify.success(
-                                t("dashboard.employee.notify.approval_sent"),
-                              );
-                            },
-                            onError: () =>
-                              notify.error(
-                                t("dashboard.employee.notify.error"),
-                              ),
-                          },
-                        )
-                      }>
-                      {t("dashboard.employee.action.send_approval")}
-                    </Button>
-                  )}
-
-                {!taskDetail.requireAck &&
-                  !taskDetail.requiresManagerApproval &&
-                  !taskDetail.requireDoc &&
-                  taskDetail.status !== "WAIT_ACK" &&
-                  taskDetail.status !== "PENDING_APPROVAL" && (
-                    <Button
-                      type="primary"
-                      block
-                      loading={updateTaskStatus.isPending}
-                      onClick={() =>
-                        updateTaskStatus.mutate(
-                          { taskId: taskDetail.taskId!, status: "DONE" },
-                          {
-                            onSuccess: () => {
-                              invalidateTasks();
-                              notify.success(
-                                t("dashboard.employee.notify.done_success"),
-                              );
-                            },
-                            onError: () =>
-                              notify.error(
-                                t("dashboard.employee.notify.error"),
-                              ),
-                          },
-                        )
-                      }>
-                      {t("dashboard.employee.action.mark_done")}
-                    </Button>
-                  )}
-
-                {taskDetail.requireDoc &&
-                  taskDetail.status !== "PENDING_APPROVAL" && (
-                    <div className="flex items-center gap-1.5 rounded-md border border-amber-100 bg-amber-50/70 px-3 py-2 text-xs text-amber-700">
-                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                      {t("dashboard.employee.drawer.doc_required_notice")}
-                    </div>
-                  )}
-              </div>
+                    return (
+                      <div
+                        key={`${action}-${index}`}
+                        className="rounded-xl bg-slate-50 px-3 py-2"
+                      >
+                        <p className="text-sm text-slate-700">{action}</p>
+                        {createdAt && (
+                          <p className="mt-1 text-xs text-slate-400">
+                            {dayjs(createdAt).format("DD/MM/YYYY HH:mm")}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
             )}
 
-            <Link to="/onboarding/tasks">
-              <Button block>{t("dashboard.employee.action.view_board")}</Button>
-            </Link>
+            <div className="sticky bottom-0 -mx-6 border-t border-stroke bg-white px-6 py-4">
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button onClick={() => setSelectedTaskId(null)}>
+                  {tr("global.close", "Đóng")}
+                </Button>
+
+                {selectedTaskId && (
+                  <Button
+                    type="primary"
+                    loading={updateTaskStatusMutation.isPending}
+                    onClick={() =>
+                      updateTaskStatusMutation.mutate({
+                        taskId: selectedTaskId,
+                        status: STATUS_DONE_API,
+                      })
+                    }
+                  >
+                    {tr("dashboard.employee.action.done", "Hoàn tất")}
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
-        ) : (
-          <Empty description={t("dashboard.employee.drawer.no_task_detail")} />
         )}
       </Drawer>
     </div>

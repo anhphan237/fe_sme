@@ -23,6 +23,8 @@ import {
 export const useSurveyReportsPage = () => {
   const [filters, setFilters] = useState<SurveyReportsFilterState>({
     templateId: "",
+    startDate: "",
+    endDate: "",
   });
 
   const { data: templatesRaw, isLoading: templatesLoading } = useQuery({
@@ -49,11 +51,27 @@ export const useSurveyReportsPage = () => {
   );
 
   const { data: analyticsRaw, isLoading: analyticsLoading } = useQuery({
-    queryKey: ["survey-analytics-report", filters.templateId],
-    queryFn: () =>
-      apiGetSurveyAnalyticsReport(
-        filters.templateId ? { templateId: filters.templateId } : undefined,
-      ),
+    queryKey: [
+      "survey-analytics-report",
+      filters.templateId,
+      filters.startDate,
+      filters.endDate,
+    ],
+    queryFn: () => {
+      const payload: {
+        templateId?: string;
+        startDate?: string;
+        endDate?: string;
+      } = {};
+
+      if (filters.templateId) payload.templateId = filters.templateId;
+      if (filters.startDate) payload.startDate = filters.startDate;
+      if (filters.endDate) payload.endDate = filters.endDate;
+
+      return apiGetSurveyAnalyticsReport(
+        Object.keys(payload).length > 0 ? payload : undefined,
+      );
+    },
   });
 
   const analytics = (analyticsRaw ?? null) as SurveyAnalyticsReportVm | null;
@@ -90,6 +108,14 @@ export const useSurveyReportsPage = () => {
     }));
   };
 
+  const setDateRange = (startDate?: string, endDate?: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      startDate: startDate ?? "",
+      endDate: endDate ?? "",
+    }));
+  };
+
   return {
     filters,
     analytics,
@@ -104,5 +130,6 @@ export const useSurveyReportsPage = () => {
     strengthItems,
     questionTableData,
     setTemplateId,
+    setDateRange,
   };
 };

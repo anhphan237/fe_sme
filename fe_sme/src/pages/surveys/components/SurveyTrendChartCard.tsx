@@ -24,6 +24,11 @@ type Props = {
 const SurveyTrendChartCard = ({ data = [], loading }: Props) => {
   const { t } = useLocale();
 
+  const tr = (key: string, fallback: string) => {
+    const value = t(key);
+    return value === key ? fallback : value;
+  };
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <h3 className="text-base font-semibold text-[#223A59]">
@@ -43,7 +48,10 @@ const SurveyTrendChartCard = ({ data = [], loading }: Props) => {
               <YAxis domain={[0, 5]} tick={{ fontSize: 11 }} />
               <Tooltip
                 formatter={(value: number, _name, props) => [
-                  `${value.toFixed(2)} | ${props.payload.submitted} responses`,
+                  `${value.toFixed(2)} | ${props.payload.submitted} ${tr(
+                    "survey.reports.responses_lower",
+                    "responses",
+                  )}`,
                   t("survey.reports.avg_score"),
                 ]}
               />
