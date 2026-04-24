@@ -1,7 +1,7 @@
 import { Modal, Input, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type Key } from "react";
 import dayjs from "dayjs";
 
 import BaseButton from "@/components/button";
@@ -45,6 +45,23 @@ interface Props {
   onConfirm: (items: SelectedOnboardingItem[]) => void;
 }
 
+const statusColor = (status?: string | null) => {
+  switch ((status ?? "").toUpperCase()) {
+    case "ACTIVE":
+      return "green";
+    case "IN_PROGRESS":
+      return "blue";
+    case "PENDING":
+      return "gold";
+    case "COMPLETED":
+      return "default";
+    case "CLOSED":
+      return "default";
+    default:
+      return "default";
+  }
+};
+
 const SelectOnboardingModal = ({
   open,
   selectedIds,
@@ -54,8 +71,7 @@ const SelectOnboardingModal = ({
 }: Props) => {
   const { t } = useLocale();
 
-  // Modal đang được mount/unmount theo selectModalOpen,
-  // nên init state từ props là đủ, không cần useEffect setState.
+  // Modal đang mount/unmount theo selectModalOpen nên init từ props là đủ
   const [keyword, setKeyword] = useState("");
   const [localSelectedIds, setLocalSelectedIds] =
     useState<string[]>(selectedIds);
@@ -64,12 +80,20 @@ const SelectOnboardingModal = ({
     queryKey: ["onboarding-instances-for-survey-select"],
     queryFn: () => apiListInstances({}),
     enabled: open,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: false,
   });
 
   const { data: usersRaw, isLoading: isUsersLoading } = useQuery({
     queryKey: ["users-for-survey-select"],
     queryFn: () => apiSearchUsers({}),
     enabled: open,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: false,
   });
 
   const onboardingInstances = extractList<OnboardingInstanceItem>(
@@ -80,15 +104,6 @@ const SelectOnboardingModal = ({
 
   const users = extractList<UserListItem>(usersRaw, "users", "items");
 
-  const managerUser = useMemo(
-    () =>
-      users.find((user) => {
-        if (!Array.isArray(user.roles)) return false;
-        return user.roles.some((role) => role?.toUpperCase() === "MANAGER");
-      }),
-    [users],
-  );
-
   const userMap = useMemo(
     () => new Map(users.map((user) => [user.userId, user])),
     [users],
@@ -97,62 +112,78 @@ const SelectOnboardingModal = ({
   const rows = useMemo<SelectedOnboardingItem[]>(() => {
     const result: SelectedOnboardingItem[] = [];
 
-    if (targetRole === "MANAGER") {
-
-      if (!managerUser?.userId) {
-        return result;
-      }
-
-      const firstOnboarding = onboardingInstances[0];
-      if (!firstOnboarding?.instanceId) {
-        return result;
-      }
-
-      result.push({
-        onboardingId: managerUser.userId,
-        instanceId: firstOnboarding.instanceId,
-        employeeUserId: firstOnboarding.employeeUserId ?? null,
-        managerUserId: managerUser.userId,
-        recipientUserId: managerUser.userId,
-        recipientRole: "MANAGER",
-        employeeName: managerUser.fullName || "Manager",
-        email: managerUser.email ?? null,
-        managerName: managerUser.fullName || "Manager",
-        startDate: firstOnboarding.startDate ?? null,
-        status: firstOnboarding.status ?? null,
-      });
-
-      return result;
-    }
-
     onboardingInstances.forEach((item) => {
-      if (!item.instanceId || !item.employeeUserId) {
+      if (!item.instanceId) return;
+
+      const employee = item.employeeUserId
+        ? userMap.get(item.employeeUserId)
+        : undefined;
+
+      const manager = item.managerUserId
+        ? userMap.get(item.managerUserId)
+        : undefined;
+
+      if (targetRole === "MANAGER") {
+        if (!item.managerUserId) return;
+
+        const managerDisplayName =
+          manager?.fullName ||
+          item.managerName ||
+          item.managerUserId ||
+          "Manager";
+
+        result.push({
+          onboardingId: item.instanceId,
+          instanceId: item.instanceId,
+          employeeUserId: item.employeeUserId ?? null,
+          managerUserId: item.managerUserId ?? null,
+          recipientUserId: item.managerUserId ?? null,
+          recipientRole: "MANAGER",
+          employeeName: managerDisplayName,
+          email: manager?.email ?? null,
+          managerName:
+            employee?.fullName ||
+            item.employeeId ||
+            item.employeeUserId ||
+            "-",
+          startDate: item.startDate ?? null,
+          status: item.status ?? null,
+        });
+
         return;
       }
 
-      const employee = userMap.get(item.employeeUserId);
+      if (!item.employeeUserId) return;
+
+      const employeeDisplayName =
+        employee?.fullName ||
+        item.employeeId ||
+        item.employeeUserId ||
+        item.instanceId;
+
+      const managerDisplayName =
+        manager?.fullName ||
+        item.managerName ||
+        item.managerUserId ||
+        "-";
 
       result.push({
         onboardingId: item.instanceId,
         instanceId: item.instanceId,
-        employeeUserId: item.employeeUserId,
-        managerUserId: managerUser?.userId ?? null,
-        recipientUserId: item.employeeUserId,
+        employeeUserId: item.employeeUserId ?? null,
+        managerUserId: item.managerUserId ?? null,
+        recipientUserId: item.employeeUserId ?? null,
         recipientRole: "EMPLOYEE",
-        employeeName:
-          employee?.fullName ||
-          item.employeeId ||
-          item.employeeUserId ||
-          item.instanceId,
+        employeeName: employeeDisplayName,
         email: employee?.email ?? null,
-        managerName: managerUser?.fullName ?? "Manager",
+        managerName: managerDisplayName,
         startDate: item.startDate ?? null,
         status: item.status ?? null,
       });
     });
 
     return result;
-  }, [onboardingInstances, userMap, managerUser, targetRole]);
+  }, [onboardingInstances, targetRole, userMap]);
 
   const normalizedKeyword = keyword.trim().toLowerCase();
 
@@ -164,7 +195,7 @@ const SelectOnboardingModal = ({
         item.employeeName,
         item.email,
         item.managerName,
-        item.onboardingId,
+        item.instanceId,
         item.status,
         item.startDate,
         item.recipientRole,
@@ -177,52 +208,91 @@ const SelectOnboardingModal = ({
   }, [rows, normalizedKeyword]);
 
   const selectedItems = useMemo(
-    () => rows.filter((item) => localSelectedIds.includes(item.onboardingId)),
+    () => rows.filter((item) => localSelectedIds.includes(item.instanceId)),
     [rows, localSelectedIds],
   );
 
-  const columns: ColumnsType<SelectedOnboardingItem> = [
-    {
-      title:
-        targetRole === "MANAGER"
-          ? "Tên quản lý"
-          : t("survey.send.employee_name_column"),
-      dataIndex: "employeeName",
-      key: "employeeName",
-    },
-    {
-      title: t("survey.send.email_column"),
-      dataIndex: "email",
-      key: "email",
-      render: (value: string | null | undefined) => value || "-",
-    },
-    {
-      title: t("survey.send.manager_column"),
-      dataIndex: "managerName",
-      key: "managerName",
-      render: (value: string | null | undefined) => value || "-",
-    },
-    {
-      title: t("survey.send.start_date_column"),
-      dataIndex: "startDate",
-      key: "startDate",
-      render: (value: string | null | undefined) =>
-        value ? dayjs(value).format("DD-MM-YYYY") : "-",
-    },
-    {
-      title: t("survey.send.status_column"),
-      dataIndex: "status",
-      key: "status",
-      render: (value: string | null | undefined) =>
-        value ? <Tag>{value}</Tag> : "-",
-    },
-  ];
+  const columns = useMemo<ColumnsType<SelectedOnboardingItem>>(() => {
+    if (targetRole === "MANAGER") {
+      return [
+        {
+          title: "Tên quản lý",
+          dataIndex: "employeeName",
+          key: "employeeName",
+        },
+        {
+          title: t("survey.send.email_column"),
+          dataIndex: "email",
+          key: "email",
+          render: (value: string | null | undefined) => value || "-",
+        },
+        {
+          title: "Nhân viên onboarding",
+          dataIndex: "managerName",
+          key: "managerName",
+          render: (value: string | null | undefined) => value || "-",
+        },
+        {
+          title: t("survey.send.start_date_column"),
+          dataIndex: "startDate",
+          key: "startDate",
+          render: (value: string | null | undefined) =>
+            value ? dayjs(value).format("DD-MM-YYYY") : "-",
+        },
+        {
+          title: t("survey.send.status_column"),
+          dataIndex: "status",
+          key: "status",
+          render: (value: string | null | undefined) =>
+            value ? <Tag color={statusColor(value)}>{value}</Tag> : "-",
+        },
+      ];
+    }
+
+    return [
+      {
+        title: t("survey.send.employee_name_column"),
+        dataIndex: "employeeName",
+        key: "employeeName",
+      },
+      {
+        title: t("survey.send.email_column"),
+        dataIndex: "email",
+        key: "email",
+        render: (value: string | null | undefined) => value || "-",
+      },
+      {
+        title: t("survey.send.manager_column"),
+        dataIndex: "managerName",
+        key: "managerName",
+        render: (value: string | null | undefined) => value || "-",
+      },
+      {
+        title: t("survey.send.start_date_column"),
+        dataIndex: "startDate",
+        key: "startDate",
+        render: (value: string | null | undefined) =>
+          value ? dayjs(value).format("DD-MM-YYYY") : "-",
+      },
+      {
+        title: t("survey.send.status_column"),
+        dataIndex: "status",
+        key: "status",
+        render: (value: string | null | undefined) =>
+          value ? <Tag color={statusColor(value)}>{value}</Tag> : "-",
+      },
+    ];
+  }, [t, targetRole]);
 
   return (
     <Modal
       open={open}
       onCancel={onClose}
-      title={t("survey.send.select_employee_modal_title")}
+      title={
+        targetRole === "MANAGER"
+          ? "Chọn quản lý onboarding"
+          : t("survey.send.select_employee_modal_title")
+      }
       width={980}
       destroyOnHidden
       footer={
@@ -241,7 +311,11 @@ const SelectOnboardingModal = ({
           allowClear
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
-          placeholder={t("survey.send.search_employee_placeholder")}
+          placeholder={
+            targetRole === "MANAGER"
+              ? "Tìm theo tên quản lý, email, nhân viên onboarding, trạng thái"
+              : t("survey.send.search_employee_placeholder")
+          }
         />
         <div className="min-w-fit text-sm text-slate-500">
           {t("survey.send.selected_count")}:
@@ -250,13 +324,13 @@ const SelectOnboardingModal = ({
       </div>
 
       <Table<SelectedOnboardingItem>
-        rowKey="onboardingId"
+        rowKey="instanceId"
         loading={isOnboardingLoading || isUsersLoading}
         dataSource={filteredRows}
         pagination={{ pageSize: 8 }}
         rowSelection={{
           selectedRowKeys: localSelectedIds,
-          onChange: (keys) => setLocalSelectedIds(keys as string[]),
+          onChange: (keys: Key[]) => setLocalSelectedIds(keys.map(String)),
         }}
         columns={columns}
       />
