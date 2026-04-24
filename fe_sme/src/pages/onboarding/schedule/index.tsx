@@ -1,10 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  useMutation,
-  useQueries,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
   Card,
@@ -49,19 +44,22 @@ import {
   apiConfirmTaskSchedule,
   apiGetTaskDetailFull,
   apiListInstances,
-  apiListTasks,
   apiMarkTaskNoShow,
+  apiQueryTaskScheduleCalendar,
   apiRescheduleTask,
 } from "@/api/onboarding/onboarding.api";
 import { extractList } from "@/api/core/types";
-import { mapInstance, mapTask } from "@/utils/mappers/onboarding";
+import { mapInstance } from "@/utils/mappers/onboarding";
 import { useLocale } from "@/i18n";
 import { useUserStore } from "@/stores/user.store";
 import { canManageOnboarding } from "@/shared/rbac";
 import { notify } from "@/utils/notify";
 import { useUserNameMap } from "@/utils/resolvers/userResolver";
 import type { OnboardingInstance, OnboardingTask } from "@/shared/types";
-import type { TaskDetailResponse } from "@/interface/onboarding";
+import type {
+  TaskDetailResponse,
+  TaskScheduleCalendarItem,
+} from "@/interface/onboarding";
 
 dayjs.extend(isoWeek);
 
@@ -248,7 +246,11 @@ const CalTaskCard = ({
           {showEmployee && (
             <p className="!mb-0 mt-0.5 truncate text-[10px] text-violet-600">
               <UserRound className="mr-0.5 inline h-2.5 w-2.5" />
-              {instance.employeeName ?? resolveFn(instance.employeeUserId ?? instance.employeeId, instance.employeeId)}
+              {instance.employeeName ??
+                resolveFn(
+                  instance.employeeUserId ?? instance.employeeId,
+                  instance.employeeId,
+                )}
             </p>
           )}
           {task.checklistName && (
@@ -509,24 +511,49 @@ const OnboardingSchedule = () => {
     return instances;
   }, [instances, canManage, isEmployee, roles, currentUser?.id]);
 
-  // ── Fetch tasks per instance ──
-  const taskQueries = useQueries({
-    queries: scopedInstances.slice(0, 40).map((instance) => ({
-      queryKey: ["schedule-tasks", instance.id],
-      queryFn: () => apiListTasks(instance.id),
-      enabled: Boolean(instance.id),
-      select: (res: unknown) =>
-        extractList(
-          res as Record<string, unknown>,
-          "tasks",
-          "content",
-          "items",
-          "list",
-        ).map(mapTask) as OnboardingTask[],
-    })),
-  });
+  // ── Instance lookup map ──
+  const instanceMap = useMemo(() => {
+    const map = new Map<string, OnboardingInstance>();
+    for (const inst of instances) map.set(inst.id, inst);
+    return map;
+  }, [instances]);
 
-  const tasksLoading = taskQueries.some((q) => q.isLoading);
+  // ── Date range for schedule calendar API ──
+  const scheduleRange = useMemo(() => {
+    if (viewType === "calendar" || isEmployee) {
+      return {
+        fromTime: calAnchor.startOf("month").startOf("isoWeek").toISOString(),
+        toTime: calAnchor.endOf("month").endOf("isoWeek").toISOString(),
+      };
+    }
+    // List mode: cover 1 year back + 2 years ahead (overdue + upcoming + all)
+    return {
+      fromTime: dayjs().subtract(1, "year").startOf("day").toISOString(),
+      toTime: dayjs().add(2, "year").endOf("day").toISOString(),
+    };
+  }, [calAnchor, viewType, isEmployee]);
+
+  // ── Fetch tasks via schedule calendar API (single query) ──
+  const { data: calendarItems = [], isLoading: tasksLoading } = useQuery({
+    queryKey: [
+      "schedule-calendar",
+      scheduleRange.fromTime,
+      scheduleRange.toTime,
+      currentUser?.id ?? "",
+    ],
+    queryFn: () =>
+      apiQueryTaskScheduleCalendar({
+        fromTime: scheduleRange.fromTime,
+        toTime: scheduleRange.toTime,
+        page: 0,
+        size: 500,
+      }),
+    enabled: Boolean(currentUser?.id),
+    select: (res: unknown) => {
+      const r = res as Record<string, unknown>;
+      return (r?.items as TaskScheduleCalendarItem[]) ?? [];
+    },
+  });
 
   // ── Task detail ──
   const { data: taskDetail, isLoading: loadingDetail } = useQuery({
@@ -541,18 +568,35 @@ const OnboardingSchedule = () => {
     },
   });
 
-  // ── Build flat rows ──
+  // ── Build flat rows from calendar items + instance lookup ──
   const rows = useMemo<ScheduledTaskRow[]>(() => {
-    const result: ScheduledTaskRow[] = [];
-    scopedInstances.forEach((instance, idx) => {
-      const tasks = (taskQueries[idx]?.data ?? []) as OnboardingTask[];
-      for (const task of tasks) {
-        if (task.rawStatus === "DONE") continue;
-        result.push({ task, instance });
-      }
-    });
-    return result;
-  }, [scopedInstances, taskQueries]);
+    return calendarItems
+      .filter((item) => !item.done)
+      .map((item) => {
+        const instance: OnboardingInstance =
+          instanceMap.get(item.onboardingId ?? "") ??
+          ({
+            id: item.onboardingId ?? "",
+            employeeName: undefined,
+            employeeId: item.onboardingId,
+            employeeUserId: undefined,
+            templateName: undefined,
+            startDate: undefined,
+          } as unknown as OnboardingInstance);
+        const task: OnboardingTask = {
+          id: item.taskId,
+          title: item.title,
+          rawStatus: item.status,
+          scheduleStatus: undefined,
+          dueDate: item.dueDate,
+          checklistName: item.checklistName,
+          scheduledStartAt: item.scheduledStartAt,
+          scheduledEndAt: item.scheduledEndAt,
+          done: item.done,
+        } as unknown as OnboardingTask;
+        return { task, instance };
+      });
+  }, [calendarItems, instanceMap]);
 
   // ── Employee / Instance select options ──
   const employeeOptions = useMemo(() => {
@@ -564,7 +608,12 @@ const OnboardingSchedule = () => {
         seen.add(uid);
         opts.push({
           value: uid,
-          label: inst.employeeName ?? resolveName(inst.employeeUserId ?? inst.employeeId, inst.employeeId ?? uid),
+          label:
+            inst.employeeName ??
+            resolveName(
+              inst.employeeUserId ?? inst.employeeId,
+              inst.employeeId ?? uid,
+            ),
         });
       }
     }
@@ -583,7 +632,10 @@ const OnboardingSchedule = () => {
     return base.map((i) => ({
       value: i.id,
       label:
-        [i.templateName, i.startDate ? dayjs(i.startDate).format("DD/MM/YYYY") : null]
+        [
+          i.templateName,
+          i.startDate ? dayjs(i.startDate).format("DD/MM/YYYY") : null,
+        ]
           .filter(Boolean)
           .join(" · ") || i.id,
     }));
@@ -777,7 +829,7 @@ const OnboardingSchedule = () => {
 
   // ── Mutations ──
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ["schedule-tasks"] });
+    void queryClient.invalidateQueries({ queryKey: ["schedule-calendar"] });
     void queryClient.invalidateQueries({
       queryKey: ["schedule-task-detail", selectedTaskId ?? ""],
     });
@@ -852,7 +904,7 @@ const OnboardingSchedule = () => {
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["schedule-instances"] });
-    void queryClient.invalidateQueries({ queryKey: ["schedule-tasks"] });
+    void queryClient.invalidateQueries({ queryKey: ["schedule-calendar"] });
   };
 
   // ── Inline sub-components ──
@@ -897,8 +949,7 @@ const OnboardingSchedule = () => {
     });
   };
 
-  const isLoading =
-    loadingInstances || (scopedInstances.length > 0 && tasksLoading);
+  const isLoading = loadingInstances || tasksLoading;
   const isCalendarMode = viewType === "calendar";
   const weekdayLabels = WEEKDAY_KEYS.map(
     (k, idx) => t(k) ?? ["T2", "T3", "T4", "T5", "T6", "T7", "CN"][idx],
@@ -948,7 +999,11 @@ const OnboardingSchedule = () => {
               {!isEmployee && (
                 <span className="inline-flex items-center gap-1">
                   <UserRound className="h-3 w-3" />
-                  {instance.employeeName ?? resolveName(instance.employeeUserId ?? instance.employeeId, instance.employeeId)}
+                  {instance.employeeName ??
+                    resolveName(
+                      instance.employeeUserId ?? instance.employeeId,
+                      instance.employeeId,
+                    )}
                 </span>
               )}
               {task.checklistName && (
@@ -1061,7 +1116,8 @@ const OnboardingSchedule = () => {
                 placeholder={
                   <span className="inline-flex items-center gap-1">
                     <UserRound className="h-3.5 w-3.5" />
-                    {t("onboarding.schedule.filter.employee_placeholder") ?? "Nhân viên"}
+                    {t("onboarding.schedule.filter.employee_placeholder") ??
+                      "Nhân viên"}
                   </span>
                 }
                 filterOption={(input, opt) =>
@@ -1080,7 +1136,8 @@ const OnboardingSchedule = () => {
                 placeholder={
                   <span className="inline-flex items-center gap-1">
                     <ClipboardList className="h-3.5 w-3.5" />
-                    {t("onboarding.schedule.filter.instance_placeholder") ?? "Onboarding"}
+                    {t("onboarding.schedule.filter.instance_placeholder") ??
+                      "Onboarding"}
                   </span>
                 }
                 filterOption={(input, opt) =>
@@ -1199,7 +1256,8 @@ const OnboardingSchedule = () => {
                         label: (
                           <span className="inline-flex items-center gap-1.5">
                             <UsersIcon className="h-3.5 w-3.5" />
-                            {t("onboarding.schedule.group.employee") ?? "Theo NV"}
+                            {t("onboarding.schedule.group.employee") ??
+                              "Theo NV"}
                           </span>
                         ),
                       },
@@ -1469,12 +1527,20 @@ const OnboardingSchedule = () => {
                   <div className="flex items-center gap-3">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
                       {(instance.employeeName ??
-                        resolveName(instance.employeeUserId ?? instance.employeeId, instance.employeeId) ??
+                        resolveName(
+                          instance.employeeUserId ?? instance.employeeId,
+                          instance.employeeId,
+                        ) ??
                         "?")[0]?.toUpperCase()}
                     </div>
                     <div className="flex-1">
                       <p className="!mb-0 text-sm font-semibold text-ink">
-                        {instance.employeeName ?? resolveName(instance.employeeUserId ?? instance.employeeId, instance.employeeId) ?? "—"}
+                        {instance.employeeName ??
+                          resolveName(
+                            instance.employeeUserId ?? instance.employeeId,
+                            instance.employeeId,
+                          ) ??
+                          "—"}
                       </p>
                       {instance.templateName && (
                         <p className="!mb-0 text-xs text-muted">
@@ -1532,7 +1598,11 @@ const OnboardingSchedule = () => {
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
                   <span className="inline-flex items-center gap-1">
                     <UserRound className="h-3 w-3" />
-                    {instance.employeeName ?? resolveName(instance.employeeUserId ?? instance.employeeId, instance.employeeId)}
+                    {instance.employeeName ??
+                      resolveName(
+                        instance.employeeUserId ?? instance.employeeId,
+                        instance.employeeId,
+                      )}
                   </span>
                   {task.checklistName && (
                     <Tag style={{ margin: 0 }}>{task.checklistName}</Tag>
@@ -1586,11 +1656,11 @@ const OnboardingSchedule = () => {
                   {t("onboarding.task.stat.overdue") ?? "Quá hạn"}
                 </Tag>
               )}
-              {taskDetail.dueInHours != null && taskDetail.dueInHours <= 24 && !taskDetail.overdue && (
-                <Tag color="warning">
-                  {`Còn ${taskDetail.dueInHours}h`}
-                </Tag>
-              )}
+              {taskDetail.dueInHours != null &&
+                taskDetail.dueInHours <= 24 &&
+                !taskDetail.overdue && (
+                  <Tag color="warning">{`Còn ${taskDetail.dueInHours}h`}</Tag>
+                )}
             </div>
 
             {/* ── Description ── */}
@@ -1641,11 +1711,13 @@ const OnboardingSchedule = () => {
               )}
               {taskDetail.dueDate && (
                 <Col span={12}>
-                  <div className={`rounded-lg border p-3 ${taskDetail.overdue ? "border-red-200 bg-red-50/30" : "border-gray-200"}`}>
+                  <div
+                    className={`rounded-lg border p-3 ${taskDetail.overdue ? "border-red-200 bg-red-50/30" : "border-gray-200"}`}>
                     <Text type="secondary" className="text-xs">
                       {t("onboarding.schedule.field.due_date") ?? "Hạn"}
                     </Text>
-                    <p className={`!mb-0 mt-1 text-sm font-medium ${taskDetail.overdue ? "text-red-600" : ""}`}>
+                    <p
+                      className={`!mb-0 mt-1 text-sm font-medium ${taskDetail.overdue ? "text-red-600" : ""}`}>
                       {dayjs(taskDetail.dueDate).format("DD/MM/YYYY HH:mm")}
                     </p>
                   </div>
@@ -1675,10 +1747,14 @@ const OnboardingSchedule = () => {
             )}
 
             {/* ── Assignee + Department ── */}
-            {(assignedUserName || assignedUserId || assignedUserEmail || taskDetail.assignedDepartment) && (
+            {(assignedUserName ||
+              assignedUserId ||
+              assignedUserEmail ||
+              taskDetail.assignedDepartment) && (
               <div className="rounded-lg border border-gray-200 p-3">
                 <Text type="secondary" className="text-xs">
-                  {t("onboarding.task.field.assignee") ?? "Người / Bộ phận thực hiện"}
+                  {t("onboarding.task.field.assignee") ??
+                    "Người / Bộ phận thực hiện"}
                 </Text>
                 {(assignedUserName || assignedUserId) && (
                   <p className="!mb-0 mt-1 flex items-center gap-1 text-sm font-medium">
@@ -1693,9 +1769,11 @@ const OnboardingSchedule = () => {
                 )}
                 {taskDetail.assignedDepartment && (
                   <p className="!mb-0 mt-0.5 text-xs text-gray-500">
-                    {(t("onboarding.task.field.department") ?? "Bộ phận") + ": "}
+                    {(t("onboarding.task.field.department") ?? "Bộ phận") +
+                      ": "}
                     <span className="font-medium">
-                      {taskDetail.assignedDepartment.name ?? taskDetail.assignedDepartment.departmentId}
+                      {taskDetail.assignedDepartment.name ??
+                        taskDetail.assignedDepartment.departmentId}
                     </span>
                   </p>
                 )}
@@ -1734,76 +1812,80 @@ const OnboardingSchedule = () => {
             )}
 
             {/* ── Acknowledgment ── */}
-            {taskDetail.requireAck && (taskDetail.acknowledgedAt || taskDetail.acknowledgedBy) && (
-              <div className="rounded-lg border border-geekblue-200 bg-blue-50/30 p-3">
-                <div className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-blue-500" />
-                  <Text type="secondary" className="text-xs">
-                    {t("onboarding.task.ack.section_title") ?? "Đã xác nhận"}
-                  </Text>
+            {taskDetail.requireAck &&
+              (taskDetail.acknowledgedAt || taskDetail.acknowledgedBy) && (
+                <div className="rounded-lg border border-geekblue-200 bg-blue-50/30 p-3">
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-blue-500" />
+                    <Text type="secondary" className="text-xs">
+                      {t("onboarding.task.ack.section_title") ?? "Đã xác nhận"}
+                    </Text>
+                  </div>
+                  {taskDetail.acknowledgedBy && (
+                    <p className="!mb-0 mt-1 text-sm font-medium text-gray-800">
+                      {resolveName(taskDetail.acknowledgedBy)}
+                    </p>
+                  )}
+                  {taskDetail.acknowledgedAt && (
+                    <p className="!mb-0 mt-0.5 text-xs text-gray-500">
+                      {formatDateTime(taskDetail.acknowledgedAt)}
+                    </p>
+                  )}
                 </div>
-                {taskDetail.acknowledgedBy && (
-                  <p className="!mb-0 mt-1 text-sm font-medium text-gray-800">
-                    {resolveName(taskDetail.acknowledgedBy)}
-                  </p>
-                )}
-                {taskDetail.acknowledgedAt && (
-                  <p className="!mb-0 mt-0.5 text-xs text-gray-500">
-                    {formatDateTime(taskDetail.acknowledgedAt)}
-                  </p>
-                )}
-              </div>
-            )}
+              )}
 
             {/* ── Approval ── */}
-            {taskDetail.approvalStatus && taskDetail.approvalStatus !== "NONE" && (
-              <div className={`rounded-lg border p-3 ${
-                taskDetail.approvalStatus === "APPROVED"
-                  ? "border-emerald-200 bg-emerald-50/30"
-                  : taskDetail.approvalStatus === "REJECTED"
-                    ? "border-red-200 bg-red-50/30"
-                    : "border-amber-200 bg-amber-50/30"
-              }`}>
-                <div className="flex items-center gap-1.5">
-                  {taskDetail.approvalStatus === "APPROVED" ? (
-                    <ThumbsUp className="h-3.5 w-3.5 text-emerald-500" />
-                  ) : taskDetail.approvalStatus === "REJECTED" ? (
-                    <ThumbsDown className="h-3.5 w-3.5 text-red-500" />
-                  ) : (
-                    <Clock className="h-3.5 w-3.5 text-amber-500" />
+            {taskDetail.approvalStatus &&
+              taskDetail.approvalStatus !== "NONE" && (
+                <div
+                  className={`rounded-lg border p-3 ${
+                    taskDetail.approvalStatus === "APPROVED"
+                      ? "border-emerald-200 bg-emerald-50/30"
+                      : taskDetail.approvalStatus === "REJECTED"
+                        ? "border-red-200 bg-red-50/30"
+                        : "border-amber-200 bg-amber-50/30"
+                  }`}>
+                  <div className="flex items-center gap-1.5">
+                    {taskDetail.approvalStatus === "APPROVED" ? (
+                      <ThumbsUp className="h-3.5 w-3.5 text-emerald-500" />
+                    ) : taskDetail.approvalStatus === "REJECTED" ? (
+                      <ThumbsDown className="h-3.5 w-3.5 text-red-500" />
+                    ) : (
+                      <Clock className="h-3.5 w-3.5 text-amber-500" />
+                    )}
+                    <Text type="secondary" className="text-xs">
+                      {t("onboarding.task.approval.section_title") ??
+                        "Phê duyệt"}
+                    </Text>
+                    <Tag
+                      color={
+                        taskDetail.approvalStatus === "APPROVED"
+                          ? "success"
+                          : taskDetail.approvalStatus === "REJECTED"
+                            ? "error"
+                            : "warning"
+                      }
+                      style={{ margin: 0, fontSize: 11 }}>
+                      {taskDetail.approvalStatus}
+                    </Tag>
+                  </div>
+                  {taskDetail.approvedBy && (
+                    <p className="!mb-0 mt-1 text-sm font-medium text-gray-800">
+                      {resolveName(taskDetail.approvedBy)}
+                    </p>
                   )}
-                  <Text type="secondary" className="text-xs">
-                    {t("onboarding.task.approval.section_title") ?? "Phê duyệt"}
-                  </Text>
-                  <Tag
-                    color={
-                      taskDetail.approvalStatus === "APPROVED"
-                        ? "success"
-                        : taskDetail.approvalStatus === "REJECTED"
-                          ? "error"
-                          : "warning"
-                    }
-                    style={{ margin: 0, fontSize: 11 }}>
-                    {taskDetail.approvalStatus}
-                  </Tag>
+                  {taskDetail.approvedAt && (
+                    <p className="!mb-0 mt-0.5 text-xs text-gray-500">
+                      {formatDateTime(taskDetail.approvedAt)}
+                    </p>
+                  )}
+                  {taskDetail.rejectionReason && (
+                    <p className="!mb-0 mt-1 text-sm text-red-600">
+                      {taskDetail.rejectionReason}
+                    </p>
+                  )}
                 </div>
-                {taskDetail.approvedBy && (
-                  <p className="!mb-0 mt-1 text-sm font-medium text-gray-800">
-                    {resolveName(taskDetail.approvedBy)}
-                  </p>
-                )}
-                {taskDetail.approvedAt && (
-                  <p className="!mb-0 mt-0.5 text-xs text-gray-500">
-                    {formatDateTime(taskDetail.approvedAt)}
-                  </p>
-                )}
-                {taskDetail.rejectionReason && (
-                  <p className="!mb-0 mt-1 text-sm text-red-600">
-                    {taskDetail.rejectionReason}
-                  </p>
-                )}
-              </div>
-            )}
+              )}
 
             {/* ── Schedule history ── */}
             {(taskDetail.scheduleProposedBy ||
@@ -1812,15 +1894,20 @@ const OnboardingSchedule = () => {
               taskDetail.scheduleConfirmedAt) && (
               <div className="rounded-lg border border-gray-200 p-3">
                 <Text type="secondary" className="text-xs">
-                  {t("onboarding.task.schedule.section_title") ?? "Lịch sử lịch hẹn"}
+                  {t("onboarding.task.schedule.section_title") ??
+                    "Lịch sử lịch hẹn"}
                 </Text>
                 <div className="mt-2 space-y-1 text-sm text-gray-700">
                   {taskDetail.scheduleProposedBy && (
                     <p className="!mb-0">
                       <span className="text-gray-500">
-                        {t("onboarding.task.schedule.field.proposed_by") ?? "Đề xuất bởi"}:{" "}
+                        {t("onboarding.task.schedule.field.proposed_by") ??
+                          "Đề xuất bởi"}
+                        :{" "}
                       </span>
-                      <span className="font-medium">{resolveName(taskDetail.scheduleProposedBy)}</span>
+                      <span className="font-medium">
+                        {resolveName(taskDetail.scheduleProposedBy)}
+                      </span>
                       {taskDetail.scheduleProposedAt && (
                         <span className="ml-1 text-xs text-gray-400">
                           ({formatDateTime(taskDetail.scheduleProposedAt)})
@@ -1831,9 +1918,13 @@ const OnboardingSchedule = () => {
                   {taskDetail.scheduleConfirmedBy && (
                     <p className="!mb-0">
                       <span className="text-gray-500">
-                        {t("onboarding.task.schedule.field.confirmed_by") ?? "Xác nhận bởi"}:{" "}
+                        {t("onboarding.task.schedule.field.confirmed_by") ??
+                          "Xác nhận bởi"}
+                        :{" "}
                       </span>
-                      <span className="font-medium">{resolveName(taskDetail.scheduleConfirmedBy)}</span>
+                      <span className="font-medium">
+                        {resolveName(taskDetail.scheduleConfirmedBy)}
+                      </span>
                       {taskDetail.scheduleConfirmedAt && (
                         <span className="ml-1 text-xs text-gray-400">
                           ({formatDateTime(taskDetail.scheduleConfirmedAt)})
@@ -1863,7 +1954,8 @@ const OnboardingSchedule = () => {
                 <Col span={12}>
                   <div className="rounded-lg border border-gray-200 p-3">
                     <Text type="secondary" className="text-xs">
-                      {t("onboarding.task.field.updated_at") ?? "Cập nhật lần cuối"}
+                      {t("onboarding.task.field.updated_at") ??
+                        "Cập nhật lần cuối"}
                     </Text>
                     <p className="!mb-0 mt-1 text-sm font-medium">
                       {formatDateTime(taskDetail.updatedAt)}
@@ -1875,7 +1967,8 @@ const OnboardingSchedule = () => {
                 <Col span={12}>
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50/20 p-3">
                     <Text type="secondary" className="text-xs">
-                      {t("onboarding.task.field.completed_at") ?? "Ngày hoàn thành"}
+                      {t("onboarding.task.field.completed_at") ??
+                        "Ngày hoàn thành"}
                     </Text>
                     <p className="!mb-0 mt-1 text-sm font-medium text-emerald-700">
                       {formatDateTime(taskDetail.completedAt)}
@@ -1891,7 +1984,8 @@ const OnboardingSchedule = () => {
                 <div className="mb-2 flex items-center gap-1.5">
                   <FileText className="h-3.5 w-3.5 text-purple-500" />
                   <Text type="secondary" className="text-xs">
-                    {t("onboarding.task.detail.required_docs") ?? "Tài liệu yêu cầu"}
+                    {t("onboarding.task.detail.required_docs") ??
+                      "Tài liệu yêu cầu"}
                   </Text>
                   <Tag style={{ margin: 0, fontSize: 11 }}>
                     {taskDetail.requiredDocuments!.length}
@@ -1903,7 +1997,9 @@ const OnboardingSchedule = () => {
                       key={doc.documentId}
                       className="flex items-center gap-2 rounded-md bg-gray-50 px-2 py-1.5 text-sm">
                       <FileText className="h-3 w-3 shrink-0 text-gray-400" />
-                      <span className="truncate text-gray-700">{doc.title ?? doc.documentId}</span>
+                      <span className="truncate text-gray-700">
+                        {doc.title ?? doc.documentId}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -1931,7 +2027,9 @@ const OnboardingSchedule = () => {
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 rounded-md bg-blue-50 px-2 py-1.5 text-sm text-blue-700 hover:bg-blue-100 hover:underline">
                       <Download className="h-3 w-3 shrink-0" />
-                      <span className="min-w-0 flex-1 truncate">{att.fileName}</span>
+                      <span className="min-w-0 flex-1 truncate">
+                        {att.fileName}
+                      </span>
                       {att.fileSizeBytes && (
                         <span className="shrink-0 text-[10px] text-blue-400">
                           {(att.fileSizeBytes / 1024).toFixed(0)} KB
@@ -1947,7 +2045,8 @@ const OnboardingSchedule = () => {
             {taskDetail.scheduleRescheduleReason && (
               <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
                 <Text type="secondary" className="text-xs">
-                  {t("onboarding.schedule.field.reschedule_reason") ?? "Lý do dời lịch"}
+                  {t("onboarding.schedule.field.reschedule_reason") ??
+                    "Lý do dời lịch"}
                 </Text>
                 <p className="!mb-0 mt-1 text-sm">
                   {taskDetail.scheduleRescheduleReason}
@@ -1969,7 +2068,8 @@ const OnboardingSchedule = () => {
             {taskDetail.scheduleNoShowReason && (
               <div className="rounded-lg border border-orange-200 bg-orange-50/50 p-3">
                 <Text type="secondary" className="text-xs">
-                  {t("onboarding.schedule.field.no_show_reason") ?? "Lý do bỏ lỡ"}
+                  {t("onboarding.schedule.field.no_show_reason") ??
+                    "Lý do bỏ lỡ"}
                 </Text>
                 <p className="!mb-0 mt-1 text-sm">
                   {taskDetail.scheduleNoShowReason}
@@ -1991,11 +2091,15 @@ const OnboardingSchedule = () => {
                 </div>
                 <div className="space-y-2">
                   {taskDetail.comments!.slice(0, 5).map((c) => (
-                    <div key={c.commentId} className="rounded-md bg-gray-50 p-2">
+                    <div
+                      key={c.commentId}
+                      className="rounded-md bg-gray-50 p-2">
                       <div className="flex items-center gap-1 text-xs text-gray-500">
                         <UserRound className="h-3 w-3" />
                         <span className="font-medium text-gray-700">
-                          {c.authorName ?? c.createdByName ?? resolveName(c.authorId)}
+                          {c.authorName ??
+                            c.createdByName ??
+                            resolveName(c.authorId)}
                         </span>
                         <span className="ml-auto">
                           {formatDateTime(c.createdAt)}
@@ -2021,7 +2125,8 @@ const OnboardingSchedule = () => {
                 <div className="mb-2 flex items-center gap-1.5">
                   <ClipboardList className="h-3.5 w-3.5 text-gray-500" />
                   <Text type="secondary" className="text-xs">
-                    {t("onboarding.task.activity.section_title") ?? "Lịch sử hoạt động"}
+                    {t("onboarding.task.activity.section_title") ??
+                      "Lịch sử hoạt động"}
                   </Text>
                   <Tag style={{ margin: 0, fontSize: 11 }}>
                     {taskDetail.activityLogs!.length}
@@ -2045,7 +2150,9 @@ const OnboardingSchedule = () => {
                         )}
                         <div className="mt-0.5 flex items-center gap-2 text-[10px] text-gray-400">
                           {(log.actorName || log.actorUserId) && (
-                            <span>{log.actorName ?? resolveName(log.actorUserId)}</span>
+                            <span>
+                              {log.actorName ?? resolveName(log.actorUserId)}
+                            </span>
                           )}
                           <span>{formatDateTime(log.createdAt)}</span>
                         </div>

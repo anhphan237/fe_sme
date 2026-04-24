@@ -515,8 +515,15 @@ const EmployeeDetail = () => {
   });
 
   const addCommentMutation = useMutation({
-    mutationFn: ({ taskId, content }: { taskId: string; content: string }) =>
-      apiAddTaskComment(taskId, content),
+    mutationFn: ({
+      taskId,
+      content,
+      parentCommentId,
+    }: {
+      taskId: string;
+      content: string;
+      parentCommentId?: string;
+    }) => apiAddTaskComment({ taskId, content, parentCommentId }),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["onboarding-task-comments", selectedTaskId],
@@ -817,11 +824,12 @@ const EmployeeDetail = () => {
     setNoShowReason("");
   };
 
-  const handleAddComment = () => {
+  const handleAddComment = (parentCommentId?: string) => {
     if (!selectedTaskId || !commentInput.trim()) return;
     addCommentMutation.mutate({
       taskId: selectedTaskId,
       content: commentInput.trim(),
+      parentCommentId,
     });
   };
 

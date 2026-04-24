@@ -152,6 +152,12 @@ export const mapTask = (t: any): OnboardingTask => ({
     t.assignedUser?.fullName ??
     t.assignedUser?.name ??
     undefined,
+  reporterUserId: t.reporterUserId ?? t.reporterUser?.userId ?? undefined,
+  reporterUserName:
+    t.reporterUserName ??
+    t.reporterUser?.fullName ??
+    t.reporterUser?.name ??
+    undefined,
   overdue: Boolean(t.overdue ?? false),
   scheduleStatus: t.scheduleStatus ?? undefined,
   approvalStatus: t.approvalStatus ?? undefined,

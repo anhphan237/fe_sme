@@ -41,6 +41,7 @@ import {
   apiListTemplates,
   apiGetTemplate,
   apiUpdateTemplate,
+  apiCloneTemplate,
   apiGenerateTemplateWithAI,
 } from "@/api/onboarding/onboarding.api";
 import { extractList } from "@/api/core/types";
@@ -281,22 +282,54 @@ const Templates = () => {
     [editForm, fetchFull, t],
   );
 
-  /** Fetch full template (with stages/tasks) before navigating to wizard */
+  /** Clone template via API — shows confirmation with editable name */
   const handleDuplicate = useCallback(
-    async (tmpl: OnboardingTemplate) => {
-      setLoadingId(tmpl.id);
-      try {
-        const full = await fetchFull(tmpl.id);
-        navigate("/onboarding/templates/new", {
-          state: { duplicateFrom: full },
-        });
-      } catch {
-        message.error(t("onboarding.template.error.something_wrong"));
-      } finally {
-        setLoadingId(null);
-      }
+    (tmpl: OnboardingTemplate) => {
+      const defaultName = `Copy of ${tmpl.name}`;
+      Modal.confirm({
+        title: t("onboarding.template.action.duplicate"),
+        content: (
+          <Input
+            id="clone-name-input"
+            defaultValue={defaultName}
+            onPressEnter={(e) => {
+              // Allow pressing enter to confirm via the input
+              const el = document.getElementById(
+                "clone-name-input",
+              ) as HTMLInputElement | null;
+              if (el) el.blur();
+            }}
+          />
+        ),
+        okText: t("onboarding.template.action.duplicate_confirm") ?? "Sao chép",
+        cancelText: t("global.cancel") ?? "Huỷ",
+        onOk: async () => {
+          const el = document.getElementById(
+            "clone-name-input",
+          ) as HTMLInputElement | null;
+          const name = el?.value?.trim() || defaultName;
+          setLoadingId(tmpl.id);
+          try {
+            await apiCloneTemplate({ templateId: tmpl.id, name });
+            refetch();
+            message.success(
+              t("onboarding.template.action.duplicate_success") ??
+                "Đã sao chép template",
+            );
+          } catch (err) {
+            message.error(
+              err instanceof Error
+                ? err.message
+                : (t("onboarding.template.error.something_wrong") ??
+                    "Đã xảy ra lỗi"),
+            );
+          } finally {
+            setLoadingId(null);
+          }
+        },
+      });
     },
-    [fetchFull, navigate, t],
+    [refetch, t],
   );
 
   /** Fetch full template before opening view modal */

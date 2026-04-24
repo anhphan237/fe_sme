@@ -93,6 +93,9 @@ export interface OnboardingTask {
   approvalStatus?: string;
   /** Onboarding instance ID this task belongs to (populated from listByAssignee) */
   onboardingId?: string;
+  /** Reporter: user who created / assigned this task */
+  reporterUserId?: string;
+  reporterUserName?: string;
 }
 
 export interface OnboardingComment {
