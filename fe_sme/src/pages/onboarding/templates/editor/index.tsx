@@ -18,14 +18,21 @@ import {
   apiCreateTemplate,
   apiGetTemplate,
   apiUpdateTemplate,
+  apiCreateEventTemplate,
 } from "@/api/onboarding/onboarding.api";
 import { mapTemplate } from "@/utils/mappers/onboarding";
 
 import { StageSidebar } from "./StepStages";
 import { TasksPanel } from "./StepTasks";
 import { StagePickerModal } from "./StagePicker";
+import { StepEvents } from "./StepEvents";
 
-import type { TaskDraft, ChecklistDraft, EditorForm } from "./constants";
+import type {
+  TaskDraft,
+  ChecklistDraft,
+  EditorForm,
+  EventDraft,
+} from "./constants";
 import type {
   TemplatePreset,
   LibraryTask,
@@ -114,6 +121,7 @@ const initialForm = (): EditorForm => ({
   name: "",
   description: "",
   checklists: [emptyChecklist()],
+  events: [],
 });
 
 const templateToForm = (tmpl: OnboardingTemplate): EditorForm => ({
@@ -146,6 +154,8 @@ const templateToForm = (tmpl: OnboardingTemplate): EditorForm => ({
           : [emptyTask()],
       }))
     : [emptyChecklist()],
+  // Events are not yet persisted on BE — start empty for existing templates
+  events: [],
 });
 
 /**
@@ -234,6 +244,32 @@ const buildUpdatePayload = (form: EditorForm, templateId: string) => ({
     }),
   })),
 });
+
+// ── Event localStorage helpers ─────────────────────────────────────────────
+// BE doesn't link event templates to onboarding templates yet, so we persist
+// events in localStorage keyed by templateId to survive page reloads.
+const EVENTS_LSKEY = (id: string) => `sme_tmpl_events_${id}`;
+
+const loadStoredEvents = (id: string): EventDraft[] => {
+  try {
+    const raw = localStorage.getItem(EVENTS_LSKEY(id));
+    return raw ? (JSON.parse(raw) as EventDraft[]) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveStoredEvents = (id: string, events: EventDraft[]) => {
+  try {
+    if (events.length > 0) {
+      localStorage.setItem(EVENTS_LSKEY(id), JSON.stringify(events));
+    } else {
+      localStorage.removeItem(EVENTS_LSKEY(id));
+    }
+  } catch {
+    // ignore storage errors
+  }
+};
 
 const useSaveTemplate = () =>
   useMutation({
@@ -345,7 +381,10 @@ const TemplateEditor = () => {
         (templateRes as Record<string, unknown>)?.data ??
         templateRes;
       const tmpl = mapTemplate(raw as Record<string, unknown>);
-      setForm(templateToForm(tmpl));
+      const formData = templateToForm(tmpl);
+      // Restore events persisted in localStorage (BE has no templateId linkage yet)
+      const storedEvents = loadStoredEvents(templateId!);
+      setForm({ ...formData, events: storedEvents });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [duplicateFrom, templateRes]);
@@ -453,7 +492,7 @@ const TemplateEditor = () => {
     });
 
   const applyPreset = (preset: TemplatePreset) =>
-    setForm({
+    setForm((prev) => ({
       name: "",
       description: "",
       checklists: preset.checklists.map((c) => ({
@@ -471,7 +510,9 @@ const TemplateEditor = () => {
           assignee: t.assignee ?? "EMPLOYEE",
         })),
       })),
-    });
+      // Preserve any events already added by the user
+      events: prev.events,
+    }));
 
   const addLibraryTask = (ci: number, task: LibraryTask) =>
     setForm((prev) => {
@@ -490,6 +531,10 @@ const TemplateEditor = () => {
       return { ...prev, checklists: list };
     });
 
+  // ── Event handlers ─────────────────────────────────────────────────────────
+  const handleEventsChange = (events: EventDraft[]) =>
+    setForm((prev) => ({ ...prev, events }));
+
   const handleSubmit = async () => {
     if (!form.name.trim()) {
       message.warning(t("onboarding.template.editor.toast.name_required"));
@@ -501,13 +546,37 @@ const TemplateEditor = () => {
       return;
     }
     try {
+      // Save new event templates to BE (non-blocking — FE-first approach)
+      for (const event of form.events.filter((e) => !e.eventTemplateId)) {
+        try {
+          await apiCreateEventTemplate({
+            name: event.name,
+            content: event.content,
+            description: event.description,
+            status: "ACTIVE",
+          });
+        } catch {
+          // Non-critical — continue saving the template even if event save fails
+        }
+      }
+
       if (isCreate) {
         const payload = buildPayload(form, createdBy);
-        await saveTemplate.mutateAsync(payload);
+        const res = await saveTemplate.mutateAsync(payload);
+        // Persist events under the new templateId so they survive reload
+        const newTemplateId =
+          (res as Record<string, unknown>)?.templateId ??
+          ((res as Record<string, unknown>)?.data as Record<string, unknown>)
+            ?.templateId;
+        if (newTemplateId && typeof newTemplateId === "string") {
+          saveStoredEvents(newTemplateId, form.events);
+        }
         message.success(t("onboarding.template.editor.toast.created"));
       } else {
         const payload = buildUpdatePayload(form, templateId!);
         await updateTemplate.mutateAsync(payload);
+        // Persist updated events for this template
+        saveStoredEvents(templateId!, form.events);
         message.success(t("onboarding.template.editor.toast.updated"));
       }
       queryClient.invalidateQueries({ queryKey: ["templates"] });
@@ -569,6 +638,16 @@ const TemplateEditor = () => {
             <span>
               {totalTasks} {t("onboarding.template.review.tasks").toLowerCase()}
             </span>
+            {form.events.length > 0 && (
+              <>
+                <span className="text-slate-300">·</span>
+                <span>
+                  {form.events.length}{" "}
+                  {t("onboarding.template.editor.events.stat_label") ??
+                    "sự kiện"}
+                </span>
+              </>
+            )}
           </div>
           {isCreate && (
             <button
@@ -680,6 +759,8 @@ const TemplateEditor = () => {
       )}
 
       {/* Stage picker modal — shown when HR clicks "Add stage" */}
+      <StepEvents events={form.events} onChange={handleEventsChange} />
+
       <StagePickerModal
         open={stagePickerOpen}
         usedStages={

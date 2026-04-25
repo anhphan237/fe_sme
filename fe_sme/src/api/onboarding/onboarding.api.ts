@@ -28,6 +28,8 @@ import type {
   TaskScheduleCalendarResponse,
   OnboardingTemplateCloneRequest,
   OnboardingTemplateCloneResponse,
+  OnboardingEventTemplateCreateRequest,
+  OnboardingEventTemplateCreateResponse,
 } from "@/interface/onboarding";
 
 // ── Templates ──────────────────────────────────────────────
@@ -468,3 +470,16 @@ export const apiImportTaskLibraryExcel = (formData: FormData) =>
     headers: _taskLibHeaders(),
     body: formData,
   }).then((r) => _taskLibFetch<TaskLibraryImportResponse>(r));
+
+// ── Event Templates ────────────────────────────────────────
+
+/** com.sme.onboarding.eventTemplate.create
+ *  Creates a standalone event template (not yet linked to an onboarding template on BE).
+ */
+export const apiCreateEventTemplate = (
+  payload: OnboardingEventTemplateCreateRequest,
+) =>
+  gatewayRequest<
+    OnboardingEventTemplateCreateRequest,
+    OnboardingEventTemplateCreateResponse
+  >("com.sme.onboarding.eventTemplate.create", payload);

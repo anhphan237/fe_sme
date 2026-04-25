@@ -20,9 +20,6 @@ import {
   Button,
   Card,
   Col,
-  DatePicker,
-  Divider,
-  Drawer,
   Empty,
   Input,
   Modal,
@@ -50,7 +47,7 @@ import {
   apiListInstances,
   apiListTasks,
   apiListTasksByAssignee,
-  apiListTaskComments,
+  apiGetTaskCommentTree,
   apiUpdateTaskStatus,
   apiAcknowledgeTask,
   apiApproveTask,
@@ -235,21 +232,36 @@ const useUpdateTaskStatus = () =>
 
 const useTaskCommentsQuery = (taskId?: string) =>
   useQuery({
-    queryKey: ["onboarding-task-comments", taskId ?? ""],
-    queryFn: () => apiListTaskComments(taskId!),
+    queryKey: ["onboarding-task-comment-tree", taskId ?? ""],
+    queryFn: () => apiGetTaskCommentTree(taskId!),
     enabled: Boolean(taskId),
     select: (res: unknown) => {
       const record = res as Record<string, unknown>;
-      const list = record?.comments ?? record?.data ?? [];
-      return (Array.isArray(list) ? list : []).map((item) => {
-        const c = item as Record<string, unknown>;
-        const content = String(c.content ?? c.message ?? "");
-        return {
-          ...(c as unknown as CommentResponse),
-          message: content,
-          content,
-        };
-      }) as CommentResponse[];
+      // Flatten tree roots into a flat CommentResponse[] preserving parentCommentId
+      const flattenNodes = (nodes: unknown[]): CommentResponse[] =>
+        nodes.flatMap((node) => {
+          const n = node as Record<string, unknown>;
+          const comment: CommentResponse = {
+            commentId: String(n.commentId ?? ""),
+            taskId: taskId ?? "",
+            authorId: String(n.createdBy ?? ""),
+            authorName: n.createdByName as string | undefined,
+            createdBy: String(n.createdBy ?? ""),
+            createdByName: n.createdByName as string | undefined,
+            content: String(n.content ?? ""),
+            message: String(n.content ?? ""),
+            createdAt: String(n.createdAt ?? ""),
+            parentCommentId: n.parentCommentId as string | undefined,
+          };
+          const children = Array.isArray(n.children) ? n.children : [];
+          return [comment, ...flattenNodes(children)];
+        });
+      const roots = Array.isArray(record?.roots)
+        ? record.roots
+        : Array.isArray((record as any)?.comments)
+          ? (record as any).comments
+          : [];
+      return flattenNodes(roots);
     },
   });
 
@@ -1551,11 +1563,18 @@ const Tasks = () => {
   );
 
   const addCommentMutation = useMutation({
-    mutationFn: ({ taskId, content }: { taskId: string; content: string }) =>
-      apiAddTaskComment(taskId, content),
+    mutationFn: ({
+      taskId,
+      content,
+      parentCommentId,
+    }: {
+      taskId: string;
+      content: string;
+      parentCommentId?: string;
+    }) => apiAddTaskComment({ taskId, content, parentCommentId }),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["onboarding-task-comments", selectedTaskId],
+        queryKey: ["onboarding-task-comment-tree", selectedTaskId],
       });
       setCommentInput("");
       notify.success(t("onboarding.task.comments.toast_added"));
@@ -1637,11 +1656,12 @@ const Tasks = () => {
     }
   };
 
-  const handleAddComment = () => {
+  const handleAddComment = (parentCommentId?: string) => {
     if (!selectedTaskId || !commentInput.trim()) return;
     addCommentMutation.mutate({
       taskId: selectedTaskId,
       content: commentInput.trim(),
+      parentCommentId,
     });
   };
 

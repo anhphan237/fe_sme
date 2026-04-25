@@ -775,3 +775,24 @@ export interface OnboardingTemplateCloneResponse {
   templateId: string;
   name: string;
 }
+
+// ---------------------------
+// Event Template
+// ---------------------------
+
+/** com.sme.onboarding.eventTemplate.create → request */
+export interface OnboardingEventTemplateCreateRequest {
+  name: string;
+  /** Agenda / content of the event */
+  content?: string;
+  description?: string;
+  /** ACTIVE | INACTIVE | DRAFT */
+  status?: string;
+}
+
+/** com.sme.onboarding.eventTemplate.create → response */
+export interface OnboardingEventTemplateCreateResponse {
+  eventTemplateId: string;
+  name: string;
+  status: string;
+}

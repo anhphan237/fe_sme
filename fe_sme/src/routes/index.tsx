@@ -54,6 +54,7 @@ const OnboardingApprovals = lazy(() => import("@/pages/onboarding/approvals"));
 const OnboardingSchedule = lazy(() => import("@/pages/onboarding/schedule"));
 const Documents = lazy(() => import("@/pages/documents/Documents"));
 const DocumentDetail = lazy(() => import("@/pages/documents/DocumentDetail"));
+const DocumentEditor = lazy(() => import("@/pages/documents/editor/DocumentEditor"));
 const SurveyTemplates = lazy(() => import("@/pages/surveys/SurveyTemplates"));
 const SurveyTemplateEditor = lazy(
   () => import("@/pages/surveys/SurveyTemplateEditor"),
@@ -98,6 +99,10 @@ const PlatformSystem = lazy(
 const PlatformBilling = lazy(
   () => import("@/pages/platform/admin/PlatformBilling"),
 );
+const PlatformTemplates = lazy(
+  () => import("@/pages/platform/admin/PlatformTemplates"),
+);
+const MyActivity = lazy(() => import("@/pages/profile/MyActivity"));
 const Forbidden = lazy(() => import("@/pages/Forbidden"));
 const SurveySend = lazy(() => import("@/pages/surveys/SurveySendPage"));
 const PageSkeleton = () => (
@@ -332,6 +337,12 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: "/documents/editor/:documentId",
+        element: suspense(
+          withRoles(<DocumentEditor />, ["HR", "MANAGER", "EMPLOYEE"]),
+        ),
+      },
+      {
         path: "/surveys/templates",
         element: suspense(withRoles(<SurveyTemplates />, ["HR"])),
       },
@@ -437,6 +448,16 @@ export const router = createBrowserRouter([
       {
         path: "/platform/admin/system",
         element: suspense(withRoles(<PlatformSystem />, ["ADMIN"])),
+      },
+      {
+        path: "/platform/admin/templates",
+        element: suspense(withRoles(<PlatformTemplates />, ["ADMIN"])),
+      },
+      {
+        path: "/profile/activity",
+        element: suspense(
+          withRoles(<MyActivity />, ["HR", "MANAGER", "ADMIN"]),
+        ),
       },
       // Platform Staff routes (/platform/staff/*)
       {

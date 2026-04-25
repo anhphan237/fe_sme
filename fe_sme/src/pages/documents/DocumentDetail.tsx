@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from "react-router-dom";
-import { Card, Divider, Skeleton, Tag, Tooltip } from "antd";
+import { Card, Divider, Skeleton, Tag, Tooltip, Button } from "antd";
 import {
   ArrowLeftOutlined,
   DownloadOutlined,
@@ -13,10 +13,15 @@ import {
   FolderOutlined,
   InfoCircleOutlined,
   LinkOutlined,
+  CheckCircleOutlined,
 } from "@ant-design/icons";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocale } from "@/i18n";
-import { apiGetDocuments } from "@/api/document/document.api";
+import {
+  apiGetDocuments,
+  apiListAcknowledgments,
+  apiAcknowledgeDocument,
+} from "@/api/document/document.api";
 import type { DocumentItem } from "@/interface/document";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -146,6 +151,20 @@ const DocumentDetail = () => {
 
   const accentColor = getExtColor(doc?.fileUrl);
   const ext = getFileExt(doc?.fileUrl);
+
+  // ─── Acknowledgment ────────────────────────────────────────────────────────
+  const queryClient = useQueryClient();
+  const { data: ackData } = useQuery({
+    queryKey: ["acknowledgments"],
+    queryFn: apiListAcknowledgments,
+  });
+  const isAcknowledged =
+    ackData?.items.some((a) => a.documentId === documentId) ?? false;
+  const ackMutation = useMutation({
+    mutationFn: () => apiAcknowledgeDocument(documentId!),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["acknowledgments"] }),
+  });
 
   // ─── Loading ───────────────────────────────────────────────────────────────
   if (isLoading) {
@@ -448,6 +467,44 @@ const DocumentDetail = () => {
                 </div>
               </div>
             </div>
+          </Card>
+
+          {/* Acknowledgment */}
+          <Card className="border border-stroke bg-white shadow-sm">
+            <div className="flex items-center gap-2">
+              <CheckCircleOutlined
+                className={`text-base ${
+                  isAcknowledged ? "text-green-500" : "text-muted"
+                }`}
+              />
+              <h2 className="text-base font-semibold text-ink">
+                {t("document.detail.progress_title")}
+              </h2>
+            </div>
+            <Divider className="my-3" />
+            {isAcknowledged ? (
+              <div className="flex flex-col gap-2">
+                <Tag color="green" className="w-fit">
+                  {t("document.ack.status.acknowledged")}
+                </Tag>
+                <p className="text-xs text-muted">
+                  {t("document.detail.ack_done_desc")}
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <p className="text-xs text-muted">
+                  {t("document.detail.ack_description")}
+                </p>
+                <Button
+                  type="primary"
+                  size="small"
+                  loading={ackMutation.isPending}
+                  onClick={() => ackMutation.mutate()}>
+                  {t("document.action.acknowledge")}
+                </Button>
+              </div>
+            )}
           </Card>
         </div>
       </div>

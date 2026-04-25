@@ -462,6 +462,11 @@ const OnboardingSchedule = () => {
   const [employeeFilter, setEmployeeFilter] = useState<string>("all");
   const [instanceFilter, setInstanceFilter] = useState<string>("all");
 
+  // ── View-as (HR/Manager view another employee's calendar) ──
+  const [viewAsUserId, setViewAsUserId] = useState<string | null>(null);
+  const isViewingOther =
+    canManage && viewAsUserId !== null && viewAsUserId !== currentUser?.id;
+
   // ── Calendar state ──
   const [viewType, setViewType] = useState<ViewType>(
     isEmployee ? "calendar" : "list",
@@ -540,11 +545,13 @@ const OnboardingSchedule = () => {
       scheduleRange.fromTime,
       scheduleRange.toTime,
       currentUser?.id ?? "",
+      viewAsUserId ?? "",
     ],
     queryFn: () =>
       apiQueryTaskScheduleCalendar({
         fromTime: scheduleRange.fromTime,
         toTime: scheduleRange.toTime,
+        ...(viewAsUserId ? { userId: viewAsUserId } : {}),
         page: 0,
         size: 500,
       }),
@@ -1104,6 +1111,30 @@ const OnboardingSchedule = () => {
                 ]}
               />
 
+              {/* View-as UserPicker (calendar mode only) */}
+              {isCalendarMode && (
+                <Select
+                  showSearch
+                  allowClear
+                  value={viewAsUserId ?? undefined}
+                  onChange={(v) => setViewAsUserId(v ?? null)}
+                  placeholder={
+                    <span className="inline-flex items-center gap-1">
+                      <UserRound className="h-3.5 w-3.5" />
+                      {t("onboarding.schedule.filter.view_as_placeholder") ??
+                        "Xem lịch của…"}
+                    </span>
+                  }
+                  filterOption={(input, opt) =>
+                    (opt?.label ?? "")
+                      .toLowerCase()
+                      .includes(input.toLowerCase())
+                  }
+                  className="w-52"
+                  options={employeeOptions}
+                />
+              )}
+
               {/* Employee Select */}
               <Select
                 showSearch
@@ -1269,6 +1300,33 @@ const OnboardingSchedule = () => {
           </div>
         </Card>
       )}
+
+      {/* ── VIEW-AS BANNER ── */}
+      {isViewingOther &&
+        (() => {
+          const viewAsName =
+            employeeOptions.find((o) => o.value === viewAsUserId)?.label ??
+            viewAsUserId;
+          return (
+            <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-700">
+              <UserRound className="h-4 w-4 shrink-0" />
+              <span>
+                {t("onboarding.schedule.view_as_banner") ??
+                  `Đang xem lịch của: `}
+                <strong>{viewAsName}</strong>
+                {" — "}
+                {t("onboarding.schedule.view_as_readonly") ??
+                  "Chế độ chỉ xem. Bạn không thể thao tác lịch của người khác."}
+              </span>
+              <button
+                type="button"
+                className="ml-auto shrink-0 text-blue-500 hover:text-blue-700"
+                onClick={() => setViewAsUserId(null)}>
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          );
+        })()}
 
       {/* ── STATS BAR ── */}
       {isCalendarMode || isEmployee ? (
@@ -2168,8 +2226,8 @@ const OnboardingSchedule = () => {
               </div>
             )}
 
-            {/* ── Actions — HR/Manager only ── */}
-            {canManage && (
+            {/* ── Actions — HR/Manager only (disabled in view-as mode) ── */}
+            {canManage && !isViewingOther && (
               <div className="flex flex-wrap gap-2 pt-2">
                 {taskDetail.scheduleStatus === "PROPOSED" && (
                   <Button

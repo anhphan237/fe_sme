@@ -111,6 +111,8 @@ export interface OnboardingTemplate {
   name: string;
   description: string;
   status?: string;
+  /** PLATFORM = global shared library; TENANT = company-owned template */
+  level?: "PLATFORM" | "TENANT";
   stages: OnboardingStage[];
   updatedAt: string;
   companyId?: string | null;

@@ -543,9 +543,16 @@ const Templates = () => {
               className={`h-4.5 w-4.5 ${isActive ? "text-brand" : "text-slate-400"}`}
             />
           </div>
-          <span className="truncate text-sm font-semibold text-ink">
-            {tmpl.name}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="truncate text-sm font-semibold text-ink">
+              {tmpl.name}
+            </span>
+            {tmpl.level === "PLATFORM" && (
+              <Tag color="purple" className="!m-0 !text-[10px]">
+                PLATFORM
+              </Tag>
+            )}
+          </div>
         </div>
       );
     },
@@ -702,6 +709,11 @@ const Templates = () => {
             </p>
             <div className="mt-1 flex items-center gap-2">
               <StatusBadge status={tmpl.status} />
+              {tmpl.level === "PLATFORM" && (
+                <Tag color="purple" className="!m-0 !text-[10px]">
+                  PLATFORM
+                </Tag>
+              )}
             </div>
           </div>
           {isHR && (

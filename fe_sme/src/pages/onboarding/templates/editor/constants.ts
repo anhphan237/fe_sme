@@ -31,10 +31,27 @@ export interface ChecklistDraft {
   tasks: TaskDraft[];
 }
 
+// ── Event draft (sự kiện chung) ───────────────────────────────────────────────
+export interface EventDraft {
+  id: string;
+  /** Populated after the event template is created on BE */
+  eventTemplateId?: string;
+  name: string;
+  /** Agenda / content of the event */
+  content: string;
+  description?: string;
+  /** Day offset from onboarding start date (0 = first day) */
+  dueDaysOffset: number;
+  /** Duration in hours */
+  durationHours?: number;
+}
+
 export interface EditorForm {
   name: string;
   description: string;
   checklists: ChecklistDraft[];
+  /** Common events applied to all employees in this onboarding template */
+  events: EventDraft[];
 }
 
 // ── Stage options ──────────────────────────────────────────────────────────────
@@ -82,13 +99,7 @@ export interface StageMeta {
   /** Suggested dueDaysOffset for tasks created inside this stage. */
   defaultDueOffset: number;
   /** Single color token for the stage (used to derive bg / border / text). */
-  accent:
-    | "indigo"
-    | "sky"
-    | "teal"
-    | "emerald"
-    | "amber"
-    | "slate";
+  accent: "indigo" | "sky" | "teal" | "emerald" | "amber" | "slate";
 }
 
 export const STAGE_META: Record<StageType, StageMeta> = {

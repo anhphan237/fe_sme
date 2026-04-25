@@ -64,6 +64,7 @@ export const mapTemplate = (t: any): OnboardingTemplate => {
       : [],
     updatedAt: t.updatedAt ?? "",
     companyId: t.companyId ?? null,
+    level: t.level ?? undefined,
   };
 };
 
