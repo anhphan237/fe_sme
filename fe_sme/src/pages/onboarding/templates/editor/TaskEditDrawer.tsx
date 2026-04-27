@@ -19,6 +19,7 @@ import {
   FileImage,
   File as GenericFileIcon,
   GripVertical,
+  Info,
   Loader2,
   Trash2,
   UploadCloud,
@@ -348,6 +349,7 @@ export const TaskEditDrawer = ({
         requiresManagerApproval: state.task.requiresManagerApproval ?? false,
         approverUserId: state.task.approverUserId,
         requiredDocumentIds: state.task.requiredDocumentIds ?? [],
+        responsibleDepartmentsEnabled: (state.task.responsibleDepartmentIds ?? []).length > 0,
         responsibleDepartmentIds: state.task.responsibleDepartmentIds ?? [],
       });
     } else {
@@ -359,6 +361,7 @@ export const TaskEditDrawer = ({
         requireDoc: false,
         requiresManagerApproval: false,
         requiredDocumentIds: [],
+        responsibleDepartmentsEnabled: false,
         responsibleDepartmentIds: [],
       });
     }
@@ -369,6 +372,9 @@ export const TaskEditDrawer = ({
     try {
       const values = await form.validateFields();
       const assignee = values.assignee as TaskDraft["assignee"];
+      const effectiveResponsibleIds = values.responsibleDepartmentsEnabled
+        ? (values.responsibleDepartmentIds ?? [])
+        : [];
       onSave(state.ci, state.ti, {
         name: values.name,
         description: values.description ?? "",
@@ -383,11 +389,11 @@ export const TaskEditDrawer = ({
           : undefined,
         requiredDocumentIds:
           values.requireAck ? (values.requiredDocumentIds ?? []) : [],
-        responsibleDepartmentIds: values.responsibleDepartmentIds ?? [],
+        responsibleDepartmentIds: effectiveResponsibleIds,
         ownerRefName: assignee === "DEPARTMENT" && values.ownerRefId
           ? departments.find((d) => d.departmentId === values.ownerRefId)?.name
           : undefined,
-        responsibleDepartmentNames: (values.responsibleDepartmentIds ?? []).map(
+        responsibleDepartmentNames: effectiveResponsibleIds.map(
           (id: string) => departments.find((d) => d.departmentId === id)?.name ?? id,
         ),
       });
@@ -623,7 +629,7 @@ export const TaskEditDrawer = ({
         {/* ── Section: Yêu cầu hoàn thành ─────────────────────────────── */}
         <div className="mt-4 space-y-2.5">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-            Yêu cầu khi hoàn thành
+            {t("onboarding.template.editor.task.completion_requirements_section")}
           </p>
 
           {/* Require Ack */}
@@ -638,7 +644,7 @@ export const TaskEditDrawer = ({
                     {t("onboarding.template.editor.task.require_ack")}
                   </p>
                   <p className="text-[11px] leading-tight text-muted">
-                    Nhân viên phải đọc &amp; xác nhận tài liệu
+                    {t("onboarding.template.editor.task.require_ack_hint")}
                   </p>
                 </div>
               </div>
@@ -652,13 +658,21 @@ export const TaskEditDrawer = ({
               shouldUpdate={(prev, curr) => prev.requireAck !== curr.requireAck}>
               {({ getFieldValue }) =>
                 getFieldValue("requireAck") ? (
-                  <div className="border-t border-blue-100 bg-white/60 px-3.5 py-3">
-                    <p className="mb-1.5 text-xs font-medium text-blue-700">
-                      {t("onboarding.template.editor.task.required_docs_label")}
-                    </p>
-                    <Form.Item name="requiredDocumentIds" noStyle>
-                      <DocumentPickerInDrawer disabled={readOnly} />
-                    </Form.Item>
+                  <div className="border-t border-blue-100 bg-white/60 px-3.5 py-3 space-y-2.5">
+                    <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2">
+                      <Info className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                      <p className="text-[11px] text-blue-700">
+                        {t("onboarding.template.editor.task.require_ack_hint")}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="mb-1.5 text-xs font-medium text-blue-700">
+                        {t("onboarding.template.editor.task.required_docs_label")}
+                      </p>
+                      <Form.Item name="requiredDocumentIds" noStyle>
+                        <DocumentPickerInDrawer disabled={readOnly} />
+                      </Form.Item>
+                    </div>
                   </div>
                 ) : null
               }
@@ -666,22 +680,46 @@ export const TaskEditDrawer = ({
           </div>
 
           {/* Require Doc upload */}
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-sky-100 bg-sky-50/30 px-3.5 py-3">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-100">
-                <UploadCloud className="h-3.5 w-3.5 text-sky-600" />
+          <div className="overflow-hidden rounded-xl border border-sky-100 bg-sky-50/30">
+            <div className="flex items-center justify-between gap-3 px-3.5 py-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-100">
+                  <UploadCloud className="h-3.5 w-3.5 text-sky-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-ink">
+                    {t("onboarding.template.editor.task.require_doc")}
+                  </p>
+                  <p className="text-[11px] leading-tight text-muted">
+                    {t("onboarding.template.editor.task.require_doc_hint")}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-ink">
-                  {t("onboarding.template.editor.task.require_doc")}
-                </p>
-                <p className="text-[11px] leading-tight text-muted">
-                  Nhân viên phải nộp tài liệu khi hoàn thành
-                </p>
-              </div>
+              <Form.Item name="requireDoc" valuePropName="checked" noStyle>
+                <Switch size="small" />
+              </Form.Item>
             </div>
-            <Form.Item name="requireDoc" valuePropName="checked" noStyle>
-              <Switch size="small" />
+
+            <Form.Item
+              noStyle
+              shouldUpdate={(prev, curr) => prev.requireDoc !== curr.requireDoc}>
+              {({ getFieldValue }) =>
+                getFieldValue("requireDoc") ? (
+                  <div className="border-t border-sky-100 bg-white/60 px-3.5 py-3">
+                    <div className="flex items-start gap-2 rounded-lg bg-sky-50 px-3 py-2.5">
+                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-500" />
+                      <div>
+                        <p className="text-[11px] font-medium text-sky-700">
+                          {t("onboarding.template.editor.task.require_doc_label")}
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-sky-600">
+                          {t("onboarding.template.editor.task.require_doc_info")}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null
+              }
             </Form.Item>
           </div>
 
@@ -697,7 +735,7 @@ export const TaskEditDrawer = ({
                     {t("onboarding.template.editor.task.require_approval")}
                   </p>
                   <p className="text-[11px] leading-tight text-muted">
-                    Quản lý phải phê duyệt trước khi hoàn thành
+                    {t("onboarding.template.editor.task.require_approval_hint")}
                   </p>
                 </div>
               </div>
@@ -716,35 +754,43 @@ export const TaskEditDrawer = ({
               }>
               {({ getFieldValue }) =>
                 getFieldValue("requiresManagerApproval") ? (
-                  <div className="border-t border-violet-100 bg-white/60 px-3.5 py-3">
-                    <p className="mb-1.5 text-xs font-medium text-violet-700">
-                      {t("onboarding.template.editor.task.approver_label")}
-                    </p>
-                    <Form.Item
-                      name="approverUserId"
-                      noStyle
-                      rules={[
-                        {
-                          required: true,
-                          message: "Chọn người phê duyệt",
-                        },
-                      ]}>
-                      <Select
-                        loading={isLoadingUsers}
-                        placeholder="Chọn quản lý phê duyệt..."
-                        className="w-full"
-                        showSearch
-                        optionFilterProp="label"
-                        allowClear
-                        options={(managerUsers.length > 0
-                          ? managerUsers
-                          : allUsers
-                        ).map((u: any) => ({
-                          value: u.userId ?? u.id,
-                          label: u.fullName ?? u.name ?? u.email,
-                        }))}
-                      />
-                    </Form.Item>
+                  <div className="border-t border-violet-100 bg-white/60 px-3.5 py-3 space-y-2.5">
+                    <div className="flex items-center gap-2 rounded-lg bg-violet-50 px-3 py-2">
+                      <Info className="h-3.5 w-3.5 shrink-0 text-violet-500" />
+                      <p className="text-[11px] text-violet-700">
+                        {t("onboarding.template.editor.task.require_approval_hint")}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="mb-1.5 text-xs font-medium text-violet-700">
+                        {t("onboarding.template.editor.task.approver_label")}
+                      </p>
+                      <Form.Item
+                        name="approverUserId"
+                        noStyle
+                        rules={[
+                          {
+                            required: true,
+                            message: t("onboarding.template.editor.task.approver_required_message"),
+                          },
+                        ]}>
+                        <Select
+                          loading={isLoadingUsers}
+                          placeholder={t("onboarding.template.editor.task.approver_select_placeholder")}
+                          className="w-full"
+                          showSearch
+                          optionFilterProp="label"
+                          allowClear
+                          options={(managerUsers.length > 0
+                            ? managerUsers
+                            : allUsers
+                          ).map((u: any) => ({
+                            value: u.userId ?? u.id,
+                            label: u.fullName ?? u.name ?? u.email,
+                          }))}
+                        />
+                      </Form.Item>
+                    </div>
                   </div>
                 ) : null
               }
@@ -767,26 +813,48 @@ export const TaskEditDrawer = ({
                   </p>
                 </div>
               </div>
-            </div>
-
-            <div className="border-t border-teal-100 bg-white/60 px-3.5 py-3">
-              <Form.Item
-                name="responsibleDepartmentIds"
-                noStyle>
-                <Select
-                  mode="multiple"
-                  size="small"
-                  loading={isLoadingDepartments}
-                  placeholder={t("onboarding.template.editor.task.responsible_departments_placeholder")}
-                  optionFilterProp="label"
-                  className="w-full"
-                  options={departments.map((d) => ({
-                    value: d.departmentId,
-                    label: d.name,
-                  }))}
-                />
+              <Form.Item name="responsibleDepartmentsEnabled" valuePropName="checked" noStyle>
+                <Switch size="small" />
               </Form.Item>
             </div>
+
+            <Form.Item
+              noStyle
+              shouldUpdate={(prev, curr) =>
+                prev.responsibleDepartmentsEnabled !== curr.responsibleDepartmentsEnabled
+              }>
+              {({ getFieldValue }) =>
+                getFieldValue("responsibleDepartmentsEnabled") ? (
+                  <div className="border-t border-teal-100 bg-white/60 px-3.5 py-3 space-y-2.5">
+                    <div className="flex items-center gap-2 rounded-lg bg-teal-50 px-3 py-2">
+                      <Info className="h-3.5 w-3.5 shrink-0 text-teal-500" />
+                      <p className="text-[11px] text-teal-700">
+                        {t("onboarding.template.editor.task.responsible_departments_hint")}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="mb-1.5 text-xs font-medium text-teal-700">
+                        {t("onboarding.template.editor.task.responsible_departments")}
+                      </p>
+                      <Form.Item name="responsibleDepartmentIds" noStyle>
+                        <Select
+                          mode="multiple"
+                          size="small"
+                          loading={isLoadingDepartments}
+                          placeholder={t("onboarding.template.editor.task.responsible_departments_placeholder")}
+                          optionFilterProp="label"
+                          className="w-full"
+                          options={departments.map((d) => ({
+                            value: d.departmentId,
+                            label: d.name,
+                          }))}
+                        />
+                      </Form.Item>
+                    </div>
+                  </div>
+                ) : null
+              }
+            </Form.Item>
           </div>
         </div>
       </Form>

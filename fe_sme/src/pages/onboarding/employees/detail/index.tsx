@@ -1162,6 +1162,7 @@ const EmployeeDetail = () => {
             reason: noShowReason || undefined,
           })
         }
+        onCheckpointConfirmed={invalidateTasks}
       />
 
       {/* ── Reject reason modal ──────────────────────────────────────────────── */}

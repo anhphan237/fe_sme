@@ -174,7 +174,7 @@ const mapAssigneeToOwner = (
 const buildPayload = (form: EditorForm, createdBy: string) => ({
   name: form.name,
   description: form.description ?? "",
-  status: "DRAFT" as const,
+  status: "ACTIVE" as const,
   createdBy,
   checklists: form.checklists.map((c, ci) => ({
     name: c.name,
@@ -580,7 +580,7 @@ const TemplateEditor = () => {
         const payload = buildPayload(form, createdBy);
         const res = await saveTemplate.mutateAsync(payload);
         const newTemplateId = extractTemplateId(res);
-        message.success(t("onboarding.template.editor.toast.created_draft"));
+        message.success(t("onboarding.template.editor.toast.created"));
         queryClient.invalidateQueries({ queryKey: ["templates"] });
         if (newTemplateId) {
           navigate(`/onboarding/templates/${newTemplateId}`, { replace: true });

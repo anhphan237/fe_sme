@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  Building2,
   CheckCircle2,
   Clock,
   Send,
@@ -90,7 +91,6 @@ type StatusFilter =
   | "mine"
   | "today"
   | "upcoming";
-  | "mine";
 type ViewMode = "list" | "timeline";
 type SortMode = "default" | "due_asc";
 
@@ -631,6 +631,18 @@ const TaskItem = ({
                 </Tag>
               </Tooltip>
             )}
+            {(task.ownerType === "DEPARTMENT" ||
+              (task.responsibleDepartmentIds?.length ?? 0) > 0) &&
+              !isDone && (
+                <Tooltip title={t("onboarding.task.flag.dept_checkpoint") ?? "Cần xác nhận phòng ban"}>
+                  <Tag
+                    color="purple"
+                    style={{ margin: 0, fontSize: 10, padding: "0 4px" }}>
+                    <Building2 className="mr-0.5 inline h-2.5 w-2.5" />
+                    Dept
+                  </Tag>
+                </Tooltip>
+              )}
 
             {task.rawStatus && <StatusBadge rawStatus={task.rawStatus} />}
 
@@ -1261,6 +1273,27 @@ const StageTimelineView = ({
                                   }}>
                                   <Paperclip className="mr-0.5 inline h-2.5 w-2.5" />
                                   Doc
+                                </Tag>
+                              </Tooltip>
+                            )}
+                            {(task.ownerType === "DEPARTMENT" ||
+                              (task.responsibleDepartmentIds?.length ?? 0) >
+                                0) && (
+                              <Tooltip
+                                title={
+                                  t(
+                                    "onboarding.task.flag.dept_checkpoint",
+                                  ) ?? "Cần xác nhận phòng ban"
+                                }>
+                                <Tag
+                                  color="purple"
+                                  style={{
+                                    margin: 0,
+                                    fontSize: 10,
+                                    padding: "0 4px",
+                                  }}>
+                                  <Building2 className="mr-0.5 inline h-2.5 w-2.5" />
+                                  Dept
                                 </Tag>
                               </Tooltip>
                             )}
@@ -2347,6 +2380,7 @@ const Tasks = () => {
                 reason: noShowReason || undefined,
               })
             }
+            onCheckpointConfirmed={invalidateTasks}
           />
         );
       })()}

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Button, Card, Form, Input, Modal, Spin, Tag, Typography } from "antd";
+import { Button, Card, Form, Input, Modal, Tag, Typography } from "antd";
 import { Building2, CheckCircle2, Clock } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { notify } from "@/utils/notify";
@@ -14,6 +14,12 @@ interface ConfirmCheckpointModalProps {
   checkpoint: DepartmentCheckpoint;
   onSuccess?: () => void;
 }
+
+const formatDateTime = (value?: string) => {
+  if (!value) return "-";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleString();
+};
 
 const ConfirmCheckpointModal: React.FC<ConfirmCheckpointModalProps> = ({
   open,
@@ -35,26 +41,30 @@ const ConfirmCheckpointModal: React.FC<ConfirmCheckpointModalProps> = ({
         evidenceRef: values.evidenceRef,
       }),
     onSuccess: () => {
-      // Invalidate task detail queries so checkpoint status refreshes
+      // Invalidate task detail + task list queries
       void queryClient.invalidateQueries({
         predicate: (q) => {
           const key = q.queryKey;
+          if (!Array.isArray(key)) return false;
           return (
-            Array.isArray(key) &&
-            (key.includes("onboarding-task-full") ||
-              key.includes("onboarding-task") ||
-              key.includes(taskId))
+            key.includes("onboarding-task-full") ||
+            key.includes("onboarding-task-detail") ||
+            key.includes("onboarding-tasks-by-instance") ||
+            key.includes("onboarding-tasks-by-assignee") ||
+            key.includes(taskId)
           );
         },
       });
-      notify.success("Đã xác nhận checkpoint thành công");
+      notify.success("Department checkpoint confirmed");
       form.resetFields();
       onSuccess?.();
       onClose();
     },
     onError: (err: unknown) => {
       const msg =
-        err instanceof Error ? err.message : "Xác nhận checkpoint thất bại";
+        err instanceof Error
+          ? err.message
+          : "Department checkpoint confirmation failed";
       notify.error(msg);
     },
   });
@@ -62,7 +72,7 @@ const ConfirmCheckpointModal: React.FC<ConfirmCheckpointModalProps> = ({
   return (
     <Modal
       open={open}
-      title={`Xác nhận checkpoint: ${checkpoint.departmentName ?? checkpoint.departmentId}`}
+      title={`Confirm checkpoint: ${checkpoint.departmentName ?? checkpoint.departmentId}`}
       onCancel={onClose}
       footer={null}
       destroyOnClose
@@ -75,47 +85,45 @@ const ConfirmCheckpointModal: React.FC<ConfirmCheckpointModalProps> = ({
         {checkpoint.requireEvidence && (
           <>
             <Form.Item
-              label="Ghi chú bằng chứng"
+              label="Evidence note"
               name="evidenceNote"
               rules={[
                 {
                   required: true,
-                  message: "Vui lòng nhập ghi chú bằng chứng",
+                  message: "Please enter an evidence note",
                 },
               ]}
             >
-              <Input.TextArea rows={3} placeholder="Mô tả bằng chứng..." />
+              <Input.TextArea rows={3} placeholder="Describe the evidence..." />
             </Form.Item>
-            <Form.Item label="Tham chiếu (URL/file path)" name="evidenceRef">
+            <Form.Item label="Evidence reference (URL/file path)" name="evidenceRef">
               <Input placeholder="https://..." />
             </Form.Item>
           </>
         )}
         {!checkpoint.requireEvidence && (
           <Typography.Text type="secondary">
-            Xác nhận phòng ban{" "}
+            Confirm that department{" "}
             <strong>{checkpoint.departmentName ?? checkpoint.departmentId}</strong>{" "}
-            đã hoàn thành checkpoint này?
+            has completed this checkpoint?
           </Typography.Text>
         )}
         <div className="mt-4 flex justify-end gap-2">
           <Button onClick={onClose} disabled={mutation.isPending}>
-            Huỷ
+            Cancel
           </Button>
           <Button
             type="primary"
             htmlType="submit"
             loading={mutation.isPending}
           >
-            Xác nhận
+            Confirm
           </Button>
         </div>
       </Form>
     </Modal>
   );
 };
-
-// ─────────────────────────────────────────────────────────────
 
 interface DepartmentCheckpointCardProps {
   taskId: string;
@@ -140,7 +148,7 @@ export const DepartmentCheckpointCard: React.FC<
         size="small"
         title={
           <span className="flex items-center gap-2 text-sm font-semibold">
-            <Building2 size={14} /> Checkpoint phòng ban
+            <Building2 size={14} /> Department checkpoints
           </span>
         }
         className="mb-3"
@@ -148,54 +156,81 @@ export const DepartmentCheckpointCard: React.FC<
         <div className="flex flex-col gap-2">
           {checkpoints.map((cp) => {
             const isConfirmed = cp.status === "CONFIRMED";
-            const canConfirm =
-              !isConfirmed && userDeptId === cp.departmentId;
+            const canConfirm = !isConfirmed && userDeptId === cp.departmentId;
 
             return (
               <div
                 key={cp.checkpointId}
-                className="flex items-center justify-between rounded border border-gray-100 bg-gray-50 px-3 py-2"
+                className="rounded border border-gray-100 bg-gray-50 px-3 py-2"
               >
-                <div className="flex items-center gap-2 text-sm">
-                  {isConfirmed ? (
-                    <CheckCircle2 size={14} className="text-green-500" />
-                  ) : (
-                    <Clock size={14} className="text-amber-500" />
-                  )}
-                  <span className="font-medium">
-                    {cp.departmentName ?? cp.departmentId}
-                  </span>
-                  <Tag
-                    color={isConfirmed ? "success" : "warning"}
-                    style={{ margin: 0, fontSize: 11 }}
-                  >
-                    {isConfirmed ? "Đã xác nhận" : "Chờ xác nhận"}
-                  </Tag>
-                  {cp.requireEvidence && !isConfirmed && (
-                    <Tag color="blue" style={{ margin: 0, fontSize: 11 }}>
-                      Cần bằng chứng
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    {isConfirmed ? (
+                      <CheckCircle2 size={14} className="text-green-500" />
+                    ) : (
+                      <Clock size={14} className="text-amber-500" />
+                    )}
+                    <span className="font-medium">
+                      {cp.departmentName ?? cp.departmentId}
+                    </span>
+                    <Tag
+                      color={isConfirmed ? "success" : "warning"}
+                      style={{ margin: 0, fontSize: 11 }}
+                    >
+                      {isConfirmed ? "Confirmed" : "Pending"}
                     </Tag>
-                  )}
+                    {cp.requireEvidence && !isConfirmed && (
+                      <Tag color="blue" style={{ margin: 0, fontSize: 11 }}>
+                        Evidence required
+                      </Tag>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isConfirmed && cp.confirmedByName && (
+                      <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                        {cp.confirmedByName}
+                      </Typography.Text>
+                    )}
+                    {canConfirm && (
+                      <Button
+                        size="small"
+                        type="primary"
+                        onClick={() => setActiveCheckpoint(cp)}
+                      >
+                        Confirm
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {isConfirmed && cp.confirmedByName && (
-                    <Typography.Text
-                      type="secondary"
-                      style={{ fontSize: 11 }}
-                    >
-                      {cp.confirmedByName}
-                    </Typography.Text>
-                  )}
-                  {canConfirm && (
-                    <Button
-                      size="small"
-                      type="primary"
-                      onClick={() => setActiveCheckpoint(cp)}
-                    >
-                      Xác nhận
-                    </Button>
-                  )}
-                </div>
+                {isConfirmed && (cp.evidenceNote || cp.evidenceRef || cp.confirmedAt) && (
+                  <div className="mt-2 rounded border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600">
+                    {cp.evidenceNote && (
+                      <p>
+                        <span className="font-medium text-gray-700">Evidence note:</span>{" "}
+                        {cp.evidenceNote}
+                      </p>
+                    )}
+                    {cp.evidenceRef && (
+                      <p className="mt-1">
+                        <span className="font-medium text-gray-700">Reference:</span>{" "}
+                        <a
+                          href={cp.evidenceRef}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >
+                          {cp.evidenceRef}
+                        </a>
+                      </p>
+                    )}
+                    {cp.confirmedAt && (
+                      <p className="mt-1">
+                        <span className="font-medium text-gray-700">Confirmed at:</span>{" "}
+                        {formatDateTime(cp.confirmedAt)}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

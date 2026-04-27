@@ -472,6 +472,7 @@ interface TaskInfoTabProps {
   onReschedule: () => void;
   onCancelSchedule: () => void;
   onMarkNoShow: () => void;
+  onCheckpointConfirmed?: () => void;
 }
 
 const TaskInfoTab = ({
@@ -498,6 +499,7 @@ const TaskInfoTab = ({
   onReschedule,
   onCancelSchedule,
   onMarkNoShow,
+  onCheckpointConfirmed,
 }: TaskInfoTabProps) => {
   const { t } = useLocale();
   const { resolveName } = useUserNameMap();
@@ -785,6 +787,7 @@ const TaskInfoTab = ({
           <DepartmentCheckpointCard
             taskId={taskDetail.taskId}
             checkpoints={taskDetail.departmentCheckpoints}
+            onCheckpointConfirmed={onCheckpointConfirmed}
           />
         )}
     </div>
@@ -1752,6 +1755,8 @@ export interface TaskDrawerProps {
   onReschedule: () => void;
   onCancelSchedule: () => void;
   onMarkNoShow: () => void;
+  /** Called after a department checkpoint is confirmed so the parent can invalidate task lists */
+  onCheckpointConfirmed?: () => void;
   // Actions
   onClose: () => void;
   onDrawerTabChange: (tab: string) => void;
@@ -1829,6 +1834,7 @@ export const TaskDrawer = ({
   onUploadAttachment,
   onNavigatePrev,
   onNavigateNext,
+  onCheckpointConfirmed,
 }: TaskDrawerProps) => {
   const { t } = useLocale();
   const taskIndex = selectedTaskId
@@ -2128,6 +2134,7 @@ export const TaskDrawer = ({
                 onReschedule={onReschedule}
                 onCancelSchedule={onCancelSchedule}
                 onMarkNoShow={onMarkNoShow}
+                onCheckpointConfirmed={onCheckpointConfirmed}
               />
             )}
             {drawerTab === "required_docs" && (

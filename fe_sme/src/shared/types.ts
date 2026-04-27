@@ -102,6 +102,8 @@ export interface OnboardingTask {
   /** Reporter: user who created / assigned this task */
   reporterUserId?: string;
   reporterUserName?: string;
+  /** Department assigned to this task (ownerType=DEPARTMENT). From BE: assignedDepartmentId */
+  assignedDepartmentId?: string;
 }
 
 export interface OnboardingComment {

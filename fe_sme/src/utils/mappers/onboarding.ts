@@ -135,6 +135,10 @@ export const mapTask = (t: any): OnboardingTask => ({
   title: t.title ?? t.name ?? "",
   description: t.description ?? undefined,
   ownerRole: (t.ownerRefId ?? t.ownerRole ?? "EMPLOYEE") as any,
+  ownerType: t.ownerType ?? undefined,
+  responsibleDepartmentIds: Array.isArray(t.responsibleDepartmentIds)
+    ? t.responsibleDepartmentIds
+    : undefined,
   dueOffset: String(t.dueDaysOffset ?? t.dueOffset ?? 0),
   required: t.requireAck ?? t.required ?? false,
   requireAck: Boolean(t.requireAck ?? t.required ?? false),
@@ -176,4 +180,5 @@ export const mapTask = (t: any): OnboardingTask => ({
     t.checklist?.onboardingId ??
     t.checklist?.instanceId ??
     undefined,
+  assignedDepartmentId: t.assignedDepartmentId ?? undefined,
 });
