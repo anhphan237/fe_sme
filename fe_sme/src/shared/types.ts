@@ -65,6 +65,12 @@ export interface OnboardingTask {
   title: string;
   description?: string;
   ownerRole: Role;
+  /** BE ownerRefId — holds deptId when ownerRole=DEPARTMENT, userId when ownerType=USER */
+  ownerRefId?: string | null;
+  /** BE ownerType: USER | DEPARTMENT | EMPLOYEE | MANAGER | IT_STAFF | HR */
+  ownerType?: string;
+  /** Departments that must confirm this task before completion (from TaskTemplateDepartmentCheckpointEntity) */
+  responsibleDepartmentIds?: string[];
   dueOffset: string;
   required: boolean;
   /** requireAck flag: employee must acknowledge before marking DONE */
@@ -93,6 +99,11 @@ export interface OnboardingTask {
   approvalStatus?: string;
   /** Onboarding instance ID this task belongs to (populated from listByAssignee) */
   onboardingId?: string;
+  /** Reporter: user who created / assigned this task */
+  reporterUserId?: string;
+  reporterUserName?: string;
+  /** Department assigned to this task (ownerType=DEPARTMENT). From BE: assignedDepartmentId */
+  assignedDepartmentId?: string;
 }
 
 export interface OnboardingComment {
@@ -108,6 +119,8 @@ export interface OnboardingTemplate {
   name: string;
   description: string;
   status?: string;
+  /** PLATFORM = global shared library; TENANT = company-owned template */
+  level?: "PLATFORM" | "TENANT";
   stages: OnboardingStage[];
   updatedAt: string;
   companyId?: string | null;

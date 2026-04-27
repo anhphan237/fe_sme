@@ -1,6 +1,7 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  CheckCircle2,
   Download,
   FileSpreadsheet,
   Library,
@@ -11,10 +12,13 @@ import {
   Button,
   Checkbox,
   Empty,
-  Form,
   Input,
+  Modal,
+  Result,
   Select,
   Skeleton,
+  Spin,
+  Steps,
   Tag,
   Typography,
   Upload as AntUpload,
@@ -37,8 +41,6 @@ import type { TaskLibraryItem } from "@/interface/onboarding";
 import type { DepartmentTypeItem } from "@/interface/company";
 import { AppRouters } from "@/constants/router";
 import TaskLibraryStatusTag from "@/core/components/Status/TaskLibraryStatusTag";
-import BaseModal from "@/core/components/Modal/BaseModal";
-import BaseFormItem from "@/core/components/Form/BaseFormItem";
 
 const { Title, Text } = Typography;
 
@@ -56,17 +58,40 @@ const ImportModal = forwardRef<ImportModalRef, ImportModalProps>(
   ({ onSuccess }, ref) => {
     const { t } = useLocale();
     const [visible, setVisible] = useState(false);
-    const [form] = Form.useForm();
+    const [step, setStep] = useState(0);
+    const [deptTypeCode, setDeptTypeCode] = useState<string>("");
+    const [templateName, setTemplateName] = useState<string>("");
     const [fileList, setFileList] = useState<UploadFile[]>([]);
+    const [replaceExisting, setReplaceExisting] = useState(true);
+    const [importResult, setImportResult] = useState<{
+      importedTasks: number;
+      templateId?: string;
+    } | null>(null);
+    const [importError, setImportError] = useState<string | null>(null);
+
+    const stepLabels = [
+      t("onboarding.task_library.import.step.dept") ?? "Phòng ban",
+      t("onboarding.task_library.import.step.upload") ?? "Tải file",
+      t("onboarding.task_library.import.step.review") ?? "Xem lại",
+      t("onboarding.task_library.import.step.importing") ?? "Đang nhập",
+      t("onboarding.task_library.import.step.result") ?? "Kết quả",
+    ];
 
     useImperativeHandle(ref, () => ({
-      open: () => setVisible(true),
+      open: () => {
+        setVisible(true);
+        setStep(0);
+        setDeptTypeCode("");
+        setTemplateName("");
+        setFileList([]);
+        setReplaceExisting(true);
+        setImportResult(null);
+        setImportError(null);
+      },
     }));
 
     const onClose = () => {
       setVisible(false);
-      form.resetFields();
-      setFileList([]);
     };
 
     const { data: deptTypesRaw, isLoading: isLoadingDepts } = useQuery({
@@ -77,97 +102,287 @@ const ImportModal = forwardRef<ImportModalRef, ImportModalProps>(
     const deptTypes = (
       Array.isArray(deptTypesRaw)
         ? deptTypesRaw
-        : extractList(deptTypesRaw as unknown as Record<string, unknown>, "items")
+        : extractList(
+            deptTypesRaw as unknown as Record<string, unknown>,
+            "items",
+          )
     ) as DepartmentTypeItem[];
 
-    const importMutation = useMutation({
-      mutationFn: (fd: FormData) => apiImportTaskLibraryExcel(fd),
-      onSuccess: (res) => {
-        message.success(
-          t("onboarding.task_library.import.success", {
-            count: String(res.importedTasks),
-          }),
-        );
-        onSuccess();
-        onClose();
-      },
-      onError: () => {
-        message.error(t("onboarding.task_library.import.error"));
-      },
-    });
+    const deptTypeName =
+      deptTypes.find((d) => d.code === deptTypeCode)?.name ?? deptTypeCode;
 
-    const handleSubmit = async () => {
-      const values = await form.validateFields();
-      if (!fileList[0]?.originFileObj) return;
-      const fd = new FormData();
-      fd.append("file", fileList[0].originFileObj as File);
-      fd.append("departmentTypeCode", values.departmentTypeCode);
-      if (values.templateName) fd.append("templateName", values.templateName);
-      fd.append("replaceExisting", String(values.replaceExisting ?? true));
-      importMutation.mutate(fd);
+    const runImport = async () => {
+      if (!fileList[0]?.originFileObj || !deptTypeCode) return;
+      setStep(3);
+      setImportError(null);
+      try {
+        const fd = new FormData();
+        fd.append("file", fileList[0].originFileObj as File);
+        fd.append("departmentTypeCode", deptTypeCode);
+        if (templateName.trim()) fd.append("templateName", templateName.trim());
+        fd.append("replaceExisting", String(replaceExisting));
+        const res = (await apiImportTaskLibraryExcel(fd)) as unknown as Record<
+          string,
+          unknown
+        >;
+        const count =
+          (res.importedTasks as number) ??
+          (res.data as Record<string, unknown>)?.importedTasks ??
+          0;
+        setImportResult({
+          importedTasks: typeof count === "number" ? count : 0,
+          templateId: (res.templateId as string) ?? undefined,
+        });
+        onSuccess();
+      } catch (err) {
+        setImportError(
+          err instanceof Error
+            ? err.message
+            : "Import thất bại. Vui lòng thử lại.",
+        );
+      } finally {
+        setStep(4);
+      }
+    };
+
+    const canNext = (() => {
+      if (step === 0) return Boolean(deptTypeCode);
+      if (step === 1) return fileList.length > 0;
+      if (step === 2) return true;
+      return false;
+    })();
+
+    const stepContent = () => {
+      switch (step) {
+        case 0:
+          return (
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-gray-600">
+                {t("onboarding.task_library.import.dept_step_hint") ??
+                  "Chọn loại phòng ban sẽ được gán cho Task Library này."}
+              </p>
+              <Select
+                showSearch
+                loading={isLoadingDepts}
+                value={deptTypeCode || undefined}
+                onChange={(v) => setDeptTypeCode(v ?? "")}
+                placeholder={
+                  t("onboarding.task_library.import.dept_placeholder") ??
+                  "Chọn loại phòng ban..."
+                }
+                filterOption={(input, option) =>
+                  ((option?.label as string) ?? "")
+                    .toLowerCase()
+                    .includes(input.toLowerCase())
+                }
+                className="w-full"
+                options={deptTypes.map((d) => ({
+                  value: d.code,
+                  label: `${d.name} (${d.code})`,
+                }))}
+              />
+            </div>
+          );
+        case 1:
+          return (
+            <div className="space-y-3 py-2">
+              <AntUpload.Dragger
+                accept=".xlsx"
+                maxCount={1}
+                fileList={fileList}
+                beforeUpload={() => false}
+                onChange={({ fileList: fl }) => setFileList(fl)}
+              >
+                <p className="ant-upload-drag-icon">
+                  <FileSpreadsheet className="mx-auto h-8 w-8 text-slate-400" />
+                </p>
+                <p className="ant-upload-text text-sm">
+                  {t("onboarding.task_library.import.file_drag_text") ??
+                    "Click hoặc kéo thả file .xlsx vào đây"}
+                </p>
+                <p className="ant-upload-hint text-xs text-gray-400">
+                  {t("onboarding.task_library.import.file_format_hint") ??
+                    "Chỉ hỗ trợ định dạng .xlsx"}
+                </p>
+              </AntUpload.Dragger>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">
+                  {t("onboarding.task_library.import.template_name_label") ??
+                    "Tên template (tuỳ chọn)"}
+                </label>
+                <Input
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  placeholder={
+                    t(
+                      "onboarding.task_library.import.template_name_placeholder",
+                    ) ?? "Tên cho task library này..."
+                  }
+                />
+              </div>
+            </div>
+          );
+        case 2:
+          return (
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">
+                    {t("onboarding.task_library.import.review.dept") ??
+                      "Phòng ban"}
+                    :
+                  </span>
+                  <Tag color="blue">{deptTypeName}</Tag>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">
+                    {t("onboarding.task_library.import.review.file") ?? "File"}:
+                  </span>
+                  <span className="font-medium text-gray-700">
+                    {fileList[0]?.name ?? "—"}
+                  </span>
+                </div>
+                {templateName && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">
+                      {t("onboarding.task_library.import.review.name") ??
+                        "Tên template"}
+                      :
+                    </span>
+                    <span className="font-medium text-gray-700">
+                      {templateName}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">
+                    {t("onboarding.task_library.import.replace_confirm") ??
+                      "Ghi đè nếu đã tồn tại"}
+                    :
+                  </span>
+                  <Checkbox
+                    checked={replaceExisting}
+                    onChange={(e) => setReplaceExisting(e.target.checked)}
+                  >
+                    <span className="text-xs">
+                      {replaceExisting
+                        ? (t("onboarding.task_library.import.replace_yes") ??
+                          "Có — ghi đè")
+                        : (t("onboarding.task_library.import.replace_no") ??
+                          "Không — tạo mới")}
+                    </span>
+                  </Checkbox>
+                </div>
+              </div>
+              <p className="text-xs text-amber-600">
+                {t("onboarding.task_library.import.confirm_hint") ?? "Nhấn"}{" "}
+                <strong>
+                  {t("onboarding.task_library.import.btn.start") ?? "Nhập khẩu"}
+                </strong>{" "}
+                {t("onboarding.task_library.import.confirm_hint_suffix") ??
+                  "để bắt đầu import dữ liệu."}
+              </p>
+            </div>
+          );
+        case 3:
+          return (
+            <div className="flex flex-col items-center justify-center gap-4 py-8">
+              <Spin size="large" />
+              <p className="text-sm text-gray-600">
+                {t("onboarding.task_library.import.loading_text") ??
+                  "Đang nhập dữ liệu..."}
+              </p>
+            </div>
+          );
+        case 4:
+          return importError ? (
+            <Result
+              status="error"
+              title={
+                t("onboarding.task_library.import.error_title") ??
+                "Import thất bại"
+              }
+              subTitle={importError}
+            />
+          ) : (
+            <Result
+              status="success"
+              icon={
+                <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-500" />
+              }
+              title={
+                t("onboarding.task_library.import.success_title") ??
+                "Import thành công!"
+              }
+              subTitle={
+                t("onboarding.task_library.import.success_desc", {
+                  count: String(importResult?.importedTasks ?? 0),
+                }) ??
+                `Đã nhập ${importResult?.importedTasks ?? 0} task vào thư viện.`
+              }
+            />
+          );
+        default:
+          return null;
+      }
+    };
+
+    const footerButtons = () => {
+      if (step === 3) return null; // No buttons during import
+      if (step === 4) {
+        return (
+          <div className="flex justify-end">
+            <Button type="primary" onClick={onClose}>
+              {t("onboarding.task_library.import.btn.close") ?? "Đóng"}
+            </Button>
+          </div>
+        );
+      }
+      return (
+        <div className="flex justify-between">
+          <Button
+            onClick={step === 0 ? onClose : () => setStep((s) => s - 1)}
+            disabled={step === 3}
+          >
+            {step === 0
+              ? (t("onboarding.task_library.import.btn.cancel") ?? "Huỷ")
+              : (t("onboarding.task_library.import.btn.back") ?? "Quay lại")}
+          </Button>
+          <Button
+            type="primary"
+            disabled={!canNext}
+            onClick={step === 2 ? runImport : () => setStep((s) => s + 1)}
+          >
+            {step === 2
+              ? (t("onboarding.task_library.import.btn.start") ?? "Nhập khẩu")
+              : (t("onboarding.task_library.import.btn.next") ?? "Tiếp theo")}
+          </Button>
+        </div>
+      );
     };
 
     return (
-      <BaseModal
+      <Modal
         open={visible}
-        onCancel={onClose}
-        title={t("onboarding.task_library.import.title")}
-        onOk={handleSubmit}
-        okText={t("onboarding.task_library.import.submit")}
-        confirmLoading={importMutation.isPending}>
-        <Form form={form} layout="vertical" className="mt-4">
-          <BaseFormItem
-            name="departmentTypeCode"
-            label={t("onboarding.task_library.import.dept_label")}
-            rules={[{ required: true }]}>
-            <Select
-              showSearch
-              loading={isLoadingDepts}
-              placeholder={t("onboarding.task_library.import.dept_placeholder")}
-              filterOption={(input, option) =>
-                ((option?.label as string) ?? "")
-                  .toLowerCase()
-                  .includes(input.toLowerCase())
-              }
-              options={deptTypes.map((d) => ({
-                value: d.code,
-                label: `${d.name} (${d.code})`,
-              }))}
-            />
-          </BaseFormItem>
-          <BaseFormItem
-            name="templateName"
-            label={t("onboarding.task_library.import.name_label")}>
-            <Input
-              placeholder={t("onboarding.task_library.import.name_placeholder")}
-            />
-          </BaseFormItem>
-          <BaseFormItem
-            name="file"
-            label={t("onboarding.task_library.import.file_label")}
-            rules={[{ required: true }]}>
-            <AntUpload.Dragger
-              accept=".xlsx"
-              maxCount={1}
-              fileList={fileList}
-              beforeUpload={() => false}
-              onChange={({ fileList: fl }) => {
-                setFileList(fl);
-                form.setFieldValue("file", fl[0] ?? undefined);
-              }}>
-              <p className="ant-upload-drag-icon">
-                <FileSpreadsheet className="mx-auto h-8 w-8 text-slate-400" />
-              </p>
-              <p className="ant-upload-text text-sm">Click or drag .xlsx here</p>
-            </AntUpload.Dragger>
-          </BaseFormItem>
-          <BaseFormItem name="replaceExisting" valuePropName="checked" initialValue>
-            <Checkbox>
-              {t("onboarding.task_library.import.replace_label")}
-            </Checkbox>
-          </BaseFormItem>
-        </Form>
-      </BaseModal>
+        onCancel={step === 3 ? undefined : onClose}
+        closable={step !== 3}
+        maskClosable={false}
+        title={
+          t("onboarding.task_library.import.title") ?? "Import Task Library"
+        }
+        footer={null}
+        width={520}
+        destroyOnClose
+      >
+        <Steps
+          current={Math.min(step, 4)}
+          size="small"
+          className="mb-6 mt-2"
+          items={stepLabels.map((label) => ({ title: label }))}
+        />
+        {stepContent()}
+        <div className="mt-6">{footerButtons()}</div>
+      </Modal>
     );
   },
 );
@@ -227,7 +442,8 @@ const TaskLibrary = () => {
           className="font-medium text-brand cursor-pointer hover:underline"
           onClick={() =>
             navigate(`${AppRouters.ONBOARDING_TASK_LIBRARY}/${row.templateId}`)
-          }>
+          }
+        >
           {name}
         </span>
       ),
@@ -276,13 +492,15 @@ const TaskLibrary = () => {
             <Button
               icon={<Download className="h-4 w-4" />}
               loading={downloadMutation.isPending}
-              onClick={() => downloadMutation.mutate()}>
+              onClick={() => downloadMutation.mutate()}
+            >
               {t("onboarding.task_library.action.download_template")}
             </Button>
             <Button
               type="primary"
               icon={<Upload className="h-4 w-4" />}
-              onClick={() => importModalRef.current?.open()}>
+              onClick={() => importModalRef.current?.open()}
+            >
               {t("onboarding.task_library.action.import")}
             </Button>
           </div>

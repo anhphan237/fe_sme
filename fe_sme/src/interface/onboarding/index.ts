@@ -20,6 +20,10 @@ export interface TaskTemplateCreateItem {
   ownerType?: string;
   /** Only meaningful for USER (userId) or DEPARTMENT (deptId). Null otherwise. */
   ownerRefId?: string | null;
+  /** Convenience alias for ownerRefId when ownerType=DEPARTMENT (determines task owner). */
+  responsibleDepartmentId?: string;
+  /** Departments that must confirm this task with evidence before completion. */
+  responsibleDepartmentIds?: string[];
   dueDaysOffset?: number;
   requireAck?: boolean;
   requireDoc?: boolean;
@@ -80,7 +84,7 @@ export interface ChecklistTemplateUpdateItem {
 export interface OnboardingTemplateCreateRequest {
   name: string;
   description?: string;
-  /** default: ACTIVE */
+  /** default: DRAFT */
   status?: string;
   createdBy?: string;
   /** TASK_LIBRARY | CUSTOM */
@@ -125,6 +129,8 @@ export interface TaskTemplateDetail {
   /** String for flexibility — may be a userId (USER), deptId (DEPARTMENT), a role code (legacy), or null. */
   ownerRefId?: string | null;
   ownerType?: string;
+  /** Departments that must confirm this task before completion (mapped from TaskTemplateDepartmentCheckpointEntity) */
+  responsibleDepartmentIds?: string[];
   dueDaysOffset: number;
   requireAck: boolean;
   requireDoc?: boolean;
@@ -220,6 +226,12 @@ export interface OnboardingInstanceActivateRequest {
   managerUserId?: string;
   /** Optional override IT staff assignee to persist on instance before task generation */
   itStaffUserId?: string;
+  /**
+   * Override the instance's start date before task generation.
+   * Tasks' dueDate = expectedStartDate + dueDaysOffset.
+   * ISO date string, e.g. "2026-05-01".
+   */
+  expectedStartDate?: string;
 }
 
 /** com.sme.onboarding.instance.cancel */
@@ -462,6 +474,28 @@ export interface TaskActivityLogItem {
   createdAt: string;
 }
 
+/**
+ * Unified timeline entry in TaskDetailResponse.allLogs.
+ * BE merges COMMENT + HISTORY entries sorted by createdAt.
+ */
+export interface TaskAllLogItem {
+  type: "COMMENT" | "HISTORY";
+  createdAt: string;
+  // HISTORY fields
+  logId?: string;
+  action?: string;
+  oldValue?: string;
+  newValue?: string;
+  actorUserId?: string;
+  actorName?: string;
+  // COMMENT fields
+  commentId?: string;
+  parentCommentId?: string;
+  content?: string;
+  createdBy?: string;
+  createdByName?: string;
+}
+
 /** com.sme.onboarding.task.detail → full response */
 export interface TaskDetailResponse {
   taskId: string;
@@ -509,12 +543,25 @@ export interface TaskDetailResponse {
   checklist?: TaskDetailChecklistInfo;
   assignedUser?: TaskDetailUserInfo;
   createdByUser?: TaskDetailUserInfo;
+  /** Reporter: the user who created/assigned this task */
+  reporterUser?: TaskDetailUserInfo;
+  reporterUserId?: string;
+  reporterUserName?: string;
   assignedDepartment?: TaskDetailDepartmentInfo;
   requiredDocuments?: RequiredDocumentItem[];
+  /** Department checkpoints that must be confirmed before task can complete */
+  departmentCheckpoints?: DepartmentCheckpoint[];
   // Collections
   comments?: CommentResponse[];
   attachments?: TaskAttachmentItem[];
   activityLogs?: TaskActivityLogItem[];
+  /**
+   * Merged timeline of COMMENT + HISTORY entries, sorted by createdAt (BE side).
+   * Use this instead of fetching comments + activityLogs separately.
+   */
+  allLogs?: TaskAllLogItem[];
+  /** True when all department checkpoints are confirmed (computed by BE) */
+  allDepartmentCheckpointsConfirmed?: boolean;
 }
 
 /** com.sme.onboarding.task.listByOnboarding — query options */
@@ -540,6 +587,8 @@ export interface OnboardingTaskResponse {
   status: string;
   title?: string;
   dueDate?: string;
+  reporterUserId?: string;
+  reporterUserName?: string;
 }
 
 /** com.sme.onboarding.task.listByOnboarding → response data */
@@ -598,6 +647,8 @@ export interface CommentListRequest {
 export interface CommentAddRequest {
   taskId: string;
   content: string;
+  /** Reply to an existing comment — omit for top-level comments */
+  parentCommentId?: string;
 }
 
 /** Single comment in response */
@@ -611,6 +662,36 @@ export interface CommentResponse {
   message?: string;
   content?: string;
   createdAt: string;
+  /** Set when this comment is a reply to another comment */
+  parentCommentId?: string;
+  /** Nested children (populated by comment.tree, absent in comment.list) */
+  children?: CommentNode[];
+}
+
+// ---------------------------
+// Comment Tree
+// ---------------------------
+
+/** Recursive comment node in tree response */
+export interface CommentNode {
+  commentId: string;
+  parentCommentId?: string | null;
+  content: string;
+  createdBy: string;
+  createdByName?: string;
+  createdAt: string;
+  children: CommentNode[];
+}
+
+/** com.sme.onboarding.task.comment.tree → request */
+export interface CommentTreeRequest {
+  taskId: string;
+}
+
+/** com.sme.onboarding.task.comment.tree → response */
+export interface CommentTreeResponse {
+  taskId: string;
+  roots: CommentNode[];
 }
 
 /** com.sme.onboarding.task.comment.list → response data */
@@ -646,4 +727,194 @@ export interface TaskLibraryImportResponse {
   created: boolean;
   totalRows: number;
   importedTasks: number;
+}
+
+// ---------------------------
+// Task Schedule Calendar
+// ---------------------------
+
+/** com.sme.onboarding.task.schedule.list → request */
+export interface TaskScheduleCalendarRequest {
+  /** Target user whose calendar to query (omit for self-view) */
+  userId?: string;
+  /** ISO UTC datetime — start of the range (inclusive) */
+  fromTime: string;
+  /** ISO UTC datetime — end of the range (inclusive) */
+  toTime: string;
+  page?: number;
+  size?: number;
+}
+
+/** Single calendar item in TaskScheduleCalendarResponse */
+export interface TaskScheduleCalendarItem {
+  taskId: string;
+  title: string;
+  status: string;
+  done: boolean;
+  scheduledStartAt?: string;
+  scheduledEndAt?: string;
+  dueDate?: string;
+  onboardingId?: string;
+  checklistName?: string;
+}
+
+/** com.sme.onboarding.task.schedule.list → response */
+export interface TaskScheduleCalendarResponse {
+  targetUserId: string;
+  /** true = viewing own calendar; false = HR/Manager viewing another user's calendar */
+  selfView: boolean;
+  totalCount: number;
+  page: number;
+  size: number;
+  items: TaskScheduleCalendarItem[];
+}
+
+// ---------------------------
+// Template Clone
+// ---------------------------
+
+/** com.sme.onboarding.template.clone → request */
+export interface OnboardingTemplateCloneRequest {
+  sourceTemplateId: string;
+  /** Name for the new cloned template */
+  name: string;
+}
+
+/** com.sme.onboarding.template.clone → response */
+export interface OnboardingTemplateCloneResponse {
+  templateId: string;
+  name: string;
+}
+
+// ---------------------------
+// Event Template
+// ---------------------------
+
+/** com.sme.onboarding.eventTemplate.create → request */
+export interface OnboardingEventTemplateCreateRequest {
+  name: string;
+  /** Agenda / content of the event */
+  content?: string;
+  description?: string;
+  /** ACTIVE | INACTIVE | DRAFT */
+  status?: string;
+}
+
+/** com.sme.onboarding.eventTemplate.create → response */
+export interface OnboardingEventTemplateCreateResponse {
+  eventTemplateId: string;
+  name: string;
+  status: string;
+}
+
+// ---------------------------
+// Department Checkpoint
+// ---------------------------
+
+/** Single department checkpoint on a task */
+export interface DepartmentCheckpoint {
+  checkpointId: string;
+  departmentId: string;
+  departmentName?: string;
+  status: "PENDING" | "CONFIRMED";
+  requireEvidence?: boolean;
+  evidenceNote?: string;
+  evidenceRef?: string;
+  confirmedBy?: string;
+  confirmedByName?: string;
+  confirmedAt?: string;
+}
+
+/** com.sme.onboarding.task.department.confirm → request */
+export interface TaskDepartmentConfirmRequest {
+  taskId: string;
+  departmentId: string;
+  evidenceNote?: string;
+  evidenceRef?: string;
+}
+
+// ---------------------------
+// Events (publish / detail / list / attendance)
+// ---------------------------
+
+/** com.sme.onboarding.event.publish → request */
+export interface EventPublishRequest {
+  /** Event template ID to publish as a live event instance */
+  eventTemplateId: string;
+  /** Target onboarding instance IDs to associate the event with */
+  onboardingInstanceIds?: string[];
+  scheduledAt?: string;
+}
+
+/** com.sme.onboarding.event.publish → response */
+export interface EventPublishResponse {
+  eventId: string;
+  eventTemplateId: string;
+  status: string;
+}
+
+/** com.sme.onboarding.event.detail → request */
+export interface EventDetailRequest {
+  eventId: string;
+}
+
+/** Attendee record in event detail */
+export interface EventAttendee {
+  userId: string;
+  userName?: string;
+  attended?: boolean;
+  attendedAt?: string;
+}
+
+/** com.sme.onboarding.event.detail → response */
+export interface EventDetailResponse {
+  eventId: string;
+  eventTemplateId: string;
+  name: string;
+  content?: string;
+  description?: string;
+  status: string;
+  scheduledAt?: string;
+  onboardingInstanceIds?: string[];
+  attendees?: EventAttendee[];
+  createdAt?: string;
+}
+
+/** com.sme.onboarding.event.list → request */
+export interface EventListRequest {
+  onboardingInstanceId?: string;
+  status?: string;
+  page?: number;
+  size?: number;
+}
+
+/** Single event instance in list */
+export interface EventListItem {
+  eventId: string;
+  name: string;
+  status: string;
+  scheduledAt?: string;
+  attendeeCount?: number;
+}
+
+/** com.sme.onboarding.event.list → response */
+export interface EventListResponse {
+  items: EventListItem[];
+  totalCount: number;
+  page: number;
+  size: number;
+}
+
+/** com.sme.onboarding.event.attendance.summary → request */
+export interface EventAttendanceSummaryRequest {
+  eventId: string;
+}
+
+/** com.sme.onboarding.event.attendance.summary → response */
+export interface EventAttendanceSummaryResponse {
+  eventId: string;
+  totalInvited: number;
+  totalAttended: number;
+  attendanceRate: number;
+  attendees: EventAttendee[];
 }

@@ -15,6 +15,7 @@ import type {
   PlatformTemplateUpdateRequest,
   PlatformTemplatePublishRequest,
   PlatformTemplateArchiveRequest,
+  ActivatePlatformTemplateRequest,
   PlatformSubscriptionListRequest,
   PlatformSubscriptionDetailRequest,
   PlatformPlanListRequest,
@@ -92,12 +93,21 @@ export const apiGetPlatformTemplateList = (
     payload,
   );
 
-/** com.sme.onboarding.template.create */
+/** com.sme.platform.template.create — creates a PLATFORM-level template (admin only) */
 export const apiCreatePlatformTemplate = (
   payload: PlatformTemplateCreateRequest,
 ) =>
   gatewayRequest<PlatformTemplateCreateRequest, unknown>(
-    "com.sme.onboarding.template.create",
+    "com.sme.platform.template.create",
+    payload,
+  );
+
+/** com.sme.platform.template.activate — activates a PLATFORM template so tenants can clone it */
+export const apiActivatePlatformTemplate = (
+  payload: ActivatePlatformTemplateRequest,
+) =>
+  gatewayRequest<ActivatePlatformTemplateRequest, unknown>(
+    "com.sme.platform.template.activate",
     payload,
   );
 

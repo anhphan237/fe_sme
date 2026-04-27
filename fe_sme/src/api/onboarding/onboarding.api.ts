@@ -23,6 +23,22 @@ import type {
   TaskLibraryListResponse,
   TaskLibraryImportResponse,
   OnboardingTemplateGetResponse,
+  CommentTreeResponse,
+  TaskScheduleCalendarRequest,
+  TaskScheduleCalendarResponse,
+  OnboardingTemplateCloneRequest,
+  OnboardingTemplateCloneResponse,
+  OnboardingEventTemplateCreateRequest,
+  OnboardingEventTemplateCreateResponse,
+  TaskDepartmentConfirmRequest,
+  EventPublishRequest,
+  EventPublishResponse,
+  EventDetailRequest,
+  EventDetailResponse,
+  EventListRequest,
+  EventListResponse,
+  EventAttendanceSummaryRequest,
+  EventAttendanceSummaryResponse,
 } from "@/interface/onboarding";
 
 // ── Templates ──────────────────────────────────────────────
@@ -59,7 +75,14 @@ export const apiUpdateTemplate = (payload: OnboardingTemplateUpdateRequest) =>
     payload,
   );
 
-/** com.sme.onboarding.template.ai.generate — AI tự tạo onboarding template */
+/** com.sme.onboarding.template.clone
+ *  Clone a template by ID; the new template will be in DRAFT status with the given name.
+ */
+export const apiCloneTemplate = (payload: OnboardingTemplateCloneRequest) =>
+  gatewayRequest<
+    OnboardingTemplateCloneRequest,
+    OnboardingTemplateCloneResponse
+  >("com.sme.onboarding.template.clone", payload);
 export const apiGenerateTemplateWithAI = (payload: {
   industry: string;
   companySize: string;
@@ -102,7 +125,10 @@ export const apiCreateInstance = (payload: OnboardingInstanceCreateRequest) =>
     payload,
   );
 
-/** com.sme.onboarding.instance.activate */
+/** com.sme.onboarding.instance.activate
+ *  @param payload.expectedStartDate — optional override for task dueDate calculation
+ *    (tasks: dueDate = expectedStartDate + dueDaysOffset). Defaults to instance startDate.
+ */
 export const apiActivateInstance = (
   payload: OnboardingInstanceActivateRequest,
 ) =>
@@ -198,11 +224,27 @@ export const apiListTaskComments = (taskId: string) =>
     { taskId },
   );
 
-/** com.sme.onboarding.task.comment.add */
-export const apiAddTaskComment = (taskId: string, content: string) =>
-  gatewayRequest<{ taskId: string; content: string }, unknown>(
+/** com.sme.onboarding.task.comment.tree
+ *  Returns the full comment tree (nested parent-child structure).
+ *  Prefer this over comment.list when rendering threaded replies.
+ */
+export const apiGetTaskCommentTree = (taskId: string) =>
+  gatewayRequest<{ taskId: string }, CommentTreeResponse>(
+    "com.sme.onboarding.task.comment.tree",
+    { taskId },
+  );
+
+/** com.sme.onboarding.task.comment.add
+ *  @param payload.parentCommentId — omit for a top-level comment, provide to reply to an existing comment
+ */
+export const apiAddTaskComment = (payload: {
+  taskId: string;
+  content: string;
+  parentCommentId?: string;
+}) =>
+  gatewayRequest<typeof payload, { commentId: string }>(
     "com.sme.onboarding.task.comment.add",
-    { taskId, content },
+    payload,
   );
 
 // ── Task Actions (Acknowledge / Approve / Reject) ──────────
@@ -344,6 +386,23 @@ export const apiGetTaskDetailFull = (
     },
   );
 
+// ── Schedule Calendar ──────────────────────────────────────
+
+/** com.sme.onboarding.task.schedule.list
+ *  Queries all scheduled tasks for a user within a time range.
+ *  Replaces per-instance task queries for the schedule/calendar view.
+ *  @param payload.userId — omit for self-view (current user)
+ *  @param payload.fromTime — ISO UTC string (start of calendar range)
+ *  @param payload.toTime   — ISO UTC string (end of calendar range)
+ */
+export const apiQueryTaskScheduleCalendar = (
+  payload: TaskScheduleCalendarRequest,
+) =>
+  gatewayRequest<TaskScheduleCalendarRequest, TaskScheduleCalendarResponse>(
+    "com.sme.onboarding.task.schedule.list",
+    payload,
+  );
+
 // ── Task Libraries (REST — direct, not gateway) ─────────────
 // Endpoints: GET/POST /api/v1/task-libraries/*
 
@@ -420,3 +479,59 @@ export const apiImportTaskLibraryExcel = (formData: FormData) =>
     headers: _taskLibHeaders(),
     body: formData,
   }).then((r) => _taskLibFetch<TaskLibraryImportResponse>(r));
+
+// ── Event Templates ────────────────────────────────────────
+
+/** com.sme.onboarding.eventTemplate.create
+ *  Creates a standalone event template (not yet linked to an onboarding template on BE).
+ */
+export const apiCreateEventTemplate = (
+  payload: OnboardingEventTemplateCreateRequest,
+) =>
+  gatewayRequest<
+    OnboardingEventTemplateCreateRequest,
+    OnboardingEventTemplateCreateResponse
+  >("com.sme.onboarding.eventTemplate.create", payload);
+
+// ── Task Department Confirm ────────────────────────────────
+
+/** com.sme.onboarding.task.department.confirm */
+export const apiTaskDepartmentConfirm = (
+  payload: TaskDepartmentConfirmRequest,
+) =>
+  gatewayRequest<TaskDepartmentConfirmRequest, { checkpointId: string }>(
+    "com.sme.onboarding.task.department.confirm",
+    payload,
+  );
+
+// ── Events (publish / detail / list / attendance) ──────────
+
+/** com.sme.onboarding.event.publish */
+export const apiEventPublish = (payload: EventPublishRequest) =>
+  gatewayRequest<EventPublishRequest, EventPublishResponse>(
+    "com.sme.onboarding.event.publish",
+    payload,
+  );
+
+/** com.sme.onboarding.event.detail */
+export const apiEventDetail = (payload: EventDetailRequest) =>
+  gatewayRequest<EventDetailRequest, EventDetailResponse>(
+    "com.sme.onboarding.event.detail",
+    payload,
+  );
+
+/** com.sme.onboarding.event.list */
+export const apiEventInstanceList = (payload: EventListRequest) =>
+  gatewayRequest<EventListRequest, EventListResponse>(
+    "com.sme.onboarding.event.list",
+    payload,
+  );
+
+/** com.sme.onboarding.event.attendance.summary */
+export const apiEventAttendanceSummary = (
+  payload: EventAttendanceSummaryRequest,
+) =>
+  gatewayRequest<EventAttendanceSummaryRequest, EventAttendanceSummaryResponse>(
+    "com.sme.onboarding.event.attendance.summary",
+    payload,
+  );

@@ -21,12 +21,14 @@ const resolveOwnerRole = (task: any): string => {
   if (ownerType === "IT_STAFF") return "IT";
   if (ownerType === "EMPLOYEE") return "EMPLOYEE";
   if (ownerType === "HR") return "HR";
-  if (ownerType === "DEPARTMENT" || ownerType === "USER") return "HR";
+  if (ownerType === "DEPARTMENT") return "DEPARTMENT";
+  if (ownerType === "USER") return "HR";
   const ref = String(task.ownerRefId ?? task.ownerRole ?? "").toUpperCase();
   if (ref === "MANAGER") return "MANAGER";
   if (ref === "IT" || ref === "IT_STAFF") return "IT";
   if (ref === "EMPLOYEE") return "EMPLOYEE";
-  if (ref === "HR" || ref === "DEPARTMENT") return "HR";
+  if (ref === "HR") return "HR";
+  if (ref === "DEPARTMENT") return "DEPARTMENT";
   return "EMPLOYEE";
 };
 
@@ -36,7 +38,7 @@ export const mapTemplate = (t: any): OnboardingTemplate => {
     id: t?.templateId ?? t?.id ?? "",
     name: t.name ?? "",
     description: t.description ?? "",
-    status: t.status ?? "ACTIVE",
+    status: t.status ?? "DRAFT",
     stages: Array.isArray(rawStages)
       ? rawStages.map((c: any, ci: number) => ({
           id: c.checklistTemplateId ?? c.id ?? `stage-${ci}`,
@@ -48,6 +50,11 @@ export const mapTemplate = (t: any): OnboardingTemplate => {
             title: task.name ?? task.title ?? "",
             description: task.description ?? "",
             ownerRole: resolveOwnerRole(task) as any,
+            ownerRefId: task.ownerRefId ?? undefined,
+            ownerType: task.ownerType ?? undefined,
+            responsibleDepartmentIds: Array.isArray(task.responsibleDepartmentIds)
+              ? task.responsibleDepartmentIds
+              : undefined,
             dueOffset: String(task.dueDaysOffset ?? task.dueOffset ?? 0),
             required: task.requireAck ?? task.required ?? false,
             requireAck: Boolean(task.requireAck ?? task.required ?? false),
@@ -64,6 +71,7 @@ export const mapTemplate = (t: any): OnboardingTemplate => {
       : [],
     updatedAt: t.updatedAt ?? "",
     companyId: t.companyId ?? null,
+    level: t.level ?? undefined,
   };
 };
 
@@ -127,6 +135,10 @@ export const mapTask = (t: any): OnboardingTask => ({
   title: t.title ?? t.name ?? "",
   description: t.description ?? undefined,
   ownerRole: (t.ownerRefId ?? t.ownerRole ?? "EMPLOYEE") as any,
+  ownerType: t.ownerType ?? undefined,
+  responsibleDepartmentIds: Array.isArray(t.responsibleDepartmentIds)
+    ? t.responsibleDepartmentIds
+    : undefined,
   dueOffset: String(t.dueDaysOffset ?? t.dueOffset ?? 0),
   required: t.requireAck ?? t.required ?? false,
   requireAck: Boolean(t.requireAck ?? t.required ?? false),
@@ -152,6 +164,12 @@ export const mapTask = (t: any): OnboardingTask => ({
     t.assignedUser?.fullName ??
     t.assignedUser?.name ??
     undefined,
+  reporterUserId: t.reporterUserId ?? t.reporterUser?.userId ?? undefined,
+  reporterUserName:
+    t.reporterUserName ??
+    t.reporterUser?.fullName ??
+    t.reporterUser?.name ??
+    undefined,
   overdue: Boolean(t.overdue ?? false),
   scheduleStatus: t.scheduleStatus ?? undefined,
   approvalStatus: t.approvalStatus ?? undefined,
@@ -162,4 +180,5 @@ export const mapTask = (t: any): OnboardingTask => ({
     t.checklist?.onboardingId ??
     t.checklist?.instanceId ??
     undefined,
+  assignedDepartmentId: t.assignedDepartmentId ?? undefined,
 });

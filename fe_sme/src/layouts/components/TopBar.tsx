@@ -91,6 +91,7 @@ export const TopBar = ({ pathname, onMenuClick }: Props) => {
   const resetGlobal = useGlobalStore((s) => s.resetGlobal);
   const currentUser = useUserStore((s) => s.currentUser);
   const locale = useUserStore((s) => s.locale);
+  const roles: string[] = useUserStore((s) => s.roles ?? []);
   const breadcrumbs = useGlobalStore((s) => s.breadcrumbs);
   const { notifications, unreadCount, markAsRead } = useNotifications();
   const dayjsLocale = locale === "vi_VN" ? "vi" : "en";
@@ -324,6 +325,19 @@ export const TopBar = ({ pathname, onMenuClick }: Props) => {
         </Link>
       ),
     },
+    ...(roles.some((r) => ["HR", "MANAGER", "ADMIN"].includes(r))
+      ? [
+          {
+            key: "activity",
+            icon: <UserOutlined />,
+            label: (
+              <Link to="/profile/activity" style={{ fontSize: 13 }}>
+                {t("profile.myActivity")}
+              </Link>
+            ),
+          },
+        ]
+      : []),
     {
       key: "settings",
       icon: <SettingOutlined />,

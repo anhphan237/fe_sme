@@ -64,6 +64,7 @@ import { apiGetDocuments } from "@/api/document/document.api";
 import type { DocumentItem } from "@/interface/document";
 import { useUserNameMap } from "@/utils/resolvers/userResolver";
 import { useUserStore } from "@/stores/user.store";
+import { DepartmentCheckpointCard } from "./DepartmentCheckpointCard";
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
 
@@ -471,6 +472,7 @@ interface TaskInfoTabProps {
   onReschedule: () => void;
   onCancelSchedule: () => void;
   onMarkNoShow: () => void;
+  onCheckpointConfirmed?: () => void;
 }
 
 const TaskInfoTab = ({
@@ -497,6 +499,7 @@ const TaskInfoTab = ({
   onReschedule,
   onCancelSchedule,
   onMarkNoShow,
+  onCheckpointConfirmed,
 }: TaskInfoTabProps) => {
   const { t } = useLocale();
   const { resolveName } = useUserNameMap();
@@ -604,6 +607,23 @@ const TaskInfoTab = ({
                   <Building2 className="h-3.5 w-3.5 text-gray-400" />
                   {taskDetail.assignedDepartment.name ??
                     taskDetail.assignedDepartment.departmentId}
+                </span>
+              </InfoField>
+            </div>
+          </Col>
+        )}
+        {/* Reporter */}
+        {(taskDetail.reporterUser?.fullName ||
+          taskDetail.reporterUserName ||
+          taskDetail.reporterUserId) && (
+          <Col span={12}>
+            <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+              <InfoField label={t("onboarding.task.reporter") ?? "Người giao"}>
+                <span className="flex items-center gap-1">
+                  <UserIcon className="h-3.5 w-3.5 text-gray-400" />
+                  {taskDetail.reporterUser?.fullName ??
+                    taskDetail.reporterUserName ??
+                    resolveName(taskDetail.reporterUserId)}
                 </span>
               </InfoField>
             </div>
@@ -760,6 +780,16 @@ const TaskInfoTab = ({
           </div>
         </>
       )}
+
+      {/* Department checkpoints */}
+      {taskDetail.departmentCheckpoints &&
+        taskDetail.departmentCheckpoints.length > 0 && (
+          <DepartmentCheckpointCard
+            taskId={taskDetail.taskId}
+            checkpoints={taskDetail.departmentCheckpoints}
+            onCheckpointConfirmed={onCheckpointConfirmed}
+          />
+        )}
     </div>
   );
 };
@@ -1402,6 +1432,124 @@ const TaskActivityTab = ({
   );
 };
 
+// ── Timeline Tab (merged allLogs) ─────────────────────────────────────────────
+
+type TimelineFilter = "all" | "comments" | "history";
+
+const TaskTimelineTab = ({
+  taskDetail,
+}: {
+  taskDetail: TaskDetailResponse;
+}) => {
+  const { t } = useLocale();
+  const { resolveName } = useUserNameMap();
+  const [filter, setFilter] = useState<TimelineFilter>("all");
+
+  const allLogs = taskDetail.allLogs ?? [];
+
+  const filtered = allLogs.filter((item) => {
+    if (filter === "comments") return item.type === "COMMENT";
+    if (filter === "history") return item.type === "HISTORY";
+    return true;
+  });
+
+  if (allLogs.length === 0) {
+    return (
+      <div className="space-y-4 pt-2">
+        <Empty
+          description={
+            t("onboarding.task.activity.empty") ?? "Chưa có hoạt động"
+          }
+          imageStyle={{ height: 40 }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 pt-2">
+      {/* Filter pills */}
+      <div className="flex gap-1.5 flex-wrap">
+        {(["all", "comments", "history"] as TimelineFilter[]).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              filter === f
+                ? "bg-blue-600 text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}>
+            {t(`onboarding.task.timeline.filter.${f}`) ?? f}
+          </button>
+        ))}
+      </div>
+
+      <Timeline
+        items={filtered.map((item, idx) => {
+          if (item.type === "COMMENT") {
+            return {
+              key: item.commentId ?? `comment-${idx}`,
+              dot: <MessageSquare className="h-3.5 w-3.5 text-blue-500" />,
+              children: (
+                <div className="text-xs">
+                  <span className="font-medium text-gray-700">
+                    {item.createdByName ?? resolveName(item.createdBy)}
+                  </span>
+                  <span className="ml-1 text-gray-400">
+                    {t("onboarding.comment.title") ?? "Bình luận"}
+                  </span>
+                  {item.parentCommentId && (
+                    <span className="ml-1 rounded bg-gray-100 px-1 text-gray-400">
+                      ↩ reply
+                    </span>
+                  )}
+                  <p className="mt-0.5 text-gray-700">{item.content ?? ""}</p>
+                  <span className="mt-0.5 block text-gray-400">
+                    {formatDateTime(item.createdAt)}
+                  </span>
+                </div>
+              ),
+            };
+          }
+          // HISTORY
+          const { label, detail } = parseActivityChange(
+            item.action ?? "",
+            item.oldValue,
+            item.newValue,
+            t,
+          );
+          const dotIcon =
+            item.action === "STATUS_CHANGED" ? (
+              <CheckCircle2 className="h-3.5 w-3.5 text-blue-500" />
+            ) : item.action === "ASSIGNED" ? (
+              <UserIcon className="h-3.5 w-3.5 text-orange-500" />
+            ) : (
+              <Activity className="h-3.5 w-3.5 text-gray-400" />
+            );
+          return {
+            key: item.logId ?? `log-${idx}`,
+            dot: dotIcon,
+            children: (
+              <div className="text-xs">
+                <span className="font-medium text-gray-700">{label}</span>
+                {detail && <span className="ml-1 text-gray-500">{detail}</span>}
+                {(item.actorName || item.actorUserId) && (
+                  <span className="ml-1 text-gray-400">
+                    · {item.actorName ?? resolveName(item.actorUserId)}
+                  </span>
+                )}
+                <span className="ml-2 text-gray-400">
+                  {formatDate(item.createdAt)}
+                </span>
+              </div>
+            ),
+          };
+        })}
+      />
+    </div>
+  );
+};
+
 // ── Comments Tab ──────────────────────────────────────────────────────────────
 
 interface TaskCommentsTabProps {
@@ -1410,7 +1558,7 @@ interface TaskCommentsTabProps {
   commentInput: string;
   isAddingComment: boolean;
   onCommentChange: (value: string) => void;
-  onAddComment: () => void;
+  onAddComment: (parentCommentId?: string) => void;
 }
 
 const TaskCommentsTab = ({
@@ -1423,6 +1571,26 @@ const TaskCommentsTab = ({
 }: TaskCommentsTabProps) => {
   const { t } = useLocale();
   const currentUserId = useUserStore((s) => s.currentUser?.id);
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
+  const [replyingToName, setReplyingToName] = useState<string>("");
+
+  const handleSend = () => {
+    if (!commentInput.trim()) return;
+    onAddComment(replyingToId ?? undefined);
+    setReplyingToId(null);
+    setReplyingToName("");
+  };
+
+  const handleReply = (commentId: string, displayName: string) => {
+    setReplyingToId(commentId);
+    setReplyingToName(displayName);
+  };
+
+  const handleCancelReply = () => {
+    setReplyingToId(null);
+    setReplyingToName("");
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div className="flex-1 overflow-y-auto space-y-3 py-2 pr-1 min-h-0">
@@ -1441,12 +1609,11 @@ const TaskCommentsTab = ({
                 c.createdByName ??
                 c.authorName ??
                 t("onboarding.task.comments.unknown_author");
+              const isReply = Boolean(c.parentCommentId);
               return (
                 <div
                   key={c.commentId}
-                  className={`flex items-end gap-2 ${
-                    isMine ? "flex-row-reverse" : ""
-                  }`}>
+                  className={`flex items-end gap-2 ${isMine ? "flex-row-reverse" : ""} ${isReply ? "ml-8" : ""}`}>
                   <div
                     className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
                       isMine
@@ -1455,30 +1622,44 @@ const TaskCommentsTab = ({
                     }`}>
                     {displayName[0].toUpperCase()}
                   </div>
-                  <div
-                    className={`max-w-[75%] rounded-2xl px-3 py-2 ${
-                      isMine
-                        ? "rounded-br-sm bg-blue-500"
-                        : "rounded-bl-sm bg-gray-100"
-                    }`}>
-                    {!isMine && (
-                      <p className="mb-0.5 text-xs font-semibold text-gray-600">
-                        {displayName}
+                  <div className="flex-1 min-w-0">
+                    {isReply && (
+                      <p className="mb-0.5 text-[10px] text-gray-400">
+                        ↩ {t("onboarding.comment.reply") ?? "Trả lời"}
                       </p>
                     )}
-                    <p
-                      className={`text-sm ${
-                        isMine ? "text-white" : "text-gray-700"
+                    <div
+                      className={`max-w-[80%] rounded-2xl px-3 py-2 ${
+                        isMine
+                          ? "ml-auto rounded-br-sm bg-blue-500"
+                          : "rounded-bl-sm bg-gray-100"
                       }`}>
-                      {c.message ?? c.content ?? ""}
-                    </p>
-                    {c.createdAt && (
+                      {!isMine && (
+                        <p className="mb-0.5 text-xs font-semibold text-gray-600">
+                          {displayName}
+                        </p>
+                      )}
                       <p
-                        className={`mt-0.5 text-[10px] ${
-                          isMine ? "text-blue-100" : "text-gray-400"
+                        className={`text-sm ${
+                          isMine ? "text-white" : "text-gray-700"
                         }`}>
-                        {formatDateTime(c.createdAt)}
+                        {c.message ?? c.content ?? ""}
                       </p>
+                      {c.createdAt && (
+                        <p
+                          className={`mt-0.5 text-[10px] ${
+                            isMine ? "text-blue-100" : "text-gray-400"
+                          }`}>
+                          {formatDateTime(c.createdAt)}
+                        </p>
+                      )}
+                    </div>
+                    {!isMine && (
+                      <button
+                        onClick={() => handleReply(c.commentId, displayName)}
+                        className="mt-0.5 ml-1 text-[10px] text-gray-400 hover:text-blue-500 transition-colors">
+                        {t("onboarding.comment.reply") ?? "Trả lời"}
+                      </button>
                     )}
                   </div>
                 </div>
@@ -1487,19 +1668,37 @@ const TaskCommentsTab = ({
           </div>
         )}
       </div>
+      {/* Reply indicator */}
+      {replyingToId && (
+        <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-1.5 mb-1.5 text-xs text-blue-600">
+          <span className="flex-1">
+            ↩ {t("onboarding.comment.reply") ?? "Trả lời"}{" "}
+            <span className="font-semibold">{replyingToName}</span>
+          </span>
+          <button
+            onClick={handleCancelReply}
+            className="text-gray-400 hover:text-gray-600">
+            {t("onboarding.comment.cancel_reply") ?? "Hủy"}
+          </button>
+        </div>
+      )}
       <div className="flex gap-2 border-t border-gray-100 pt-3 mt-2 shrink-0">
         <Input
-          placeholder={t("onboarding.task.comments.placeholder")}
+          placeholder={
+            replyingToId
+              ? (t("onboarding.comment.reply.placeholder") ?? "Trả lời…")
+              : t("onboarding.task.comments.placeholder")
+          }
           value={commentInput}
           onChange={(e) => onCommentChange(e.target.value)}
-          onPressEnter={onAddComment}
+          onPressEnter={handleSend}
           maxLength={500}
         />
         <Button
           type="primary"
           icon={<Send className="h-3.5 w-3.5" />}
           loading={isAddingComment}
-          onClick={onAddComment}
+          onClick={handleSend}
           disabled={!commentInput.trim()}>
           {t("onboarding.task.comments.send")}
         </Button>
@@ -1556,11 +1755,13 @@ export interface TaskDrawerProps {
   onReschedule: () => void;
   onCancelSchedule: () => void;
   onMarkNoShow: () => void;
+  /** Called after a department checkpoint is confirmed so the parent can invalidate task lists */
+  onCheckpointConfirmed?: () => void;
   // Actions
   onClose: () => void;
   onDrawerTabChange: (tab: string) => void;
   onCommentChange: (value: string) => void;
-  onAddComment: () => void;
+  onAddComment: (parentCommentId?: string) => void;
   onStart: () => void;
   onAcknowledge: () => void;
   onConfirmComplete: () => void;
@@ -1633,6 +1834,7 @@ export const TaskDrawer = ({
   onUploadAttachment,
   onNavigatePrev,
   onNavigateNext,
+  onCheckpointConfirmed,
 }: TaskDrawerProps) => {
   const { t } = useLocale();
   const taskIndex = selectedTaskId
@@ -1684,6 +1886,15 @@ export const TaskDrawer = ({
       label: t("onboarding.detail.task.tab.activity") ?? "Hoạt động",
       icon: <Activity className="h-3.5 w-3.5" aria-hidden="true" />,
     },
+    ...(taskDetail?.allLogs && taskDetail.allLogs.length > 0
+      ? [
+          {
+            key: "timeline",
+            label: t("onboarding.task.timeline.title") ?? "Timeline",
+            icon: <Activity className="h-3.5 w-3.5" aria-hidden="true" />,
+          },
+        ]
+      : []),
     {
       key: "comments",
       label: t("onboarding.task.comments.title") ?? "Bình luận",
@@ -1923,6 +2134,7 @@ export const TaskDrawer = ({
                 onReschedule={onReschedule}
                 onCancelSchedule={onCancelSchedule}
                 onMarkNoShow={onMarkNoShow}
+                onCheckpointConfirmed={onCheckpointConfirmed}
               />
             )}
             {drawerTab === "required_docs" && (
@@ -1947,6 +2159,9 @@ export const TaskDrawer = ({
             )}
             {drawerTab === "activity" && (
               <TaskActivityTab taskDetail={taskDetail} />
+            )}
+            {drawerTab === "timeline" && (
+              <TaskTimelineTab taskDetail={taskDetail} />
             )}
             {drawerTab === "comments" && (
               <TaskCommentsTab

@@ -49,7 +49,7 @@ import BaseInputNumber from "@core/components/Input/BaseNumberInput";
 import BaseModal from "@core/components/Modal/BaseModal";
 import BaseSelect from "@core/components/Select/BaseSelect";
 import { STAGE_ACCENTS, STAGE_OPTIONS, getStageMeta } from "./constants";
-import type { TaskDraft, ChecklistDraft, LibraryTask } from "./constants";
+import type { TaskDraft, ChecklistDraft } from "./constants";
 import {
   apiListTaskLibraries,
   apiGetTaskLibrary,
@@ -66,7 +66,7 @@ import type { TaskTemplateDetail } from "@/interface/onboarding";
 // ── Task Library Modal ─────────────────────────────────────────────────────────
 
 /** Maps a BE TaskTemplateDetail ownerType/ownerRefId to a UI assignee role */
-function resolveAssignee(task: TaskTemplateDetail): LibraryTask["assignee"] {
+function resolveAssignee(task: TaskTemplateDetail): TaskDraft["assignee"] {
   const ownerType = task.ownerType?.toUpperCase() ?? "";
   if (ownerType === "MANAGER") return "MANAGER";
   if (ownerType === "IT_STAFF") return "IT";
@@ -80,7 +80,30 @@ function resolveAssignee(task: TaskTemplateDetail): LibraryTask["assignee"] {
   return "EMPLOYEE";
 }
 
-type TaskLibraryEntry = LibraryTask & { _groupName: string; _stage?: string };
+/** Converts a TaskTemplateDetail from the library API into a TaskDraft (without id) */
+function libraryTaskToTaskDraft(
+  task: TaskTemplateDetail,
+): Omit<TaskDraft, "id"> {
+  const assignee = resolveAssignee(task);
+  return {
+    name: task.name ?? task.title ?? "",
+    description: task.description ?? "",
+    dueDaysOffset: task.dueDaysOffset ?? 0,
+    requireAck: task.requireAck ?? false,
+    requireDoc: task.requireDoc ?? false,
+    requiresManagerApproval: task.requiresManagerApproval ?? false,
+    approverUserId: task.approverUserId ?? undefined,
+    requiredDocumentIds: task.requiredDocumentIds ?? undefined,
+    assignee,
+    ownerRefId: assignee === "DEPARTMENT" ? (task.ownerRefId ?? null) : null,
+    responsibleDepartmentIds: task.responsibleDepartmentIds ?? undefined,
+  };
+}
+
+type TaskLibraryEntry = TaskTemplateDetail & {
+  _groupName: string;
+  _stage?: string;
+};
 
 const TaskLibraryModal = ({
   open,
@@ -89,7 +112,7 @@ const TaskLibraryModal = ({
 }: {
   open: boolean;
   onClose: () => void;
-  onAdd: (task: LibraryTask) => void;
+  onAdd: (task: TaskTemplateDetail) => void;
 }) => {
   const { t } = useLocale();
   const [search, setSearch] = useState("");
@@ -133,14 +156,7 @@ const TaskLibraryModal = ({
     if (!libraryDetail?.checklists) return [];
     return libraryDetail.checklists.flatMap((cl) =>
       cl.tasks.map((task) => ({
-        name: task.name ?? task.title ?? "",
-        description: task.description ?? "",
-        dueDaysOffset: task.dueDaysOffset ?? 0,
-        requireAck: task.requireAck ?? false,
-        requireDoc: task.requireDoc ?? false,
-        requiresManagerApproval: task.requiresManagerApproval ?? false,
-        category: "hr" as LibraryTask["category"],
-        assignee: resolveAssignee(task),
+        ...task,
         _groupName: cl.name,
         _stage: cl.stage,
       })),
@@ -153,8 +169,8 @@ const TaskLibraryModal = ({
     const q = search.toLowerCase();
     return allEntries.filter(
       (tk) =>
-        tk.name.toLowerCase().includes(q) ||
-        tk.description.toLowerCase().includes(q),
+        (tk.name ?? tk.title ?? "").toLowerCase().includes(q) ||
+        (tk.description ?? "").toLowerCase().includes(q),
     );
   }, [allEntries, search]);
 
@@ -183,7 +199,8 @@ const TaskLibraryModal = ({
       open={open}
       onCancel={onClose}
       footer={null}
-      width={520}>
+      width={520}
+    >
       {/* Library selector — shown only when there are multiple libraries */}
       {libraries.length > 1 && (
         <Select
@@ -233,7 +250,8 @@ const TaskLibraryModal = ({
                     <span>{groupName}</span>
                     {tasks[0]?._stage && (
                       <span
-                        className={`rounded-md border px-1.5 py-0.5 text-[10px] normal-case tracking-normal font-medium ${accent.chip}`}>
+                        className={`rounded-md border px-1.5 py-0.5 text-[10px] normal-case tracking-normal font-medium ${accent.chip}`}
+                      >
                         {t(stageMeta.labelKey)}
                       </span>
                     )}
@@ -242,10 +260,11 @@ const TaskLibraryModal = ({
                     {tasks.map((tk, i) => (
                       <div
                         key={`${groupName}-${i}`}
-                        className="group flex items-start gap-3 rounded-lg border border-stroke bg-white p-3 transition hover:border-brand/30 hover:shadow-sm">
+                        className="group flex items-start gap-3 rounded-lg border border-stroke bg-white p-3 transition hover:border-brand/30 hover:shadow-sm"
+                      >
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-ink">
-                            {tk.name}
+                            {tk.name ?? tk.title}
                           </p>
                           {tk.description && (
                             <p className="mt-0.5 text-xs text-muted">
@@ -255,7 +274,7 @@ const TaskLibraryModal = ({
                           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-muted/70">
                             <span>
                               {t("onboarding.template.library.due_days", {
-                                days: tk.dueDaysOffset,
+                                days: tk.dueDaysOffset ?? 0,
                               })}
                             </span>
                             {tk.requireAck && (
@@ -282,7 +301,8 @@ const TaskLibraryModal = ({
                         <button
                           type="button"
                           onClick={() => onAdd(tk)}
-                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-stroke text-muted transition hover:border-brand hover:bg-brand/5 hover:text-brand">
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-stroke text-muted transition hover:border-brand hover:bg-brand/5 hover:text-brand"
+                        >
                           <Plus className="h-3.5 w-3.5" />
                         </button>
                       </div>
@@ -393,7 +413,8 @@ const DocumentPickerField = ({
         ghost
         icon={<UploadCloud className="h-3.5 w-3.5" />}
         onClick={openUpload}
-        className="mt-1">
+        className="mt-1"
+      >
         Upload tài liệu đầu tiên
       </Button>
     </div>
@@ -428,7 +449,8 @@ const DocumentPickerField = ({
                 borderRadius: 6,
                 fontSize: 11,
                 lineHeight: "16px",
-              }}>
+              }}
+            >
               <FileTypeIcon fileUrl={doc?.fileUrl} />
               <span
                 style={{
@@ -436,7 +458,8 @@ const DocumentPickerField = ({
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
-                }}>
+                }}
+              >
                 {doc?.name ?? String(props.value)}
               </span>
             </Tag>
@@ -453,7 +476,8 @@ const DocumentPickerField = ({
                 size="small"
                 block
                 icon={<UploadCloud className="h-3.5 w-3.5" />}
-                onClick={openUpload}>
+                onClick={openUpload}
+              >
                 Upload tài liệu mới
               </Button>
             </div>
@@ -500,7 +524,8 @@ const DocumentPickerField = ({
         okText="Upload & chọn"
         cancelText="Hủy"
         okButtonProps={{ disabled: !uploadFile || !uploadName.trim() }}
-        width={440}>
+        width={440}
+      >
         <div className="space-y-4 py-1">
           {/* Drag & drop area */}
           <AntUpload.Dragger
@@ -530,7 +555,8 @@ const DocumentPickerField = ({
                   ]
                 : []
             }
-            style={{ borderRadius: 8 }}>
+            style={{ borderRadius: 8 }}
+          >
             <div className="py-4">
               <UploadCloud className="mx-auto mb-2 h-8 w-8 text-brand/40" />
               <p className="text-sm font-medium text-ink">
@@ -625,7 +651,8 @@ function SortableTaskCard({
       style={style}
       className={`group overflow-hidden rounded-xl border border-stroke bg-white transition hover:shadow-sm ${
         isDragging ? "shadow-md opacity-90" : ""
-      }`}>
+      }`}
+    >
       {/* Card header */}
       <div className="flex items-center justify-between border-b border-stroke/60 bg-slate-50/60 px-4 py-2.5">
         <div className="flex items-center gap-2">
@@ -634,7 +661,8 @@ function SortableTaskCard({
               type="button"
               className="cursor-grab touch-none rounded p-0.5 text-muted/40 transition hover:text-muted active:cursor-grabbing"
               {...attributes}
-              {...listeners}>
+              {...listeners}
+            >
               <GripVertical className="h-3.5 w-3.5" />
             </button>
           )}
@@ -650,7 +678,8 @@ function SortableTaskCard({
             <button
               type="button"
               onClick={() => onCloneTask(index)}
-              className="flex items-center gap-1 text-xs font-medium text-muted/60 opacity-0 transition hover:text-brand group-hover:opacity-100">
+              className="flex items-center gap-1 text-xs font-medium text-muted/60 opacity-0 transition hover:text-brand group-hover:opacity-100"
+            >
               <Copy className="h-3.5 w-3.5" />
               {t("onboarding.template.editor.clone_task")}
             </button>
@@ -658,7 +687,8 @@ function SortableTaskCard({
               type="button"
               onClick={() => onRemoveTask(index)}
               disabled={total <= 1}
-              className="flex items-center gap-1 text-xs font-medium text-muted/60 opacity-0 transition hover:text-red-500 group-hover:opacity-100 disabled:pointer-events-none disabled:opacity-0">
+              className="flex items-center gap-1 text-xs font-medium text-muted/60 opacity-0 transition hover:text-red-500 group-hover:opacity-100 disabled:pointer-events-none disabled:opacity-0"
+            >
               <X className="h-3.5 w-3.5" />
               {t("onboarding.template.editor.remove_task")}
             </button>
@@ -739,12 +769,14 @@ function SortableTaskCard({
               <Form.Item
                 name={[field.name, "requireAck"]}
                 valuePropName="checked"
-                className="mb-0">
+                className="mb-0"
+              >
                 <Checkbox disabled={readOnly} />
               </Form.Item>
             </div>
             <p className="text-xs font-semibold text-ink">
-              {t("onboarding.template.editor.task.require_ack") ?? "Xác nhận tài liệu"}
+              {t("onboarding.template.editor.task.require_ack") ??
+                "Xác nhận tài liệu"}
             </p>
             <p className="mt-0.5 text-[10px] leading-relaxed text-muted">
               Nhân viên phải đọc & xác nhận trước khi hoàn thành
@@ -760,12 +792,14 @@ function SortableTaskCard({
               <Form.Item
                 name={[field.name, "requireDoc"]}
                 valuePropName="checked"
-                className="mb-0">
+                className="mb-0"
+              >
                 <Checkbox disabled={readOnly} />
               </Form.Item>
             </div>
             <p className="text-xs font-semibold text-ink">
-              {t("onboarding.template.editor.task.require_doc") ?? "Nộp tài liệu"}
+              {t("onboarding.template.editor.task.require_doc") ??
+                "Nộp tài liệu"}
             </p>
             <p className="mt-0.5 text-[10px] leading-relaxed text-muted">
               Nhân viên phải upload tài liệu để hoàn thành
@@ -781,12 +815,14 @@ function SortableTaskCard({
               <Form.Item
                 name={[field.name, "requiresManagerApproval"]}
                 valuePropName="checked"
-                className="mb-0">
+                className="mb-0"
+              >
                 <Checkbox disabled={readOnly} />
               </Form.Item>
             </div>
             <p className="text-xs font-semibold text-ink">
-              {t("onboarding.template.editor.task.require_approval") ?? "Phê duyệt quản lý"}
+              {t("onboarding.template.editor.task.require_approval") ??
+                "Phê duyệt quản lý"}
             </p>
             <p className="mt-0.5 text-[10px] leading-relaxed text-muted">
               Quản lý phải phê duyệt để đánh dấu hoàn thành
@@ -800,7 +836,8 @@ function SortableTaskCard({
           shouldUpdate={(prev, curr) =>
             prev.tasks?.[field.name]?.requiresManagerApproval !==
             curr.tasks?.[field.name]?.requiresManagerApproval
-          }>
+          }
+        >
           {({ getFieldValue }) => {
             const needsApproval = getFieldValue([
               "tasks",
@@ -817,7 +854,8 @@ function SortableTaskCard({
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold text-orange-800">
-                      {t("onboarding.template.editor.task.approver_label") ?? "Người phê duyệt"}
+                      {t("onboarding.template.editor.task.approver_label") ??
+                        "Người phê duyệt"}
                     </p>
                     <p className="text-[10px] text-orange-500">
                       Chọn quản lý sẽ phê duyệt task này
@@ -831,7 +869,8 @@ function SortableTaskCard({
                 <div className="p-3">
                   <Form.Item
                     name={[field.name, "approverUserId"]}
-                    className="mb-0">
+                    className="mb-0"
+                  >
                     <Select
                       showSearch
                       allowClear
@@ -889,7 +928,8 @@ function SortableTaskCard({
                     />
                   </Form.Item>
                   <p className="mt-2 text-[10px] text-orange-500/80">
-                    Nếu để trống, line manager của nhân viên sẽ được dùng làm người phê duyệt.
+                    Nếu để trống, line manager của nhân viên sẽ được dùng làm
+                    người phê duyệt.
                   </p>
                 </div>
               </div>
@@ -903,7 +943,8 @@ function SortableTaskCard({
           shouldUpdate={(prev, curr) =>
             prev.tasks?.[field.name]?.requireAck !==
             curr.tasks?.[field.name]?.requireAck
-          }>
+          }
+        >
           {({ getFieldValue }) => {
             const needsAck = getFieldValue(["tasks", field.name, "requireAck"]);
             if (!needsAck) return null;
@@ -916,7 +957,9 @@ function SortableTaskCard({
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold text-blue-800">
-                      {t("onboarding.template.editor.task.required_docs_label") ?? "Tài liệu xác nhận"}
+                      {t(
+                        "onboarding.template.editor.task.required_docs_label",
+                      ) ?? "Tài liệu xác nhận"}
                     </p>
                     <p className="text-[10px] text-blue-500">
                       Nhân viên phải đọc và xác nhận trước khi hoàn thành
@@ -945,7 +988,8 @@ function SortableTaskCard({
                                 ) ?? "Vui lòng chọn ít nhất một tài liệu",
                             },
                           ]
-                    }>
+                    }
+                  >
                     <DocumentPickerField
                       documents={documents ?? []}
                       isLoading={isLoadingDocs ?? false}
@@ -980,7 +1024,7 @@ const TaskForm = memo(function TaskForm({
   onRemoveTask: (ti: number) => void;
   onCloneTask: (ti: number) => void;
   onReorderTask: (from: number, to: number) => void;
-  onAddLibraryTask: (task: LibraryTask) => void;
+  onAddLibraryTask: (task: Omit<TaskDraft, "id">) => void;
   readOnly?: boolean;
 }) {
   const { t } = useLocale();
@@ -1090,7 +1134,8 @@ const TaskForm = memo(function TaskForm({
             }
           },
         );
-      }}>
+      }}
+    >
       {/* Action bar */}
       <div className="flex items-center justify-between border-b border-stroke/60 bg-slate-50/30 px-5 py-3">
         <p className="text-xs font-semibold text-muted">
@@ -1105,7 +1150,8 @@ const TaskForm = memo(function TaskForm({
               type="default"
               size="small"
               icon={<BookOpen className="h-3.5 w-3.5" />}
-              onClick={() => setLibraryOpen(true)}>
+              onClick={() => setLibraryOpen(true)}
+            >
               {t("onboarding.template.library.button")}
             </Button>
             <Button type="default" size="small" onClick={onAddTask}>
@@ -1118,7 +1164,7 @@ const TaskForm = memo(function TaskForm({
       <TaskLibraryModal
         open={libraryOpen}
         onClose={() => setLibraryOpen(false)}
-        onAdd={(task) => onAddLibraryTask(task)}
+        onAdd={(task) => onAddLibraryTask(libraryTaskToTaskDraft(task))}
       />
 
       {checklist.tasks.length === 0 ? (
@@ -1138,10 +1184,12 @@ const TaskForm = memo(function TaskForm({
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}>
+            onDragEnd={handleDragEnd}
+          >
             <SortableContext
               items={checklist.tasks.map((tk) => tk.id)}
-              strategy={verticalListSortingStrategy}>
+              strategy={verticalListSortingStrategy}
+            >
               <Form.List name="tasks">
                 {(fields) =>
                   fields.map((field, ti) => {
@@ -1185,7 +1233,7 @@ export interface TasksPanelProps {
   onRemoveTask: (ti: number) => void;
   onCloneTask: (ti: number) => void;
   onReorderTask: (from: number, to: number) => void;
-  onAddLibraryTask: (task: LibraryTask) => void;
+  onAddLibraryTask: (task: Omit<TaskDraft, "id">) => void;
   readOnly?: boolean;
 }
 
@@ -1231,7 +1279,8 @@ export const TasksPanel = ({
                 name: t(stageMeta.defaultNameKey),
                 stageType: all.stageType ?? checklist.stageType,
               });
-            }}>
+            }}
+          >
             <BaseSelect
               name="stageType"
               options={stageOptions}

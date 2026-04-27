@@ -103,7 +103,32 @@ export function mapLoginToAppUser(res: LoginResponse): AppUser {
     roles: normalizeRoles([u.roleCode]),
     companyId: u.tenantId ?? null,
     department: "",
+    departmentId: null,
     status: "Active",
     createdAt: new Date().toISOString().slice(0, 10),
+  };
+}
+
+export function mergeUserWithDetail(
+  user: User,
+  detail: GetUserResponse | UserDetail,
+): User {
+  return {
+    ...user,
+    departmentId: detail.departmentId ?? user.departmentId ?? null,
+    department:
+      ("departmentName" in detail
+        ? (detail.departmentName as string | undefined)
+        : undefined) ??
+      user.department ??
+      "",
+    employeeId:
+      ("employeeId" in detail ? detail.employeeId : null) ??
+      user.employeeId ??
+      null,
+    managerUserId:
+      ("managerUserId" in detail ? detail.managerUserId : null) ??
+      user.managerUserId ??
+      null,
   };
 }

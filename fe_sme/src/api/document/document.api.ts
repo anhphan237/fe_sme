@@ -80,6 +80,40 @@ export const apiUploadDocumentFile = async (
   };
 };
 
+/**
+ * POST /api/v1/documents/{documentId}/attachments/upload (multipart/form-data)
+ * Single-step: uploads file to Cloudinary then saves attachment metadata.
+ * formData must contain: file (required), fileName (optional), mediaKind (optional)
+ */
+export const apiUploadDocumentAttachment = async (
+  documentId: string,
+  formData: FormData,
+): Promise<{ documentAttachmentId: string; documentId: string; mediaKind: string }> => {
+  const token = getToken();
+  const res = await fetch(
+    `${getBaseUrl()}/api/v1/documents/${encodeURIComponent(documentId)}/attachments/upload`,
+    {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    },
+  );
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      json.message ?? json.errorCode ?? `Upload failed (${res.status})`,
+    );
+  }
+  const payload = (json.data ?? json) as Record<string, unknown>;
+  return {
+    documentAttachmentId: (payload.documentAttachmentId as string) ?? "",
+    documentId: (payload.documentId as string) ?? documentId,
+    mediaKind: (payload.mediaKind as string) ?? "FILE",
+  };
+};
+
 /** @deprecated Use apiUploadDocumentFile for real file upload */
 export const apiSaveDocument = (payload: UploadDocumentRequest) =>
   gatewayRequest<UploadDocumentRequest, UploadDocumentResponse>(

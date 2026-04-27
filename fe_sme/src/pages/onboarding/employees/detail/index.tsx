@@ -59,6 +59,7 @@ import { InfoCard } from "./components/InfoCard";
 import { TaskListPanel } from "./components/TaskListPanel";
 import { TaskDrawer } from "./components/TaskDrawer";
 import { StageProgressCard } from "./components/StageProgressCard";
+import { RiskCard } from "./components/RiskCard";
 import { STATUS_DONE, STATUS_DONE_API, STATUS_TAG_COLOR } from "./constants";
 import type { OnboardingTask } from "@/shared/types";
 import { AppLoading } from "@/components/page-loading";
@@ -515,8 +516,15 @@ const EmployeeDetail = () => {
   });
 
   const addCommentMutation = useMutation({
-    mutationFn: ({ taskId, content }: { taskId: string; content: string }) =>
-      apiAddTaskComment(taskId, content),
+    mutationFn: ({
+      taskId,
+      content,
+      parentCommentId,
+    }: {
+      taskId: string;
+      content: string;
+      parentCommentId?: string;
+    }) => apiAddTaskComment({ taskId, content, parentCommentId }),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["onboarding-task-comments", selectedTaskId],
@@ -817,11 +825,12 @@ const EmployeeDetail = () => {
     setNoShowReason("");
   };
 
-  const handleAddComment = () => {
+  const handleAddComment = (parentCommentId?: string) => {
     if (!selectedTaskId || !commentInput.trim()) return;
     addCommentMutation.mutate({
       taskId: selectedTaskId,
       content: commentInput.trim(),
+      parentCommentId,
     });
   };
 
@@ -1000,7 +1009,10 @@ const EmployeeDetail = () => {
       {/* ── Checklist tab ────────────────────────────────────────────────────── */}
       {tab === "checklist" && (
         <div className="grid gap-4 lg:grid-cols-2">
-          <StageProgressCard stageProgress={stageProgress} />
+          <div className="flex flex-col gap-4">
+            <StageProgressCard stageProgress={stageProgress} />
+            <RiskCard tasks={tasks} onTaskClick={openTaskDrawer} />
+          </div>
           <TaskListPanel
             tasks={tasks}
             isLoading={tasksLoading}
@@ -1150,6 +1162,7 @@ const EmployeeDetail = () => {
             reason: noShowReason || undefined,
           })
         }
+        onCheckpointConfirmed={invalidateTasks}
       />
 
       {/* ── Reject reason modal ──────────────────────────────────────────────── */}
