@@ -27,6 +27,7 @@ import {
   Badge,
   Button,
   Card,
+  Checkbox,
   Col,
   Divider,
   Drawer,
@@ -36,7 +37,9 @@ import {
   Popconfirm,
   Row,
   Skeleton,
+  Tabs,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 import { useLocale } from "@/i18n";
@@ -119,6 +122,8 @@ interface TaskApprovalItemProps {
   onApprove: (task: OnboardingTask) => void;
   onReject: (task: OnboardingTask) => void;
   onDetail: (task: OnboardingTask) => void;
+  selected?: boolean;
+  onSelect?: (taskId: string, checked: boolean) => void;
 }
 
 const TaskApprovalItem = ({
@@ -129,6 +134,8 @@ const TaskApprovalItem = ({
   onApprove,
   onReject,
   onDetail,
+  selected,
+  onSelect,
 }: TaskApprovalItemProps) => {
   const { t } = useLocale();
   const overdue = isOverdue(task.dueDate);
@@ -142,10 +149,20 @@ const TaskApprovalItem = ({
   return (
     <div
       className={`group flex items-start gap-3 rounded-xl border px-4 py-3 transition-all ${
-        overdue
-          ? "border-red-100 bg-red-50/20"
-          : "border-gray-100 bg-white hover:border-blue-200 hover:shadow-sm"
+        selected
+          ? "border-blue-300 bg-blue-50/30"
+          : overdue
+            ? "border-red-100 bg-red-50/20"
+            : "border-gray-100 bg-white hover:border-blue-200 hover:shadow-sm"
       }`}>
+      {/* Checkbox for bulk select */}
+      {onSelect && (
+        <Checkbox
+          checked={selected}
+          onChange={(e) => onSelect(task.id, e.target.checked)}
+          className="mt-1 shrink-0"
+        />
+      )}
       {/* Status icon */}
       <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-amber-200 bg-amber-50">
         <Send className="h-4 w-4 text-amber-500" />
@@ -258,6 +275,8 @@ interface EmployeeApprovalGroupProps {
   onApprove: (task: OnboardingTask) => void;
   onReject: (task: OnboardingTask) => void;
   onDetail: (task: OnboardingTask) => void;
+  selectedTaskIds?: Set<string>;
+  onSelect?: (taskId: string, checked: boolean) => void;
 }
 
 const EmployeeApprovalGroup = ({
@@ -269,6 +288,8 @@ const EmployeeApprovalGroup = ({
   onApprove,
   onReject,
   onDetail,
+  selectedTaskIds,
+  onSelect,
 }: EmployeeApprovalGroupProps) => {
   const { t } = useLocale();
   const hasOverdue = tasks.some((tk) => isOverdue(tk.dueDate));
@@ -322,6 +343,8 @@ const EmployeeApprovalGroup = ({
               onApprove={onApprove}
               onReject={onReject}
               onDetail={onDetail}
+              selected={selectedTaskIds?.has(task.id)}
+              onSelect={onSelect}
             />
         ))}
       </div>
@@ -677,6 +700,8 @@ const ApprovalsPage = () => {
 
   const [search, setSearch] = useState("");
   const [overdueFirst, setOverdueFirst] = useState(false);
+  const [approvalTab, setApprovalTab] = useState<"all" | "mine" | "team">("all");
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -779,6 +804,24 @@ const ApprovalsPage = () => {
       notify.error(t("onboarding.task.toast.failed") ?? "Thao tác thất bại"),
   });
 
+  const [isBulkApproving, setIsBulkApproving] = useState(false);
+  const handleBulkApprove = async () => {
+    if (selectedTaskIds.size === 0) return;
+    setIsBulkApproving(true);
+    try {
+      await Promise.all(
+        [...selectedTaskIds].map((taskId) => apiApproveTask({ taskId })),
+      );
+      invalidateAfterAction();
+      setSelectedTaskIds(new Set());
+      notify.success(`Đã phê duyệt ${selectedTaskIds.size} task`);
+    } catch {
+      notify.error(t("onboarding.task.toast.failed") ?? "Thao tác thất bại");
+    } finally {
+      setIsBulkApproving(false);
+    }
+  };
+
   const rejectMutation = useMutation({
     mutationFn: ({ taskId, reason }: { taskId: string; reason?: string }) =>
       apiRejectTask({ taskId, reason }),
@@ -808,8 +851,23 @@ const ApprovalsPage = () => {
 
   const filteredGroups = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const userId = currentUser?.id;
+
+    // Apply approvalTab filter on instances/tasks
+    let sourceGroups = pendingGroups;
+    if (approvalTab === "mine" && userId) {
+      sourceGroups = pendingGroups.filter(
+        (g) => g.instance.managerUserId === userId || g.instance.employeeUserId === userId,
+      );
+    } else if (approvalTab === "team" && userId) {
+      // Team: instances that the current user manages
+      sourceGroups = pendingGroups.filter(
+        (g) => g.instance.managerUserId === userId,
+      );
+    }
+
     const groups = q
-      ? pendingGroups
+      ? sourceGroups
           .map(({ instance, tasks }) => ({
             instance,
             tasks: tasks.filter(
@@ -824,7 +882,7 @@ const ApprovalsPage = () => {
             ),
           }))
           .filter(({ tasks }) => tasks.length > 0)
-      : pendingGroups;
+      : sourceGroups;
 
     if (overdueFirst) {
       return [...groups].sort((a, b) => {
@@ -834,7 +892,7 @@ const ApprovalsPage = () => {
       });
     }
     return groups;
-  }, [pendingGroups, search, overdueFirst]);
+  }, [pendingGroups, search, overdueFirst, approvalTab, currentUser?.id, resolveUserName]);
 
   const stats = useMemo(() => {
     const allTasks = pendingGroups.flatMap((g) => g.tasks);
@@ -874,9 +932,14 @@ const ApprovalsPage = () => {
 
   const handleConfirmReject = () => {
     if (!selectedTaskId) return;
+    const trimmed = rejectReason.trim();
+    if (trimmed.length > 0 && trimmed.length < 10) {
+      notify.error("Lý do từ chối phải có ít nhất 10 ký tự (hoặc để trống)");
+      return;
+    }
     rejectMutation.mutate({
       taskId: selectedTaskId,
-      reason: rejectReason.trim() || undefined,
+      reason: trimmed || undefined,
     });
   };
 
@@ -968,6 +1031,29 @@ const ApprovalsPage = () => {
 
       {/* ── Filter bar ───────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-3">
+        <Tabs
+          activeKey={approvalTab}
+          onChange={(k) => setApprovalTab(k as "all" | "mine" | "team")}
+          size="small"
+          className="mb-0"
+          items={[
+            {
+              key: "all",
+              label: (
+                <span className="flex items-center gap-1">
+                  Tất cả
+                  {stats.pending > 0 && (
+                    <Badge count={stats.pending} size="small" />
+                  )}
+                </span>
+              ),
+            },
+            { key: "mine", label: "Của tôi" },
+            { key: "team", label: "Nhóm" },
+          ]}
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
         <Input
           placeholder={
             t("onboarding.approvals.filter.search") ??
@@ -990,6 +1076,30 @@ const ApprovalsPage = () => {
           {t("onboarding.approvals.filter.overdue_first") ?? "Quá hạn trước"}
         </button>
       </div>
+
+      {/* ── Bulk approve bar ─────────────────────────────────────────────────── */}
+      {selectedTaskIds.size > 0 && (
+        <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5">
+          <span className="text-sm font-medium text-blue-700">
+            Đã chọn {selectedTaskIds.size} task
+          </span>
+          <Button
+            type="primary"
+            size="small"
+            loading={isBulkApproving}
+            onClick={handleBulkApprove}
+          >
+            Phê duyệt tất cả
+          </Button>
+          <Button
+            size="small"
+            onClick={() => setSelectedTaskIds(new Set())}
+            disabled={isBulkApproving}
+          >
+            Bỏ chọn
+          </Button>
+        </div>
+      )}
 
       {/* ── Content ──────────────────────────────────────────────────────────── */}
       {isLoading ? (
@@ -1029,6 +1139,15 @@ const ApprovalsPage = () => {
               onApprove={handleApprove}
               onReject={handleOpenReject}
               onDetail={openDetail}
+              selectedTaskIds={selectedTaskIds}
+              onSelect={(taskId, checked) => {
+                setSelectedTaskIds((prev) => {
+                  const next = new Set(prev);
+                  if (checked) next.add(taskId);
+                  else next.delete(taskId);
+                  return next;
+                });
+              }}
             />
           ))}
         </div>

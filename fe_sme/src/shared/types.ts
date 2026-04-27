@@ -65,6 +65,12 @@ export interface OnboardingTask {
   title: string;
   description?: string;
   ownerRole: Role;
+  /** BE ownerRefId — holds deptId when ownerRole=DEPARTMENT, userId when ownerType=USER */
+  ownerRefId?: string | null;
+  /** BE ownerType: USER | DEPARTMENT | EMPLOYEE | MANAGER | IT_STAFF | HR */
+  ownerType?: string;
+  /** Departments that must confirm this task before completion (from TaskTemplateDepartmentCheckpointEntity) */
+  responsibleDepartmentIds?: string[];
   dueOffset: string;
   required: boolean;
   /** requireAck flag: employee must acknowledge before marking DONE */

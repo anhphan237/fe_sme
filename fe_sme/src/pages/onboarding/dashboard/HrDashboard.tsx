@@ -12,7 +12,7 @@ import {
   Tag,
   Typography,
 } from "antd";
-import { BarChart2, CheckCircle, ClipboardList, Clock, Users } from "lucide-react";
+import { AlertTriangle, BarChart2, CheckCircle, ClipboardList, Clock, Users } from "lucide-react";
 import { extractList } from "@/api/core/types";
 import { apiListInstances } from "@/api/onboarding/onboarding.api";
 import { mapInstance } from "@/utils/mappers/onboarding";
@@ -79,6 +79,29 @@ const HrDashboard = () => {
         .slice(0, 10),
     [allInstances],
   );
+
+  /** At-risk: ACTIVE instances that are behind schedule.
+   *  Criteria: progress < expected progress for elapsed days.
+   *  Simplified: started > 14 days ago but progress < 50%, or any ACTIVE with progress < 20%.
+   */
+  const atRiskInstances = useMemo(() => {
+    const now = Date.now();
+    const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
+    return allInstances
+      .filter((i) => {
+        if (i.status !== "ACTIVE") return false;
+        const progress = i.progress ?? 0;
+        const startMs = i.startDate ? new Date(i.startDate).getTime() : 0;
+        const elapsed = now - startMs;
+        // Started > 14 days ago and still below 50% — very behind
+        if (elapsed > TWO_WEEKS_MS && progress < 50) return true;
+        // Any active instance with dangerously low progress (< 20%) regardless of age
+        if (progress < 20 && elapsed > 3 * 24 * 60 * 60 * 1000) return true;
+        return false;
+      })
+      .sort((a, b) => (a.progress ?? 0) - (b.progress ?? 0))
+      .slice(0, 10);
+  }, [allInstances]);
 
   if (isLoading) return <Skeleton active paragraph={{ rows: 8 }} />;
 
@@ -223,6 +246,73 @@ const HrDashboard = () => {
           </Card>
         </Col>
       </Row>
+
+      {/* At-Risk Employees Table */}
+      {atRiskInstances.length > 0 && (
+        <Card className="border-l-4 border-l-red-400">
+          <div className="mb-3 flex items-center justify-between">
+            <Title level={5} className="!mb-0 flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+              {t("onboarding.hr.dashboard.at_risk_title") ??
+                "Onboarding cần chú ý"}
+              <Tag color="red">{atRiskInstances.length}</Tag>
+            </Title>
+            <Link to="/onboarding/employees?filter=at_risk">
+              <Text className="text-sm text-blue-500 hover:underline">
+                {t("onboarding.hr.dashboard.view_all") ?? "Xem tất cả"}
+              </Text>
+            </Link>
+          </div>
+          <Table
+            dataSource={atRiskInstances}
+            rowKey="id"
+            size="small"
+            pagination={false}
+            columns={[
+              {
+                title: t("onboarding.hr.dashboard.col.employee_id") ?? "Nhân viên",
+                key: "employee",
+                render: (_: unknown, record: OnboardingInstance) => (
+                  <Link to={`/onboarding/employees/${record.id}`}>
+                    <Text className="text-blue-500 hover:underline">
+                      {record.employeeName ||
+                        resolveName(
+                          record.employeeUserId,
+                          record.employeeId || "—",
+                        )}
+                    </Text>
+                  </Link>
+                ),
+              },
+              {
+                title: t("onboarding.hr.dashboard.col.progress") ?? "Tiến độ",
+                dataIndex: "progress",
+                key: "progress",
+                render: (progress: number) => (
+                  <Progress
+                    percent={progress ?? 0}
+                    size="small"
+                    strokeColor="#ef4444"
+                    status={progress < 20 ? "exception" : "normal"}
+                  />
+                ),
+              },
+              {
+                title: t("onboarding.hr.dashboard.col.start_date") ?? "Ngày bắt đầu",
+                dataIndex: "startDate",
+                key: "startDate",
+                render: formatDate,
+              },
+              {
+                title: t("onboarding.hr.dashboard.col.template") ?? "Template",
+                dataIndex: "templateName",
+                key: "templateName",
+                render: (name?: string) => name ? <Text type="secondary" className="text-xs">{name}</Text> : "—",
+              },
+            ]}
+          />
+        </Card>
+      )}
 
       <Card>
         <div className="mb-3 flex items-center justify-between">

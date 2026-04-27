@@ -19,6 +19,7 @@ import {
 } from "antd";
 import {
   Calendar as CalendarIcon,
+  CalendarPlus,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -45,6 +46,7 @@ import {
   apiGetTaskDetailFull,
   apiListInstances,
   apiMarkTaskNoShow,
+  apiProposeTaskSchedule,
   apiQueryTaskScheduleCalendar,
   apiRescheduleTask,
 } from "@/api/onboarding/onboarding.api";
@@ -480,10 +482,15 @@ const OnboardingSchedule = () => {
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [noShowOpen, setNoShowOpen] = useState(false);
+  const [proposeOpen, setProposeOpen] = useState(false);
   const [form] = Form.useForm<{
     scheduledStartAt: Dayjs;
     scheduledEndAt?: Dayjs;
     reason?: string;
+  }>();
+  const [proposeForm] = Form.useForm<{
+    scheduledStartAt: Dayjs;
+    scheduledEndAt?: Dayjs;
   }>();
   const [reasonForm] = Form.useForm<{ reason?: string }>();
 
@@ -901,6 +908,26 @@ const OnboardingSchedule = () => {
       );
       setNoShowOpen(false);
       reasonForm.resetFields();
+      invalidate();
+    },
+    onError: () =>
+      notify.error(
+        t("onboarding.schedule.toast.failed") ?? "Thao tác thất bại",
+      ),
+  });
+
+  const proposeMutation = useMutation({
+    mutationFn: (payload: {
+      taskId: string;
+      scheduledStartAt: string;
+      scheduledEndAt?: string;
+    }) => apiProposeTaskSchedule(payload),
+    onSuccess: () => {
+      notify.success(
+        t("onboarding.schedule.toast.proposed") ?? "Đã đề xuất lịch",
+      );
+      setProposeOpen(false);
+      proposeForm.resetFields();
       invalidate();
     },
     onError: () =>
@@ -2229,6 +2256,15 @@ const OnboardingSchedule = () => {
             {/* ── Actions — HR/Manager only (disabled in view-as mode) ── */}
             {canManage && !isViewingOther && (
               <div className="flex flex-wrap gap-2 pt-2">
+                {(!taskDetail.scheduleStatus ||
+                  taskDetail.scheduleStatus === "UNSCHEDULED") && (
+                  <Button
+                    type="primary"
+                    icon={<CalendarPlus className="h-4 w-4" />}
+                    onClick={() => setProposeOpen(true)}>
+                    {t("onboarding.schedule.action.propose") ?? "Đề xuất lịch"}
+                  </Button>
+                )}
                 {taskDetail.scheduleStatus === "PROPOSED" && (
                   <Button
                     type="primary"
@@ -2335,6 +2371,46 @@ const OnboardingSchedule = () => {
             name="reason"
             label={t("onboarding.schedule.field.reason") ?? "Lý do"}>
             <Input.TextArea rows={3} maxLength={500} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* ── PROPOSE SCHEDULE MODAL ── */}
+      <Modal
+        open={proposeOpen}
+        title={
+          <span className="flex items-center gap-2">
+            <CalendarPlus className="h-4 w-4" />
+            {t("onboarding.schedule.propose.title") ?? "Đề xuất lịch hẹn"}
+          </span>
+        }
+        onCancel={() => {
+          setProposeOpen(false);
+          proposeForm.resetFields();
+        }}
+        okButtonProps={{ loading: proposeMutation.isPending }}
+        okText={t("onboarding.schedule.action.propose") ?? "Đề xuất"}
+        cancelText={t("global.cancel_action") ?? "Huỷ"}
+        onOk={async () => {
+          if (!taskDetail) return;
+          const values = await proposeForm.validateFields();
+          proposeMutation.mutate({
+            taskId: taskDetail.taskId,
+            scheduledStartAt: values.scheduledStartAt.toISOString(),
+            scheduledEndAt: values.scheduledEndAt?.toISOString(),
+          });
+        }}>
+        <Form form={proposeForm} layout="vertical" className="mt-2">
+          <Form.Item
+            name="scheduledStartAt"
+            label={t("onboarding.schedule.field.start") ?? "Bắt đầu"}
+            rules={[{ required: true, message: "Vui lòng chọn thời gian bắt đầu" }]}>
+            <DatePicker showTime className="w-full" format="DD/MM/YYYY HH:mm" />
+          </Form.Item>
+          <Form.Item
+            name="scheduledEndAt"
+            label={t("onboarding.schedule.field.end") ?? "Kết thúc"}>
+            <DatePicker showTime className="w-full" format="DD/MM/YYYY HH:mm" />
           </Form.Item>
         </Form>
       </Modal>

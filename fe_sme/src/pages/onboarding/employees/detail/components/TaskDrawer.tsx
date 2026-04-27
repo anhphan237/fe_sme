@@ -64,6 +64,7 @@ import { apiGetDocuments } from "@/api/document/document.api";
 import type { DocumentItem } from "@/interface/document";
 import { useUserNameMap } from "@/utils/resolvers/userResolver";
 import { useUserStore } from "@/stores/user.store";
+import { DepartmentCheckpointCard } from "./DepartmentCheckpointCard";
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
 
@@ -777,6 +778,15 @@ const TaskInfoTab = ({
           </div>
         </>
       )}
+
+      {/* Department checkpoints */}
+      {taskDetail.departmentCheckpoints &&
+        taskDetail.departmentCheckpoints.length > 0 && (
+          <DepartmentCheckpointCard
+            taskId={taskDetail.taskId}
+            checkpoints={taskDetail.departmentCheckpoints}
+          />
+        )}
     </div>
   );
 };

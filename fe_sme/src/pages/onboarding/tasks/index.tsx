@@ -23,6 +23,7 @@ import {
   Empty,
   Input,
   Modal,
+  Pagination,
   Popconfirm,
   Progress,
   Row,
@@ -86,6 +87,9 @@ type StatusFilter =
   | "done"
   | "pending_approval"
   | "overdue"
+  | "mine"
+  | "today"
+  | "upcoming";
   | "mine";
 type ViewMode = "list" | "timeline";
 type SortMode = "default" | "due_asc";
@@ -1379,6 +1383,8 @@ const Tasks = () => {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [keyword, setKeyword] = useState("");
+  const [taskPage, setTaskPage] = useState(1);
+  const TASK_PAGE_SIZE = 30;
   const [commentInput, setCommentInput] = useState("");
   const [uploadingFile, setUploadingFile] = useState(false);
   const [acknowledgedDocIds, setAcknowledgedDocIds] = useState<Set<string>>(
@@ -1770,6 +1776,11 @@ const Tasks = () => {
   // ── Filtered tasks ────────────────────────────────────────────────────────
 
   const filteredTasks = useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
     return tasks.filter((task) => {
       const matchKeyword = task.title
         .toLowerCase()
@@ -1783,10 +1794,24 @@ const Tasks = () => {
         return (
           Boolean(task.dueDate) &&
           task.rawStatus !== STATUS_DONE_API &&
-          new Date(task.dueDate!) < new Date()
+          new Date(task.dueDate!) < now
         );
       if (statusFilter === "mine")
         return Boolean(userId) && task.assignedUserId === userId;
+      if (statusFilter === "today")
+        return (
+          Boolean(task.dueDate) &&
+          task.rawStatus !== STATUS_DONE_API &&
+          new Date(task.dueDate!) >= startOfToday &&
+          new Date(task.dueDate!) <= endOfToday
+        );
+      if (statusFilter === "upcoming")
+        return (
+          Boolean(task.dueDate) &&
+          task.rawStatus !== STATUS_DONE_API &&
+          new Date(task.dueDate!) > now &&
+          new Date(task.dueDate!) <= in7Days
+        );
       return task.status !== STATUS_DONE;
     });
   }, [tasks, keyword, statusFilter, userId]);
@@ -1802,9 +1827,15 @@ const Tasks = () => {
     [tasks, userId],
   );
 
+  // Paginated slice — reset to page 1 whenever filter/keyword changes
+  const paginatedTasks = useMemo(() => {
+    const start = (taskPage - 1) * TASK_PAGE_SIZE;
+    return filteredTasks.slice(start, start + TASK_PAGE_SIZE);
+  }, [filteredTasks, taskPage, TASK_PAGE_SIZE]);
+
   const grouped = useMemo(() => {
     const map = new Map<string, OnboardingTask[]>();
-    for (const task of filteredTasks) {
+    for (const task of paginatedTasks) {
       const key = task.checklistName ?? "Other";
       map.set(key, [...(map.get(key) ?? []), task]);
     }
@@ -1894,7 +1925,10 @@ const Tasks = () => {
             </p>
             <Segmented
               value={statusFilter}
-              onChange={(value) => setStatusFilter(value as StatusFilter)}
+              onChange={(value) => {
+                setStatusFilter(value as StatusFilter);
+                setTaskPage(1);
+              }}
               disabled={viewMode === "timeline"}
               options={[
                 {
@@ -1940,6 +1974,8 @@ const Tasks = () => {
                       },
                     ]
                   : []),
+                { label: "Hôm nay", value: "today" },
+                { label: "Sắp tới (7 ngày)", value: "upcoming" },
               ]}
             />
           </Col>
@@ -2137,6 +2173,20 @@ const Tasks = () => {
                 onReject={canManage ? handleInlineReject : undefined}
               />
             ))}
+            {filteredTasks.length > TASK_PAGE_SIZE && (
+              <div className="flex justify-center pt-2">
+                <Pagination
+                  current={taskPage}
+                  pageSize={TASK_PAGE_SIZE}
+                  total={filteredTasks.length}
+                  onChange={(p) => setTaskPage(p)}
+                  showTotal={(total, range) =>
+                    `${range[0]}–${range[1]} / ${total} task`
+                  }
+                  showSizeChanger={false}
+                />
+              </div>
+            )}
           </div>
         ) : (
           <Card>

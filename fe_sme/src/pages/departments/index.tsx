@@ -185,13 +185,15 @@ const Departments = () => {
                       isSelected
                         ? "bg-[#3684DB]/10 ring-1 ring-[#3684DB]/20"
                         : "hover:bg-slate-50",
-                    )}>
+                    )}
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <span
                         className={clsx(
                           "truncate text-sm font-medium",
                           isSelected ? "text-[#3684DB]" : "text-[#223A59]",
-                        )}>
+                        )}
+                      >
                         {dept.name}
                       </span>
                       <span className="flex shrink-0 items-center gap-1 text-xs text-[#758BA5]">
@@ -204,7 +206,8 @@ const Departments = () => {
                         className={clsx(
                           "!py-0 !text-[10px]",
                           getDeptTypeStyle(dept.type),
-                        )}>
+                        )}
+                      >
                         {deptTypeLabel(dept.type)}
                       </Tag>
                       <span className="truncate text-[11px] text-[#758BA5]">
@@ -245,7 +248,8 @@ const Departments = () => {
                         className={clsx(
                           "!text-xs",
                           getDeptTypeStyle(selected.type),
-                        )}>
+                        )}
+                      >
                         {deptTypeLabel(selected.type)}
                       </Tag>
                       <span className="text-xs text-[#758BA5]">
@@ -310,7 +314,8 @@ const Departments = () => {
                       return (
                         <div
                           key={user.id}
-                          className="flex items-center gap-3 px-4 py-3">
+                          className="flex items-center gap-3 px-4 py-3"
+                        >
                           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#3684DB]/10 text-xs font-semibold text-[#3684DB]">
                             {(
                               user.name?.[0] ??
@@ -331,7 +336,8 @@ const Departments = () => {
                               "shrink-0 text-xs",
                               ROLE_BADGE_STYLES[primaryRole] ??
                                 ROLE_BADGE_STYLES.EMPLOYEE,
-                            )}>
+                            )}
+                          >
                             {ROLE_LABELS[primaryRole]}
                           </Tag>
                           <UserStatusTag status={user.status} />

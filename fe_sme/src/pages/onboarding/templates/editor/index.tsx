@@ -1,16 +1,18 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ArrowRight,
+  BookOpen,
+  CalendarClock,
   ChevronLeft,
-  ClipboardList,
   Check,
+  Copy,
   Info,
-  LayoutTemplate,
   Loader2,
-  Sparkles,
+  Plus,
 } from "lucide-react";
-import { Modal, message, Spin } from "antd";
+import { Input as AntInput, Modal, message, Spin } from "antd";
 import { useLocale } from "@/i18n";
 import { useUserStore } from "@/stores/user.store";
 import type { OnboardingTemplate } from "@/shared/types";
@@ -18,50 +20,38 @@ import {
   apiCreateTemplate,
   apiGetTemplate,
   apiUpdateTemplate,
-  apiCreateEventTemplate,
+  apiCloneTemplate,
 } from "@/api/onboarding/onboarding.api";
 import { mapTemplate } from "@/utils/mappers/onboarding";
 
-import { StageSidebar } from "./StepStages";
-import { TasksPanel } from "./StepTasks";
+import { StageColumn } from "./StageColumn";
+import { TaskEditDrawer, type DrawerState } from "./TaskEditDrawer";
 import { StagePickerModal } from "./StagePicker";
-import { StepEvents } from "./StepEvents";
+import TaskLibraryDrawer from "./TaskLibraryDrawer";
 
-import type {
-  TaskDraft,
-  ChecklistDraft,
-  EditorForm,
-  EventDraft,
-} from "./constants";
-import type {
-  TemplatePreset,
-  LibraryTask,
-  StageMeta,
-  StageType,
-} from "./constants";
-import { TEMPLATE_PRESETS } from "./constants";
+import type { TaskDraft, ChecklistDraft, EditorForm } from "./constants";
+import type { StageMeta, StageType } from "./constants";
+
+// ── Types ──────────────────────────────────────────────────────────────────────
 
 interface SaveTemplatePayload {
   name: string;
   description: string;
-  status: "ACTIVE";
+  status: "DRAFT" | "ACTIVE" | "INACTIVE";
   createdBy: string;
-  /** TASK_LIBRARY | CUSTOM */
   templateKind?: string;
   departmentTypeCode?: string;
   checklists?: {
     name: string;
-    /** BE stage type: PRE_BOARDING | DAY_1 | DAY_7 | DAY_30 | DAY_60 */
     stage: string;
     deadlineDays?: number;
     sortOrder?: number;
     tasks: {
-      /** BE field — must be `title`, NOT `name` */
       title: string;
-      /** BE supports: USER | DEPARTMENT | EMPLOYEE | MANAGER | IT_STAFF */
       ownerType: string;
-      /** Only set when ownerType is USER (userId) or DEPARTMENT (deptId). */
       ownerRefId: string | null;
+      responsibleDepartmentId?: string;
+      responsibleDepartmentIds?: string[];
       description: string;
       dueDaysOffset: number;
       requireAck: boolean;
@@ -73,7 +63,6 @@ interface SaveTemplatePayload {
     }[];
   }[];
   templateId?: string;
-  id?: string;
 }
 
 const VALID_STAGE_TYPES = [
@@ -90,37 +79,33 @@ type ValidStageType = (typeof VALID_STAGE_TYPES)[number];
 const FALLBACK_STAGE_TYPE = (index: number): ValidStageType =>
   VALID_STAGE_TYPES[index] ?? "DAY_1";
 
-const emptyTask = (): TaskDraft => ({
-  id: crypto.randomUUID(),
-  name: "",
-  description: "",
-  dueDaysOffset: 0,
-  requireAck: false,
-  requireDoc: false,
-  requiresManagerApproval: false,
-  assignee: "EMPLOYEE",
-});
+const normalizeTemplateStatus = (
+  status?: string,
+): "ACTIVE" | "INACTIVE" | "DRAFT" => {
+  const normalized = (status ?? "DRAFT").toUpperCase();
+  if (normalized === "ACTIVE" || normalized === "INACTIVE") return normalized;
+  return "DRAFT";
+};
 
-const emptyChecklist = (): ChecklistDraft => ({
-  id: crypto.randomUUID(),
-  name: "",
-  stageType: "CUSTOM",
-  tasks: [emptyTask()],
-});
+const extractTemplateId = (res: unknown): string | null => {
+  const raw = res as Record<string, unknown>;
+  const data = raw?.data as Record<string, unknown> | undefined;
+  if (typeof raw?.templateId === "string") return raw.templateId;
+  if (typeof data?.templateId === "string") return data.templateId;
+  return null;
+};
 
-/** Build a new checklist pre-filled from the picked stage meta so HR doesn't
- *  have to retype the phase name or pick a due offset for the first task. */
 const checklistFromMeta = (meta: StageMeta, name: string): ChecklistDraft => ({
   id: crypto.randomUUID(),
   name,
   stageType: meta.value,
-  tasks: [{ ...emptyTask(), dueDaysOffset: meta.defaultDueOffset }],
+  tasks: [],
 });
 
 const initialForm = (): EditorForm => ({
   name: "",
   description: "",
-  checklists: [emptyChecklist()],
+  checklists: [],
   events: [],
 });
 
@@ -135,7 +120,7 @@ const templateToForm = (tmpl: OnboardingTemplate): EditorForm => ({
         stageType: VALID_STAGE_TYPES.includes(s.stageType as ValidStageType)
           ? (s.stageType as ValidStageType)
           : FALLBACK_STAGE_TYPE(i),
-        deadlineDays: (s as any).deadlineDays ?? undefined,
+        deadlineDays: s.deadlineDays ?? undefined,
         tasks: s.tasks?.length
           ? s.tasks.map((task) => ({
               id: task.id,
@@ -146,29 +131,27 @@ const templateToForm = (tmpl: OnboardingTemplate): EditorForm => ({
               requireAck: task.requireAck ?? task.required ?? false,
               requireDoc: task.requireDoc ?? false,
               requiresManagerApproval: task.requiresManagerApproval ?? false,
-              approverUserId: (task as any).approverUserId ?? undefined,
-              requiredDocumentIds:
-                (task as any).requiredDocumentIds ?? undefined,
+              approverUserId: task.approverUserId ?? undefined,
+              requiredDocumentIds: task.requiredDocumentIds ?? undefined,
               assignee: (task.ownerRole ?? "EMPLOYEE") as TaskDraft["assignee"],
+              ownerRefId: task.ownerRefId ?? null,
+              responsibleDepartmentIds:
+                task.responsibleDepartmentIds ?? undefined,
             }))
-          : [emptyTask()],
+          : [],
       }))
-    : [emptyChecklist()],
-  // Events are not yet persisted on BE — start empty for existing templates
+    : [],
   events: [],
 });
 
-/**
- * BE's OnboardingTaskGenerateProcessor.applyOwnerAssignment only resolves
- * ownerType ∈ { USER, DEPARTMENT, EMPLOYEE, MANAGER, IT_STAFF }. Anything else
- * (incl. "ROLE") leaves assignedUserId null → tasks become unassigned.
- * For the 4 generic assignee roles the FE exposes, send the ownerType BE
- * actually resolves; ownerRefId is only meaningful for USER/DEPARTMENT so
- * omit it here.
- */
 const mapAssigneeToOwner = (
   assignee: TaskDraft["assignee"] | undefined,
-): { ownerType: string; ownerRefId: string | null } => {
+  ownerRefId?: string | null,
+): {
+  ownerType: string;
+  ownerRefId: string | null;
+  responsibleDepartmentId?: string;
+} => {
   switch (assignee) {
     case "MANAGER":
       return { ownerType: "MANAGER", ownerRefId: null };
@@ -176,6 +159,12 @@ const mapAssigneeToOwner = (
       return { ownerType: "IT_STAFF", ownerRefId: null };
     case "HR":
       return { ownerType: "HR", ownerRefId: null };
+    case "DEPARTMENT":
+      return {
+        ownerType: "DEPARTMENT",
+        ownerRefId: ownerRefId ?? null,
+        responsibleDepartmentId: ownerRefId ?? undefined,
+      };
     case "EMPLOYEE":
     default:
       return { ownerType: "EMPLOYEE", ownerRefId: null };
@@ -185,7 +174,7 @@ const mapAssigneeToOwner = (
 const buildPayload = (form: EditorForm, createdBy: string) => ({
   name: form.name,
   description: form.description ?? "",
-  status: "ACTIVE" as const,
+  status: "DRAFT" as const,
   createdBy,
   checklists: form.checklists.map((c, ci) => ({
     name: c.name,
@@ -195,11 +184,16 @@ const buildPayload = (form: EditorForm, createdBy: string) => ({
       : 0,
     sortOrder: ci,
     tasks: c.tasks.map((task, ti) => {
-      const { ownerType, ownerRefId } = mapAssigneeToOwner(task.assignee);
+      const { ownerType, ownerRefId, responsibleDepartmentId } =
+        mapAssigneeToOwner(task.assignee, task.ownerRefId);
       return {
         title: task.name,
         ownerType,
         ownerRefId,
+        ...(responsibleDepartmentId ? { responsibleDepartmentId } : {}),
+        responsibleDepartmentIds: task.responsibleDepartmentIds?.length
+          ? task.responsibleDepartmentIds
+          : undefined,
         description: task.description,
         dueDaysOffset: task.dueDaysOffset,
         requireAck: task.requireAck,
@@ -213,10 +207,15 @@ const buildPayload = (form: EditorForm, createdBy: string) => ({
   })),
 });
 
-const buildUpdatePayload = (form: EditorForm, templateId: string) => ({
+const buildUpdatePayload = (
+  form: EditorForm,
+  templateId: string,
+  status?: string,
+) => ({
   templateId,
   name: form.name,
   description: form.description ?? "",
+  ...(status !== undefined ? { status } : {}),
   checklists: form.checklists.map((c, ci) => ({
     checklistTemplateId: c.checklistTemplateId ?? null,
     name: c.name,
@@ -226,12 +225,17 @@ const buildUpdatePayload = (form: EditorForm, templateId: string) => ({
       : 0,
     sortOrder: ci,
     tasks: c.tasks.map((task, ti) => {
-      const { ownerType, ownerRefId } = mapAssigneeToOwner(task.assignee);
+      const { ownerType, ownerRefId, responsibleDepartmentId } =
+        mapAssigneeToOwner(task.assignee, task.ownerRefId);
       return {
         taskTemplateId: task.taskTemplateId ?? null,
         title: task.name,
         ownerType,
         ownerRefId,
+        ...(responsibleDepartmentId ? { responsibleDepartmentId } : {}),
+        responsibleDepartmentIds: task.responsibleDepartmentIds?.length
+          ? task.responsibleDepartmentIds
+          : undefined,
         description: task.description,
         dueDaysOffset: task.dueDaysOffset,
         requireAck: task.requireAck,
@@ -245,31 +249,15 @@ const buildUpdatePayload = (form: EditorForm, templateId: string) => ({
   })),
 });
 
-// ── Event localStorage helpers ─────────────────────────────────────────────
-// BE doesn't link event templates to onboarding templates yet, so we persist
-// events in localStorage keyed by templateId to survive page reloads.
-const EVENTS_LSKEY = (id: string) => `sme_tmpl_events_${id}`;
+// ── Status badge styles ────────────────────────────────────────────────────────
 
-const loadStoredEvents = (id: string): EventDraft[] => {
-  try {
-    const raw = localStorage.getItem(EVENTS_LSKEY(id));
-    return raw ? (JSON.parse(raw) as EventDraft[]) : [];
-  } catch {
-    return [];
-  }
+const STATUS_BADGE: Record<string, string> = {
+  ACTIVE: "border-emerald-200 bg-emerald-100 text-emerald-700",
+  DRAFT: "border-amber-200 bg-amber-100 text-amber-700",
+  INACTIVE: "border-slate-200 bg-slate-100 text-slate-500",
 };
 
-const saveStoredEvents = (id: string, events: EventDraft[]) => {
-  try {
-    if (events.length > 0) {
-      localStorage.setItem(EVENTS_LSKEY(id), JSON.stringify(events));
-    } else {
-      localStorage.removeItem(EVENTS_LSKEY(id));
-    }
-  } catch {
-    // ignore storage errors
-  }
-};
+// ── Mutations ──────────────────────────────────────────────────────────────────
 
 const useSaveTemplate = () =>
   useMutation({
@@ -282,54 +270,7 @@ const useUpdateTemplate = () =>
       apiUpdateTemplate(payload),
   });
 
-const PresetEmptyState = ({
-  onApplyPreset,
-  onAddBlank,
-}: {
-  onApplyPreset: (preset: TemplatePreset) => void;
-  onAddBlank: () => void;
-}) => {
-  const { t } = useLocale();
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/5">
-        <ClipboardList className="h-7 w-7 text-brand/60" />
-      </div>
-      <div>
-        <p className="text-base font-semibold text-ink">
-          {t("onboarding.template.editor.empty.title")}
-        </p>
-        <p className="mt-1 text-sm text-muted">
-          {t("onboarding.template.editor.empty.hint")}
-        </p>
-      </div>
-      <div className="grid w-full max-w-lg gap-3 sm:grid-cols-3">
-        {TEMPLATE_PRESETS.map((preset) => (
-          <button
-            key={preset.key}
-            type="button"
-            onClick={() => onApplyPreset(preset)}
-            className="rounded-xl border border-stroke bg-white p-3 text-left transition hover:border-brand/30 hover:shadow-sm">
-            <span className="mr-1.5 text-base">{preset.icon}</span>
-            <p className="mt-1 text-xs font-semibold text-ink">
-              {t(preset.nameKey)}
-            </p>
-            <p className="mt-0.5 text-[11px] text-muted">
-              {preset.checklists.length}{" "}
-              {t("onboarding.template.editor.stages_label")}
-            </p>
-          </button>
-        ))}
-      </div>
-      <button
-        type="button"
-        onClick={onAddBlank}
-        className="rounded-lg border border-dashed border-stroke px-4 py-2 text-sm text-muted transition hover:border-brand hover:text-brand">
-        + {t("onboarding.template.editor.add_stage")}
-      </button>
-    </div>
-  );
-};
+// ── Main component ─────────────────────────────────────────────────────────────
 
 const TemplateEditor = () => {
   const { templateId } = useParams();
@@ -338,13 +279,14 @@ const TemplateEditor = () => {
   const queryClient = useQueryClient();
   const { t } = useLocale();
   const currentUser = useUserStore((s) => s.currentUser);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const descRef = useRef<HTMLTextAreaElement>(null);
 
   const isCreate = !templateId || templateId === "new";
   const duplicateFrom = (
     location.state as { duplicateFrom?: OnboardingTemplate } | null
   )?.duplicateFrom;
 
-  // Load existing template when editing
   const { data: templateRes, isLoading: isLoadingTemplate } = useQuery({
     queryKey: ["template", templateId],
     queryFn: () => apiGetTemplate(templateId!),
@@ -356,19 +298,56 @@ const TemplateEditor = () => {
   const updateTemplate = useUpdateTemplate();
 
   const [form, setForm] = useState<EditorForm>(initialForm);
-  const [activeStageIndex, setActiveStageIndex] = useState(0);
-  const [presetModalOpen, setPresetModalOpen] = useState(false);
   const [stagePickerOpen, setStagePickerOpen] = useState(false);
+  const [templateStatus, setTemplateStatus] = useState<string>("DRAFT");
+  const [cloneModalOpen, setCloneModalOpen] = useState(false);
+  const [cloneName, setCloneName] = useState("");
+  const [isCloning, setIsCloning] = useState(false);
+
+  // Task drawer state
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerState, setDrawerState] = useState<DrawerState | null>(null);
+
+  // Library drawer state
+  const [libraryDrawerOpen, setLibraryDrawerOpen] = useState(false);
+
+  const normalizedTemplateStatus = normalizeTemplateStatus(templateStatus);
+  const isReadOnly = !isCreate && normalizedTemplateStatus === "ACTIVE";
 
   const totalTasks = useMemo(
     () => form.checklists.reduce((n, c) => n + c.tasks.length, 0),
     [form.checklists],
   );
   const nameValid = form.name.trim().length > 0;
-  const hasStages = form.checklists.length > 0;
-  const canSave = nameValid && (isCreate ? hasStages : true);
 
-  // Initialize form from duplicateFrom (duplicate mode) or loaded template (edit mode)
+  const validationWarnings = useMemo(() => {
+    const warnings: string[] = [];
+    for (const cl of form.checklists) {
+      for (let i = 1; i < cl.tasks.length; i++) {
+        const prev = cl.tasks[i - 1].dueDaysOffset ?? 0;
+        const curr = cl.tasks[i].dueDaysOffset ?? 0;
+        if (curr < prev) {
+          warnings.push(
+            `Giai đoạn "${cl.name}": thứ tự ngày tăng dần (task ${i} < task ${i - 1})`,
+          );
+          break;
+        }
+      }
+      for (const task of cl.tasks) {
+        if (task.requiresManagerApproval && !task.approverUserId) {
+          warnings.push(
+            `Task "${task.name || "(chưa đặt tên)"}": cần chọn người duyệt`,
+          );
+        }
+      }
+    }
+    return warnings;
+  }, [form.checklists]);
+
+  const canSave = nameValid && !isReadOnly;
+
+  // ── Init ──────────────────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (duplicateFrom) {
       const base = templateToForm(duplicateFrom);
@@ -382,18 +361,19 @@ const TemplateEditor = () => {
         templateRes;
       const tmpl = mapTemplate(raw as Record<string, unknown>);
       const formData = templateToForm(tmpl);
-      // Restore events persisted in localStorage (BE has no templateId linkage yet)
-      const storedEvents = loadStoredEvents(templateId!);
-      setForm({ ...formData, events: storedEvents });
+      setTemplateStatus(
+        normalizeTemplateStatus(
+          String(
+            (raw as Record<string, unknown>)?.status ?? tmpl.status ?? "DRAFT",
+          ),
+        ),
+      );
+      setForm(formData);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [duplicateFrom, templateRes]);
 
-  useEffect(() => {
-    setActiveStageIndex((s) =>
-      Math.min(s, Math.max(0, form.checklists.length - 1)),
-    );
-  }, [form.checklists.length]);
+  // ── Form updaters ──────────────────────────────────────────────────────────────
 
   const updateForm = (updates: Partial<EditorForm>) =>
     setForm((prev) => ({ ...prev, ...updates }));
@@ -409,22 +389,35 @@ const TemplateEditor = () => {
     setForm((prev) => {
       const list = [...prev.checklists];
       const tasks = [...list[ci].tasks];
-      tasks[ti] = { ...tasks[ti], ...updates };
-      list[ci] = { ...list[ci], tasks };
+      if (ti === -1) {
+        // New task: append
+        const newTask: TaskDraft = {
+          id: crypto.randomUUID(),
+          name: "",
+          description: "",
+          dueDaysOffset: 0,
+          requireAck: false,
+          requireDoc: false,
+          requiresManagerApproval: false,
+          assignee: "EMPLOYEE",
+          ...updates,
+        };
+        list[ci] = { ...list[ci], tasks: [...tasks, newTask] };
+      } else {
+        tasks[ti] = { ...tasks[ti], ...updates };
+        list[ci] = { ...list[ci], tasks };
+      }
       return { ...prev, checklists: list };
     });
 
   const addChecklistFromMeta = (meta: StageMeta) => {
     const name = t(meta.defaultNameKey);
-    setForm((prev) => {
-      const next = [...prev.checklists, checklistFromMeta(meta, name)];
-      setActiveStageIndex(next.length - 1);
-      return { ...prev, checklists: next };
-    });
+    setForm((prev) => ({
+      ...prev,
+      checklists: [...prev.checklists, checklistFromMeta(meta, name)],
+    }));
     setStagePickerOpen(false);
   };
-
-  const openStagePicker = () => setStagePickerOpen(true);
 
   const removeChecklist = (i: number) =>
     setForm((prev) => ({
@@ -439,25 +432,23 @@ const TemplateEditor = () => {
       const cloned: ChecklistDraft = {
         ...source,
         id: crypto.randomUUID(),
-        tasks: source.tasks.map((t) => ({ ...t, id: crypto.randomUUID() })),
+        checklistTemplateId: undefined,
+        tasks: source.tasks.map((t) => ({
+          ...t,
+          id: crypto.randomUUID(),
+          taskTemplateId: undefined,
+        })),
       };
       const list = [...prev.checklists];
       list.splice(i + 1, 0, cloned);
       return { ...prev, checklists: list };
     });
 
-  const addTask = (ci: number) =>
-    setForm((prev) => {
-      const list = [...prev.checklists];
-      list[ci] = { ...list[ci], tasks: [...list[ci].tasks, emptyTask()] };
-      return { ...prev, checklists: list };
-    });
-
-  const removeTask = (ci: number, ti: number) =>
+  const deleteTask = (ci: number, ti: number) =>
     setForm((prev) => {
       const list = [...prev.checklists];
       const tasks = list[ci].tasks.filter((_, i) => i !== ti);
-      list[ci] = { ...list[ci], tasks: tasks.length ? tasks : [emptyTask()] };
+      list[ci] = { ...list[ci], tasks };
       return { ...prev, checklists: list };
     });
 
@@ -466,18 +457,14 @@ const TemplateEditor = () => {
       const list = [...prev.checklists];
       const source = list[ci].tasks[ti];
       if (!source) return prev;
-      const cloned: TaskDraft = { ...source, id: crypto.randomUUID() };
+      const cloned: TaskDraft = {
+        ...source,
+        id: crypto.randomUUID(),
+        taskTemplateId: undefined,
+      };
       const tasks = [...list[ci].tasks];
       tasks.splice(ti + 1, 0, cloned);
       list[ci] = { ...list[ci], tasks };
-      return { ...prev, checklists: list };
-    });
-
-  const reorderChecklists = (from: number, to: number) =>
-    setForm((prev) => {
-      const list = [...prev.checklists];
-      const [moved] = list.splice(from, 1);
-      list.splice(to, 0, moved);
       return { ...prev, checklists: list };
     });
 
@@ -491,53 +478,96 @@ const TemplateEditor = () => {
       return { ...prev, checklists: list };
     });
 
-  const applyPreset = (preset: TemplatePreset) =>
-    setForm((prev) => ({
-      name: "",
-      description: "",
-      checklists: preset.checklists.map((c) => ({
-        id: crypto.randomUUID(),
-        name: c.name,
-        stageType: c.stageType,
-        tasks: c.tasks.map((t) => ({
-          id: crypto.randomUUID(),
-          name: t.name,
-          description: t.description,
-          dueDaysOffset: t.dueDaysOffset,
-          requireAck: t.requireAck,
-          requireDoc: t.requireDoc ?? false,
-          requiresManagerApproval: t.requiresManagerApproval ?? false,
-          assignee: t.assignee ?? "EMPLOYEE",
-        })),
-      })),
-      // Preserve any events already added by the user
-      events: prev.events,
-    }));
+  // ── Task drawer helpers ────────────────────────────────────────────────────────
 
-  const addLibraryTask = (ci: number, task: LibraryTask) =>
+  const openNewTaskDrawer = (ci: number) => {
+    setDrawerState({ ci, ti: -1, task: undefined });
+    setDrawerOpen(true);
+  };
+
+  const openEditTaskDrawer = (ci: number, ti: number) => {
+    setDrawerState({ ci, ti, task: form.checklists[ci]?.tasks[ti] });
+    setDrawerOpen(true);
+  };
+
+  const handleDrawerSave = (
+    ci: number,
+    ti: number,
+    updates: Partial<TaskDraft>,
+  ) => {
+    updateTask(ci, ti, updates);
+  };
+
+  const handleDrawerDelete = (ci: number, ti: number) => {
+    deleteTask(ci, ti);
+  };
+
+  const handleDrawerClone = (ci: number, ti: number) => {
+    cloneTask(ci, ti);
+  };
+
+  // ── Add tasks from library ─────────────────────────────────────────────────────
+
+  const handleAddFromLibrary = (
+    checklistIndex: number,
+    tasks: Omit<TaskDraft, "id">[],
+  ) => {
     setForm((prev) => {
       const list = [...prev.checklists];
-      const newTask: TaskDraft = {
+      const target = list[checklistIndex];
+      if (!target) return prev;
+      const newTasks: TaskDraft[] = tasks.map((t) => ({
+        ...t,
         id: crypto.randomUUID(),
-        name: task.name,
-        description: task.description,
-        dueDaysOffset: task.dueDaysOffset,
-        requireAck: task.requireAck,
-        requireDoc: task.requireDoc ?? false,
-        requiresManagerApproval: task.requiresManagerApproval ?? false,
-        assignee: task.assignee ?? "EMPLOYEE",
+      }));
+      list[checklistIndex] = {
+        ...target,
+        tasks: [...target.tasks, ...newTasks],
       };
-      list[ci] = { ...list[ci], tasks: [...list[ci].tasks, newTask] };
       return { ...prev, checklists: list };
     });
+    message.success(
+      t("onboarding.template.library.drawer.add_success", {
+        count: String(tasks.length),
+      }) ?? `Đã thêm ${tasks.length} task vào giai đoạn`,
+    );
+  };
 
-  // ── Event handlers ─────────────────────────────────────────────────────────
-  const handleEventsChange = (events: EventDraft[]) =>
-    setForm((prev) => ({ ...prev, events }));
+  // ── Clone template ─────────────────────────────────────────────────────────────
+
+  const handleCloneTemplate = async () => {
+    if (!templateId || !cloneName.trim()) return;
+    setIsCloning(true);
+    try {
+      const res = await apiCloneTemplate({
+        sourceTemplateId: templateId,
+        name: cloneName.trim(),
+      });
+      const newId = extractTemplateId(res);
+      message.success(
+        t("onboarding.template.editor.toast.clone_success") ??
+          "Đã tạo bản sao thành công",
+      );
+      queryClient.invalidateQueries({ queryKey: ["templates"] });
+      setCloneModalOpen(false);
+      if (newId) navigate(`/onboarding/templates/${newId}`);
+      else navigate("/onboarding/templates");
+    } catch {
+      message.error(
+        t("onboarding.template.editor.toast.clone_failed") ??
+          "Tạo bản sao thất bại",
+      );
+    } finally {
+      setIsCloning(false);
+    }
+  };
+
+  // ── Submit ─────────────────────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
     if (!form.name.trim()) {
       message.warning(t("onboarding.template.editor.toast.name_required"));
+      nameInputRef.current?.focus();
       return;
     }
     const createdBy = currentUser?.id ?? "";
@@ -546,37 +576,21 @@ const TemplateEditor = () => {
       return;
     }
     try {
-      // Save new event templates to BE (non-blocking — FE-first approach)
-      for (const event of form.events.filter((e) => !e.eventTemplateId)) {
-        try {
-          await apiCreateEventTemplate({
-            name: event.name,
-            content: event.content,
-            description: event.description,
-            status: "ACTIVE",
-          });
-        } catch {
-          // Non-critical — continue saving the template even if event save fails
-        }
-      }
-
       if (isCreate) {
         const payload = buildPayload(form, createdBy);
         const res = await saveTemplate.mutateAsync(payload);
-        // Persist events under the new templateId so they survive reload
-        const newTemplateId =
-          (res as Record<string, unknown>)?.templateId ??
-          ((res as Record<string, unknown>)?.data as Record<string, unknown>)
-            ?.templateId;
-        if (newTemplateId && typeof newTemplateId === "string") {
-          saveStoredEvents(newTemplateId, form.events);
+        const newTemplateId = extractTemplateId(res);
+        message.success(t("onboarding.template.editor.toast.created_draft"));
+        queryClient.invalidateQueries({ queryKey: ["templates"] });
+        if (newTemplateId) {
+          navigate(`/onboarding/templates/${newTemplateId}`, { replace: true });
+        } else {
+          navigate("/onboarding/templates");
         }
-        message.success(t("onboarding.template.editor.toast.created"));
+        return;
       } else {
         const payload = buildUpdatePayload(form, templateId!);
         await updateTemplate.mutateAsync(payload);
-        // Persist updated events for this template
-        saveStoredEvents(templateId!, form.events);
         message.success(t("onboarding.template.editor.toast.updated"));
       }
       queryClient.invalidateQueries({ queryKey: ["templates"] });
@@ -590,7 +604,66 @@ const TemplateEditor = () => {
     }
   };
 
-  const activeStage = form.checklists[activeStageIndex];
+  const handleActivateTemplate = () => {
+    if (isCreate || !templateId) return;
+    if (!nameValid) {
+      message.warning(t("onboarding.template.editor.toast.name_required"));
+      nameInputRef.current?.focus();
+      return;
+    }
+    if (form.checklists.length === 0 || totalTasks === 0) {
+      message.warning(
+        t("onboarding.template.editor.toast.activate_requires_tasks"),
+      );
+      return;
+    }
+    if (validationWarnings.length > 0) {
+      message.warning(t("onboarding.template.editor.toast.resolve_warnings"));
+      return;
+    }
+
+    const isDraft = normalizedTemplateStatus === "DRAFT";
+    const copy = isDraft
+      ? {
+          title: t("onboarding.template.publish.title"),
+          content: t("onboarding.template.publish.message", {
+            name: form.name || t("onboarding.template.card.untitled"),
+          }),
+          okText: t("onboarding.template.publish.confirm"),
+          successMessage: t("onboarding.template.toast.published"),
+          errorMessage: t("onboarding.template.toast.publish_failed"),
+        }
+      : {
+          title: t("onboarding.template.activate.title"),
+          content: t("onboarding.template.activate.message", {
+            name: form.name || t("onboarding.template.card.untitled"),
+          }),
+          okText: t("onboarding.template.activate.confirm"),
+          successMessage: t("onboarding.template.toast.activated"),
+          errorMessage: t("onboarding.template.toast.activate_failed"),
+        };
+
+    Modal.confirm({
+      title: copy.title,
+      content: copy.content,
+      okText: copy.okText,
+      cancelText: t("onboarding.template.editor.btn.cancel"),
+      onOk: async () => {
+        try {
+          await updateTemplate.mutateAsync(
+            buildUpdatePayload(form, templateId, "ACTIVE"),
+          );
+          setTemplateStatus("ACTIVE");
+          queryClient.invalidateQueries({ queryKey: ["templates"] });
+          queryClient.invalidateQueries({ queryKey: ["template", templateId] });
+          message.success(copy.successMessage);
+        } catch {
+          message.error(copy.errorMessage);
+        }
+      },
+    });
+  };
+
   const isSaving = saveTemplate.isPending || updateTemplate.isPending;
 
   if (!isCreate && isLoadingTemplate) {
@@ -601,166 +674,273 @@ const TemplateEditor = () => {
     );
   }
 
-  const pageTitle = !isCreate
-    ? t("onboarding.template.editor.title_edit")
-    : duplicateFrom
-      ? t("onboarding.template.editor.title_duplicate")
-      : t("onboarding.template.editor.title_create");
+  // ── Render ─────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full flex-col gap-4 pb-24">
-      {/* Top bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+    <div className="flex h-full flex-col gap-5 pb-4">
+      {/* ── Header ── */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        {/* Left: back + name + description */}
+        <div className="flex items-start gap-3 flex-1 min-w-0">
           <button
             type="button"
             onClick={() => navigate("/onboarding/templates")}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition hover:bg-slate-100 hover:text-ink">
+            className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition hover:bg-slate-100 hover:text-ink"
+          >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <div>
-            <h1 className="text-lg font-semibold text-ink md:text-xl">
-              {pageTitle}
-            </h1>
-            <p className="text-xs text-muted">
-              {t("onboarding.template.editor.subtitle")}
-            </p>
+
+          <div className="flex-1 min-w-0" style={{ maxWidth: 520 }}>
+            {/* Name row */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div
+                className={`group relative flex-1 min-w-0 border-b pb-0.5 transition-colors ${
+                  isReadOnly
+                    ? "border-transparent"
+                    : !nameValid
+                      ? "border-red-400"
+                      : "border-transparent focus-within:border-brand/50"
+                }`}
+              >
+                <input
+                  ref={nameInputRef}
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => updateForm({ name: e.target.value })}
+                  readOnly={isReadOnly}
+                  placeholder={t(
+                    "onboarding.template.editor.header.name_placeholder",
+                  )}
+                  className={`w-full bg-transparent text-xl font-bold text-ink placeholder:text-muted/30 focus:outline-none ${
+                    isReadOnly ? "cursor-default opacity-80" : ""
+                  }`}
+                />
+              </div>
+              {!isCreate && templateStatus && (
+                <span
+                  className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                    STATUS_BADGE[templateStatus] ?? STATUS_BADGE["DRAFT"]
+                  }`}
+                >
+                  {templateStatus}
+                </span>
+              )}
+            </div>
+
+            {/* Name validation */}
+            {!nameValid && !isReadOnly && (
+              <p className="mt-1 flex items-center gap-1 text-xs text-red-500">
+                <span className="inline-block h-1 w-1 rounded-full bg-red-400" />
+                {t("onboarding.template.editor.toast.name_required")}
+              </p>
+            )}
+
+            {/* Description */}
+            <textarea
+              ref={descRef}
+              value={form.description ?? ""}
+              onChange={(e) => updateForm({ description: e.target.value })}
+              readOnly={isReadOnly}
+              placeholder={t(
+                "onboarding.template.editor.header.desc_placeholder",
+              )}
+              rows={1}
+              maxLength={500}
+              className={`mt-2 w-full resize-none border-none bg-transparent text-sm leading-relaxed text-muted placeholder:text-muted/30 focus:outline-none ${
+                isReadOnly ? "cursor-default" : ""
+              }`}
+              onInput={(e) => {
+                const el = e.currentTarget;
+                el.style.height = "auto";
+                el.style.height = `${el.scrollHeight}px`;
+              }}
+            />
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+        {/* Right: stats + actions */}
+        <div className="flex shrink-0 items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-medium text-slate-600">
             <span>
               {form.checklists.length}{" "}
-              {t("onboarding.template.review.stages").toLowerCase()}
+              {t("onboarding.template.review.stages")?.toLowerCase() ??
+                "giai đoạn"}
             </span>
             <span className="text-slate-300">·</span>
             <span>
-              {totalTasks} {t("onboarding.template.review.tasks").toLowerCase()}
+              {totalTasks}{" "}
+              {t("onboarding.template.review.tasks")?.toLowerCase() ??
+                "nhiệm vụ"}
             </span>
-            {form.events.length > 0 && (
-              <>
-                <span className="text-slate-300">·</span>
-                <span>
-                  {form.events.length}{" "}
-                  {t("onboarding.template.editor.events.stat_label") ??
-                    "sự kiện"}
-                </span>
-              </>
-            )}
           </div>
-          {isCreate && (
+
+          {/* Browse Library — always visible when not read-only */}
+          {!isReadOnly && (
             <button
               type="button"
-              onClick={() => setPresetModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-brand/40 hover:text-brand">
-              <Sparkles className="h-3.5 w-3.5" />
-              {t("onboarding.template.editor.toolbar.use_preset")}
+              onClick={() => setLibraryDrawerOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-brand/40 hover:text-brand"
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              {t("onboarding.template.library.button") ?? "Thư viện"}
             </button>
+          )}
+
+          {!isCreate && (
+            <button
+              type="button"
+              onClick={() => {
+                setCloneName(`Copy of ${form.name}`);
+                setCloneModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-brand/40 hover:text-brand"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              {t("onboarding.template.editor.btn.clone") ?? "Clone"}
+            </button>
+          )}
+
+          {!isCreate && normalizedTemplateStatus !== "ACTIVE" && (
+            <button
+              type="button"
+              onClick={handleActivateTemplate}
+              disabled={isSaving}
+              className="flex items-center gap-1.5 rounded-lg border border-brand/20 bg-brand/5 px-3 py-1.5 text-xs font-semibold text-brand transition hover:bg-brand/10 disabled:opacity-50"
+            >
+              <ArrowRight className="h-3.5 w-3.5" />
+              {normalizedTemplateStatus === "DRAFT"
+                ? t("onboarding.template.action.publish")
+                : t("onboarding.template.action.activate")}
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!canSave || isSaving}
+            className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand/90 disabled:opacity-50"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                {isCreate
+                  ? t("onboarding.template.editor.btn.creating")
+                  : t("onboarding.template.editor.btn.saving")}
+              </>
+            ) : (
+              <>
+                <Check className="h-4 w-4" />
+                {isCreate
+                  ? t("onboarding.template.editor.btn.create_draft")
+                  : t("onboarding.template.editor.btn.save")}
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Inline validation warnings ── */}
+      {validationWarnings.length > 0 && (
+        <div className="flex flex-col gap-1">
+          {validationWarnings.map((w, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5"
+            >
+              <Info className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+              <span className="text-xs text-amber-700">{w}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Pipeline canvas ── */}
+      <div className="relative rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+        <div
+          className="flex items-start gap-2 overflow-x-auto pb-2"
+          style={{ minHeight: 500 }}
+        >
+          {form.checklists.length === 0 && !isReadOnly ? (
+            /* Empty state */
+            <div className="flex flex-1 flex-col items-center justify-center gap-6 rounded-xl border border-dashed border-slate-300 bg-white py-24 text-center">
+              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-brand/5 ring-1 ring-brand/10">
+                <Plus className="h-9 w-9 text-brand/40" />
+              </div>
+              <div>
+                <p className="text-base font-semibold text-ink">
+                  {t("onboarding.template.editor.empty.title")}
+                </p>
+                <p className="mt-1.5 text-sm text-muted">
+                  {t("onboarding.template.editor.empty.hint")}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStagePickerOpen(true)}
+                className="flex items-center gap-2 rounded-xl border border-brand/30 bg-brand/5 px-6 py-3 text-sm font-semibold text-brand shadow-sm transition hover:bg-brand/10 hover:shadow-md"
+              >
+                <Plus className="h-4 w-4" />
+                {t("onboarding.template.editor.add_stage")}
+              </button>
+            </div>
+          ) : (
+            <>
+              {form.checklists.map((checklist, ci) => (
+                <div key={checklist.id} className="flex shrink-0 items-start">
+                  <StageColumn
+                    checklist={checklist}
+                    checklistIndex={ci}
+                    readOnly={isReadOnly}
+                    onAddTask={() => openNewTaskDrawer(ci)}
+                    onEditTask={(ti) => openEditTaskDrawer(ci, ti)}
+                    onCloneTask={(ti) => cloneTask(ci, ti)}
+                    onDeleteTask={(ti) => deleteTask(ci, ti)}
+                    onReorderTasks={(from, to) => reorderTasks(ci, from, to)}
+                    onRenameStage={(name) => updateChecklist(ci, { name })}
+                    onCloneStage={() => cloneChecklist(ci)}
+                    onDeleteStage={() => removeChecklist(ci)}
+                  />
+                  {/* Connector */}
+                  {ci < form.checklists.length - 1 && (
+                    <div className="flex h-[58px] shrink-0 items-center px-1">
+                      <div className="flex items-center gap-0.5 text-slate-300">
+                        <div className="h-px w-4 bg-slate-300" />
+                        <ArrowRight className="h-4 w-4" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Add stage button */}
+              {!isReadOnly && (
+                <div className="flex shrink-0 items-start">
+                  {form.checklists.length > 0 && (
+                    <div className="flex h-[58px] shrink-0 items-center px-1">
+                      <div className="flex items-center gap-0.5 text-slate-200">
+                        <div className="h-px w-4 bg-slate-200" />
+                        <ArrowRight className="h-4 w-4" />
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setStagePickerOpen(true)}
+                    className="flex h-[58px] w-[220px] shrink-0 items-center justify-center gap-2 self-start rounded-2xl border-2 border-dashed border-slate-300 bg-white/70 text-sm font-semibold text-muted transition hover:border-brand/50 hover:bg-brand/5 hover:text-brand"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {t("onboarding.template.editor.pipeline.add_stage")}
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* Info card — always visible, inline editable */}
-      <div className="rounded-2xl border border-stroke bg-white p-5 shadow-sm">
-        <div className="space-y-3">
-          <div>
-            <div className="mb-1 flex items-center gap-2">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
-                {t("onboarding.template.editor.step_info.name_label")}
-              </span>
-              <span
-                className={`text-[10px] font-semibold ${
-                  nameValid ? "text-emerald-500" : "text-red-400"
-                }`}>
-                {nameValid
-                  ? t("onboarding.template.editor.step_info.looks_good")
-                  : t("onboarding.template.editor.step_info.required")}
-              </span>
-            </div>
-            <input
-              autoFocus
-              type="text"
-              value={form.name}
-              onChange={(e) => updateForm({ name: e.target.value })}
-              placeholder={t(
-                "onboarding.template.editor.step_info.name_placeholder",
-              )}
-              className="w-full rounded-lg border border-transparent bg-slate-50 px-3 py-2.5 text-base font-semibold text-ink placeholder:text-muted/50 focus:border-brand focus:bg-white focus:outline-none"
-            />
-          </div>
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
-                {t("onboarding.template.editor.step_info.desc_label")}
-              </span>
-              <span className="text-[10px] text-muted/50">
-                {(form.description ?? "").length} / 500
-              </span>
-            </div>
-            <textarea
-              value={form.description ?? ""}
-              onChange={(e) => updateForm({ description: e.target.value })}
-              placeholder={t(
-                "onboarding.template.editor.step_info.desc_placeholder",
-              )}
-              rows={2}
-              maxLength={500}
-              className="w-full resize-none rounded-lg border border-transparent bg-slate-50 px-3 py-2 text-sm leading-relaxed text-ink placeholder:text-muted/50 focus:border-brand focus:bg-white focus:outline-none"
-            />
-          </div>
-        </div>
-      </div>
+      {/* ── Modals & drawers ── */}
 
-      {/* Builder — empty state or sidebar + tasks panel */}
-      {!hasStages ? (
-        <div className="overflow-hidden rounded-2xl border border-dashed border-slate-200 bg-white shadow-sm">
-          <PresetEmptyState
-            onApplyPreset={applyPreset}
-            onAddBlank={openStagePicker}
-          />
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-2xl border border-stroke bg-white shadow-sm">
-          <div className="flex flex-col lg:flex-row" style={{ minHeight: 520 }}>
-            <div className="w-full shrink-0 border-b border-stroke lg:w-64 lg:border-b-0 lg:border-r">
-              <StageSidebar
-                checklists={form.checklists}
-                activeIndex={activeStageIndex}
-                onSelect={setActiveStageIndex}
-                onAdd={openStagePicker}
-                onRemove={removeChecklist}
-                onClone={cloneChecklist}
-                onReorder={reorderChecklists}
-              />
-            </div>
-            <div className="flex min-w-0 flex-1">
-              {activeStage ? (
-                <TasksPanel
-                  key={activeStage.id}
-                  checklist={activeStage}
-                  stageIndex={activeStageIndex}
-                  onUpdateStage={(u) => updateChecklist(activeStageIndex, u)}
-                  onUpdateTask={(ti, u) => updateTask(activeStageIndex, ti, u)}
-                  onAddTask={() => addTask(activeStageIndex)}
-                  onRemoveTask={(ti) => removeTask(activeStageIndex, ti)}
-                  onCloneTask={(ti) => cloneTask(activeStageIndex, ti)}
-                  onReorderTask={(f, to) =>
-                    reorderTasks(activeStageIndex, f, to)
-                  }
-                  onAddLibraryTask={(task) =>
-                    addLibraryTask(activeStageIndex, task)
-                  }
-                />
-              ) : null}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Stage picker modal — shown when HR clicks "Add stage" */}
-      <StepEvents events={form.events} onChange={handleEventsChange} />
-
+      {/* Stage picker */}
       <StagePickerModal
         open={stagePickerOpen}
         usedStages={
@@ -772,116 +952,57 @@ const TemplateEditor = () => {
         onPick={addChecklistFromMeta}
       />
 
-      {/* Preset picker modal — reachable anytime via toolbar */}
+      {/* Clone modal */}
       <Modal
-        open={presetModalOpen}
-        onCancel={() => setPresetModalOpen(false)}
-        footer={null}
-        width={640}
+        open={cloneModalOpen}
         title={
-          <div className="flex items-center gap-2">
-            <LayoutTemplate className="h-4 w-4 text-brand" />
-            <span>{t("onboarding.template.preset.title")}</span>
-          </div>
-        }>
-        <p className="mb-4 text-xs text-muted">
-          {t("onboarding.template.preset.subtitle")}
+          <span className="flex items-center gap-2">
+            <Copy className="h-4 w-4" />{" "}
+            {t("onboarding.template.editor.clone.modal_title") ??
+              "Clone Template"}
+          </span>
+        }
+        onCancel={() => setCloneModalOpen(false)}
+        onOk={handleCloneTemplate}
+        okText={t("onboarding.template.editor.clone.ok_text") ?? "Tạo bản sao"}
+        confirmLoading={isCloning}
+        okButtonProps={{ disabled: !cloneName.trim() }}
+        destroyOnClose
+      >
+        <p className="mb-3 text-sm text-gray-600">
+          {t("onboarding.template.editor.clone.name_hint") ??
+            "Nhập tên cho bản sao:"}
         </p>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {TEMPLATE_PRESETS.map((preset) => {
-            const stageCount = preset.checklists.length;
-            const taskCount = preset.checklists.reduce(
-              (sum, c) => sum + c.tasks.length,
-              0,
-            );
-            return (
-              <button
-                key={preset.key}
-                type="button"
-                onClick={() => {
-                  applyPreset(preset);
-                  setPresetModalOpen(false);
-                }}
-                className="group flex flex-col items-start gap-2 rounded-xl border border-stroke bg-white p-4 text-left transition hover:border-brand/40 hover:shadow-md">
-                <span className="text-2xl">{preset.icon}</span>
-                <div>
-                  <p className="text-sm font-semibold text-ink group-hover:text-brand">
-                    {t(preset.nameKey)}
-                  </p>
-                  <p className="mt-0.5 text-xs text-muted">
-                    {t(preset.descKey)}
-                  </p>
-                </div>
-                <div className="mt-auto flex items-center gap-2 text-[11px] text-muted/60">
-                  <span>
-                    {stageCount} {t("onboarding.template.editor.stages_label")}
-                  </span>
-                  <span>·</span>
-                  <span>
-                    {taskCount}{" "}
-                    {t("onboarding.template.review.tasks").toLowerCase()}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        <AntInput
+          value={cloneName}
+          onChange={(e) => setCloneName(e.target.value)}
+          placeholder={
+            t("onboarding.template.editor.clone.name_placeholder") ??
+            "Tên template mới..."
+          }
+          autoFocus
+          onPressEnter={handleCloneTemplate}
+        />
       </Modal>
 
-      {/* Sticky save bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-stroke bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.05)] lg:left-64">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 md:px-6">
-          <div className="flex items-center gap-3 text-xs text-muted">
-            {!nameValid && (
-              <span className="flex items-center gap-1.5 text-red-500">
-                <Info className="h-3.5 w-3.5" />
-                {t("onboarding.template.editor.toast.name_required")}
-              </span>
-            )}
-            {nameValid && !hasStages && isCreate && (
-              <span className="flex items-center gap-1.5 text-amber-500">
-                <Info className="h-3.5 w-3.5" />
-                {t("onboarding.template.editor.footer.need_stage")}
-              </span>
-            )}
-            {canSave && (
-              <span className="flex items-center gap-1.5 text-emerald-500">
-                <Check className="h-3.5 w-3.5" />
-                {t("onboarding.template.editor.footer.ready")}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => navigate("/onboarding/templates")}
-              className="rounded-lg px-3 py-2 text-sm font-medium text-muted transition hover:bg-slate-100 hover:text-ink">
-              {t("onboarding.template.editor.btn.cancel")}
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={!canSave || isSaving}
-              className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand/90 disabled:opacity-50">
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  {isCreate
-                    ? t("onboarding.template.editor.btn.creating")
-                    : t("onboarding.template.editor.btn.saving")}
-                </>
-              ) : (
-                <>
-                  <Check className="h-4 w-4" />
-                  {isCreate
-                    ? t("onboarding.template.editor.btn.create")
-                    : t("onboarding.template.editor.btn.save")}
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* Task edit drawer */}
+      <TaskEditDrawer
+        open={drawerOpen}
+        state={drawerState}
+        readOnly={isReadOnly}
+        onClose={() => setDrawerOpen(false)}
+        onSave={handleDrawerSave}
+        onDelete={handleDrawerDelete}
+        onClone={handleDrawerClone}
+      />
+
+      {/* Task library drawer */}
+      <TaskLibraryDrawer
+        open={libraryDrawerOpen}
+        checklists={form.checklists}
+        onAddTasks={handleAddFromLibrary}
+        onClose={() => setLibraryDrawerOpen(false)}
+      />
     </div>
   );
 };

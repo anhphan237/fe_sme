@@ -30,6 +30,15 @@ import type {
   OnboardingTemplateCloneResponse,
   OnboardingEventTemplateCreateRequest,
   OnboardingEventTemplateCreateResponse,
+  TaskDepartmentConfirmRequest,
+  EventPublishRequest,
+  EventPublishResponse,
+  EventDetailRequest,
+  EventDetailResponse,
+  EventListRequest,
+  EventListResponse,
+  EventAttendanceSummaryRequest,
+  EventAttendanceSummaryResponse,
 } from "@/interface/onboarding";
 
 // ── Templates ──────────────────────────────────────────────
@@ -483,3 +492,46 @@ export const apiCreateEventTemplate = (
     OnboardingEventTemplateCreateRequest,
     OnboardingEventTemplateCreateResponse
   >("com.sme.onboarding.eventTemplate.create", payload);
+
+// ── Task Department Confirm ────────────────────────────────
+
+/** com.sme.onboarding.task.department.confirm */
+export const apiTaskDepartmentConfirm = (
+  payload: TaskDepartmentConfirmRequest,
+) =>
+  gatewayRequest<TaskDepartmentConfirmRequest, { checkpointId: string }>(
+    "com.sme.onboarding.task.department.confirm",
+    payload,
+  );
+
+// ── Events (publish / detail / list / attendance) ──────────
+
+/** com.sme.onboarding.event.publish */
+export const apiEventPublish = (payload: EventPublishRequest) =>
+  gatewayRequest<EventPublishRequest, EventPublishResponse>(
+    "com.sme.onboarding.event.publish",
+    payload,
+  );
+
+/** com.sme.onboarding.event.detail */
+export const apiEventDetail = (payload: EventDetailRequest) =>
+  gatewayRequest<EventDetailRequest, EventDetailResponse>(
+    "com.sme.onboarding.event.detail",
+    payload,
+  );
+
+/** com.sme.onboarding.event.list */
+export const apiEventInstanceList = (payload: EventListRequest) =>
+  gatewayRequest<EventListRequest, EventListResponse>(
+    "com.sme.onboarding.event.list",
+    payload,
+  );
+
+/** com.sme.onboarding.event.attendance.summary */
+export const apiEventAttendanceSummary = (
+  payload: EventAttendanceSummaryRequest,
+) =>
+  gatewayRequest<EventAttendanceSummaryRequest, EventAttendanceSummaryResponse>(
+    "com.sme.onboarding.event.attendance.summary",
+    payload,
+  );
