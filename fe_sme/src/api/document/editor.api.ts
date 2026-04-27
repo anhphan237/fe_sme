@@ -1,13 +1,23 @@
 import { gatewayRequest } from "../core/gateway";
 import type {
   DocFolderTreeResponse,
+  DocFolderTreeLiteResponse,
   DocFolderListResponse,
   DocEditorListResponse,
+  DocListParams,
   DocEditorDetail,
+  DocDetailParams,
   DocVersionListResponse,
   DocVersionDetail,
   DocVersionCompareResponse,
+  DocPublishResponse,
   DocCommentTreeResponse,
+  DocCommentListResponse,
+  DocReadListResponse,
+  DocAccessRuleListResponse,
+  DocLinkListResponse,
+  DocAssignmentListResponse,
+  DocAttachmentListResponse,
 } from "@/interface/document/editor";
 
 // ── Folder ─────────────────────────────────────────────────────────────────────
@@ -30,6 +40,12 @@ export const apiDocFolderDelete = (folderId: string) =>
 export const apiDocFolderList = () =>
   gatewayRequest<Record<string, never>, DocFolderListResponse>(
     "com.sme.document.folder.list",
+    {},
+  );
+
+export const apiDocFolderTree = () =>
+  gatewayRequest<Record<string, never>, DocFolderTreeLiteResponse>(
+    "com.sme.document.folder.tree",
     {},
   );
 
@@ -68,20 +84,22 @@ export const apiDocAutosave = (documentId: string, title: string, content: unkno
   });
 
 export const apiDocPublish = (documentId: string) =>
-  gatewayRequest("com.sme.document.publish", { documentId });
-
-export const apiDocDetail = (documentId: string) =>
-  gatewayRequest<{ documentId: string }, DocEditorDetail>(
-    "com.sme.document.detail",
+  gatewayRequest<{ documentId: string }, DocPublishResponse>(
+    "com.sme.document.publish",
     { documentId },
   );
 
-export const apiDocList = (params?: {
-  titleQuery?: string;
-  page?: number;
-  pageSize?: number;
-}) =>
-  gatewayRequest<typeof params, DocEditorListResponse>("com.sme.document.list", params ?? {});
+export const apiDocDetail = (params: DocDetailParams) =>
+  gatewayRequest<DocDetailParams, DocEditorDetail>(
+    "com.sme.document.detail",
+    params,
+  );
+
+export const apiDocList = (params?: DocListParams) =>
+  gatewayRequest<DocListParams, DocEditorListResponse>(
+    "com.sme.document.list",
+    params ?? {},
+  );
 
 // ── Versions ───────────────────────────────────────────────────────────────────
 
@@ -91,17 +109,23 @@ export const apiDocVersionList = (documentId: string) =>
     { documentId },
   );
 
-export const apiDocVersionGet = (versionId: string) =>
-  gatewayRequest<{ versionId: string }, DocVersionDetail>(
+export const apiDocVersionGet = (documentVersionId: string) =>
+  gatewayRequest<{ documentVersionId: string }, DocVersionDetail>(
     "com.sme.document.version.get",
-    { versionId },
+    { documentVersionId },
   );
 
-export const apiDocVersionCompare = (versionId1: string, versionId2: string) =>
-  gatewayRequest<{ versionId1: string; versionId2: string }, DocVersionCompareResponse>(
-    "com.sme.document.version.compare",
-    { versionId1, versionId2 },
-  );
+export const apiDocVersionCompare = (
+  fromDocumentVersionId: string,
+  toDocumentVersionId: string,
+) =>
+  gatewayRequest<
+    { fromDocumentVersionId: string; toDocumentVersionId: string },
+    DocVersionCompareResponse
+  >("com.sme.document.version.compare", {
+    fromDocumentVersionId,
+    toDocumentVersionId,
+  });
 
 // ── Comments ───────────────────────────────────────────────────────────────────
 
@@ -110,11 +134,20 @@ export const apiDocCommentAdd = (
   body: string,
   parentCommentId?: string,
 ) =>
-  gatewayRequest("com.sme.document.comment.add", { documentId, body, parentCommentId });
+  gatewayRequest<
+    { documentId: string; body: string; parentCommentId?: string },
+    { commentId: string; documentId: string; parentCommentId: string | null; createdAt: string }
+  >("com.sme.document.comment.add", { documentId, body, parentCommentId });
 
 export const apiDocCommentTree = (documentId: string) =>
   gatewayRequest<{ documentId: string }, DocCommentTreeResponse>(
     "com.sme.document.comment.tree",
+    { documentId },
+  );
+
+export const apiDocCommentList = (documentId: string) =>
+  gatewayRequest<{ documentId: string }, DocCommentListResponse>(
+    "com.sme.document.comment.list",
     { documentId },
   );
 
@@ -129,12 +162,86 @@ export const apiDocCommentDelete = (commentId: string) =>
 export const apiDocMarkRead = (documentId: string) =>
   gatewayRequest("com.sme.document.read.mark", { documentId });
 
+export const apiDocReadList = (documentId: string, limit?: number) =>
+  gatewayRequest<{ documentId: string; limit?: number }, DocReadListResponse>(
+    "com.sme.document.read.list",
+    { documentId, ...(limit !== undefined ? { limit } : {}) },
+  );
+
 // ── Access rules ───────────────────────────────────────────────────────────────
+
+export const apiDocAccessRuleList = (documentId: string) =>
+  gatewayRequest<{ documentId: string }, DocAccessRuleListResponse>(
+    "com.sme.document.accessRule.list",
+    { documentId },
+  );
 
 export const apiDocAccessRuleAdd = (
   documentId: string,
   rule: { roleId?: string; departmentId?: string },
 ) => gatewayRequest("com.sme.document.accessRule.add", { documentId, ...rule });
 
-export const apiDocAccessRuleRemove = (ruleId: string) =>
-  gatewayRequest("com.sme.document.accessRule.remove", { ruleId });
+export const apiDocAccessRuleRemove = (documentAccessRuleId: string) =>
+  gatewayRequest("com.sme.document.accessRule.remove", { documentAccessRuleId });
+
+// ── Links ──────────────────────────────────────────────────────────────────────
+
+export const apiDocLinkList = (documentId: string) =>
+  gatewayRequest<{ documentId: string }, DocLinkListResponse>(
+    "com.sme.document.link.list",
+    { documentId },
+  );
+
+export const apiDocLinkAdd = (
+  sourceDocumentId: string,
+  targetDocumentId: string,
+  linkType?: string,
+) =>
+  gatewayRequest<
+    { sourceDocumentId: string; targetDocumentId: string; linkType?: string },
+    { documentLinkId: string }
+  >("com.sme.document.link.add", { sourceDocumentId, targetDocumentId, linkType });
+
+export const apiDocLinkRemove = (documentLinkId: string) =>
+  gatewayRequest("com.sme.document.link.remove", { documentLinkId });
+
+// ── Assignments ────────────────────────────────────────────────────────────────
+
+export const apiDocAssignmentList = (documentId: string) =>
+  gatewayRequest<{ documentId: string }, DocAssignmentListResponse>(
+    "com.sme.document.assignment.list",
+    { documentId },
+  );
+
+export const apiDocAssignmentAssign = (documentId: string, assigneeUserId: string) =>
+  gatewayRequest<
+    { documentId: string; assigneeUserId: string },
+    { documentAssignmentId: string }
+  >("com.sme.document.assignment.assign", { documentId, assigneeUserId });
+
+export const apiDocAssignmentUnassign = (documentAssignmentId: string) =>
+  gatewayRequest("com.sme.document.assignment.unassign", { documentAssignmentId });
+
+// ── Attachments ────────────────────────────────────────────────────────────────
+
+export const apiDocAttachmentList = (documentId: string) =>
+  gatewayRequest<{ documentId: string }, DocAttachmentListResponse>(
+    "com.sme.document.attachment.list",
+    { documentId },
+  );
+
+export const apiDocAttachmentAdd = (input: {
+  documentId: string;
+  fileUrl: string;
+  fileName: string;
+  fileType: string;
+  fileSizeBytes: number;
+  mediaKind: "FILE" | "VIDEO";
+}) =>
+  gatewayRequest<typeof input, { documentAttachmentId: string }>(
+    "com.sme.document.attachment.add",
+    input,
+  );
+
+export const apiDocAttachmentRemove = (documentAttachmentId: string) =>
+  gatewayRequest("com.sme.document.attachment.remove", { documentAttachmentId });

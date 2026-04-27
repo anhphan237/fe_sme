@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { useGlobalStore } from "@/stores/global.store";
+import { GlobalLoadingBar } from "./components/GlobalLoadingBar";
 
 type Props = {
   children: ReactNode;
@@ -15,6 +16,9 @@ const AppLayout = ({ children }: Props) => {
 
   return (
     <div className="min-h-screen bg-slate-100 text-ink">
+      {/* Global loading indicator — fixed, above everything */}
+      <GlobalLoadingBar />
+
       <div className="flex">
         <Sidebar
           open={sidebarOpen}
@@ -37,3 +41,4 @@ const AppLayout = ({ children }: Props) => {
 };
 
 export default AppLayout;
+

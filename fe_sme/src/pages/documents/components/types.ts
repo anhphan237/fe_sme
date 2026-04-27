@@ -10,5 +10,6 @@ export interface UnifiedDoc {
   published?: boolean;
   fileUrl?: string;
   folderId?: string;
+  folderName?: string;
   updatedAt?: string;
 }

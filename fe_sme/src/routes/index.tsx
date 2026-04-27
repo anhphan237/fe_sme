@@ -327,19 +327,19 @@ export const router = createBrowserRouter([
       {
         path: "/documents",
         element: suspense(
-          withRoles(<Documents />, ["HR", "MANAGER", "EMPLOYEE"]),
+          withRoles(<Documents />, ["ADMIN", "HR", "MANAGER", "EMPLOYEE"]),
         ),
       },
       {
         path: "/documents/:documentId",
         element: suspense(
-          withRoles(<DocumentDetail />, ["HR", "MANAGER", "EMPLOYEE"]),
+          withRoles(<DocumentDetail />, ["ADMIN", "HR", "MANAGER", "EMPLOYEE"]),
         ),
       },
       {
         path: "/documents/editor/:documentId",
         element: suspense(
-          withRoles(<DocumentEditor />, ["HR", "MANAGER", "EMPLOYEE"]),
+          withRoles(<DocumentEditor />, ["ADMIN", "HR", "MANAGER", "EMPLOYEE"]),
         ),
       },
       {

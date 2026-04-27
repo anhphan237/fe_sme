@@ -19,3 +19,50 @@ h2,
 h3 {
   font-family: 'Fraunces', serif;
 }
+
+/* ── Global loading bar ────────────────────────────────────────────────────── */
+
+@keyframes loadingBarSweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes loadingBarFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes loadingBarFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+.global-loading-bar-track {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 9999;
+  background: rgba(0, 120, 255, 0.15);
+  overflow: hidden;
+  animation: loadingBarFadeIn 0.15s ease both;
+}
+
+.global-loading-bar-track.is-done {
+  animation: loadingBarFadeOut 0.3s ease 0.1s both;
+}
+
+.global-loading-bar-fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    #0078ff 40%,
+    #60a5fa 60%,
+    transparent 100%
+  );
+  animation: loadingBarSweep 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+

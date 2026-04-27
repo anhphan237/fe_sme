@@ -1,5 +1,25 @@
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Card, Divider, Skeleton, Tag, Tooltip, Button } from "antd";
+import {
+  Button,
+  Card,
+  Divider,
+  Empty,
+  Popconfirm,
+  Select,
+  Skeleton,
+  Tag,
+  Tabs,
+  Tooltip,
+  Upload,
+  message,
+} from "antd";
+import {
+  PaperClipOutlined,
+  PlusOutlined,
+  DeleteOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
 import {
   ArrowLeftOutlined,
   DownloadOutlined,
@@ -14,6 +34,8 @@ import {
   InfoCircleOutlined,
   LinkOutlined,
   CheckCircleOutlined,
+  ReloadOutlined,
+  SyncOutlined,
 } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocale } from "@/i18n";
@@ -21,8 +43,24 @@ import {
   apiGetDocuments,
   apiListAcknowledgments,
   apiAcknowledgeDocument,
+  apiUploadDocumentAttachment,
 } from "@/api/document/document.api";
+import {
+  apiDocLinkList,
+  apiDocLinkAdd,
+  apiDocLinkRemove,
+  apiDocAttachmentList,
+  apiDocAttachmentRemove,
+  apiDocList,
+} from "@/api/document/editor.api";
 import type { DocumentItem } from "@/interface/document";
+import type {
+  DocLinkItem,
+  DocAttachmentItem,
+} from "@/interface/document/editor";
+import DocAccessRulesPanel from "./components/DocAccessRulesPanel";
+import DocReadListPanel from "./components/DocReadListPanel";
+import { useDocumentPermissions } from "./hooks/useDocumentPermissions";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -75,11 +113,13 @@ const STATUS_COLOR: Record<string, string> = {
 
 const useDocumentDetail = (documentId?: string) =>
   useQuery({
-    queryKey: ["documents", undefined],
+    queryKey: ["file-documents", documentId],
     queryFn: () => apiGetDocuments(),
     select: (res) =>
       res.items.find((d: DocumentItem) => d.documentId === documentId) ?? null,
     enabled: Boolean(documentId),
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: true,
   });
 
 // ── Preview ───────────────────────────────────────────────────────────────────
@@ -115,7 +155,8 @@ function DocumentPreview({ doc }: { doc: DocumentItem }) {
     <div className="flex flex-col items-center justify-center gap-6 rounded-xl border border-stroke bg-slate-50 py-16">
       <div
         className="flex h-20 w-20 items-center justify-center rounded-2xl"
-        style={{ backgroundColor: `${accentColor}18` }}>
+        style={{ backgroundColor: `${accentColor}18` }}
+      >
         <FileIconLarge url={doc.fileUrl} />
       </div>
       <div className="text-center">
@@ -128,7 +169,8 @@ function DocumentPreview({ doc }: { doc: DocumentItem }) {
         href={doc.fileUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brandDark">
+        className="flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brandDark"
+      >
         <DownloadOutlined />
         {t("document.action.download")} ({ext.toUpperCase()})
       </a>
@@ -142,9 +184,11 @@ const DocumentDetail = () => {
   const { t } = useLocale();
   const navigate = useNavigate();
   const { documentId } = useParams();
+  const permissions = useDocumentPermissions();
   const {
     data: doc,
     isLoading,
+    isFetching,
     isError,
     refetch,
   } = useDocumentDetail(documentId);
@@ -152,18 +196,21 @@ const DocumentDetail = () => {
   const accentColor = getExtColor(doc?.fileUrl);
   const ext = getFileExt(doc?.fileUrl);
 
-  // ─── Acknowledgment ────────────────────────────────────────────────────────
+  // ─── Acknowledgment (EMPLOYEE only) ───────────────────────────────────────
   const queryClient = useQueryClient();
   const { data: ackData } = useQuery({
-    queryKey: ["acknowledgments"],
+    queryKey: ["doc-acknowledgments"],
     queryFn: apiListAcknowledgments,
+    enabled: permissions.canAcknowledge,
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: true,
   });
   const isAcknowledged =
     ackData?.items.some((a) => a.documentId === documentId) ?? false;
   const ackMutation = useMutation({
     mutationFn: () => apiAcknowledgeDocument(documentId!),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["acknowledgments"] }),
+      queryClient.invalidateQueries({ queryKey: ["doc-acknowledgments"] }),
   });
 
   // ─── Loading ───────────────────────────────────────────────────────────────
@@ -196,7 +243,8 @@ const DocumentDetail = () => {
           {t("document.error.something_wrong")}{" "}
           <button
             className="font-semibold text-brand hover:underline"
-            onClick={() => refetch()}>
+            onClick={() => refetch()}
+          >
             {t("document.error.retry")}
           </button>
         </p>
@@ -215,7 +263,8 @@ const DocumentDetail = () => {
           </p>
           <button
             onClick={() => navigate("/documents")}
-            className="mt-4 text-sm font-medium text-brand hover:underline">
+            className="mt-4 text-sm font-medium text-brand hover:underline"
+          >
             {t("document.detail.back_to_list")}
           </button>
         </div>
@@ -229,7 +278,8 @@ const DocumentDetail = () => {
       {/* Back button */}
       <button
         onClick={() => navigate("/documents")}
-        className="flex items-center gap-1.5 text-sm font-medium text-muted transition hover:text-ink">
+        className="flex items-center gap-1.5 text-sm font-medium text-muted transition hover:text-ink"
+      >
         <ArrowLeftOutlined />
         {t("document.detail.back_to_list")}
       </button>
@@ -237,7 +287,8 @@ const DocumentDetail = () => {
       {/* Header card */}
       <Card
         className="overflow-hidden border border-stroke bg-white shadow-sm"
-        bodyStyle={{ padding: 0 }}>
+        bodyStyle={{ padding: 0 }}
+      >
         {/* Accent top bar */}
         <div
           className="h-1.5 w-full"
@@ -247,7 +298,8 @@ const DocumentDetail = () => {
           {/* File icon */}
           <div
             className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
-            style={{ backgroundColor: `${accentColor}18` }}>
+            style={{ backgroundColor: `${accentColor}18` }}
+          >
             <FileIconLarge url={doc.fileUrl} />
           </div>
 
@@ -258,14 +310,16 @@ const DocumentDetail = () => {
               {ext && (
                 <span
                   className="rounded-md px-2 py-0.5 text-xs font-bold uppercase text-white"
-                  style={{ backgroundColor: accentColor }}>
+                  style={{ backgroundColor: accentColor }}
+                >
                   {ext}
                 </span>
               )}
               {doc.status && (
                 <Tag
                   color={STATUS_COLOR[doc.status] ?? "default"}
-                  className="m-0">
+                  className="m-0"
+                >
                   {doc.status}
                 </Tag>
               )}
@@ -279,40 +333,106 @@ const DocumentDetail = () => {
             )}
           </div>
 
-          {/* Download button */}
-          {doc.fileUrl && (
-            <Tooltip title={t("document.action.download")}>
-              <a
-                href={doc.fileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex shrink-0 items-center gap-2 rounded-xl border border-stroke px-4 py-2 text-sm font-medium text-muted transition hover:border-slate-400 hover:text-ink">
-                <DownloadOutlined />
-                {t("document.action.download")}
-              </a>
+          {/* Download + Refresh buttons */}
+          <div className="flex shrink-0 items-center gap-2">
+            {isFetching && !isLoading && (
+              <SyncOutlined spin className="text-sm text-brand" />
+            )}
+            {doc.fileUrl && (
+              <Tooltip title={t("document.action.download")}>
+                <a
+                  href={doc.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex shrink-0 items-center gap-2 rounded-xl border border-stroke px-4 py-2 text-sm font-medium text-muted transition hover:border-slate-400 hover:text-ink"
+                >
+                  <DownloadOutlined />
+                  {t("document.action.download")}
+                </a>
+              </Tooltip>
+            )}
+            <Tooltip title={t("document.action.refresh")}>
+              <Button
+                icon={<ReloadOutlined />}
+                size="small"
+                loading={isFetching && !isLoading}
+                onClick={() => refetch()}
+              />
             </Tooltip>
-          )}
+          </div>
         </div>
       </Card>
 
-      {/* Body: Preview + Sidebar */}
+      {/* Body: Tabbed content + Sidebar */}
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* Preview (2/3) */}
-        <div className="space-y-4 lg:col-span-2">
-          <Card className="border border-stroke bg-white shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-ink">
-                {t("document.detail.preview")}
-              </h2>
-              <span className="text-xs text-muted">
-                {ext
-                  ? ext === "pdf"
-                    ? t("document.detail.inline_preview")
-                    : t("document.detail.download_to_view")
-                  : ""}
-              </span>
-            </div>
-            <DocumentPreview doc={doc} />
+        {/* Tabbed area (2/3) */}
+        <div className="lg:col-span-2">
+          <Card
+            className="border border-stroke bg-white shadow-sm"
+            bodyStyle={{ padding: 0 }}
+          >
+            <Tabs
+              defaultActiveKey="preview"
+              className="px-4"
+              items={[
+                {
+                  key: "preview",
+                  label: t("document.detail.tab.preview"),
+                  children: (
+                    <div className="pb-4">
+                      <div className="mb-4">
+                        <span className="text-xs text-muted">
+                          {ext
+                            ? ext === "pdf"
+                              ? t("document.detail.inline_preview")
+                              : t("document.detail.download_to_view")
+                            : ""}
+                        </span>
+                      </div>
+                      <DocumentPreview doc={doc} />
+                    </div>
+                  ),
+                },
+                ...(permissions.canViewStats
+                  ? [
+                      {
+                        key: "reads",
+                        label: t("document.detail.tab.reads"),
+                        children: (
+                          <div className="pb-4">
+                            <DocReadListPanel documentId={doc.documentId} />
+                          </div>
+                        ),
+                      },
+                    ]
+                  : []),
+                ...(permissions.canEdit
+                  ? [
+                      {
+                        key: "links",
+                        label: t("document.detail.tab.links"),
+                        children: (
+                          <DocLinksTab
+                            documentId={doc.documentId}
+                            canEdit={permissions.canEdit}
+                          />
+                        ),
+                      },
+                      {
+                        key: "attachments",
+                        label: t("document.detail.tab.attachments"),
+                        children: (
+                          <DocAttachmentsTab
+                            documentId={doc.documentId}
+                            canEdit={permissions.canEdit}
+                            canUpload={permissions.canCreate}
+                          />
+                        ),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
           </Card>
         </div>
 
@@ -342,7 +462,8 @@ const DocumentDetail = () => {
                   ext ? (
                     <span
                       className="rounded-md px-2 py-0.5 text-xs font-bold uppercase text-white"
-                      style={{ backgroundColor: accentColor }}>
+                      style={{ backgroundColor: accentColor }}
+                    >
                       {ext}
                     </span>
                   ) : (
@@ -356,7 +477,8 @@ const DocumentDetail = () => {
                   doc.status ? (
                     <Tag
                       color={STATUS_COLOR[doc.status] ?? "default"}
-                      className="m-0 text-xs">
+                      className="m-0 text-xs"
+                    >
                       {doc.status}
                     </Tag>
                   ) : (
@@ -438,7 +560,8 @@ const DocumentDetail = () => {
                   href={doc.fileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 break-all text-xs text-brand hover:underline">
+                  className="flex items-center gap-1.5 break-all text-xs text-brand hover:underline"
+                >
                   <DownloadOutlined className="shrink-0" />
                   <span className="line-clamp-3">{doc.fileUrl}</span>
                 </a>
@@ -469,56 +592,368 @@ const DocumentDetail = () => {
             </div>
           </Card>
 
-          {/* Acknowledgment */}
-          <Card className="border border-stroke bg-white shadow-sm">
-            <div className="flex items-center gap-2">
-              <CheckCircleOutlined
-                className={`text-base ${
-                  isAcknowledged ? "text-green-500" : "text-muted"
-                }`}
+          {/* Acknowledgment — EMPLOYEE only */}
+          {permissions.canAcknowledge && (
+            <Card className="border border-stroke bg-white shadow-sm">
+              <div className="flex items-center gap-2">
+                <CheckCircleOutlined
+                  className={`text-base ${
+                    isAcknowledged ? "text-green-500" : "text-muted"
+                  }`}
+                />
+                <h2 className="text-base font-semibold text-ink">
+                  {t("document.detail.progress_title")}
+                </h2>
+              </div>
+              <Divider className="my-3" />
+              {isAcknowledged ? (
+                <div className="flex flex-col gap-2">
+                  <Tag color="green" className="w-fit">
+                    {t("document.ack.status.acknowledged")}
+                  </Tag>
+                  <p className="text-xs text-muted">
+                    {t("document.detail.ack_done_desc")}
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <p className="text-xs text-muted">
+                    {t("document.detail.ack_description")}
+                  </p>
+                  <Button
+                    type="primary"
+                    size="small"
+                    loading={ackMutation.isPending}
+                    onClick={() => ackMutation.mutate()}
+                  >
+                    {t("document.action.acknowledge")}
+                  </Button>
+                </div>
+              )}
+            </Card>
+          )}
+
+          {/* Access Rules — visible to ADMIN, HR, MANAGER */}
+          {permissions.canViewAccessRules && documentId && (
+            <Card className="border border-stroke bg-white shadow-sm">
+              <DocAccessRulesPanel
+                documentId={documentId}
+                canManage={permissions.canManageAccessRules}
               />
-              <h2 className="text-base font-semibold text-ink">
-                {t("document.detail.progress_title")}
-              </h2>
-            </div>
-            <Divider className="my-3" />
-            {isAcknowledged ? (
-              <div className="flex flex-col gap-2">
-                <Tag color="green" className="w-fit">
-                  {t("document.ack.status.acknowledged")}
-                </Tag>
-                <p className="text-xs text-muted">
-                  {t("document.detail.ack_done_desc")}
-                </p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                <p className="text-xs text-muted">
-                  {t("document.detail.ack_description")}
-                </p>
-                <Button
-                  type="primary"
-                  size="small"
-                  loading={ackMutation.isPending}
-                  onClick={() => ackMutation.mutate()}>
-                  {t("document.action.acknowledge")}
-                </Button>
-              </div>
-            )}
-          </Card>
+            </Card>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-// ── Helper component ──────────────────────────────────────────────────────────
+// ── Helper components ─────────────────────────────────────────────────────────
 
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-2">
       <span className="text-xs text-muted">{label}</span>
       <div>{value}</div>
+    </div>
+  );
+}
+
+function DocLinksTab({
+  documentId,
+  canEdit,
+}: {
+  documentId: string;
+  canEdit: boolean;
+}) {
+  const { t } = useLocale();
+  const queryClient = useQueryClient();
+  const [adding, setAdding] = useState(false);
+  const [targetId, setTargetId] = useState<string | undefined>();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["doc-links", documentId],
+    queryFn: () => apiDocLinkList(documentId),
+    staleTime: 30_000,
+  });
+
+  const { data: docList } = useQuery({
+    queryKey: ["doc-list", {}],
+    queryFn: () => apiDocList(),
+    staleTime: 60_000,
+    enabled: adding,
+  });
+
+  const addMutation = useMutation({
+    mutationFn: (tid: string) => apiDocLinkAdd(documentId, tid),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["doc-links", documentId] });
+      setAdding(false);
+      setTargetId(undefined);
+      message.success(t("document.links.added"));
+    },
+    onError: () => message.error(t("document.links.add_error")),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (linkId: string) => apiDocLinkRemove(linkId),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["doc-links", documentId] }),
+    onError: () => message.error(t("document.links.remove_error")),
+  });
+
+  const items: DocLinkItem[] = data?.items ?? [];
+  const outLinks = items.filter((l) => l.direction === "OUT");
+  const inLinks = items.filter((l) => l.direction === "IN");
+
+  if (isLoading) return <Skeleton active paragraph={{ rows: 3 }} />;
+
+  const docOptions = (docList?.items ?? [])
+    .filter((d) => d.documentId !== documentId)
+    .map((d) => ({ label: d.title, value: d.documentId }));
+
+  return (
+    <div className="space-y-4 pb-4">
+      {canEdit && !adding && (
+        <Button
+          size="small"
+          type="dashed"
+          icon={<PlusOutlined />}
+          onClick={() => setAdding(true)}
+        >
+          {t("document.links.add")}
+        </Button>
+      )}
+      {adding && (
+        <div className="flex items-center gap-2">
+          <Select
+            showSearch
+            placeholder={t("document.links.search_placeholder")}
+            options={docOptions}
+            value={targetId}
+            onChange={setTargetId}
+            filterOption={(input, opt) =>
+              (opt?.label as string)
+                ?.toLowerCase()
+                .includes(input.toLowerCase())
+            }
+            className="flex-1"
+            size="small"
+          />
+          <Button
+            size="small"
+            type="primary"
+            disabled={!targetId}
+            loading={addMutation.isPending}
+            onClick={() => targetId && addMutation.mutate(targetId)}
+          >
+            {t("document.links.add")}
+          </Button>
+          <Button
+            size="small"
+            onClick={() => {
+              setAdding(false);
+              setTargetId(undefined);
+            }}
+          >
+            {t("document.batch.cancel")}
+          </Button>
+        </div>
+      )}
+      {outLinks.length === 0 && inLinks.length === 0 ? (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description={t("document.links.empty")}
+        />
+      ) : (
+        <>
+          {outLinks.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                {t("document.links.outgoing")}
+              </p>
+              <div className="space-y-1.5">
+                {outLinks.map((l) => (
+                  <div
+                    key={l.documentLinkId}
+                    className="flex items-center justify-between gap-2 rounded-xl border border-stroke bg-white px-3 py-2"
+                  >
+                    <span className="text-sm text-ink">
+                      {l.linkedDocumentId.slice(0, 8)}…{" "}
+                      <Tag className="m-0 text-xs">{l.linkType}</Tag>
+                    </span>
+                    {canEdit && (
+                      <Popconfirm
+                        title={t("document.links.remove_confirm")}
+                        onConfirm={() =>
+                          removeMutation.mutate(l.documentLinkId)
+                        }
+                        okButtonProps={{ danger: true }}
+                      >
+                        <Button
+                          size="small"
+                          type="text"
+                          danger
+                          icon={<DeleteOutlined />}
+                          loading={removeMutation.isPending}
+                        />
+                      </Popconfirm>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {inLinks.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                {t("document.links.incoming")}
+              </p>
+              <div className="space-y-1.5">
+                {inLinks.map((l) => (
+                  <div
+                    key={l.documentLinkId}
+                    className="flex items-center gap-2 rounded-xl border border-stroke bg-slate-50 px-3 py-2"
+                  >
+                    <span className="text-sm text-ink">
+                      {l.linkedDocumentId.slice(0, 8)}…{" "}
+                      <Tag className="m-0 text-xs">{l.linkType}</Tag>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function DocAttachmentsTab({
+  documentId,
+  canEdit,
+  canUpload,
+}: {
+  documentId: string;
+  canEdit: boolean;
+  canUpload: boolean;
+}) {
+  const { t } = useLocale();
+  const queryClient = useQueryClient();
+  const [uploading, setUploading] = useState(false);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["doc-attachments", documentId],
+    queryFn: () => apiDocAttachmentList(documentId),
+    staleTime: 30_000,
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (aid: string) => apiDocAttachmentRemove(aid),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["doc-attachments", documentId],
+      }),
+    onError: () => message.error(t("document.attachments.remove_error")),
+  });
+
+  const handleUpload = async (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("fileName", file.name);
+    setUploading(true);
+    try {
+      await apiUploadDocumentAttachment(documentId, fd);
+      message.success(t("document.attachments.upload_success"));
+      queryClient.invalidateQueries({
+        queryKey: ["doc-attachments", documentId],
+      });
+    } catch (err: unknown) {
+      message.error(
+        err instanceof Error
+          ? err.message
+          : t("document.attachments.upload_error"),
+      );
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const items: DocAttachmentItem[] = data?.items ?? [];
+
+  if (isLoading) return <Skeleton active paragraph={{ rows: 3 }} />;
+
+  return (
+    <div className="space-y-3 pb-4">
+      {canUpload && (
+        <Upload
+          beforeUpload={(file) => {
+            void handleUpload(file);
+            return false;
+          }}
+          showUploadList={false}
+          disabled={uploading}
+        >
+          <Button
+            size="small"
+            type="dashed"
+            icon={<UploadOutlined />}
+            loading={uploading}
+          >
+            {t("document.attachments.upload")}
+          </Button>
+        </Upload>
+      )}
+      {items.length === 0 ? (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description={t("document.attachments.empty")}
+        />
+      ) : (
+        <div className="space-y-1.5">
+          {items.map((a) => (
+            <div
+              key={a.documentAttachmentId}
+              className="flex items-center justify-between gap-2 rounded-xl border border-stroke bg-white px-3 py-2"
+            >
+              <div className="flex items-center gap-2">
+                <PaperClipOutlined className="text-muted" />
+                <div>
+                  <a
+                    href={a.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-medium text-brand hover:underline"
+                  >
+                    {a.fileName}
+                  </a>
+                  <div className="text-xs text-muted">
+                    {a.fileType} · {(a.fileSizeBytes / 1024).toFixed(1)} KB
+                  </div>
+                </div>
+              </div>
+              {canEdit && (
+                <Popconfirm
+                  title={t("document.attachments.remove_confirm")}
+                  onConfirm={() =>
+                    removeMutation.mutate(a.documentAttachmentId)
+                  }
+                  okButtonProps={{ danger: true }}
+                >
+                  <Button
+                    size="small"
+                    type="text"
+                    danger
+                    icon={<DeleteOutlined />}
+                    loading={removeMutation.isPending}
+                  />
+                </Popconfirm>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

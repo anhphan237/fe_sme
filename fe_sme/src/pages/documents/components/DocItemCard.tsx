@@ -1,4 +1,4 @@
-import { Tag, Tooltip, Badge } from "antd";
+import { Tag, Tooltip, Badge, Checkbox } from "antd";
 import {
   FilePdfOutlined,
   FileWordOutlined,
@@ -10,6 +10,8 @@ import {
   EyeOutlined,
   EditOutlined,
   FileTextFilled,
+  FolderOutlined,
+  ClockCircleOutlined,
 } from "@ant-design/icons";
 import { useLocale } from "@/i18n";
 import type { UnifiedDoc } from "./types";
@@ -39,6 +41,21 @@ export function getExtColor(url?: string): string {
   return EXT_COLOR[getFileExt(url)] ?? "#94a3b8";
 }
 
+export function formatRelativeTime(dateStr?: string): string {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return "";
+  const diff = Date.now() - date.getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "vừa xong";
+  if (minutes < 60) return `${minutes} phút trước`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} giờ trước`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} ngày trước`;
+  return date.toLocaleDateString("vi-VN");
+}
+
 function FileTypeIcon({ url, className = "text-xl" }: { url?: string; className?: string }) {
   const ext = getFileExt(url);
   if (ext === "pdf") return <FilePdfOutlined className={`${className} text-red-500`} />;
@@ -60,9 +77,12 @@ const STATUS_COLOR: Record<string, string> = {
 interface DocItemCardProps {
   doc: UnifiedDoc;
   onOpen: (doc: UnifiedDoc) => void;
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
-const DocItemCard = ({ doc, onOpen }: DocItemCardProps) => {
+const DocItemCard = ({ doc, onOpen, selectable, selected, onToggleSelect }: DocItemCardProps) => {
   const { t } = useLocale();
   const isFile = doc.kind === "FILE";
   const accentColor = isFile ? getExtColor(doc.fileUrl) : "#7c3aed";
@@ -70,8 +90,19 @@ const DocItemCard = ({ doc, onOpen }: DocItemCardProps) => {
 
   return (
     <div
-      className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-stroke bg-white shadow-sm transition hover:border-brand/30 hover:shadow-md"
+      className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:border-brand/30 hover:shadow-md ${
+        selected ? "border-brand ring-1 ring-brand/20" : "border-stroke"
+      }`}
       onClick={() => onOpen(doc)}>
+      {/* Checkbox for batch select */}
+      {selectable && (
+        <div
+          className="absolute right-2 top-2 z-10"
+          onClick={(e) => { e.stopPropagation(); onToggleSelect?.(doc.id); }}>
+          <Checkbox checked={selected} />
+        </div>
+      )}
+
       {/* Accent strip */}
       <div className="h-1 w-full" style={{ backgroundColor: accentColor }} />
 
@@ -127,6 +158,17 @@ const DocItemCard = ({ doc, onOpen }: DocItemCardProps) => {
               {t("document.stat.published")}
             </Tag>
           )}
+
+          {/* Folder badge */}
+          {doc.folderName && (
+            <Tooltip title={doc.folderName}>
+              <Tag
+                icon={<FolderOutlined />}
+                className="m-0 max-w-[100px] truncate border-amber-200 bg-amber-50 text-xs text-amber-700">
+                {doc.folderName}
+              </Tag>
+            </Tooltip>
+          )}
         </div>
 
         {/* Actions */}
@@ -149,6 +191,13 @@ const DocItemCard = ({ doc, onOpen }: DocItemCardProps) => {
                 <DownloadOutlined />
               </a>
             </Tooltip>
+          )}
+
+          {doc.updatedAt && (
+            <span className="ml-auto flex items-center gap-1 text-[10px] text-slate-400">
+              <ClockCircleOutlined />
+              {formatRelativeTime(doc.updatedAt)}
+            </span>
           )}
         </div>
       </div>

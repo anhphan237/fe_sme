@@ -1,13 +1,15 @@
-import { Tag, Tooltip, Badge } from "antd";
+import { Tag, Tooltip, Badge, Checkbox } from "antd";
 import {
   DownloadOutlined,
   EyeOutlined,
   EditOutlined,
   FileTextFilled,
+  FolderOutlined,
+  ClockCircleOutlined,
 } from "@ant-design/icons";
 import { useLocale } from "@/i18n";
 import type { UnifiedDoc } from "./types";
-import { getFileExt, getExtColor } from "./DocItemCard";
+import { getFileExt, getExtColor, formatRelativeTime } from "./DocItemCard";
 
 // Re-export a lightweight version of the file icon for rows
 function RowIcon({ doc }: { doc: UnifiedDoc }) {
@@ -40,9 +42,12 @@ const STATUS_COLOR: Record<string, string> = {
 interface DocItemRowProps {
   doc: UnifiedDoc;
   onOpen: (doc: UnifiedDoc) => void;
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
-const DocItemRow = ({ doc, onOpen }: DocItemRowProps) => {
+const DocItemRow = ({ doc, onOpen, selectable, selected, onToggleSelect }: DocItemRowProps) => {
   const { t } = useLocale();
   const isFile = doc.kind === "FILE";
   const ext = isFile ? getFileExt(doc.fileUrl) : "";
@@ -50,8 +55,18 @@ const DocItemRow = ({ doc, onOpen }: DocItemRowProps) => {
 
   return (
     <div
-      className="group flex cursor-pointer items-center gap-3 rounded-xl border border-stroke bg-white px-4 py-3 transition hover:border-brand/30 hover:shadow-sm"
+      className={`group flex cursor-pointer items-center gap-3 rounded-xl border bg-white px-4 py-3 transition hover:border-brand/30 hover:shadow-sm ${
+        selected ? "border-brand ring-1 ring-brand/20" : "border-stroke"
+      }`}
       onClick={() => onOpen(doc)}>
+      {/* Checkbox for batch select */}
+      {selectable && (
+        <div
+          onClick={(e) => { e.stopPropagation(); onToggleSelect?.(doc.id); }}>
+          <Checkbox checked={selected} />
+        </div>
+      )}
+
       <RowIcon doc={doc} />
 
       {/* Title + desc */}
@@ -85,6 +100,21 @@ const DocItemRow = ({ doc, onOpen }: DocItemRowProps) => {
           <Tag color="blue" className="m-0 text-xs">
             {t("document.stat.published")}
           </Tag>
+        )}
+        {doc.folderName && (
+          <Tooltip title={doc.folderName}>
+            <Tag
+              icon={<FolderOutlined />}
+              className="m-0 max-w-[90px] truncate border-amber-200 bg-amber-50 text-xs text-amber-700">
+              {doc.folderName}
+            </Tag>
+          </Tooltip>
+        )}
+        {doc.updatedAt && (
+          <span className="flex items-center gap-1 text-[10px] text-slate-400">
+            <ClockCircleOutlined />
+            {formatRelativeTime(doc.updatedAt)}
+          </span>
         )}
       </div>
 

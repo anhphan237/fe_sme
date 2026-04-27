@@ -10,7 +10,9 @@ export interface DocFolderDocument {
   documentId: string;
   title: string;
   status: "DRAFT" | "ACTIVE" | string;
+  contentKind: "EDITOR" | "FILE" | string;
   published: boolean;
+  updatedAt: string;
 }
 
 export interface DocFolderNode {
@@ -18,6 +20,7 @@ export interface DocFolderNode {
   parentFolderId: string | null;
   name: string;
   sortOrder: number;
+  createdAt: string;
   children: DocFolderNode[];
   documents: DocFolderDocument[];
 }
@@ -31,10 +34,24 @@ export interface DocFolderItem {
   name: string;
   parentFolderId: string | null;
   sortOrder: number;
+  createdAt: string;
 }
 
 export interface DocFolderListResponse {
-  folders: DocFolderItem[];
+  items: DocFolderItem[];
+}
+
+// Lite tree (no documents) — for folder picker modal
+export interface DocFolderTreeLiteNode {
+  folderId: string;
+  parentFolderId: string | null;
+  name: string;
+  sortOrder: number;
+  children: DocFolderTreeLiteNode[];
+}
+
+export interface DocFolderTreeLiteResponse {
+  roots: DocFolderTreeLiteNode[];
 }
 
 // ── Document list ──────────────────────────────────────────────────────────────
@@ -45,14 +62,14 @@ export interface DocFolderPlacement {
   path: string[];
 }
 
+/** BE list item — no createdBy / folderPlacement in list response */
 export interface DocEditorListItem {
   documentId: string;
   title: string;
   status: "DRAFT" | "ACTIVE" | string;
-  published: boolean;
+  contentKind: string;
   updatedAt: string;
-  createdBy: string;
-  folderPlacement: DocFolderPlacement | null;
+  published: boolean;
 }
 
 export interface DocEditorListResponse {
@@ -62,7 +79,23 @@ export interface DocEditorListResponse {
   pageSize: number;
 }
 
+export type DocListParams = {
+  titleQuery?: string;
+  page?: number;
+  pageSize?: number;
+};
+
 // ── Document detail bundle ─────────────────────────────────────────────────────
+
+export interface DocDetailParams {
+  documentId: string;
+  activityLimit?: number;
+  readLimit?: number;
+  commentLimit?: number;
+  /** Comma-separated: "links,assignments,attachments,accessRules" — blank = all */
+  include?: string;
+  relationLimit?: number;
+}
 
 export interface DocActivityItem {
   action: string;
@@ -73,7 +106,9 @@ export interface DocActivityItem {
 
 export interface DocReadItem {
   userId: string;
-  readAt: string;
+  status: "READ" | "ACK" | string;
+  readAt: string | null;
+  ackedAt: string | null;
 }
 
 export interface DocCommentItem {
@@ -87,29 +122,39 @@ export interface DocCommentItem {
 }
 
 export interface DocLinkItem {
-  linkId: string;
-  url: string;
-  title: string;
+  documentLinkId: string;
+  linkedDocumentId: string;
+  linkType: string;
+  direction: "OUT" | "IN";
+  createdAt: string;
+  createdBy: string;
 }
 
 export interface DocAssignmentItem {
-  assignmentId: string;
-  userId: string;
+  documentAssignmentId: string;
+  assigneeUserId: string;
+  assignedByUserId: string;
+  status: string;
   assignedAt: string;
 }
 
 export interface DocAttachmentItem {
-  attachmentId: string;
-  name: string;
+  documentAttachmentId: string;
   fileUrl: string;
-  contentType: string;
-  size: number;
+  fileName: string;
+  fileType: string;
+  fileSizeBytes: number;
+  mediaKind: "FILE" | "VIDEO" | string;
+  uploadedAt: string;
+  uploadedBy: string;
 }
 
 export interface DocAccessRuleItem {
-  ruleId: string;
+  documentAccessRuleId: string;
   roleId: string | null;
   departmentId: string | null;
+  status: string;
+  createdAt: string;
 }
 
 export interface DocEditorDetail {
@@ -138,33 +183,98 @@ export interface DocEditorDetail {
 // ── Versions ──────────────────────────────────────────────────────────────────
 
 export interface DocVersionItem {
-  versionId: string;
-  documentId: string;
-  versionNumber: number;
-  publishedAt: string;
-  publishedBy: string;
-  note?: string;
+  documentVersionId: string;
+  versionNo: number;
+  fileUrl: string | null;
+  richTextSnapshot: boolean;
+  uploadedAt: string;
+  uploadedBy: string;
 }
 
 export interface DocVersionListResponse {
-  versions: DocVersionItem[];
+  documentId: string;
+  items: DocVersionItem[];
 }
 
 export interface DocVersionDetail {
-  versionId: string;
+  documentVersionId: string;
   documentId: string;
-  versionNumber: number;
-  content: unknown;
-  publishedAt: string;
+  versionNo: number;
+  fileUrl: string | null;
+  contentJson: unknown;
+  uploadedAt: string;
+  uploadedBy: string;
 }
 
 export interface DocVersionCompareResponse {
-  equalDeep: boolean;
+  documentId: string;
+  equal: boolean;
+  fromDocumentVersionId: string;
+  toDocumentVersionId: string;
+  fromVersionNo: number;
+  toVersionNo: number;
   summary: {
-    topLevelKeysAdded: string[];
-    topLevelKeysRemoved: string[];
-    changedPaths: string[];
-  };
+    topLevelKeysAdded?: string[];
+    topLevelKeysRemoved?: string[];
+    changedPaths?: string[];
+  } | null;
+}
+
+export interface DocPublishResponse {
+  documentId: string;
+  versionNo: number;
+  documentVersionId: string;
+}
+
+// ── Read receipts list (full user info) ───────────────────────────────────────
+
+export interface DocReadListItem {
+  userId: string;
+  fullName: string;
+  email: string;
+  status: "READ" | "ACK" | string;
+  readAt: string | null;
+  ackedAt: string | null;
+}
+
+export interface DocReadListResponse {
+  documentId: string;
+  items: DocReadListItem[];
+}
+
+// ── Comments list (flat, for admin/audit) ─────────────────────────────────────
+
+export interface DocCommentListResponse {
+  documentId: string;
+  items: DocCommentItem[];
+}
+
+// ── Access rules list ─────────────────────────────────────────────────────────
+
+export interface DocAccessRuleListResponse {
+  documentId: string;
+  rules: DocAccessRuleItem[];
+}
+
+// ── Links list ────────────────────────────────────────────────────────────────
+
+export interface DocLinkListResponse {
+  documentId: string;
+  items: DocLinkItem[];
+}
+
+// ── Assignments list ──────────────────────────────────────────────────────────
+
+export interface DocAssignmentListResponse {
+  documentId: string;
+  items: DocAssignmentItem[];
+}
+
+// ── Attachments list ──────────────────────────────────────────────────────────
+
+export interface DocAttachmentListResponse {
+  documentId: string;
+  items: DocAttachmentItem[];
 }
 
 // ── Comments tree ─────────────────────────────────────────────────────────────
