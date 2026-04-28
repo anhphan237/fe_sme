@@ -834,55 +834,98 @@ export interface TaskDepartmentConfirmRequest {
 }
 
 // ---------------------------
-// Events (publish / detail / list / attendance)
+// Events / Onboarding Group Session
+// BE operation:
+// - com.sme.onboarding.eventTemplate.create
+// - com.sme.onboarding.event.publish
+// - com.sme.onboarding.event.detail
+// - com.sme.onboarding.event.list
+// - com.sme.onboarding.event.attendance.summary
 // ---------------------------
 
 /** com.sme.onboarding.event.publish → request */
 export interface EventPublishRequest {
-  /** Event template ID to publish as a live event instance */
   eventTemplateId: string;
-  /** Target onboarding instance IDs to associate the event with */
-  onboardingInstanceIds?: string[];
-  scheduledAt?: string;
+  /** ISO datetime string */
+  eventAt: string;
+  /** ISO datetime string */
+  eventEndAt?: string;
+  departmentIds?: string[];
+  userIds?: string[];
 }
 
 /** com.sme.onboarding.event.publish → response */
 export interface EventPublishResponse {
-  eventId: string;
+  eventInstanceId: string;
   eventTemplateId: string;
-  status: string;
+  eventAt: string;
+  eventEndAt?: string;
+  taskCount: number;
+  participantUserIds: string[];
 }
 
 /** com.sme.onboarding.event.detail → request */
 export interface EventDetailRequest {
-  eventId: string;
+  eventInstanceId: string;
+  includeTasks?: boolean;
 }
 
-/** Attendee record in event detail */
-export interface EventAttendee {
-  userId: string;
-  userName?: string;
-  attended?: boolean;
-  attendedAt?: string;
+export interface EventTemplateInfo {
+  eventTemplateId: string;
+  name: string;
+  description?: string;
+  content?: string;
+  status: string;
+}
+
+export interface EventChecklistInfo {
+  checklistId: string;
+  name: string;
+  stage: string;
+  status: string;
+  progressPercent: number;
+  openAt?: string;
+  deadlineAt?: string;
+}
+
+export interface EventTaskItem {
+  taskId: string;
+  checklistId?: string;
+  title?: string;
+  description?: string;
+  status: string;
+  dueDate?: string;
+  assignedUserId?: string;
+  assignedDepartmentId?: string;
+  completedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  scheduledStartAt?: string;
+  scheduledEndAt?: string;
+  scheduleStatus?: string;
 }
 
 /** com.sme.onboarding.event.detail → response */
 export interface EventDetailResponse {
-  eventId: string;
+  eventInstanceId: string;
   eventTemplateId: string;
-  name: string;
-  content?: string;
-  description?: string;
+  eventAt: string;
+  sourceType?: "DEPARTMENT" | "USER_LIST" | "DEPARTMENT_PLUS_USERS" | string;
+  sourceDepartmentIds?: string[];
+  sourceUserIds?: string[];
+  participantUserIds?: string[];
   status: string;
-  scheduledAt?: string;
-  onboardingInstanceIds?: string[];
-  attendees?: EventAttendee[];
+  notifiedAt?: string;
+  createdBy?: string;
   createdAt?: string;
+  updatedAt?: string;
+  eventTemplate?: EventTemplateInfo;
+  checklist?: EventChecklistInfo;
+  tasks?: EventTaskItem[];
 }
 
 /** com.sme.onboarding.event.list → request */
 export interface EventListRequest {
-  onboardingInstanceId?: string;
   status?: string;
   page?: number;
   size?: number;
@@ -890,31 +933,218 @@ export interface EventListRequest {
 
 /** Single event instance in list */
 export interface EventListItem {
-  eventId: string;
-  name: string;
+  eventInstanceId: string;
+  eventTemplateId: string;
+  eventName?: string;
+  eventDescription?: string;
+  eventContent?: string;
+  eventTemplateStatus?: string;
+  eventAt: string;
+  sourceType?: string;
   status: string;
-  scheduledAt?: string;
-  attendeeCount?: number;
+  notifiedAt?: string;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 /** com.sme.onboarding.event.list → response */
 export interface EventListResponse {
   items: EventListItem[];
   totalCount: number;
-  page: number;
-  size: number;
 }
 
 /** com.sme.onboarding.event.attendance.summary → request */
 export interface EventAttendanceSummaryRequest {
-  eventId: string;
+  eventInstanceId: string;
+}
+
+export interface EventAttendanceAttendee {
+  userId: string;
+  fullName?: string;
+  attended: boolean;
+  doneTaskCount: number;
+  totalTaskCount: number;
 }
 
 /** com.sme.onboarding.event.attendance.summary → response */
 export interface EventAttendanceSummaryResponse {
-  eventId: string;
+  eventInstanceId: string;
   totalInvited: number;
-  totalAttended: number;
+  attendedCount: number;
+  notAttendedCount: number;
   attendanceRate: number;
-  attendees: EventAttendee[];
+  attendees: EventAttendanceAttendee[];
+}
+// ---------------------------
+// Event Templates
+// ---------------------------
+
+export interface EventTemplateListRequest {
+  status?: string;
+  keyword?: string;
+}
+
+export interface EventTemplateListItem {
+  eventTemplateId: string;
+  name: string;
+  content?: string;
+  description?: string;
+  status: string;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface EventTemplateListResponse {
+  totalCount: number;
+  items: EventTemplateListItem[];
+}
+
+export interface EventTemplateDetailRequest {
+  eventTemplateId: string;
+}
+
+export interface EventTemplateDetailResponse {
+  eventTemplateId: string;
+  name: string;
+  content?: string;
+  description?: string;
+  status: string;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// ---------------------------
+// Events / Company Shared Events
+// ---------------------------
+
+export interface EventPublishRequest {
+  eventTemplateId: string;
+  coverImageUrl?: string;
+  eventAt: string;
+  eventEndAt?: string;
+  departmentIds?: string[];
+  userIds?: string[];
+}
+
+export interface EventPublishResponse {
+  eventInstanceId: string;
+  eventTemplateId: string;
+  coverImageUrl?: string;
+  eventAt: string;
+  eventEndAt?: string;
+  taskCount: number;
+  participantUserIds: string[];
+}
+
+export interface EventDetailRequest {
+  eventInstanceId: string;
+  includeTasks?: boolean;
+}
+
+export interface EventTemplateInfo {
+  eventTemplateId: string;
+  name: string;
+  description?: string;
+  content?: string;
+  status: string;
+}
+
+export interface EventChecklistInfo {
+  checklistId: string;
+  name: string;
+  stage: string;
+  status: string;
+  progressPercent: number;
+  openAt?: string;
+  deadlineAt?: string;
+}
+
+export interface EventTaskItem {
+  taskId: string;
+  checklistId?: string;
+  title?: string;
+  description?: string;
+  status: string;
+  dueDate?: string;
+  assignedUserId?: string;
+  assignedDepartmentId?: string;
+  completedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  scheduledStartAt?: string;
+  scheduledEndAt?: string;
+  scheduleStatus?: string;
+}
+
+export interface EventDetailResponse {
+  eventInstanceId: string;
+  eventTemplateId: string;
+  coverImageUrl?: string;
+  eventAt: string;
+  eventEndAt?: string;
+  sourceType?: "DEPARTMENT" | "USER_LIST" | "DEPARTMENT_PLUS_USERS" | string;
+  sourceDepartmentIds?: string[];
+  sourceUserIds?: string[];
+  participantUserIds?: string[];
+  status: string;
+  notifiedAt?: string;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  eventTemplate?: EventTemplateInfo;
+  checklist?: EventChecklistInfo;
+  tasks?: EventTaskItem[];
+}
+
+export interface EventListRequest {
+  status?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface EventListItem {
+  eventInstanceId: string;
+  eventTemplateId: string;
+  coverImageUrl?: string;
+  eventName?: string;
+  eventDescription?: string;
+  eventContent?: string;
+  eventTemplateStatus?: string;
+  eventAt: string;
+  eventEndAt?: string;
+  sourceType?: string;
+  status: string;
+  notifiedAt?: string;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface EventListResponse {
+  totalCount: number;
+  items: EventListItem[];
+}
+
+export interface EventAttendanceSummaryRequest {
+  eventInstanceId: string;
+}
+
+export interface EventAttendanceAttendee {
+  userId: string;
+  fullName?: string;
+  attended: boolean;
+  doneTaskCount: number;
+  totalTaskCount: number;
+}
+
+export interface EventAttendanceSummaryResponse {
+  eventInstanceId: string;
+  totalInvited: number;
+  attendedCount: number;
+  notAttendedCount: number;
+  attendanceRate: number;
+  attendees: EventAttendanceAttendee[];
 }

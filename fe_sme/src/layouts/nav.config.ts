@@ -73,6 +73,16 @@ export const NAV_SECTIONS: NavSection[] = [
         requiredRoles: ["HR"],
       },
       {
+        titleKey: "nav.onboarding.company_event_templates",
+        to: "/onboarding/company-event-templates",
+        requiredRoles: ["HR"],
+      },
+      {
+        titleKey: "nav.onboarding.company_events",
+        to: "/onboarding/events",
+        requiredRoles: ["HR"],
+      },
+      {
         titleKey: "nav.onboarding.task_library",
         to: "/onboarding/task-library",
         requiredRoles: ["HR"],
