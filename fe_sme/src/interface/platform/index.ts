@@ -95,6 +95,7 @@ export interface PlatformCompanyDetailResponse {
 
 /** com.sme.onboarding.template.list */
 export interface PlatformTemplateListRequest {
+  keyword?: string;
   page?: number;
   size?: number;
   search?: string;

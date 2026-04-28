@@ -11,7 +11,14 @@ import type {
   CompanyTaskCompletionResponse,
   CreatePlatformTemplateRequest,
   CreatePlatformTemplateResponse,
-  PlatformTemplateListResponse,
+  PlatformTemplateDetailRequest,
+  PlatformTemplateDetailResponse,
+  UpdatePlatformTemplateRequest,
+  DeactivatePlatformTemplateRequest,
+  DeletePlatformTemplateRequest,
+  ActivatePlatformTemplateRequest,
+  DeletePlatformTemplateResponse,
+  ListPlatformTemplateResponse,
 } from "@/interface/admin";
 
 // ── Company Analytics ────────────────────────────────────────
@@ -52,17 +59,62 @@ export const apiGetCompanyTaskCompletion = (
     payload,
   );
 
-  export const apiCreatePlatformTemplate = (
+// ============================================================
+// Platform Global Onboarding Template
+// ============================================================
+
+export const apiCreatePlatformTemplate = (
   payload: CreatePlatformTemplateRequest,
 ) =>
   gatewayRequest<CreatePlatformTemplateRequest, CreatePlatformTemplateResponse>(
     "com.sme.platform.template.create",
     payload,
   );
- export const apiListPlatformTemplates = (
+
+export const apiListPlatformTemplates = (
   payload: PlatformTemplateListRequest,
 ) =>
-  gatewayRequest<PlatformTemplateListRequest, PlatformTemplateListResponse>(
+  gatewayRequest<PlatformTemplateListRequest, ListPlatformTemplateResponse>(
     "com.sme.platform.template.list",
+    payload,
+  );
+
+export const apiGetPlatformTemplateDetail = (
+  payload: PlatformTemplateDetailRequest,
+) =>
+  gatewayRequest<PlatformTemplateDetailRequest, PlatformTemplateDetailResponse>(
+    "com.sme.platform.template.detail",
+    payload,
+  );
+
+export const apiUpdatePlatformTemplate = (
+  payload: UpdatePlatformTemplateRequest,
+) =>
+  gatewayRequest<UpdatePlatformTemplateRequest, CreatePlatformTemplateResponse>(
+    "com.sme.platform.template.update",
+    payload,
+  );
+
+export const apiActivatePlatformTemplate = (
+  payload: ActivatePlatformTemplateRequest,
+) =>
+  gatewayRequest<ActivatePlatformTemplateRequest, CreatePlatformTemplateResponse>(
+    "com.sme.platform.template.activate",
+    payload,
+  );
+
+export const apiDeactivatePlatformTemplate = (
+  payload: DeactivatePlatformTemplateRequest,
+) =>
+  gatewayRequest<DeactivatePlatformTemplateRequest, CreatePlatformTemplateResponse>(
+    "com.sme.platform.template.deactivate",
+    payload,
+  );
+
+export const apiDeletePlatformTemplate = (
+  payload: DeletePlatformTemplateRequest,
+) =>
+  gatewayRequest<DeletePlatformTemplateRequest, DeletePlatformTemplateResponse>(
+    "com.sme.platform.template.delete",
     payload,
   );

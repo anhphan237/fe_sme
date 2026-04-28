@@ -3820,7 +3820,23 @@
   "platform.templates.stat_archived": "Đã lưu trữ",
   "platform.templates.empty_desc": "Tạo mẫu onboarding toàn cầu đầu tiên để các công ty có thể dùng lại.",
   "platform.templates.untitled": "Mẫu chưa đặt tên",
-  "platform.templates.general": "Chung"
+  "platform.templates.general": "Chung",
+  
+  "platform.templates.edit_page_title": "Chỉnh sửa mẫu onboarding",
+  "platform.templates.edit_page_subtitle": "Cập nhật thông tin, checklist và nhiệm vụ của mẫu onboarding toàn cầu.",
+  "platform.templates.update_btn": "Cập nhật mẫu",
+
+
+  "platform.templates.detail_error": "Không thể tải chi tiết mẫu.",
+  "platform.templates.activate": "Kích hoạt",
+  "platform.templates.deactivate": "Ngừng sử dụng",
+  "platform.templates.activate_success": "Kích hoạt mẫu thành công.",
+  "platform.templates.activate_error": "Không thể kích hoạt mẫu.",
+  "platform.templates.deactivate_success": "Đã ngừng sử dụng mẫu.",
+  "platform.templates.deactivate_error": "Không thể ngừng sử dụng mẫu.",
+  "platform.templates.delete_success": "Xóa mẫu thành công.",
+  "platform.templates.delete_error": "Không thể xóa mẫu.",
+  "platform.templates.delete_confirm": "Bạn có chắc muốn xóa mẫu này?"
 
   
 }

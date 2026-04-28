@@ -105,9 +105,6 @@ const PlatformTemplates = lazy(
 const MyActivity = lazy(() => import("@/pages/profile/MyActivity"));
 const Forbidden = lazy(() => import("@/pages/Forbidden"));
 const SurveySend = lazy(() => import("@/pages/surveys/SurveySendPage"));
-const PlatformTemplates = lazy(
-  () => import("@/pages/platform/admin/PlatformTemplateCreate"),
-);
 const PlatformTemplateList = lazy(
   () => import("@/pages/platform/admin/PlatformTemplateList"),
 );

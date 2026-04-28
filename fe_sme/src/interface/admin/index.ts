@@ -75,8 +75,7 @@ export interface CompanyTaskCompletionResponse {
 }
 
 // ============================================================
-// Platform Template
-// Operation: com.sme.platform.template.create
+// Platform Global Onboarding Template
 // ============================================================
 
 export type PlatformTemplateStatus = "DRAFT" | "ACTIVE" | "INACTIVE" | "ARCHIVED";
@@ -94,9 +93,14 @@ export type PlatformTemplateItemStatus = "ACTIVE" | "INACTIVE";
 export interface PlatformTemplateTaskCreateItem {
   title: string;
   description?: string;
+  ownerType?: string;
+  ownerRefId?: string | null;
+  dueDaysOffset?: number | null;
   requireAck: boolean;
   requireDoc: boolean;
+  requiredDocumentIds?: string[];
   requiresManagerApproval: boolean;
+  approverUserId?: string | null;
   sortOrder: number;
   status: PlatformTemplateItemStatus;
 }
@@ -123,11 +127,12 @@ export interface CreatePlatformTemplateRequest {
 export interface CreatePlatformTemplateResponse {
   templateId: string;
   name: string;
-  status: string;
+  status: PlatformTemplateStatus | string;
   templateKind: string;
   departmentTypeCode?: string;
   level?: string;
 }
+
 export interface PlatformTemplateListRequest {
   keyword?: string;
   status?: string;
@@ -139,7 +144,7 @@ export interface PlatformTemplateListItem {
   templateId: string;
   name: string;
   description?: string;
-  status: string;
+  status: PlatformTemplateStatus | string;
   templateKind?: string;
   departmentTypeCode?: string;
   level?: string;
@@ -150,9 +155,80 @@ export interface PlatformTemplateListItem {
   updatedAt?: string;
 }
 
-export interface PlatformTemplateListResponse {
+export interface ListPlatformTemplateResponse {
   items: PlatformTemplateListItem[];
   total: number;
   page?: number;
   size?: number;
+}
+
+export interface PlatformTemplateDetailRequest {
+  templateId: string;
+}
+
+export interface PlatformTemplateDetailTask {
+  checklistTemplateId?: string;
+  taskTemplateId: string;
+  title: string;
+  description?: string;
+  ownerType?: string;
+  ownerRefId?: string | null;
+  dueDaysOffset?: number | null;
+  requireAck: boolean;
+  requireDoc: boolean;
+  requiredDocumentIds?: string[];
+  requiresManagerApproval: boolean;
+  approverUserId?: string | null;
+  sortOrder: number;
+  status: string;
+}
+
+export interface PlatformTemplateDetailChecklist {
+  checklistTemplateId: string;
+  name: string;
+  stage: PlatformTemplateStage | string;
+  deadlineDays: number;
+  sortOrder: number;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+  tasks: PlatformTemplateDetailTask[];
+}
+
+export interface PlatformTemplateDetailResponse {
+  templateId: string;
+  name: string;
+  description?: string;
+  status: PlatformTemplateStatus | string;
+  templateKind: string;
+  departmentTypeCode?: string;
+  level?: string;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  checklistCount?: number;
+  taskCount?: number;
+  usedByCompanyCount?: number;
+  checklists: PlatformTemplateDetailChecklist[];
+}
+
+export interface UpdatePlatformTemplateRequest extends CreatePlatformTemplateRequest {
+  templateId: string;
+}
+
+export interface ActivatePlatformTemplateRequest {
+  templateId: string;
+}
+
+export interface DeactivatePlatformTemplateRequest {
+  templateId: string;
+}
+
+export interface DeletePlatformTemplateRequest {
+  templateId: string;
+}
+
+export interface DeletePlatformTemplateResponse {
+  templateId: string;
+  deleted: boolean;
 }
