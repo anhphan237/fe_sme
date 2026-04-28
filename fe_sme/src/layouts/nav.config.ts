@@ -202,6 +202,11 @@ export const NAV_SECTIONS: NavSection[] = [
         requiredRoles: ["ADMIN"],
       },
       {
+        titleKey: "nav.platform.onboarding_templates",
+        to: "/platform/admin/templates",
+        requiredRoles: ["ADMIN"],
+      },
+      {
         titleKey: "nav.platform.feedback",
         to: "/platform/admin/feedback",
         requiredRoles: ["ADMIN"],
