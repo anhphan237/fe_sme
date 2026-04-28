@@ -100,6 +100,16 @@ const PlatformBilling = lazy(
 );
 const Forbidden = lazy(() => import("@/pages/Forbidden"));
 const SurveySend = lazy(() => import("@/pages/surveys/SurveySendPage"));
+const PlatformTemplates = lazy(
+  () => import("@/pages/platform/admin/PlatformTemplateCreate"),
+);
+const PlatformTemplateList = lazy(
+  () => import("@/pages/platform/admin/PlatformTemplateList"),
+);
+
+const PlatformTemplateCreate = lazy(
+  () => import("@/pages/platform/admin/PlatformTemplateCreate"),
+);
 const PageSkeleton = () => (
   <div className="space-y-4 p-6">
     <Skeleton active paragraph={{ rows: 1 }} title={{ width: "33%" }} />
@@ -429,6 +439,19 @@ export const router = createBrowserRouter([
       {
         path: "/platform/admin/onboarding",
         element: suspense(withRoles(<PlatformOnboardingMonitor />, ["ADMIN"])),
+      },
+
+      {
+        path: "/platform/admin/templates",
+        element: suspense(withRoles(<PlatformTemplateList />, ["ADMIN"])),
+      },
+      {
+        path: "/platform/admin/templates/new",
+        element: suspense(withRoles(<PlatformTemplateCreate />, ["ADMIN"])),
+      },
+      {
+        path: "/platform/admin/templates/:templateId",
+        element: suspense(withRoles(<PlatformTemplateCreate />, ["ADMIN"])),
       },
       {
         path: "/platform/admin/feedback",

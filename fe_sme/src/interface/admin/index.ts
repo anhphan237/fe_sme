@@ -73,3 +73,86 @@ export interface CompanyTaskCompletionResponse {
   completionRate: number;
   [key: string]: unknown;
 }
+
+// ============================================================
+// Platform Template
+// Operation: com.sme.platform.template.create
+// ============================================================
+
+export type PlatformTemplateStatus = "DRAFT" | "ACTIVE" | "INACTIVE" | "ARCHIVED";
+export type PlatformTemplateKind = "ONBOARDING";
+export type PlatformTemplateStage =
+  | "PREBOARDING"
+  | "FIRST_DAY"
+  | "WEEK1"
+  | "MONTH1"
+  | "MONTH2"
+  | "CUSTOM";
+
+export type PlatformTemplateItemStatus = "ACTIVE" | "INACTIVE";
+
+export interface PlatformTemplateTaskCreateItem {
+  title: string;
+  description?: string;
+  requireAck: boolean;
+  requireDoc: boolean;
+  requiresManagerApproval: boolean;
+  sortOrder: number;
+  status: PlatformTemplateItemStatus;
+}
+
+export interface PlatformTemplateChecklistCreateItem {
+  name: string;
+  stage: PlatformTemplateStage;
+  deadlineDays: number;
+  sortOrder: number;
+  status: PlatformTemplateItemStatus;
+  tasks: PlatformTemplateTaskCreateItem[];
+}
+
+export interface CreatePlatformTemplateRequest {
+  name: string;
+  description?: string;
+  status: PlatformTemplateStatus;
+  createdBy?: string;
+  templateKind: PlatformTemplateKind;
+  departmentTypeCode?: string;
+  checklists: PlatformTemplateChecklistCreateItem[];
+}
+
+export interface CreatePlatformTemplateResponse {
+  templateId: string;
+  name: string;
+  status: string;
+  templateKind: string;
+  departmentTypeCode?: string;
+  level?: string;
+}
+export interface PlatformTemplateListRequest {
+  keyword?: string;
+  status?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface PlatformTemplateListItem {
+  templateId: string;
+  name: string;
+  description?: string;
+  status: string;
+  templateKind?: string;
+  departmentTypeCode?: string;
+  level?: string;
+  checklistCount?: number;
+  taskCount?: number;
+  usedByCompanyCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PlatformTemplateListResponse {
+  items: PlatformTemplateListItem[];
+  total: number;
+  page?: number;
+  size?: number;
+}

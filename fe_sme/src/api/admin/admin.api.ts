@@ -1,3 +1,4 @@
+import type { PlatformTemplateListRequest } from "@/interface/platform";
 import { gatewayRequest } from "../core/gateway";
 import type {
   CompanyOnboardingSummaryRequest,
@@ -8,6 +9,9 @@ import type {
   CompanyOnboardingByDepartmentResponse,
   CompanyTaskCompletionRequest,
   CompanyTaskCompletionResponse,
+  CreatePlatformTemplateRequest,
+  CreatePlatformTemplateResponse,
+  PlatformTemplateListResponse,
 } from "@/interface/admin";
 
 // ── Company Analytics ────────────────────────────────────────
@@ -45,5 +49,20 @@ export const apiGetCompanyTaskCompletion = (
 ) =>
   gatewayRequest<CompanyTaskCompletionRequest, CompanyTaskCompletionResponse>(
     "com.sme.analytics.company.task.completion",
+    payload,
+  );
+
+  export const apiCreatePlatformTemplate = (
+  payload: CreatePlatformTemplateRequest,
+) =>
+  gatewayRequest<CreatePlatformTemplateRequest, CreatePlatformTemplateResponse>(
+    "com.sme.platform.template.create",
+    payload,
+  );
+ export const apiListPlatformTemplates = (
+  payload: PlatformTemplateListRequest,
+) =>
+  gatewayRequest<PlatformTemplateListRequest, PlatformTemplateListResponse>(
+    "com.sme.platform.template.list",
     payload,
   );

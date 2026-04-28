@@ -1,4 +1,5 @@
 import type { Role } from "@/enums/Role";
+import type { PlatformTemplateItemStatus, PlatformTemplateStage, PlatformTemplateStatus, PlatformTemplateKind } from "@/interface/admin";
 export type { Role };
 
 export interface Tenant {
@@ -440,3 +441,36 @@ export interface AuthTokenPayload {
   company_id: string | null;
   roles: Role[];
 }
+export interface PlatformTemplateTaskForm {
+  title: string;
+  description?: string;
+  requireAck?: boolean;
+  requireDoc?: boolean;
+  requiresManagerApproval?: boolean;
+  sortOrder?: number;
+  status?: PlatformTemplateItemStatus;
+}
+
+export interface PlatformTemplateChecklistForm {
+  name: string;
+  stage: PlatformTemplateStage;
+  deadlineDays: number;
+  sortOrder?: number;
+  status?: PlatformTemplateItemStatus;
+  tasks: PlatformTemplateTaskForm[];
+}
+
+export interface PlatformTemplateFormValue {
+  name: string;
+  description?: string;
+  status: PlatformTemplateStatus;
+  templateKind: PlatformTemplateKind;
+  departmentTypeCode?: string;
+  checklists: PlatformTemplateChecklistForm[];
+}
+
+export type FormListField = {
+  key: number;
+  name: number;
+  fieldKey?: number;
+};
