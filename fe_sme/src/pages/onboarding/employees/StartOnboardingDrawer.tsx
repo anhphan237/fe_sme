@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
-import { DatePicker, Drawer, Select, Skeleton } from "antd";
+import { Alert, DatePicker, Drawer, Select, Skeleton } from "antd";
 import BaseButton from "@/components/button";
 import { notify } from "@/utils/notify";
 import { useLocale } from "@/i18n";
@@ -9,6 +9,7 @@ import {
   apiCreateInstance,
   apiActivateInstance,
   apiListTemplates,
+  apiListInstances,
 } from "@/api/onboarding/onboarding.api";
 import { extractList } from "@/api/core/types";
 import { mapTemplate } from "@/utils/mappers/onboarding";
@@ -35,6 +36,8 @@ export interface StartOnboardingDrawerProps {
   onCreated: (instanceId: string) => void;
   users: User[];
   defaultEmployeeId?: string;
+  /** Called when user clicks "View existing instance" on the duplicate warning banner */
+  onViewInstance?: (instanceId: string) => void;
 }
 
 interface CreatedInstance {
@@ -66,6 +69,7 @@ export const StartOnboardingDrawer = ({
   onCreated,
   users,
   defaultEmployeeId,
+  onViewInstance,
 }: StartOnboardingDrawerProps) => {
   const { t } = useLocale();
   const queryClient = useQueryClient();
@@ -73,6 +77,24 @@ export const StartOnboardingDrawer = ({
 
   const { data: templates = [], isLoading: templatesLoading } =
     useTemplatesQuery("ACTIVE");
+
+  // Pre-check: query active instances for the selected employee
+  const { data: activeInstanceData } = useQuery({
+    queryKey: ["instances", "active-check", form.employeeId],
+    queryFn: () =>
+      apiListInstances({ employeeId: form.employeeId, status: "ACTIVE" }),
+    enabled: Boolean(form.employeeId),
+    select: (res: unknown) => {
+      const raw = res as Record<string, unknown>;
+      const items = (raw?.items as unknown[]) ?? (raw?.data as unknown[]) ?? [];
+      return items as Array<{ instanceId: string; status: string }>;
+    },
+  });
+
+  const existingActiveInstance =
+    activeInstanceData && activeInstanceData.length > 0
+      ? activeInstanceData[0]
+      : null;
 
   const createInstance = useMutation({ mutationFn: apiCreateInstance });
 
@@ -114,6 +136,8 @@ export const StartOnboardingDrawer = ({
           instanceId: raw.instanceId,
           managerUserId: form.managerId,
           itStaffUserId: form.itStaffId || undefined,
+          // Pass expectedStartDate so tasks calculate dueDate = startDate + offset
+          expectedStartDate: form.startDate || undefined,
         });
       } catch (err) {
         notify.error(
@@ -129,19 +153,30 @@ export const StartOnboardingDrawer = ({
       handleClose();
       onCreated(raw.instanceId);
     } catch (err) {
-      notify.error(
-        err instanceof Error
-          ? err.message
-          : t("onboarding.employee.toast.create_failed"),
-      );
+      const message = err instanceof Error ? err.message : String(err ?? "");
+
+      // Friendly handling for duplicate-active-instance error from BE
+      if (
+        message.toLowerCase().includes("active onboarding") ||
+        message.toLowerCase().includes("already has") ||
+        (message.toLowerCase().includes("instance") &&
+          message.toLowerCase().includes("active"))
+      ) {
+        notify.error(t("onboarding.employee.error.duplicate_active"));
+      } else {
+        notify.error(message || t("onboarding.employee.toast.create_failed"));
+      }
     }
   };
 
+  const hasDuplicateActive = Boolean(existingActiveInstance);
+
   const isFormValid = Boolean(
     form.employeeId &&
-      form.templateId &&
-      form.managerId &&
-      (!form.startDate || !dayjs(form.startDate).isBefore(today)),
+    form.templateId &&
+    form.managerId &&
+    !hasDuplicateActive &&
+    (!form.startDate || !dayjs(form.startDate).isBefore(today)),
   );
 
   const employees = users.filter((u) => u.roles.includes("EMPLOYEE"));
@@ -194,6 +229,24 @@ export const StartOnboardingDrawer = ({
               placeholder="—"
               options={employees.map((u) => ({ value: u.id, label: u.name }))}
             />
+            {hasDuplicateActive && (
+              <Alert
+                type="warning"
+                showIcon
+                message={t("onboarding.employee.error.duplicate_active")}
+                action={
+                  onViewInstance ? (
+                    <BaseButton
+                      size="small"
+                      onClick={() =>
+                        onViewInstance(existingActiveInstance!.instanceId)
+                      }
+                      label="onboarding.employee.error.duplicate_active.view"
+                    />
+                  ) : undefined
+                }
+              />
+            )}
           </div>
 
           <div className="grid gap-1.5">

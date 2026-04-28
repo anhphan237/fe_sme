@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  Building2,
   CheckCircle2,
   Clock,
   Send,
@@ -20,12 +21,10 @@ import {
   Button,
   Card,
   Col,
-  DatePicker,
-  Divider,
-  Drawer,
   Empty,
   Input,
   Modal,
+  Pagination,
   Popconfirm,
   Progress,
   Row,
@@ -50,7 +49,7 @@ import {
   apiListInstances,
   apiListTasks,
   apiListTasksByAssignee,
-  apiListTaskComments,
+  apiGetTaskCommentTree,
   apiUpdateTaskStatus,
   apiAcknowledgeTask,
   apiApproveTask,
@@ -89,7 +88,9 @@ type StatusFilter =
   | "done"
   | "pending_approval"
   | "overdue"
-  | "mine";
+  | "mine"
+  | "today"
+  | "upcoming";
 type ViewMode = "list" | "timeline";
 type SortMode = "default" | "due_asc";
 
@@ -235,21 +236,36 @@ const useUpdateTaskStatus = () =>
 
 const useTaskCommentsQuery = (taskId?: string) =>
   useQuery({
-    queryKey: ["onboarding-task-comments", taskId ?? ""],
-    queryFn: () => apiListTaskComments(taskId!),
+    queryKey: ["onboarding-task-comment-tree", taskId ?? ""],
+    queryFn: () => apiGetTaskCommentTree(taskId!),
     enabled: Boolean(taskId),
     select: (res: unknown) => {
       const record = res as Record<string, unknown>;
-      const list = record?.comments ?? record?.data ?? [];
-      return (Array.isArray(list) ? list : []).map((item) => {
-        const c = item as Record<string, unknown>;
-        const content = String(c.content ?? c.message ?? "");
-        return {
-          ...(c as unknown as CommentResponse),
-          message: content,
-          content,
-        };
-      }) as CommentResponse[];
+      // Flatten tree roots into a flat CommentResponse[] preserving parentCommentId
+      const flattenNodes = (nodes: unknown[]): CommentResponse[] =>
+        nodes.flatMap((node) => {
+          const n = node as Record<string, unknown>;
+          const comment: CommentResponse = {
+            commentId: String(n.commentId ?? ""),
+            taskId: taskId ?? "",
+            authorId: String(n.createdBy ?? ""),
+            authorName: n.createdByName as string | undefined,
+            createdBy: String(n.createdBy ?? ""),
+            createdByName: n.createdByName as string | undefined,
+            content: String(n.content ?? ""),
+            message: String(n.content ?? ""),
+            createdAt: String(n.createdAt ?? ""),
+            parentCommentId: n.parentCommentId as string | undefined,
+          };
+          const children = Array.isArray(n.children) ? n.children : [];
+          return [comment, ...flattenNodes(children)];
+        });
+      const roots = Array.isArray(record?.roots)
+        ? record.roots
+        : Array.isArray((record as any)?.comments)
+          ? (record as any).comments
+          : [];
+      return flattenNodes(roots);
     },
   });
 
@@ -615,6 +631,18 @@ const TaskItem = ({
                 </Tag>
               </Tooltip>
             )}
+            {(task.ownerType === "DEPARTMENT" ||
+              (task.responsibleDepartmentIds?.length ?? 0) > 0) &&
+              !isDone && (
+                <Tooltip title={t("onboarding.task.flag.dept_checkpoint") ?? "Cần xác nhận phòng ban"}>
+                  <Tag
+                    color="purple"
+                    style={{ margin: 0, fontSize: 10, padding: "0 4px" }}>
+                    <Building2 className="mr-0.5 inline h-2.5 w-2.5" />
+                    Dept
+                  </Tag>
+                </Tooltip>
+              )}
 
             {task.rawStatus && <StatusBadge rawStatus={task.rawStatus} />}
 
@@ -1248,6 +1276,27 @@ const StageTimelineView = ({
                                 </Tag>
                               </Tooltip>
                             )}
+                            {(task.ownerType === "DEPARTMENT" ||
+                              (task.responsibleDepartmentIds?.length ?? 0) >
+                                0) && (
+                              <Tooltip
+                                title={
+                                  t(
+                                    "onboarding.task.flag.dept_checkpoint",
+                                  ) ?? "Cần xác nhận phòng ban"
+                                }>
+                                <Tag
+                                  color="purple"
+                                  style={{
+                                    margin: 0,
+                                    fontSize: 10,
+                                    padding: "0 4px",
+                                  }}>
+                                  <Building2 className="mr-0.5 inline h-2.5 w-2.5" />
+                                  Dept
+                                </Tag>
+                              </Tooltip>
+                            )}
                           </div>
                         )}
 
@@ -1367,6 +1416,8 @@ const Tasks = () => {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [keyword, setKeyword] = useState("");
+  const [taskPage, setTaskPage] = useState(1);
+  const TASK_PAGE_SIZE = 30;
   const [commentInput, setCommentInput] = useState("");
   const [uploadingFile, setUploadingFile] = useState(false);
   const [acknowledgedDocIds, setAcknowledgedDocIds] = useState<Set<string>>(
@@ -1551,11 +1602,18 @@ const Tasks = () => {
   );
 
   const addCommentMutation = useMutation({
-    mutationFn: ({ taskId, content }: { taskId: string; content: string }) =>
-      apiAddTaskComment(taskId, content),
+    mutationFn: ({
+      taskId,
+      content,
+      parentCommentId,
+    }: {
+      taskId: string;
+      content: string;
+      parentCommentId?: string;
+    }) => apiAddTaskComment({ taskId, content, parentCommentId }),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["onboarding-task-comments", selectedTaskId],
+        queryKey: ["onboarding-task-comment-tree", selectedTaskId],
       });
       setCommentInput("");
       notify.success(t("onboarding.task.comments.toast_added"));
@@ -1637,11 +1695,12 @@ const Tasks = () => {
     }
   };
 
-  const handleAddComment = () => {
+  const handleAddComment = (parentCommentId?: string) => {
     if (!selectedTaskId || !commentInput.trim()) return;
     addCommentMutation.mutate({
       taskId: selectedTaskId,
       content: commentInput.trim(),
+      parentCommentId,
     });
   };
 
@@ -1750,6 +1809,11 @@ const Tasks = () => {
   // ── Filtered tasks ────────────────────────────────────────────────────────
 
   const filteredTasks = useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
     return tasks.filter((task) => {
       const matchKeyword = task.title
         .toLowerCase()
@@ -1763,10 +1827,24 @@ const Tasks = () => {
         return (
           Boolean(task.dueDate) &&
           task.rawStatus !== STATUS_DONE_API &&
-          new Date(task.dueDate!) < new Date()
+          new Date(task.dueDate!) < now
         );
       if (statusFilter === "mine")
         return Boolean(userId) && task.assignedUserId === userId;
+      if (statusFilter === "today")
+        return (
+          Boolean(task.dueDate) &&
+          task.rawStatus !== STATUS_DONE_API &&
+          new Date(task.dueDate!) >= startOfToday &&
+          new Date(task.dueDate!) <= endOfToday
+        );
+      if (statusFilter === "upcoming")
+        return (
+          Boolean(task.dueDate) &&
+          task.rawStatus !== STATUS_DONE_API &&
+          new Date(task.dueDate!) > now &&
+          new Date(task.dueDate!) <= in7Days
+        );
       return task.status !== STATUS_DONE;
     });
   }, [tasks, keyword, statusFilter, userId]);
@@ -1782,9 +1860,15 @@ const Tasks = () => {
     [tasks, userId],
   );
 
+  // Paginated slice — reset to page 1 whenever filter/keyword changes
+  const paginatedTasks = useMemo(() => {
+    const start = (taskPage - 1) * TASK_PAGE_SIZE;
+    return filteredTasks.slice(start, start + TASK_PAGE_SIZE);
+  }, [filteredTasks, taskPage, TASK_PAGE_SIZE]);
+
   const grouped = useMemo(() => {
     const map = new Map<string, OnboardingTask[]>();
-    for (const task of filteredTasks) {
+    for (const task of paginatedTasks) {
       const key = task.checklistName ?? "Other";
       map.set(key, [...(map.get(key) ?? []), task]);
     }
@@ -1874,7 +1958,10 @@ const Tasks = () => {
             </p>
             <Segmented
               value={statusFilter}
-              onChange={(value) => setStatusFilter(value as StatusFilter)}
+              onChange={(value) => {
+                setStatusFilter(value as StatusFilter);
+                setTaskPage(1);
+              }}
               disabled={viewMode === "timeline"}
               options={[
                 {
@@ -1920,6 +2007,8 @@ const Tasks = () => {
                       },
                     ]
                   : []),
+                { label: "Hôm nay", value: "today" },
+                { label: "Sắp tới (7 ngày)", value: "upcoming" },
               ]}
             />
           </Col>
@@ -2117,6 +2206,20 @@ const Tasks = () => {
                 onReject={canManage ? handleInlineReject : undefined}
               />
             ))}
+            {filteredTasks.length > TASK_PAGE_SIZE && (
+              <div className="flex justify-center pt-2">
+                <Pagination
+                  current={taskPage}
+                  pageSize={TASK_PAGE_SIZE}
+                  total={filteredTasks.length}
+                  onChange={(p) => setTaskPage(p)}
+                  showTotal={(total, range) =>
+                    `${range[0]}–${range[1]} / ${total} task`
+                  }
+                  showSizeChanger={false}
+                />
+              </div>
+            )}
           </div>
         ) : (
           <Card>
@@ -2277,6 +2380,7 @@ const Tasks = () => {
                 reason: noShowReason || undefined,
               })
             }
+            onCheckpointConfirmed={invalidateTasks}
           />
         );
       })()}

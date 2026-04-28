@@ -106,6 +106,10 @@ export interface PlatformTemplateItem {
   name: string;
   description: string;
   status: string;
+  /** PLATFORM = global library; TENANT = company-owned */
+  level?: "PLATFORM" | "TENANT";
+  /** ONBOARDING or general task library */
+  templateKind?: "ONBOARDING" | "TASK_LIBRARY";
   checklistCount: number;
   taskCount: number;
   usedByCount: number;
@@ -120,10 +124,15 @@ export interface PlatformTemplateListResponse {
   size: number;
 }
 
-/** com.sme.onboarding.template.create */
+/** com.sme.platform.template.create */
 export interface PlatformTemplateCreateRequest {
   name: string;
   description?: string;
+  /** PLATFORM = global library; TENANT = company-owned. Defaults to PLATFORM for admin. */
+  level?: "PLATFORM" | "TENANT";
+  /** Template kind. Defaults to ONBOARDING. */
+  templateKind?: "ONBOARDING" | "TASK_LIBRARY";
+  departmentTypeCode?: string;
 }
 
 /** com.sme.onboarding.template.update */
@@ -140,6 +149,11 @@ export interface PlatformTemplatePublishRequest {
 
 /** pending backend implementation */
 export interface PlatformTemplateArchiveRequest {
+  templateId: string;
+}
+
+/** com.sme.platform.template.activate */
+export interface ActivatePlatformTemplateRequest {
   templateId: string;
 }
 
@@ -407,6 +421,10 @@ export interface PlatformSystemErrorLogResponse {
 
 /** com.sme.platform.system.activityLog */
 export interface PlatformSystemActivityLogRequest {
+  /** Optional — omit to default to caller's own userId (BE self-default) */
+  userId?: string;
+  fromTime?: string;
+  toTime?: string;
   page?: number;
   size?: number;
 }
@@ -528,7 +546,6 @@ export interface PlatformPaymentItem {
   createdAt?: string;
   paidAt?: string;
 }
-
 
 export interface PlatformPaymentListResponse {
   items: PlatformPaymentItem[];

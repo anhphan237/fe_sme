@@ -216,6 +216,11 @@ export const NAV_SECTIONS: NavSection[] = [
         to: "/platform/admin/system",
         requiredRoles: ["ADMIN"],
       },
+      {
+        titleKey: "nav.platform.templates",
+        to: "/platform/admin/templates",
+        requiredRoles: ["ADMIN"],
+      },
     ],
   },
 
