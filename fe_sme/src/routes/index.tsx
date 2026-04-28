@@ -133,7 +133,10 @@ const CompanyDetailRedirect = () => {
   const { companyId } = useParams<{ companyId: string }>();
   return <Navigate to={`/platform/admin/companies/${companyId}`} replace />;
 };
-
+const OnboardingEvents = lazy(() => import("@/pages/onboarding/events"));
+const CompanyEventTemplates = lazy(
+  () => import("@/pages/onboarding/events/company-event-templates.page"),
+);
 export const router = createBrowserRouter([
   {
     path: "/",
@@ -270,6 +273,15 @@ export const router = createBrowserRouter([
           withRoles(<OnboardingSchedule />, ["HR", "MANAGER", "EMPLOYEE"]),
         ),
       },
+      {
+        path: "/onboarding/events",
+        element: suspense(withRoles(<OnboardingEvents />, ["HR"])),
+      },
+      {
+        path: "/onboarding/company-event-templates",
+        element: suspense(withRoles(<CompanyEventTemplates />, ["HR"])),
+      },
+  
       {
         path: "/onboarding/my-journey",
         element: <Navigate to="/dashboard/employee" replace />,
