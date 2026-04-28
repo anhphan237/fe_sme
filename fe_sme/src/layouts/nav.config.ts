@@ -201,8 +201,8 @@ export const NAV_SECTIONS: NavSection[] = [
         to: "/platform/admin/onboarding",
         requiredRoles: ["ADMIN"],
       },
-      {
-        titleKey: "nav.platform.onboarding_templates",
+        {
+        titleKey: "nav.platform.templates",
         to: "/platform/admin/templates",
         requiredRoles: ["ADMIN"],
       },
@@ -214,11 +214,6 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         titleKey: "nav.platform.system",
         to: "/platform/admin/system",
-        requiredRoles: ["ADMIN"],
-      },
-      {
-        titleKey: "nav.platform.templates",
-        to: "/platform/admin/templates",
         requiredRoles: ["ADMIN"],
       },
     ],
