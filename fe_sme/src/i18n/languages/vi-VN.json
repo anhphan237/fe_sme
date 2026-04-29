@@ -4006,6 +4006,8 @@
   "onboarding.events.attendance.status_not_attended": "Chưa tham gia",
   "onboarding.events.attendance.done_task": "Task hoàn thành",
   "onboarding.events.attendance.total_task": "Tổng task",
-  "onboarding.events.attendance.empty": "Không có dữ liệu tham gia."
-  
+  "onboarding.events.attendance.empty": "Không có dữ liệu tham gia.",
+  "nav.events": "Sự kiện",
+  "nav.events.templates": "Mẫu sự kiện",
+  "nav.events.common": "Sự kiện chung"
 }

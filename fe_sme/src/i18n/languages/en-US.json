@@ -3891,6 +3891,9 @@
   "onboarding.events.attendance.status_not_attended": "Not attended",
   "onboarding.events.attendance.done_task": "Completed tasks",
   "onboarding.events.attendance.total_task": "Total tasks",
-  "onboarding.events.attendance.empty": "No attendance data."
+  "onboarding.events.attendance.empty": "No attendance data.",
+  "nav.events": "Events",
+  "nav.events.templates": "Event Templates",
+  "nav.events.common": "Company Events"
 
 }

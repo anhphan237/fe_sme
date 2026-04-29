@@ -19,7 +19,7 @@ export type UserOption = {
 
 export type RecordLike = Record<string, unknown>;
 
-export type ParticipantMode = "DEPARTMENT" | "USER";
+export type ParticipantMode = "DEPARTMENT" | "USER" | "MIXED";
 
 export type CompanyEventPublishRequest = {
   eventTemplateId: string;
@@ -195,3 +195,16 @@ export type CompanyEventAttendanceRow = NonNullable<
 >[number];
 
 export type GroupedUserSelectOption = DefaultOptionType;
+
+export type CompanyEventAttendanceConfirmRequest = {
+  eventInstanceId: string;
+};
+
+export type CompanyEventAttendanceConfirmResponse = {
+  eventInstanceId: string;
+  userId?: string;
+  taskId?: string;
+  attended: boolean;
+  status?: string;
+  confirmedAt?: string;
+};
