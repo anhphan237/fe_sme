@@ -46,27 +46,21 @@ const unwrapObject = (res: unknown): AnyObj => {
   return asObject(unwrapValue(res));
 };
 
-const getString = (
-  obj: AnyObj,
-  key: string,
-  fallback = "",
-): string => {
+const getString = (obj: AnyObj, key: string, fallback = ""): string => {
   const value = obj[key];
 
   if (value === null || value === undefined) return fallback;
   return String(value);
 };
 
-const getBoolean = (
-  obj: AnyObj,
-  key: string,
-  fallback = false,
-): boolean => {
+const getBoolean = (obj: AnyObj, key: string, fallback = false): boolean => {
   const value = obj[key];
 
   if (typeof value === "boolean") return value;
+
   if (typeof value === "string") {
     const normalized = value.toLowerCase();
+
     if (normalized === "true") return true;
     if (normalized === "false") return false;
   }
@@ -79,11 +73,7 @@ const toNumber = (value: unknown, fallback = 0): number => {
   return Number.isFinite(num) ? num : fallback;
 };
 
-const getNumber = (
-  obj: AnyObj,
-  key: string,
-  fallback = 0,
-): number => {
+const getNumber = (obj: AnyObj, key: string, fallback = 0): number => {
   return toNumber(obj[key], fallback);
 };
 
@@ -103,6 +93,21 @@ const getFirstNumber = (
   return fallback;
 };
 
+const getOptionalFirstNumber = (
+  obj: AnyObj,
+  keys: string[],
+): number | undefined => {
+  for (const key of keys) {
+    const value = obj[key];
+
+    if (value !== undefined && value !== null) {
+      return toNumber(value);
+    }
+  }
+
+  return undefined;
+};
+
 const getFirstString = (
   obj: AnyObj,
   keys: string[],
@@ -119,10 +124,7 @@ const getFirstString = (
   return fallback;
 };
 
-const getNestedObject = (
-  obj: AnyObj,
-  keys: string[],
-): AnyObj => {
+const getNestedObject = (obj: AnyObj, keys: string[]): AnyObj => {
   for (const key of keys) {
     const value = obj[key];
 
@@ -134,9 +136,44 @@ const getNestedObject = (
   return {};
 };
 
+const getFirstNestedObject = (sources: AnyObj[]): AnyObj => {
+  for (const source of sources) {
+    if (Object.keys(source).length > 0) return source;
+  }
+
+  return {};
+};
+
 const calcPercent = (used: number, limit: number): number => {
   if (!limit || limit <= 0) return 0;
   return Math.min(100, Math.max(0, Math.round((used / limit) * 100)));
+};
+
+const normalizeAlertLevel = (value: unknown): UsageMetric["status"] | undefined => {
+  const alert = String(value ?? "").toUpperCase();
+
+  if (alert === "WARNING") return "WARNING";
+  if (alert === "EXCEEDED") return "EXCEEDED";
+  if (alert === "LIMIT_EXCEEDED") return "EXCEEDED";
+  if (alert === "OVER_LIMIT") return "EXCEEDED";
+
+  return undefined;
+};
+
+const resolveUsageStatus = (params: {
+  used: number;
+  limit: number;
+  limitPercent: number;
+  alertLevel?: string;
+}): UsageMetric["status"] => {
+  const alertStatus = normalizeAlertLevel(params.alertLevel);
+
+  if (alertStatus) return alertStatus;
+  if (!params.limit || params.limit <= 0) return "OK";
+  if (params.limitPercent >= 100) return "EXCEEDED";
+  if (params.limitPercent >= 80) return "WARNING";
+
+  return "OK";
 };
 
 export const formatVnd = (amount?: number | null): string =>
@@ -165,6 +202,25 @@ export const formatBytes = (bytes?: number | null): string => {
   const fixed = size >= 10 || unitIndex === 0 ? 0 : 1;
   return `${size.toFixed(fixed)} ${units[unitIndex]}`;
 };
+export const formatStorageLimit = (params: {
+  bytes?: number | null;
+  mb?: number | null;
+  gb?: number | null;
+}): string => {
+  const gb = toNumber(params.gb);
+  const mb = toNumber(params.mb);
+  const bytes = toNumber(params.bytes);
+
+  if (gb >= 1) {
+    return `${Number.isInteger(gb) ? gb.toFixed(0) : gb.toFixed(1)} GB`;
+  }
+
+  if (mb > 0) {
+    return `${Number.isInteger(mb) ? mb.toFixed(0) : mb.toFixed(1)} MB`;
+  }
+
+  return formatBytes(bytes);
+};
 
 export const INVOICE_STATUS_MAP: Record<string, Invoice["status"]> = {
   DRAFT: "Draft",
@@ -172,25 +228,6 @@ export const INVOICE_STATUS_MAP: Record<string, Invoice["status"]> = {
   PAID: "Paid",
   VOID: "Void",
   OVERDUE: "Overdue",
-};
-
-const normalizeUsageStatus = (
-  used: number,
-  limit: number,
-  alertLevel?: string,
-): UsageMetric["status"] => {
-  const normalizedAlert = String(alertLevel ?? "").toUpperCase();
-
-  if (normalizedAlert === "EXCEEDED") return "EXCEEDED";
-  if (normalizedAlert === "WARNING") return "WARNING";
-  if (!limit || limit <= 0) return "OK";
-
-  const percent = Math.round((used / limit) * 100);
-
-  if (percent >= 100) return "EXCEEDED";
-  if (percent >= 80) return "WARNING";
-
-  return "OK";
 };
 
 const parseBackendFeatures = (value: unknown): string[] => {
@@ -214,7 +251,7 @@ const parseBackendFeatures = (value: unknown): string[] => {
     .filter(Boolean);
 };
 
-// ── Mappers ─────────────────────────────────────────────────
+// ── Plan Mapper ──────────────────────────────────────────────
 
 export const mapPlan = (input: unknown): BillingPlan => {
   const p = unwrapObject(input);
@@ -227,10 +264,36 @@ export const mapPlan = (input: unknown): BillingPlan => {
   const onboardingTemplateLimit = getNumber(p, "onboardingTemplateLimit");
   const eventTemplateLimit = getNumber(p, "eventTemplateLimit");
   const documentLimit = getNumber(p, "documentLimit");
+
   const storageLimitBytes = getNumber(p, "storageLimitBytes");
+  const storageLimitMb = getNumber(p, "storageLimitMb");
+  const storageLimitGb = getNumber(p, "storageLimitGb");
+
+  const storageLimitText = formatStorageLimit({
+    bytes: storageLimitBytes,
+    mb: storageLimitMb,
+    gb: storageLimitGb,
+  });
 
   const priceRaw = getNumber(p, "priceVndMonthly");
   const priceYearlyRaw = getNumber(p, "priceVndYearly");
+
+  const backendFeatures = parseBackendFeatures(p.features);
+
+  const quotaFeatures = [
+    employeeLimit > 0 ? `Tối đa ${employeeLimit} nhân viên mỗi tháng` : "",
+    onboardingTemplateLimit > 0
+      ? `Tối đa ${onboardingTemplateLimit} onboarding templates`
+      : "",
+    eventTemplateLimit > 0
+      ? `Tối đa ${eventTemplateLimit} event templates`
+      : "",
+    documentLimit > 0 ? `Tối đa ${documentLimit} tài liệu` : "",
+    storageLimitBytes > 0 || storageLimitMb > 0 || storageLimitGb > 0
+      ? `Dung lượng ${storageLimitText}`
+      : "",
+    priceYearlyRaw > 0 ? `Gói năm: ${formatVnd(priceYearlyRaw)}` : "",
+  ].filter(Boolean);
 
   return {
     id: getFirstString(p, ["planId", "id"]),
@@ -247,15 +310,15 @@ export const mapPlan = (input: unknown): BillingPlan => {
     onboardingTemplateLimit,
     eventTemplateLimit,
     documentLimit,
+
     storageLimitBytes,
-    storageLimitText: formatBytes(storageLimitBytes),
+    storageLimitMb,
+    storageLimitGb,
+    storageLimitText,
 
-    limits:
-      employeeLimit > 0
-        ? `Tối đa ${employeeLimit} nhân viên/tháng`
-        : "",
+    limits: employeeLimit > 0 ? `Tối đa ${employeeLimit} nhân viên/tháng` : "",
 
-    features: [],
+    features: Array.from(new Set([...backendFeatures, ...quotaFeatures])),
     current: false,
     recommended: getBoolean(p, "recommended"),
   };
@@ -264,19 +327,22 @@ export const mapPlan = (input: unknown): BillingPlan => {
 export const mapCurrentPlan = (input: unknown): BillingPlan | null => {
   const data = unwrapObject(input);
 
-  const rawPlan =
-    data.plan ??
-    data.currentPlan ??
-    data.activePlan ??
-    getNestedObject(data, ["subscription"]).plan ??
-    data;
+  const subscription = getNestedObject(data, ["subscription"]);
 
-  const planObject = asObject(rawPlan);
+  const rawPlan = getFirstNestedObject([
+    asObject(data.plan),
+    asObject(data.currentPlan),
+    asObject(data.activePlan),
+    asObject(subscription.plan),
+    data,
+  ]);
 
-  if (Object.keys(planObject).length === 0) return null;
+  if (Object.keys(rawPlan).length === 0) return null;
 
-  return mapPlan(planObject);
+  return mapPlan(rawPlan);
 };
+
+// ── Invoice Mapper ───────────────────────────────────────────
 
 export const mapInvoice = (input: unknown): Invoice => {
   const inv = unwrapObject(input);
@@ -310,6 +376,8 @@ export const mapInvoice = (input: unknown): Invoice => {
   };
 };
 
+// ── Usage Mapper ─────────────────────────────────────────────
+
 const makeUsageMetric = (params: {
   key: string;
   label: string;
@@ -319,13 +387,19 @@ const makeUsageMetric = (params: {
   unit?: UsageMetric["unit"];
   description?: string;
   alertLevel?: string;
+  limitPercent?: number;
 }): UsageMetric => {
-  const percent = calcPercent(params.used, params.limit);
-  const status = normalizeUsageStatus(
-    params.used,
-    params.limit,
-    params.alertLevel,
-  );
+  const percent =
+    typeof params.limitPercent === "number"
+      ? Math.min(100, Math.max(0, params.limitPercent))
+      : calcPercent(params.used, params.limit);
+
+  const status = resolveUsageStatus({
+    used: params.used,
+    limit: params.limit,
+    limitPercent: percent,
+    alertLevel: params.alertLevel,
+  });
 
   return {
     key: params.key,
@@ -357,6 +431,7 @@ const mapUsageArrayItem = (item: unknown): UsageMetric => {
     unit: getString(m, "unit") || undefined,
     description: getString(m, "description") || undefined,
     alertLevel: getString(m, "alertLevel") || undefined,
+    limitPercent: getOptionalFirstNumber(m, ["limitPercent", "percent"]),
   });
 };
 
@@ -382,19 +457,15 @@ export const mapUsage = (input: unknown): UsageMetric[] => {
 
   const usage = isObject(usageRaw) ? usageRaw : data;
 
-  const plan =
-    getNestedObject(data, ["plan", "currentPlan", "activePlan"]) ||
-    getNestedObject(getNestedObject(data, ["subscription"]), ["plan"]);
+  const subscription = getNestedObject(data, ["subscription"]);
 
-  const fallbackPlan =
-    Object.keys(plan).length > 0
-      ? plan
-      : data;
+  const plan = getFirstNestedObject([
+    getNestedObject(data, ["plan", "currentPlan", "activePlan"]),
+    getNestedObject(subscription, ["plan"]),
+    data,
+  ]);
 
-  const month =
-    getString(data, "month") ||
-    getString(usage, "month") ||
-    undefined;
+  const month = getString(data, "month") || getString(usage, "month") || undefined;
 
   const employeeUsed =
     typeof data.currentUsage === "number" || typeof data.currentUsage === "string"
@@ -412,69 +483,101 @@ export const mapUsage = (input: unknown): UsageMetric[] => {
       key: "employee",
       label: "Employees onboarded",
       used: employeeUsed,
-      limit: getFirstNumber(fallbackPlan, [
-        "employeeLimitPerMonth",
-        "employeeLimit",
-      ]),
+      limit: getFirstNumber(plan, ["employeeLimitPerMonth", "employeeLimit"]),
       month,
       description: "Số nhân viên đã tạo onboarding trong tháng hiện tại",
       alertLevel: getString(data, "alertLevel") || undefined,
+      limitPercent: getOptionalFirstNumber(data, ["limitPercent"]),
     }),
 
     makeUsageMetric({
       key: "onboarding_template",
       label: "Onboarding templates",
       used: getFirstNumber(usage, [
+        "currentOnboardingTemplateCount",
         "onboardingTemplateCount",
         "usedOnboardingTemplateCount",
         "onboardingTemplateUsed",
       ]),
-      limit: getNumber(fallbackPlan, "onboardingTemplateLimit"),
+      limit: getFirstNumber(plan, [
+        "onboardingTemplateLimit",
+        "maxOnboardingTemplateCount",
+      ]),
       month,
       description: "Số mẫu onboarding đã tạo so với giới hạn gói",
+      alertLevel:
+        getString(data, "onboardingTemplateAlertLevel") ||
+        getString(usage, "onboardingTemplateAlertLevel") ||
+        undefined,
+      limitPercent: getOptionalFirstNumber(data, [
+        "onboardingTemplateLimitPercent",
+      ]),
     }),
 
     makeUsageMetric({
       key: "event_template",
       label: "Event templates",
       used: getFirstNumber(usage, [
+        "currentEventTemplateCount",
         "eventTemplateCount",
         "usedEventTemplateCount",
         "eventTemplateUsed",
       ]),
-      limit: getNumber(fallbackPlan, "eventTemplateLimit"),
+      limit: getFirstNumber(plan, [
+        "eventTemplateLimit",
+        "maxEventTemplateCount",
+      ]),
       month,
       description: "Số mẫu sự kiện đã tạo so với giới hạn gói",
+      alertLevel:
+        getString(data, "eventTemplateAlertLevel") ||
+        getString(usage, "eventTemplateAlertLevel") ||
+        undefined,
+      limitPercent: getOptionalFirstNumber(data, ["eventTemplateLimitPercent"]),
     }),
 
     makeUsageMetric({
       key: "document",
       label: "Documents",
       used: getFirstNumber(usage, [
+        "currentDocumentCount",
         "documentCount",
         "usedDocumentCount",
         "documentUsed",
       ]),
-      limit: getNumber(fallbackPlan, "documentLimit"),
+      limit: getFirstNumber(plan, ["documentLimit", "maxDocumentCount"]),
       month,
       description: "Số tài liệu đã upload vào hệ thống",
+      alertLevel:
+        getString(data, "documentAlertLevel") ||
+        getString(usage, "documentAlertLevel") ||
+        undefined,
+      limitPercent: getOptionalFirstNumber(data, ["documentLimitPercent"]),
     }),
 
     makeUsageMetric({
       key: "storage",
       label: "Storage",
       used: getFirstNumber(usage, [
+        "currentStorageBytes",
         "storageUsedBytes",
         "usedStorageBytes",
         "storageBytesUsed",
       ]),
-      limit: getNumber(fallbackPlan, "storageLimitBytes"),
+      limit: getFirstNumber(plan, ["storageLimitBytes", "maxStorageBytes"]),
       month,
       unit: "bytes",
       description: "Dung lượng file/tài liệu đã sử dụng",
+      alertLevel:
+        getString(data, "storageAlertLevel") ||
+        getString(usage, "storageAlertLevel") ||
+        undefined,
+      limitPercent: getOptionalFirstNumber(data, ["storageLimitPercent"]),
     }),
   ];
 };
+
+// ── Payment Provider Mapper ─────────────────────────────────
 
 export const mapProvider = (input: unknown): PaymentProvider => {
   const p = unwrapObject(input);
@@ -520,6 +623,8 @@ export const mapTransaction = (input: unknown): PaymentTransaction => {
     companyId: getString(t, "companyId") || null,
   };
 };
+
+// ── Subscription Mapper ──────────────────────────────────────
 
 export const mapSubscription = (input: unknown): Subscription => {
   const s = unwrapObject(input);

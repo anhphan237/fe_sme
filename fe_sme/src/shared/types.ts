@@ -340,7 +340,10 @@ export interface BillingPlan {
   onboardingTemplateLimit: number;
   eventTemplateLimit: number;
   documentLimit: number;
+
   storageLimitBytes: number;
+  storageLimitMb?: number;
+  storageLimitGb?: number;
   storageLimitText?: string;
 
   limits?: string;
