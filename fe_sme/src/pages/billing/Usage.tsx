@@ -23,25 +23,11 @@ const isUnlimitedMetric = (metric: UsageMetric) =>
 const getMetricIcon = (key?: string) => {
   const normalizedKey = String(key ?? "").toLowerCase();
 
-  if (normalizedKey.includes("employee")) {
-    return <Users className="h-5 w-5" />;
-  }
-
-  if (normalizedKey.includes("onboarding")) {
-    return <Sparkles className="h-5 w-5" />;
-  }
-
-  if (normalizedKey.includes("event")) {
-    return <CheckCircle2 className="h-5 w-5" />;
-  }
-
-  if (normalizedKey.includes("document")) {
-    return <FileText className="h-5 w-5" />;
-  }
-
-  if (normalizedKey.includes("storage")) {
-    return <Database className="h-5 w-5" />;
-  }
+  if (normalizedKey.includes("employee")) return <Users className="h-5 w-5" />;
+  if (normalizedKey.includes("onboarding")) return <Sparkles className="h-5 w-5" />;
+  if (normalizedKey.includes("event")) return <CheckCircle2 className="h-5 w-5" />;
+  if (normalizedKey.includes("document")) return <FileText className="h-5 w-5" />;
+  if (normalizedKey.includes("storage")) return <Database className="h-5 w-5" />;
 
   return <Gauge className="h-5 w-5" />;
 };
@@ -58,10 +44,7 @@ const getMetricI18nKey = (metric: UsageMetric) => {
   return "unknown";
 };
 
-const getMetricLabel = (
-  metric: UsageMetric,
-  t: (key: string) => string,
-) => {
+const getMetricLabel = (metric: UsageMetric, t: (key: string) => string) => {
   const key = getMetricI18nKey(metric);
 
   if (key === "unknown") return metric.label;
@@ -143,10 +126,7 @@ const formatMetricLimit = (
   return formatMetricValue(metric, metric.limit);
 };
 
-const getStatusTag = (
-  metric: UsageMetric,
-  t: (key: string) => string,
-) => {
+const getStatusTag = (metric: UsageMetric, t: (key: string) => string) => {
   const status = getMetricStatus(metric);
 
   if (isUnlimitedMetric(metric)) {
@@ -352,9 +332,7 @@ const UsageHealthChart = ({
             <p className="mt-1 text-xl font-semibold text-green-700">
               {okCount}
             </p>
-            <p className="text-xs text-green-700">
-              {t("billing.usage.ok")}
-            </p>
+            <p className="text-xs text-green-700">{t("billing.usage.ok")}</p>
           </div>
 
           <div className="rounded-xl bg-amber-50 p-3 text-center">

@@ -72,7 +72,10 @@ function getPlanAction(
   return selectedPrice >= currentPrice ? "upgrade" : "downgrade";
 }
 
-function getStatusCfg(rawStatus: string, t: (key: string) => string): StatusCfg {
+function getStatusCfg(
+  rawStatus: string,
+  t: (key: string) => string,
+): StatusCfg {
   const map: Record<string, StatusCfg> = {
     ACTIVE: {
       label: t("billing.plan.status.active"),
@@ -156,9 +159,10 @@ const getQuotaItems = (plan: BillingPlan, t: (key: string) => string) => [
     icon: <Database className="h-4 w-4" />,
     label: t("billing.plan.storage"),
     value:
-      plan.storageLimitBytes > 0
+      plan.storageLimitText ||
+      (plan.storageLimitBytes > 0
         ? formatBytes(plan.storageLimitBytes)
-        : t("billing.plan.unlimited"),
+        : t("billing.plan.unlimited")),
   },
 ];
 
@@ -349,7 +353,12 @@ const PlanCard = ({
   t: (key: string) => string;
 }) => {
   const quotaItems = getQuotaItems(plan, t);
-  const action = getPlanAction(plan, currentPlan, hasSubscription, billingCycle);
+  const action = getPlanAction(
+    plan,
+    currentPlan,
+    hasSubscription,
+    billingCycle,
+  );
 
   const displayPrice =
     billingCycle === "YEARLY" && plan.priceYearlyRaw > 0
@@ -633,8 +642,7 @@ const BillingPlan = () => {
               t,
             );
           },
-          onError: (error) =>
-            notify.error(`Failed: ${getErrorMessage(error)}`),
+          onError: (error) => notify.error(`Failed: ${getErrorMessage(error)}`),
         },
       );
 
@@ -659,15 +667,16 @@ const BillingPlan = () => {
               t,
             );
           },
-          onError: (error) =>
-            notify.error(`Failed: ${getErrorMessage(error)}`),
+          onError: (error) => notify.error(`Failed: ${getErrorMessage(error)}`),
         },
       );
 
       return;
     }
 
-    notify.warning("No company selected. Please switch tenant or contact support.");
+    notify.warning(
+      "No company selected. Please switch tenant or contact support.",
+    );
   };
 
   return (

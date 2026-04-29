@@ -4054,4 +4054,5 @@
   "billing.usage.metric.document.description": "Số tài liệu đã upload vào hệ thống",
   "billing.usage.metric.storage": "Dung lượng",
   "billing.usage.metric.storage.description": "Dung lượng file/tài liệu đã sử dụng"
+  
 }
