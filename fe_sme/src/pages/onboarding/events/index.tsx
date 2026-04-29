@@ -67,16 +67,14 @@ export default function CompanyEventsPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string>();
-  const [selectedCalendarDate, setSelectedCalendarDate] = useState<Dayjs>(
-    dayjs(),
-  );
+  const [selectedCalendarDate, setSelectedCalendarDate] =
+    useState<Dayjs>(dayjs());
   const [calendarTouched, setCalendarTouched] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
 
-  const selectedTemplateId = Form.useWatch(
-    "eventTemplateId",
-    publishForm,
-  ) as string | undefined;
+  const selectedTemplateId = Form.useWatch("eventTemplateId", publishForm) as
+    | string
+    | undefined;
 
   const eventsQuery = useQuery({
     queryKey: COMPANY_EVENT_QUERY_KEY,
@@ -165,11 +163,14 @@ export default function CompanyEventsPage() {
     },
   });
 
-  const eventListData = eventsQuery.data as CompanyEventListResponse | undefined;
+  const eventListData = eventsQuery.data as
+    | CompanyEventListResponse
+    | undefined;
   const events = eventListData?.items ?? [];
 
-  const eventTemplateListData =
-    eventTemplatesQuery.data as CompanyEventTemplateListResponse | undefined;
+  const eventTemplateListData = eventTemplatesQuery.data as
+    | CompanyEventTemplateListResponse
+    | undefined;
 
   const eventTemplates = eventTemplateListData?.items ?? [];
 
@@ -328,38 +329,27 @@ export default function CompanyEventsPage() {
       return;
     }
 
-    const participantMode = values.participantMode ?? "DEPARTMENT";
+    const departmentIds = values.departmentIds ?? [];
+    const userIds = values.userIds ?? [];
 
-    const departmentIds =
-      participantMode === "DEPARTMENT" ? values.departmentIds ?? [] : [];
-
-    const userIds = participantMode === "USER" ? values.userIds ?? [] : [];
-
-    if (participantMode === "DEPARTMENT" && departmentIds.length === 0) {
-      message.error("Vui lòng chọn ít nhất một phòng ban");
+    if (departmentIds.length === 0 && userIds.length === 0) {
+      message.error("Vui lòng chọn ít nhất một phòng ban hoặc một nhân viên");
       return;
     }
 
-    if (participantMode === "USER" && userIds.length === 0) {
-      message.error("Vui lòng chọn ít nhất một nhân viên");
-      return;
-    }
+    const validUserIdSet = new Set(users.map((user) => user.value));
 
-    if (participantMode === "USER") {
-      const validUserIdSet = new Set(users.map((user) => user.value));
+    const invalidUserIds = userIds.filter(
+      (userId) => !validUserIdSet.has(userId),
+    );
 
-      const invalidUserIds = userIds.filter(
-        (userId) => !validUserIdSet.has(userId),
+    if (invalidUserIds.length > 0) {
+      message.error(
+        `Có nhân viên không hợp lệ hoặc không còn ACTIVE: ${invalidUserIds.join(
+          ", ",
+        )}`,
       );
-
-      if (invalidUserIds.length > 0) {
-        message.error(
-          `Có nhân viên không hợp lệ hoặc không còn ACTIVE: ${invalidUserIds.join(
-            ", ",
-          )}`,
-        );
-        return;
-      }
+      return;
     }
 
     let coverImageUrl = values.coverImageUrl?.trim();
@@ -402,14 +392,18 @@ export default function CompanyEventsPage() {
         onRefresh={() => eventsQuery.refetch()}
         onCreateTemplate={() => setTemplateDrawerOpen(true)}
         onCreateEvent={() => setPublishDrawerOpen(true)}
-        onOpenTemplatePage={() => navigate("/onboarding/company-event-templates")}
+        onOpenTemplatePage={() =>
+          navigate("/onboarding/company-event-templates")
+        }
       />
 
       <EventStatsCards
         totalEvents={events.length}
         todayCount={todayCount}
         upcomingCount={upcomingCount}
-        templateCount={eventTemplateListData?.totalCount ?? eventTemplates.length}
+        templateCount={
+          eventTemplateListData?.totalCount ?? eventTemplates.length
+        }
       />
 
       <EventCalendarSection

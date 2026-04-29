@@ -3,6 +3,7 @@ import {
   Bell,
   Bot,
   Briefcase,
+  CalendarDays,
   ClipboardCheck,
   FileText,
   Gauge,
@@ -72,16 +73,7 @@ export const NAV_SECTIONS: NavSection[] = [
         to: "/onboarding/templates",
         requiredRoles: ["HR"],
       },
-      {
-        titleKey: "nav.onboarding.company_event_templates",
-        to: "/onboarding/company-event-templates",
-        requiredRoles: ["HR"],
-      },
-      {
-        titleKey: "nav.onboarding.company_events",
-        to: "/onboarding/events",
-        requiredRoles: ["HR"],
-      },
+   
       {
         titleKey: "nav.onboarding.task_library",
         to: "/onboarding/task-library",
@@ -101,6 +93,28 @@ export const NAV_SECTIONS: NavSection[] = [
         titleKey: "nav.onboarding.schedule",
         to: "/onboarding/schedule",
         requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
+      },
+    ],
+  },
+  {
+    titleKey: "nav.events",
+    icon: CalendarDays,
+    requiredRoles: ["HR", "MANAGER", "EMPLOYEE", "IT"],
+    children: [
+      {
+        titleKey: "nav.events.templates",
+        to: "/events/templates",
+        requiredRoles: ["HR"],
+      },
+      {
+        titleKey: "nav.events.common",
+        to: "/events/common",
+        requiredRoles: ["HR"],
+      },
+      {
+        titleKey: "nav.events.common",
+        to: "/events/my-events",
+        requiredRoles: ["EMPLOYEE", "MANAGER", "IT"],
       },
     ],
   },

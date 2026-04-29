@@ -1,5 +1,7 @@
 import { gatewayRequest } from "@/api/core/gateway";
 import type {
+  CompanyEventAttendanceConfirmRequest,
+  CompanyEventAttendanceConfirmResponse,
   CompanyEventAttendanceSummaryRequest,
   CompanyEventAttendanceSummaryResponse,
   CompanyEventDetailRequest,
@@ -35,3 +37,10 @@ export const apiCompanyEventAttendanceSummary = (
     CompanyEventAttendanceSummaryRequest,
     CompanyEventAttendanceSummaryResponse
   >("com.sme.onboarding.event.attendance.summary", payload);
+export const apiCompanyEventAttendanceConfirm = (
+  payload: CompanyEventAttendanceConfirmRequest,
+) =>
+  gatewayRequest<
+    CompanyEventAttendanceConfirmRequest,
+    CompanyEventAttendanceConfirmResponse
+  >("com.sme.onboarding.event.attendance.confirm", payload);

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
 import type { FormInstance } from "antd/es/form";
@@ -14,7 +14,6 @@ import {
   Form,
   Image,
   Input,
-  Radio,
   Select,
   Space,
   Typography,
@@ -26,7 +25,6 @@ import { Building2, ImagePlus, Trash2, UploadCloud, Users } from "lucide-react";
 import type { CompanyEventTemplateListItem } from "../company-event-template.types";
 import type {
   DepartmentOption,
-  ParticipantMode,
   PublishCompanyEventFormValues,
   UserOption,
 } from "../event.types";
@@ -94,13 +92,29 @@ const disabledEndTime = (current?: Dayjs | null, startAt?: Dayjs) => {
   };
 };
 
-const buildGroupedUserOptions = (users: UserOption[]): DefaultOptionType[] => {
-  const grouped = new Map<string, UserOption[]>();
+const buildGroupedUserOptions = (
+  users: UserOption[],
+  selectedDepartmentIdSet: Set<string>,
+): DefaultOptionType[] => {
+  const grouped = new Map<string, DefaultOptionType[]>();
 
   users.forEach((user) => {
     const groupName = user.departmentName || "Chưa có phòng ban";
+
+    const isIncludedByDepartment = Boolean(
+      user.departmentId && selectedDepartmentIdSet.has(user.departmentId),
+    );
+
     const current = grouped.get(groupName) ?? [];
-    current.push(user);
+
+    current.push({
+      label: isIncludedByDepartment
+        ? `${user.label} · Đã bao gồm theo phòng ban`
+        : user.label,
+      value: user.value,
+      disabled: isIncludedByDepartment,
+    });
+
     grouped.set(groupName, current);
   });
 
@@ -128,13 +142,17 @@ export default function EventPublishDrawer({
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string>();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
 
-  const participantMode =
-    (Form.useWatch("participantMode", form) as ParticipantMode | undefined) ??
-    "DEPARTMENT";
-
   const eventStartAt = Form.useWatch("eventStartAt", form) as
     | Dayjs
     | undefined;
+
+  const selectedDepartmentIds =
+    (Form.useWatch("departmentIds", form) as string[] | undefined) ?? [];
+
+  const selectedDepartmentIdSet = useMemo(
+    () => new Set(selectedDepartmentIds),
+    [selectedDepartmentIds],
+  );
 
   const selectedFilterDepartmentIds =
     (Form.useWatch("userDepartmentFilterIds", form) as string[] | undefined) ??
@@ -157,9 +175,34 @@ export default function EventPublishDrawer({
   }, [selectedFilterDepartmentIds, users]);
 
   const userOptions = useMemo(
-    () => buildGroupedUserOptions(filteredUsers),
-    [filteredUsers],
+    () => buildGroupedUserOptions(filteredUsers, selectedDepartmentIdSet),
+    [filteredUsers, selectedDepartmentIdSet],
   );
+
+  useEffect(() => {
+    const currentUserIds =
+      (form.getFieldValue("userIds") as string[] | undefined) ?? [];
+
+    if (currentUserIds.length === 0 || selectedDepartmentIds.length === 0) {
+      return;
+    }
+
+    const userById = new Map(users.map((user) => [user.value, user]));
+
+    const nextUserIds = currentUserIds.filter((userId) => {
+      const user = userById.get(userId);
+
+      if (!user?.departmentId) {
+        return true;
+      }
+
+      return !selectedDepartmentIdSet.has(user.departmentId);
+    });
+
+    if (nextUserIds.length !== currentUserIds.length) {
+      form.setFieldValue("userIds", nextUserIds);
+    }
+  }, [form, selectedDepartmentIds, selectedDepartmentIdSet, users]);
 
   const resetCoverState = () => {
     if (coverPreviewUrl) {
@@ -175,13 +218,6 @@ export default function EventPublishDrawer({
   const handleClose = () => {
     resetCoverState();
     onClose();
-  };
-
-  const handleParticipantModeChange = (mode: ParticipantMode) => {
-    form.setFieldValue("participantMode", mode);
-    form.setFieldValue("departmentIds", []);
-    form.setFieldValue("userIds", []);
-    form.setFieldValue("userDepartmentFilterIds", []);
   };
 
   const handleCoverChange: UploadProps["onChange"] = ({ fileList: nextList }) => {
@@ -238,7 +274,9 @@ export default function EventPublishDrawer({
         form={form}
         layout="vertical"
         initialValues={{
-          participantMode: "DEPARTMENT",
+          departmentIds: [],
+          userIds: [],
+          userDepartmentFilterIds: [],
         }}
       >
         <Form.Item
@@ -416,123 +454,106 @@ export default function EventPublishDrawer({
           <Typography.Title level={5} className="!mb-1">
             Người tham gia
           </Typography.Title>
+
           <Typography.Text type="secondary">
-            Chọn một cách mời người tham gia để tránh trùng dữ liệu khi tạo sự
-            kiện.
+            Có thể mời toàn bộ phòng ban và chọn thêm từng nhân viên ở phòng
+            ban khác.
           </Typography.Text>
         </div>
 
-        <Form.Item name="participantMode" className="!mb-4">
-          <Radio.Group
-            className="grid w-full grid-cols-1 gap-3 md:grid-cols-2"
-            value={participantMode}
-            onChange={(e) => handleParticipantModeChange(e.target.value)}
+        <Card className="rounded-2xl" styles={{ body: { padding: 16 } }}>
+          <div className="mb-4 flex items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+              <Building2 size={20} />
+            </div>
+
+            <div>
+              <Typography.Text strong>Mời theo phòng ban</Typography.Text>
+
+              <Typography.Paragraph
+                type="secondary"
+                className="!mb-0 !mt-1 text-xs"
+              >
+                Tất cả nhân viên thuộc các phòng ban được chọn sẽ được mời tham
+                gia.
+              </Typography.Paragraph>
+            </div>
+          </div>
+
+          <Form.Item name="departmentIds" label="Phòng ban tham gia">
+            <Select
+              mode="multiple"
+              allowClear
+              loading={departmentsLoading}
+              options={departments}
+              placeholder="Chọn một hoặc nhiều phòng ban"
+              notFoundContent={
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="Chưa có phòng ban"
+                />
+              }
+            />
+          </Form.Item>
+        </Card>
+
+        <Card className="mt-4 rounded-2xl" styles={{ body: { padding: 16 } }}>
+          <div className="mb-4 flex items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+              <Users size={20} />
+            </div>
+
+            <div>
+              <Typography.Text strong>Chọn thêm từng nhân viên</Typography.Text>
+
+              <Typography.Paragraph
+                type="secondary"
+                className="!mb-0 !mt-1 text-xs"
+              >
+                Dùng để mời thêm nhân viên riêng lẻ ngoài các phòng ban đã
+                chọn. Nhân viên thuộc phòng ban đã chọn sẽ được tự động bỏ qua
+                để tránh trùng.
+              </Typography.Paragraph>
+            </div>
+          </div>
+
+          <Form.Item
+            name="userDepartmentFilterIds"
+            label="Lọc nhân viên theo phòng ban"
           >
-            <Radio.Button
-              value="DEPARTMENT"
-              className="!h-auto rounded-2xl border p-4"
-            >
-              <div className="flex items-start gap-3">
-                <Building2 size={20} className="mt-1" />
-                <div>
-                  <div className="font-medium">Mời theo phòng ban</div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    Mời toàn bộ nhân viên của phòng ban được chọn.
-                  </div>
-                </div>
-              </div>
-            </Radio.Button>
+            <Select
+              mode="multiple"
+              allowClear
+              loading={departmentsLoading}
+              options={departments}
+              placeholder="Chọn phòng ban để lọc danh sách nhân viên"
+              notFoundContent={
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="Chưa có phòng ban"
+                />
+              }
+            />
+          </Form.Item>
 
-            <Radio.Button value="USER" className="!h-auto rounded-2xl border p-4">
-              <div className="flex items-start gap-3">
-                <Users size={20} className="mt-1" />
-                <div>
-                  <div className="font-medium">Chọn từng nhân viên</div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    Chỉ mời những nhân viên được chọn trong danh sách.
-                  </div>
-                </div>
-              </div>
-            </Radio.Button>
-          </Radio.Group>
-        </Form.Item>
-
-        {participantMode === "DEPARTMENT" ? (
-          <Card className="rounded-2xl" styles={{ body: { padding: 16 } }}>
-            <Form.Item
-              name="departmentIds"
-              label="Phòng ban tham gia"
-              rules={[
-                {
-                  required: true,
-                  message: "Vui lòng chọn ít nhất một phòng ban",
-                },
-              ]}
-            >
-              <Select
-                mode="multiple"
-                allowClear
-                loading={departmentsLoading}
-                options={departments}
-                placeholder="Chọn phòng ban"
-                notFoundContent={
-                  <Empty
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description="Chưa có phòng ban"
-                  />
-                }
-              />
-            </Form.Item>
-          </Card>
-        ) : (
-          <Card className="rounded-2xl" styles={{ body: { padding: 16 } }}>
-            <Form.Item
-              name="userDepartmentFilterIds"
-              label="Lọc nhân viên theo phòng ban"
-            >
-              <Select
-                mode="multiple"
-                allowClear
-                loading={departmentsLoading}
-                options={departments}
-                placeholder="Chọn phòng ban để lọc danh sách nhân viên"
-                notFoundContent={
-                  <Empty
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description="Chưa có phòng ban"
-                  />
-                }
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="userIds"
-              label="Nhân viên tham gia"
-              rules={[
-                {
-                  required: true,
-                  message: "Vui lòng chọn ít nhất một nhân viên",
-                },
-              ]}
-            >
-              <Select
-                mode="multiple"
-                allowClear
-                showSearch
-                loading={usersLoading}
-                options={userOptions}
-                optionFilterProp="label"
-                placeholder="Chọn nhân viên"
-                notFoundContent={
-                  <Empty
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description="Chưa có nhân viên phù hợp"
-                  />
-                }
-              />
-            </Form.Item>
-          </Card>
-        )}
+          <Form.Item name="userIds" label="Nhân viên tham gia thêm">
+            <Select
+              mode="multiple"
+              allowClear
+              showSearch
+              loading={usersLoading}
+              options={userOptions}
+              optionFilterProp="label"
+              placeholder="Chọn một hoặc nhiều nhân viên"
+              notFoundContent={
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="Chưa có nhân viên phù hợp"
+                />
+              }
+            />
+          </Form.Item>
+        </Card>
       </Form>
     </Drawer>
   );

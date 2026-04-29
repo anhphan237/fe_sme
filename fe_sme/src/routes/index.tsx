@@ -134,6 +134,10 @@ const CompanyDetailRedirect = () => {
   return <Navigate to={`/platform/admin/companies/${companyId}`} replace />;
 };
 const OnboardingEvents = lazy(() => import("@/pages/onboarding/events"));
+const MyCompanyEventsPage = lazy(
+  () => import("@/pages/onboarding/events/my-company-events.page"),
+);
+
 const CompanyEventTemplates = lazy(
   () => import("@/pages/onboarding/events/company-event-templates.page"),
 );
@@ -278,6 +282,12 @@ export const router = createBrowserRouter([
         element: suspense(withRoles(<OnboardingEvents />, ["HR"])),
       },
       {
+        path: "/onboarding/company-events",
+        element: suspense(
+          withRoles(<MyCompanyEventsPage />, ["EMPLOYEE", "MANAGER", "IT"]),
+        ),
+      },
+      {
         path: "/onboarding/company-event-templates",
         element: suspense(withRoles(<CompanyEventTemplates />, ["HR"])),
       },
@@ -342,6 +352,20 @@ export const router = createBrowserRouter([
       {
         path: "/onboarding/employee/instances/:employeeId",
         element: <Navigate to="/onboarding/employees/:employeeId" replace />,
+      },
+      {
+        path: "/events/templates",
+        element: suspense(withRoles(<CompanyEventTemplates />, ["HR"])),
+      },
+      {
+        path: "/events/common",
+        element: suspense(withRoles(<OnboardingEvents />, ["HR"])),
+      },
+      {
+        path: "/events/my-events",
+        element: suspense(
+          withRoles(<MyCompanyEventsPage />, ["EMPLOYEE", "MANAGER", "IT"]),
+        ),
       },
       {
         path: "/documents",
@@ -480,10 +504,6 @@ export const router = createBrowserRouter([
       {
         path: "/platform/admin/system",
         element: suspense(withRoles(<PlatformSystem />, ["ADMIN"])),
-      },
-      {
-        path: "/platform/admin/templates",
-        element: suspense(withRoles(<PlatformTemplates />, ["ADMIN"])),
       },
       {
         path: "/profile/activity",
