@@ -3,6 +3,7 @@ import {
   Bell,
   Bot,
   Briefcase,
+  CalendarDays,
   ClipboardCheck,
   FileText,
   Gauge,
@@ -72,6 +73,7 @@ export const NAV_SECTIONS: NavSection[] = [
         to: "/onboarding/templates",
         requiredRoles: ["HR"],
       },
+   
       {
         titleKey: "nav.onboarding.task_library",
         to: "/onboarding/task-library",
@@ -91,6 +93,28 @@ export const NAV_SECTIONS: NavSection[] = [
         titleKey: "nav.onboarding.schedule",
         to: "/onboarding/schedule",
         requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
+      },
+    ],
+  },
+  {
+    titleKey: "nav.events",
+    icon: CalendarDays,
+    requiredRoles: ["HR", "MANAGER", "EMPLOYEE", "IT"],
+    children: [
+      {
+        titleKey: "nav.events.templates",
+        to: "/events/templates",
+        requiredRoles: ["HR"],
+      },
+      {
+        titleKey: "nav.events.common",
+        to: "/events/common",
+        requiredRoles: ["HR"],
+      },
+      {
+        titleKey: "nav.events.common",
+        to: "/events/my-events",
+        requiredRoles: ["EMPLOYEE", "MANAGER", "IT"],
       },
     ],
   },
@@ -201,6 +225,11 @@ export const NAV_SECTIONS: NavSection[] = [
         to: "/platform/admin/onboarding",
         requiredRoles: ["ADMIN"],
       },
+        {
+        titleKey: "nav.platform.templates",
+        to: "/platform/admin/templates",
+        requiredRoles: ["ADMIN"],
+      },
       {
         titleKey: "nav.platform.feedback",
         to: "/platform/admin/feedback",
@@ -209,11 +238,6 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         titleKey: "nav.platform.system",
         to: "/platform/admin/system",
-        requiredRoles: ["ADMIN"],
-      },
-      {
-        titleKey: "nav.platform.templates",
-        to: "/platform/admin/templates",
         requiredRoles: ["ADMIN"],
       },
     ],

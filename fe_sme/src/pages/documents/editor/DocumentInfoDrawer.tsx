@@ -1,10 +1,10 @@
 import { useState } from "react";
 import {
   Avatar,
-  Badge,
   Button,
   Drawer,
   Empty,
+  Input,
   Popconfirm,
   Select,
   Skeleton,
@@ -25,87 +25,100 @@ import {
   UserAddOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  apiDocReadList,
-  apiDocLinkList,
-  apiDocLinkAdd,
-  apiDocLinkRemove,
-  apiDocAssignmentList,
   apiDocAssignmentAssign,
+  apiDocAssignmentList,
   apiDocAssignmentUnassign,
   apiDocAttachmentList,
   apiDocAttachmentRemove,
+  apiDocLinkAdd,
+  apiDocLinkList,
+  apiDocLinkRemove,
   apiDocList,
+  apiDocReadList,
 } from "@/api/document/editor.api";
 import { apiUploadDocumentAttachment } from "@/api/document/document.api";
 import DocAccessRulesPanel from "../components/DocAccessRulesPanel";
 import { useLocale } from "@/i18n";
 import { useUserNameMap } from "@/utils/resolvers/userResolver";
 import type {
-  DocReadListItem,
-  DocLinkItem,
   DocAssignmentItem,
   DocAttachmentItem,
+  DocLinkItem,
+  DocReadListItem,
 } from "@/interface/document/editor";
-
-// ── Read list tab ──────────────────────────────────────────────────────���───────
 
 function ReadsTab({ documentId }: { documentId: string }) {
   const { t } = useLocale();
+
   const { data, isLoading } = useQuery({
     queryKey: ["doc-reads", documentId],
     queryFn: () => apiDocReadList(documentId),
+    enabled: Boolean(documentId),
     staleTime: 60_000,
   });
+
   const items: DocReadListItem[] = data?.items ?? [];
 
-  if (isLoading) return <Skeleton active paragraph={{ rows: 5 }} />;
-  if (!items.length)
+  if (isLoading) {
+    return <Skeleton active paragraph={{ rows: 5 }} />;
+  }
+
+  if (!items.length) {
     return (
       <Empty
         image={Empty.PRESENTED_IMAGE_SIMPLE}
         description={t("document.reads.empty")}
       />
     );
+  }
 
   return (
     <div className="space-y-2">
-      {items.map((r) => (
-        <div
-          key={r.userId}
-          className="flex items-center justify-between gap-2 rounded-xl border border-stroke bg-white px-3 py-2">
-          <div className="flex items-center gap-2">
-            <Avatar size={28} className="bg-brand text-xs">
-              {(r.fullName ?? r.email)?.[0]?.toUpperCase() ?? "?"}
-            </Avatar>
-            <div>
-              <div className="text-sm font-medium text-ink">
-                {r.fullName || r.email}
-              </div>
-              {r.readAt && (
-                <div className="text-xs text-muted">
-                  {dayjs(r.readAt).format("DD/MM/YYYY HH:mm")}
+      {items.map((item) => {
+        const name = item.fullName || item.email || item.userId;
+        const isAck = item.status === "ACK";
+
+        return (
+          <div
+            key={item.userId}
+            className="flex items-center justify-between gap-2 rounded-xl border border-stroke bg-white px-3 py-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <Avatar size={28} className="shrink-0 bg-brand text-xs">
+                {name?.[0]?.toUpperCase() ?? "?"}
+              </Avatar>
+
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium text-ink">
+                  {name}
                 </div>
-              )}
+
+                {item.readAt && (
+                  <div className="text-xs text-muted">
+                    {t("document.reads.read_at")}:{" "}
+                    {dayjs(item.readAt).format("DD/MM/YYYY HH:mm")}
+                  </div>
+                )}
+
+                {item.acknowledgedAt && (
+                  <div className="text-xs text-muted">
+                    {t("document.reads.ack_at")}:{" "}
+                    {dayjs(item.acknowledgedAt).format("DD/MM/YYYY HH:mm")}
+                  </div>
+                )}
+              </div>
             </div>
+
+            <Tag color={isAck ? "green" : "blue"} className="m-0 text-xs">
+              {isAck ? t("document.reads.ack") : t("document.reads.read")}
+            </Tag>
           </div>
-          {r.status === "ACK" ? (
-            <Tag color="green" className="m-0 text-xs">
-              ACK
-            </Tag>
-          ) : (
-            <Tag color="blue" className="m-0 text-xs">
-              READ
-            </Tag>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
-
-// ── Links tab ──────────────────────────────────────────────────────────────────
 
 function LinksTab({
   documentId,
@@ -116,49 +129,65 @@ function LinksTab({
 }) {
   const { t } = useLocale();
   const queryClient = useQueryClient();
+
   const [adding, setAdding] = useState(false);
   const [targetId, setTargetId] = useState<string | undefined>();
 
   const { data, isLoading } = useQuery({
     queryKey: ["doc-links", documentId],
     queryFn: () => apiDocLinkList(documentId),
+    enabled: Boolean(documentId),
     staleTime: 30_000,
   });
 
-  const { data: docList } = useQuery({
-    queryKey: ["doc-list", {}],
+  const { data: docList, isLoading: isLoadingDocs } = useQuery({
+    queryKey: ["doc-list", "for-links"],
     queryFn: () => apiDocList(),
-    staleTime: 60_000,
     enabled: adding,
+    staleTime: 60_000,
   });
 
   const addMutation = useMutation({
-    mutationFn: (tid: string) => apiDocLinkAdd(documentId, tid),
+    mutationFn: (targetDocumentId: string) =>
+      apiDocLinkAdd(documentId, targetDocumentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["doc-links", documentId] });
       setAdding(false);
       setTargetId(undefined);
       message.success(t("document.links.added"));
     },
-    onError: () => message.error(t("document.links.add_error")),
+    onError: () => {
+      message.error(t("document.links.add_error"));
+    },
   });
 
   const removeMutation = useMutation({
-    mutationFn: (linkId: string) => apiDocLinkRemove(linkId),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["doc-links", documentId] }),
-    onError: () => message.error(t("document.links.remove_error")),
+    mutationFn: (documentLinkId: string) =>
+      apiDocLinkRemove(documentLinkId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["doc-links", documentId] });
+      message.success(t("document.links.removed"));
+    },
+    onError: () => {
+      message.error(t("document.links.remove_error"));
+    },
   });
 
   const items: DocLinkItem[] = data?.items ?? [];
-  const outLinks = items.filter((l) => l.direction === "OUT");
-  const inLinks = items.filter((l) => l.direction === "IN");
+  const outLinks = items.filter((item) => item.direction === "OUT");
+  const inLinks = items.filter((item) => item.direction === "IN");
 
-  if (isLoading) return <Skeleton active paragraph={{ rows: 4 }} />;
+  const docOptions =
+    docList?.items
+      ?.filter((item) => item.documentId !== documentId)
+      .map((item) => ({
+        label: item.title || item.documentId,
+        value: item.documentId,
+      })) ?? [];
 
-  const docOptions = (docList?.items ?? [])
-    .filter((d) => d.documentId !== documentId)
-    .map((d) => ({ label: d.title, value: d.documentId }));
+  if (isLoading) {
+    return <Skeleton active paragraph={{ rows: 4 }} />;
+  }
 
   return (
     <div className="space-y-4">
@@ -168,18 +197,20 @@ function LinksTab({
             <div className="flex items-center gap-2">
               <Select
                 showSearch
+                loading={isLoadingDocs}
                 placeholder={t("document.links.search_placeholder")}
                 options={docOptions}
                 value={targetId}
                 onChange={setTargetId}
-                filterOption={(input, opt) =>
-                  (opt?.label as string)
-                    ?.toLowerCase()
+                filterOption={(input, option) =>
+                  String(option?.label ?? "")
+                    .toLowerCase()
                     .includes(input.toLowerCase())
                 }
                 className="flex-1"
                 size="small"
               />
+
               <Button
                 size="small"
                 type="primary"
@@ -188,13 +219,14 @@ function LinksTab({
                 onClick={() => targetId && addMutation.mutate(targetId)}>
                 {t("document.links.add")}
               </Button>
+
               <Button
                 size="small"
                 onClick={() => {
                   setAdding(false);
                   setTargetId(undefined);
                 }}>
-                {t("document.batch.cancel")}
+                {t("document.common.cancel")}
               </Button>
             </div>
           ) : (
@@ -221,24 +253,36 @@ function LinksTab({
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
             {t("document.links.outgoing")}
           </p>
+
           <div className="space-y-1.5">
-            {outLinks.map((l) => (
+            {outLinks.map((item) => (
               <div
-                key={l.documentLinkId}
+                key={item.documentLinkId}
                 className="flex items-center justify-between gap-2 rounded-xl border border-stroke bg-white px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <LinkOutlined className="text-brand" />
-                  <span className="text-sm text-ink">
-                    {l.linkedDocumentId.slice(0, 8)}…
+                <div className="flex min-w-0 items-center gap-2">
+                  <LinkOutlined className="shrink-0 text-brand" />
+
+                  <span className="truncate text-sm text-ink">
+                    {item.linkedDocumentTitle ||
+                      `${item.linkedDocumentId.slice(0, 8)}…`}
                   </span>
-                  <Tag className="m-0 text-xs">{l.linkType}</Tag>
+
+                  {item.linkType && (
+                    <Tag className="m-0 shrink-0 text-xs">
+                      {item.linkType}
+                    </Tag>
+                  )}
                 </div>
+
                 {canEdit && (
                   <Popconfirm
                     title={t("document.links.remove_confirm")}
-                    onConfirm={() => removeMutation.mutate(l.documentLinkId)}
-                    okText={t("document.access.remove_rule")}
-                    okButtonProps={{ danger: true }}>
+                    okText={t("document.common.remove")}
+                    cancelText={t("document.common.cancel")}
+                    okButtonProps={{ danger: true }}
+                    onConfirm={() =>
+                      removeMutation.mutate(item.documentLinkId)
+                    }>
                     <Button
                       size="small"
                       type="text"
@@ -259,16 +303,24 @@ function LinksTab({
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
             {t("document.links.incoming")}
           </p>
+
           <div className="space-y-1.5">
-            {inLinks.map((l) => (
+            {inLinks.map((item) => (
               <div
-                key={l.documentLinkId}
+                key={item.documentLinkId}
                 className="flex items-center gap-2 rounded-xl border border-stroke bg-white px-3 py-2">
                 <LinkOutlined className="rotate-180 text-violet-500" />
-                <span className="text-sm text-ink">
-                  {l.linkedDocumentId.slice(0, 8)}…
+
+                <span className="truncate text-sm text-ink">
+                  {item.linkedDocumentTitle ||
+                    `${item.linkedDocumentId.slice(0, 8)}…`}
                 </span>
-                <Tag className="m-0 text-xs">{l.linkType}</Tag>
+
+                {item.linkType && (
+                  <Tag className="m-0 shrink-0 text-xs">
+                    {item.linkType}
+                  </Tag>
+                )}
               </div>
             ))}
           </div>
@@ -277,8 +329,6 @@ function LinksTab({
     </div>
   );
 }
-
-// ── Assignments tab ────────────────────────────────────────────────────────────
 
 function AssignmentsTab({
   documentId,
@@ -290,40 +340,52 @@ function AssignmentsTab({
   const { t } = useLocale();
   const { resolveName } = useUserNameMap();
   const queryClient = useQueryClient();
+
   const [adding, setAdding] = useState(false);
-  const [assigneeId, setAssigneeId] = useState<string | undefined>();
+  const [assigneeId, setAssigneeId] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["doc-assignments", documentId],
     queryFn: () => apiDocAssignmentList(documentId),
+    enabled: Boolean(documentId),
     staleTime: 30_000,
   });
 
   const assignMutation = useMutation({
-    mutationFn: (uid: string) => apiDocAssignmentAssign(documentId, uid),
+    mutationFn: (assigneeUserId: string) =>
+      apiDocAssignmentAssign(documentId, assigneeUserId.trim()),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["doc-assignments", documentId],
       });
       setAdding(false);
-      setAssigneeId(undefined);
+      setAssigneeId("");
       message.success(t("document.assignments.assigned"));
     },
-    onError: () => message.error(t("document.assignments.assign_error")),
+    onError: () => {
+      message.error(t("document.assignments.assign_error"));
+    },
   });
 
   const unassignMutation = useMutation({
-    mutationFn: (aid: string) => apiDocAssignmentUnassign(aid),
-    onSuccess: () =>
+    mutationFn: (documentAssignmentId: string) =>
+      apiDocAssignmentUnassign(documentAssignmentId),
+    onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["doc-assignments", documentId],
-      }),
-    onError: () => message.error(t("document.assignments.unassign_error")),
+      });
+      message.success(t("document.assignments.unassigned"));
+    },
+    onError: () => {
+      message.error(t("document.assignments.unassign_error"));
+    },
   });
 
   const items: DocAssignmentItem[] = data?.items ?? [];
 
-  if (isLoading) return <Skeleton active paragraph={{ rows: 4 }} />;
+  if (isLoading) {
+    return <Skeleton active paragraph={{ rows: 4 }} />;
+  }
 
   return (
     <div className="space-y-4">
@@ -331,31 +393,35 @@ function AssignmentsTab({
         <div>
           {adding ? (
             <div className="flex items-center gap-2">
-              <Select
-                showSearch
-                placeholder={t("document.assignments.search_placeholder")}
-                value={assigneeId}
-                onChange={setAssigneeId}
-                className="flex-1"
+              <Input
                 size="small"
+                value={assigneeId}
+                placeholder={t("document.assignments.user_id_placeholder")}
+                onChange={(event) => setAssigneeId(event.target.value)}
+                onPressEnter={() => {
+                  if (assigneeId.trim()) {
+                    assignMutation.mutate(assigneeId);
+                  }
+                }}
+                className="flex-1"
               />
+
               <Button
                 size="small"
                 type="primary"
-                disabled={!assigneeId}
+                disabled={!assigneeId.trim()}
                 loading={assignMutation.isPending}
-                onClick={() =>
-                  assigneeId && assignMutation.mutate(assigneeId)
-                }>
+                onClick={() => assignMutation.mutate(assigneeId)}>
                 {t("document.assignments.assign")}
               </Button>
+
               <Button
                 size="small"
                 onClick={() => {
                   setAdding(false);
-                  setAssigneeId(undefined);
+                  setAssigneeId("");
                 }}>
-                {t("document.batch.cancel")}
+                {t("document.common.cancel")}
               </Button>
             </div>
           ) : (
@@ -377,52 +443,67 @@ function AssignmentsTab({
         />
       ) : (
         <div className="space-y-1.5">
-          {items.map((a) => (
-            <div
-              key={a.documentAssignmentId}
-              className="flex items-center justify-between gap-2 rounded-xl border border-stroke bg-white px-3 py-2">
-              <div className="flex items-center gap-2">
-                <Avatar size={28} className="bg-violet-500 text-xs">
-                  {resolveName(a.assigneeUserId, "?")?.[0]?.toUpperCase() ?? "?"}
-                </Avatar>
-                <div>
-                  <div className="text-sm font-medium text-ink">
-                    {resolveName(a.assigneeUserId)}
-                  </div>
-                  <div className="text-xs text-muted">
-                    {dayjs(a.assignedAt).format("DD/MM/YYYY")}
+          {items.map((item) => {
+            const displayName =
+              item.assigneeFullName ||
+              item.assigneeEmail ||
+              resolveName(item.assigneeUserId) ||
+              item.assigneeUserId;
+
+            return (
+              <div
+                key={item.documentAssignmentId}
+                className="flex items-center justify-between gap-2 rounded-xl border border-stroke bg-white px-3 py-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Avatar size={28} className="shrink-0 bg-violet-500 text-xs">
+                    {displayName?.[0]?.toUpperCase() ?? "?"}
+                  </Avatar>
+
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-ink">
+                      {displayName}
+                    </div>
+
+                    {item.assignedAt && (
+                      <div className="text-xs text-muted">
+                        {dayjs(item.assignedAt).format("DD/MM/YYYY HH:mm")}
+                      </div>
+                    )}
                   </div>
                 </div>
+
+                <div className="flex items-center gap-1.5">
+                  {item.status && (
+                    <Tag className="m-0 text-xs">{item.status}</Tag>
+                  )}
+
+                  {canManage && (
+                    <Popconfirm
+                      title={t("document.assignments.unassign_confirm")}
+                      okText={t("document.common.remove")}
+                      cancelText={t("document.common.cancel")}
+                      okButtonProps={{ danger: true }}
+                      onConfirm={() =>
+                        unassignMutation.mutate(item.documentAssignmentId)
+                      }>
+                      <Button
+                        size="small"
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        loading={unassignMutation.isPending}
+                      />
+                    </Popconfirm>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <Tag className="m-0 text-xs">{a.status}</Tag>
-                {canManage && (
-                  <Popconfirm
-                    title={t("document.assignments.unassign_confirm")}
-                    onConfirm={() =>
-                      unassignMutation.mutate(a.documentAssignmentId)
-                    }
-                    okText={t("document.access.remove_rule")}
-                    okButtonProps={{ danger: true }}>
-                    <Button
-                      size="small"
-                      type="text"
-                      danger
-                      icon={<DeleteOutlined />}
-                      loading={unassignMutation.isPending}
-                    />
-                  </Popconfirm>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
-
-// ── Attachments tab ────────────────────────────────────────────────────────────
 
 function AttachmentsTab({
   documentId,
@@ -435,34 +516,50 @@ function AttachmentsTab({
 }) {
   const { t } = useLocale();
   const queryClient = useQueryClient();
+
   const [uploading, setUploading] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["doc-attachments", documentId],
     queryFn: () => apiDocAttachmentList(documentId),
+    enabled: Boolean(documentId),
     staleTime: 30_000,
   });
 
   const removeMutation = useMutation({
-    mutationFn: (aid: string) => apiDocAttachmentRemove(aid),
-    onSuccess: () =>
+    mutationFn: (documentAttachmentId: string) =>
+      apiDocAttachmentRemove(documentAttachmentId),
+    onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["doc-attachments", documentId],
-      }),
-    onError: () => message.error(t("document.attachments.remove_error")),
+      });
+      message.success(t("document.attachments.removed"));
+    },
+    onError: () => {
+      message.error(t("document.attachments.remove_error"));
+    },
   });
 
   const handleUpload = async (file: File) => {
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("fileName", file.name);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("fileName", file.name);
+
     setUploading(true);
+
     try {
-      await apiUploadDocumentAttachment(documentId, fd);
+      await apiUploadDocumentAttachment(documentId, formData);
       message.success(t("document.attachments.upload_success"));
-      queryClient.invalidateQueries({ queryKey: ["doc-attachments", documentId] });
-    } catch (err: unknown) {
-      message.error(err instanceof Error ? err.message : t("document.attachments.upload_error"));
+
+      queryClient.invalidateQueries({
+        queryKey: ["doc-attachments", documentId],
+      });
+    } catch (error: unknown) {
+      message.error(
+        error instanceof Error
+          ? error.message
+          : t("document.attachments.upload_error"),
+      );
     } finally {
       setUploading(false);
     }
@@ -470,13 +567,18 @@ function AttachmentsTab({
 
   const items: DocAttachmentItem[] = data?.items ?? [];
 
-  if (isLoading) return <Skeleton active paragraph={{ rows: 4 }} />;
+  if (isLoading) {
+    return <Skeleton active paragraph={{ rows: 4 }} />;
+  }
 
   return (
     <div className="space-y-3">
       {canUpload && (
         <Upload
-          beforeUpload={(file) => { void handleUpload(file); return false; }}
+          beforeUpload={(file) => {
+            void handleUpload(file);
+            return false;
+          }}
           showUploadList={false}
           disabled={uploading}>
           <Button
@@ -496,34 +598,40 @@ function AttachmentsTab({
         />
       ) : (
         <div className="space-y-1.5">
-          {items.map((a) => (
+          {items.map((item) => (
             <div
-              key={a.documentAttachmentId}
+              key={item.documentAttachmentId}
               className="flex items-center justify-between gap-2 rounded-xl border border-stroke bg-white px-3 py-2">
-              <div className="flex items-center gap-2">
-                <PaperClipOutlined className="text-muted" />
-                <div>
+              <div className="flex min-w-0 items-center gap-2">
+                <PaperClipOutlined className="shrink-0 text-muted" />
+
+                <div className="min-w-0">
                   <a
-                    href={a.fileUrl}
+                    href={item.fileUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm font-medium text-brand hover:underline">
-                    {a.fileName}
+                    className="block truncate text-sm font-medium text-brand hover:underline">
+                    {item.fileName}
                   </a>
+
                   <div className="text-xs text-muted">
-                    {a.fileType} ·{" "}
-                    {(a.fileSizeBytes / 1024).toFixed(1)} KB
+                    {item.fileType || t("document.attachments.file")} ·{" "}
+                    {typeof item.fileSizeBytes === "number"
+                      ? `${(item.fileSizeBytes / 1024).toFixed(1)} KB`
+                      : t("document.attachments.unknown_size")}
                   </div>
                 </div>
               </div>
+
               {canEdit && (
                 <Popconfirm
                   title={t("document.attachments.remove_confirm")}
+                  okText={t("document.common.remove")}
+                  cancelText={t("document.common.cancel")}
+                  okButtonProps={{ danger: true }}
                   onConfirm={() =>
-                    removeMutation.mutate(a.documentAttachmentId)
-                  }
-                  okText={t("document.access.remove_rule")}
-                  okButtonProps={{ danger: true }}>
+                    removeMutation.mutate(item.documentAttachmentId)
+                  }>
                   <Button
                     size="small"
                     type="text"
@@ -541,17 +649,20 @@ function AttachmentsTab({
   );
 }
 
-// ── Main Drawer ────────────────────────────────────────────────────────────────
-
 interface DocumentInfoDrawerProps {
   documentId: string;
   open: boolean;
   onClose: () => void;
+
   canViewStats: boolean;
   canEdit: boolean;
   canPublish: boolean;
   canManageAccessRules: boolean;
-  /** HR / MANAGER — can upload new attachments */
+
+  /** Optional: manager can view but not edit access rules later */
+  canViewAccessRules?: boolean;
+
+  /** HR / Manager can upload attachments */
   canUpload?: boolean;
 }
 
@@ -563,9 +674,13 @@ export default function DocumentInfoDrawer({
   canEdit,
   canPublish,
   canManageAccessRules,
+  canViewAccessRules,
   canUpload = false,
 }: DocumentInfoDrawerProps) {
   const { t } = useLocale();
+
+  const shouldShowAccessTab =
+    Boolean(canViewAccessRules) || Boolean(canManageAccessRules);
 
   const tabs = [
     ...(canViewStats
@@ -582,6 +697,7 @@ export default function DocumentInfoDrawer({
           },
         ]
       : []),
+
     {
       key: "links",
       label: (
@@ -594,6 +710,7 @@ export default function DocumentInfoDrawer({
         <LinksTab documentId={documentId} canEdit={canEdit} />
       ) : null,
     },
+
     {
       key: "assignments",
       label: (
@@ -603,9 +720,13 @@ export default function DocumentInfoDrawer({
         </span>
       ),
       children: open ? (
-        <AssignmentsTab documentId={documentId} canManage={canPublish} />
+        <AssignmentsTab
+          documentId={documentId}
+          canManage={canEdit || canPublish}
+        />
       ) : null,
     },
+
     {
       key: "attachments",
       label: (
@@ -615,10 +736,15 @@ export default function DocumentInfoDrawer({
         </span>
       ),
       children: open ? (
-        <AttachmentsTab documentId={documentId} canEdit={canEdit} canUpload={canUpload} />
+        <AttachmentsTab
+          documentId={documentId}
+          canEdit={canEdit}
+          canUpload={canUpload}
+        />
       ) : null,
     },
-    ...(canManageAccessRules
+
+    ...(shouldShowAccessTab
       ? [
           {
             key: "access",
@@ -648,7 +774,7 @@ export default function DocumentInfoDrawer({
       }
       open={open}
       onClose={onClose}
-      width={420}
+      width={520}
       styles={{ body: { padding: "0 16px 16px" } }}>
       <Tabs
         items={tabs}

@@ -518,6 +518,7 @@ export const apiListTaskDepartmentDependentTasks = (
 
 // ── Events (publish / detail / list / attendance) ──────────
 
+// ── Events / Onboarding Group Sessions ─────────────────────
 /** com.sme.onboarding.event.publish */
 export const apiEventPublish = (payload: EventPublishRequest) =>
   gatewayRequest<EventPublishRequest, EventPublishResponse>(
@@ -533,7 +534,7 @@ export const apiEventDetail = (payload: EventDetailRequest) =>
   );
 
 /** com.sme.onboarding.event.list */
-export const apiEventInstanceList = (payload: EventListRequest) =>
+export const apiEventInstanceList = (payload: EventListRequest = {}) =>
   gatewayRequest<EventListRequest, EventListResponse>(
     "com.sme.onboarding.event.list",
     payload,
@@ -543,7 +544,9 @@ export const apiEventInstanceList = (payload: EventListRequest) =>
 export const apiEventAttendanceSummary = (
   payload: EventAttendanceSummaryRequest,
 ) =>
-  gatewayRequest<EventAttendanceSummaryRequest, EventAttendanceSummaryResponse>(
-    "com.sme.onboarding.event.attendance.summary",
-    payload,
-  );
+  gatewayRequest<
+    EventAttendanceSummaryRequest,
+    EventAttendanceSummaryResponse
+  >("com.sme.onboarding.event.attendance.summary", payload);
+
+  

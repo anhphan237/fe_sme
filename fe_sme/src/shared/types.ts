@@ -1,4 +1,5 @@
 import type { Role } from "@/enums/Role";
+import type { PlatformTemplateItemStatus, PlatformTemplateStage, PlatformTemplateStatus, PlatformTemplateKind } from "@/interface/admin";
 export type { Role };
 
 export interface Tenant {
@@ -329,12 +330,23 @@ export interface BillingPlan {
   code: string;
   name: string;
   status: string;
+
   price: string;
   priceYearly: string;
   priceRaw: number;
   priceYearlyRaw: number;
+
   employeeLimit: number;
-  limits: string;
+  onboardingTemplateLimit: number;
+  eventTemplateLimit: number;
+  documentLimit: number;
+
+  storageLimitBytes: number;
+  storageLimitMb?: number;
+  storageLimitGb?: number;
+  storageLimitText?: string;
+
+  limits?: string;
   features: string[];
   current?: boolean;
   recommended?: boolean;
@@ -343,17 +355,19 @@ export interface BillingPlan {
 export interface Subscription {
   subscriptionId: string;
   planCode: string;
+  planName?: string;
+
   status: string;
-  billingCycle?: string;
+  billingCycle?: "MONTHLY" | "YEARLY" | string;
   currentPeriodStart?: string;
   currentPeriodEnd?: string;
   autoRenew?: boolean;
+
   prorateCreditVnd?: number;
   prorateChargeVnd?: number;
   invoiceId?: string;
-  /** true khi subscription.update trả về yêu cầu thanh toán */
+
   paymentRequired?: boolean;
-  /** invoiceId của invoice chờ thanh toán (chỉ có khi paymentRequired=true) */
   paymentInvoiceId?: string | null;
   pendingChangeId?: string | null;
   pendingPlanCode?: string | null;
@@ -374,12 +388,20 @@ export interface Invoice {
 }
 
 export interface UsageMetric {
+  key?: string;
   label: string;
   used: number;
   limit: number;
-  alertLevel?: "NONE" | "APPROACHING" | "EXCEEDED";
+
+  alertLevel?: string;
   limitPercent?: number;
+  percent?: number;
   month?: string;
+
+  unit?: "count" | "bytes" | string;
+  unlimited?: boolean;
+  status?: "OK" | "WARNING" | "EXCEEDED";
+  description?: string;
 }
 
 export interface KnowledgeBaseArticle {
@@ -452,4 +474,71 @@ export interface AuthTokenPayload {
   user_id: string;
   company_id: string | null;
   roles: Role[];
+}
+export interface PlatformTemplateTaskForm {
+  title: string;
+  description?: string;
+  requireAck?: boolean;
+  requireDoc?: boolean;
+  requiresManagerApproval?: boolean;
+  sortOrder?: number;
+  status?: PlatformTemplateItemStatus;
+}
+
+export interface PlatformTemplateChecklistForm {
+  name: string;
+  stage: PlatformTemplateStage;
+  deadlineDays: number;
+  sortOrder?: number;
+  status?: PlatformTemplateItemStatus;
+  tasks: PlatformTemplateTaskForm[];
+}
+
+export interface PlatformTemplateFormValue {
+  name: string;
+  description?: string;
+  status: PlatformTemplateStatus;
+  templateKind: PlatformTemplateKind;
+  departmentTypeCode?: string;
+  checklists: PlatformTemplateChecklistForm[];
+}
+
+export type FormListField = {
+  key: number;
+  name: number;
+  fieldKey?: number;
+};
+
+export interface PlatformTemplateTaskForm {
+  title: string;
+  description?: string;
+  ownerType?: string;
+  ownerRefId?: string | null;
+  dueDaysOffset?: number | null;
+  requireAck?: boolean;
+  requireDoc?: boolean;
+  requiredDocumentIds?: string[];
+  requiredDocumentIdsText?: string;
+  requiresManagerApproval?: boolean;
+  approverUserId?: string | null;
+  sortOrder?: number;
+  status?: PlatformTemplateItemStatus;
+}
+
+export interface PlatformTemplateChecklistForm {
+  name: string;
+  stage: PlatformTemplateStage;
+  deadlineDays: number;
+  sortOrder?: number;
+  status?: PlatformTemplateItemStatus;
+  tasks: PlatformTemplateTaskForm[];
+}
+
+export interface PlatformTemplateFormValue {
+  name: string;
+  description?: string;
+  status: PlatformTemplateStatus;
+  templateKind: PlatformTemplateKind;
+  departmentTypeCode?: string;
+  checklists: PlatformTemplateChecklistForm[];
 }
