@@ -833,6 +833,49 @@ export interface TaskDepartmentConfirmRequest {
   evidenceRef?: string;
 }
 
+/** com.sme.onboarding.task.department.confirm -> response */
+export interface TaskDepartmentConfirmResponse {
+  taskId: string;
+  departmentId: string;
+  checkpointStatus: "PENDING" | "CONFIRMED";
+  taskStatus: OnboardingTaskUpdateStatusRequest["status"];
+  allDepartmentsConfirmed: boolean;
+}
+
+/** com.sme.onboarding.task.department.dependent.list -> request */
+export interface TaskDepartmentDependentListRequest {
+  departmentId: string;
+  /** Defaults to non-confirmed tasks on BE when omitted. */
+  checkpointStatus?: "PENDING" | "CONFIRMED";
+  page?: number;
+  size?: number;
+}
+
+/** Single task from com.sme.onboarding.task.department.dependent.list */
+export interface TaskDepartmentDependentItem {
+  taskId: string;
+  onboardingId: string;
+  checklistId?: string;
+  checklistName?: string;
+  title: string;
+  taskStatus: OnboardingTaskUpdateStatusRequest["status"];
+  dueDate?: string;
+  assignedUserId?: string;
+  assignedDepartmentId?: string;
+  checkpointStatus: "PENDING" | "CONFIRMED";
+  requireEvidence?: boolean;
+  confirmedAt?: string;
+}
+
+/** com.sme.onboarding.task.department.dependent.list -> response */
+export interface TaskDepartmentDependentListResponse {
+  departmentId: string;
+  totalCount: number;
+  page: number;
+  size: number;
+  tasks: TaskDepartmentDependentItem[];
+}
+
 // ---------------------------
 // Events / Onboarding Group Session
 // BE operation:
