@@ -13,7 +13,7 @@ export interface UnifiedDoc {
 
   title: string;
   description?: string;
-
+  source?: "UPLOAD" | "WORKSPACE";
   status?: UnifiedDocStatus;
   published?: boolean;
 
