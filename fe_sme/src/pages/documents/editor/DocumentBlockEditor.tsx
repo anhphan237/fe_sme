@@ -249,11 +249,7 @@ export default function DocumentBlockEditor({
       updateBlock(block.id, {
         type: nextType,
         text:
-          block.text ??
-          checklistToText(block) ??
-          block.alt ??
-          block.src ??
-          "",
+          block.text ?? checklistToText(block) ?? block.alt ?? block.src ?? "",
         checked: undefined,
         level: undefined,
         src: undefined,
@@ -450,7 +446,7 @@ export default function DocumentBlockEditor({
       if (!valid) return;
 
       if (!onUploadImage) {
-        message.error(t("document.block.image.upload_not_configured"));
+        message.error(t("document.block.image.upload_error"));
         return;
       }
 

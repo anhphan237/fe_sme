@@ -1,4 +1,4 @@
-import {  useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { DragEvent } from "react";
 import { Button, Dropdown, Empty, Skeleton, Tooltip, message } from "antd";
 import type { MenuProps } from "antd";
@@ -61,6 +61,7 @@ interface DocFolderTreeProps {
     sourceFolderId: string,
     targetFolderId: string,
   ) => Promise<void> | void;
+  showAllDocuments?: boolean;
 }
 
 const DND_MIME = "application/x-sme-document-tree";
@@ -200,7 +201,11 @@ const readDragPayload = (event: DragEvent<HTMLElement>): DragPayload | null => {
     const parsed = JSON.parse(raw) as DragPayload;
 
     if (parsed.kind === "folder" && parsed.folderId) return parsed;
-    if (parsed.kind === "document" && parsed.documentId && parsed.sourceFolderId) {
+    if (
+      parsed.kind === "document" &&
+      parsed.documentId &&
+      parsed.sourceFolderId
+    ) {
       return parsed;
     }
 
@@ -579,26 +584,27 @@ export default function DocFolderTree({
   onDelete,
   onMoveFolder,
   onMoveDocument,
+  showAllDocuments = true,
 }: DocFolderTreeProps) {
   const { t } = useLocale();
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
 
- const selectedPath = useMemo(
-  () => findPathToFolder(roots, selectedId),
-  [roots, selectedId],
-);
+  const selectedPath = useMemo(
+    () => findPathToFolder(roots, selectedId),
+    [roots, selectedId],
+  );
 
-const visibleExpandedIds = useMemo(() => {
-  const next = new Set(expandedIds);
+  const visibleExpandedIds = useMemo(() => {
+    const next = new Set(expandedIds);
 
-  selectedPath.forEach((folderId) => {
-    next.add(folderId);
-  });
+    selectedPath.forEach((folderId) => {
+      next.add(folderId);
+    });
 
-  return next;
-}, [expandedIds, selectedPath]);
+    return next;
+  }, [expandedIds, selectedPath]);
 
   const toggleExpand = (folderId: string) => {
     setExpandedIds((current) => {
@@ -655,33 +661,35 @@ const visibleExpandedIds = useMemo(() => {
         )}
       </div>
 
-      <div
-        className={[
-          "mb-2 flex cursor-pointer items-center gap-2 rounded-xl px-2 py-2 text-sm transition",
-          selectedId === null
-            ? "bg-brand/10 text-brand"
-            : "text-ink hover:bg-slate-50 hover:text-brand",
-        ].join(" ")}
-        onClick={() => onSelect(null)}
-        onDragOver={(event) => {
-          if (!canManage || !onMoveFolder) return;
-          event.preventDefault();
-          event.dataTransfer.dropEffect = "move";
-        }}
-        onDrop={handleDropToRoot}
-      >
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-          <FileTextOutlined />
-        </span>
+      {showAllDocuments && (
+        <div
+          className={[
+            "mb-2 flex cursor-pointer items-center gap-2 rounded-xl px-2 py-2 text-sm transition",
+            selectedId === null
+              ? "bg-brand/10 text-brand"
+              : "text-ink hover:bg-slate-50 hover:text-brand",
+          ].join(" ")}
+          onClick={() => onSelect(null)}
+          onDragOver={(event) => {
+            if (!canManage || !onMoveFolder) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+          }}
+          onDrop={handleDropToRoot}
+        >
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+            <FileTextOutlined />
+          </span>
 
-        <span className="min-w-0 flex-1 truncate font-semibold">
-          {t("document.folder.all_documents")}
-        </span>
+          <span className="min-w-0 flex-1 truncate font-semibold">
+            {t("document.folder.all_documents")}
+          </span>
 
-        <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-muted">
-          {totalCount}
-        </span>
-      </div>
+          <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-muted">
+            {totalCount}
+          </span>
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
         {loading ? (

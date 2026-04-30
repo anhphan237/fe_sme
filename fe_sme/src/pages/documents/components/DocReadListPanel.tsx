@@ -82,6 +82,7 @@ export default function DocReadListPanel({
             <EyeOutlined />
             {t("document.reads.total_read")}
           </div>
+
           <p className="mt-1 text-xl font-bold text-ink">{readCount}</p>
         </div>
 
@@ -90,6 +91,7 @@ export default function DocReadListPanel({
             <CheckCircleOutlined />
             {t("document.reads.total_ack")}
           </div>
+
           <p className="mt-1 text-xl font-bold text-ink">{ackCount}</p>
         </div>
       </div>

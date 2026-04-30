@@ -4190,8 +4190,33 @@
   "document.detail.editor_preview_hint": "Đây là tài liệu được tạo từ trình soạn thảo.",
   "document.detail.not_found_desc": "Tài liệu có thể đã bị xóa hoặc bạn không có quyền truy cập.",
   "document.detail.created_at": "Ngày tạo",
-  "document.detail.updated_at": "Cập nhật"
+  "document.detail.updated_at": "Cập nhật",
+  "document.files.page_title": "File tài liệu",
+  "document.files.page_subtitle": "Quản lý các file được tải lên từ máy tính.",
+  "document.files.upload_note": "File tải lên sẽ nằm trong thư viện file chung. Thư mục workspace chỉ dùng cho tài liệu soạn thảo.",
+  "document.files.empty": "Chưa có file tài liệu",
+  "document.files.empty_desc": "Tải file từ máy lên để lưu trữ và chia sẻ nội bộ.",
+  "document.files.ack_progress": "đã xác nhận",
+  "document.files.stat.total": "Tổng file",
+  "document.files.stat.active": "Đang hoạt động",
+  "document.files.stat.acknowledged": "Đã xác nhận",
+  "document.files.stat.uploaded": "Đã tải lên",
+  "document.batch.delete_coming_soon": "Chức năng xóa nhiều file sẽ được bổ sung sau",
+  "document.workspace.empty_select_doc": "Chọn một tài liệu để bắt đầu",
+  "document.workspace.empty_select_doc_desc": "Bấm vào tài liệu trong cây thư mục bên trái để mở editor ngay tại đây.",
+  "document.editor.autosave_pending": "Chờ lưu",
+  "document.editor.refresh_success": "Đã làm mới tài liệu",
+  "document.editor.word_unit": "từ",
+  "document.workspace.page_title": "Không gian tài liệu",
+  "document.workspace.page_subtitle": "{{count}} tài liệu soạn thảo trong workspace",
+  "document.workspace.search_placeholder": "Tìm thư mục hoặc tài liệu...",
+  "document.workspace.new_doc": "Tài liệu mới",
+  "document.workspace.new_doc_folder_hint": "Tài liệu sẽ được tạo trong thư mục: {{folder}}.",
+  "document.workspace.new_doc_no_folder_hint": "Bạn chưa chọn thư mục. Tài liệu sẽ được tạo ở workspace chung.",
+  "document.workspace.empty_title": "Chưa có workspace",
+  "document.workspace.empty_desc": "Tạo thư mục đầu tiên để bắt đầu quản lý tài liệu giống Notion.",
 
-
+  "nav.documents.files": "File tài liệu",
+  "nav.documents.workspace": "Workspace tài liệu"
 
 }
