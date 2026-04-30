@@ -7,23 +7,25 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import {
+  Activity,
   AlertTriangle,
   Building2,
+  Calendar,
   CheckCircle2,
   Clock,
   Eye,
   Flag,
+  MessageSquare,
+  Paperclip,
   RefreshCw,
   Search,
   Send,
-  ThumbsUp,
-  Users,
-  XCircle,
-  Paperclip,
-  Activity,
-  Calendar,
-  User as UserIcon,
   ShieldCheck,
+  ThumbsUp,
+  TrendingUp,
+  Users,
+  User as UserIcon,
+  XCircle,
 } from "lucide-react";
 import {
   Badge,
@@ -34,14 +36,15 @@ import {
   Divider,
   Drawer,
   Empty,
-  Form,
   Input,
   Modal,
   Popconfirm,
+  Progress,
   Row,
   Skeleton,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 import { useLocale } from "@/i18n";
@@ -55,7 +58,7 @@ import {
   apiRejectTask,
   apiGetTaskDetailFull,
   apiListTaskComments,
-  apiTaskDepartmentConfirm,
+  apiAddTaskComment,
 } from "@/api/onboarding/onboarding.api";
 import { apiGetUserById } from "@/api/identity/identity.api";
 import { extractList } from "@/api/core/types";
@@ -65,10 +68,12 @@ import type { OnboardingInstance, OnboardingTask } from "@/shared/types";
 import type {
   TaskDetailResponse,
   CommentResponse,
-  DepartmentCheckpoint,
+  TaskAllLogItem,
 } from "@/interface/onboarding";
 import type { GetUserResponse } from "@/interface/identity";
 import { DepartmentCheckpointCard } from "@/pages/onboarding/employees/detail/components/DepartmentCheckpointCard";
+import { DepartmentDependentApprovals } from "./DepartmentDependentApprovals";
+import { DeptDepartmentSelector } from "./components/dept/DeptDepartmentSelector";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -113,20 +118,78 @@ const StatCard = ({
   label,
   value,
   colorClass,
+  borderColor,
 }: {
   icon: React.ReactNode;
   label: string;
   value: number;
   colorClass: string;
+  borderColor: string;
 }) => (
-  <div className="flex items-center gap-4 rounded-lg border border-stroke bg-white p-4 shadow-sm">
-    <div className={`rounded-xl p-2.5 ${colorClass}`}>{icon}</div>
+  <div
+    className={`flex items-center gap-4 rounded-xl border-l-4 bg-white px-5 py-4 shadow-sm ${borderColor}`}
+  >
+    <div
+      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${colorClass}`}
+    >
+      {icon}
+    </div>
     <div>
-      <p className="text-xs font-medium text-muted">{label}</p>
-      <p className="text-2xl font-bold text-ink">{value}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+        {label}
+      </p>
+      <p className="mt-0.5 text-2xl font-bold leading-none text-gray-900">
+        {value}
+      </p>
     </div>
   </div>
 );
+
+// ── Activity log helpers ──────────────────────────────────────────────────────
+
+const getLogIcon = (log: TaskAllLogItem) => {
+  if (log.type === "COMMENT")
+    return <MessageSquare className="h-3.5 w-3.5 text-blue-500" />;
+  const action = log.action ?? "";
+  if (action.includes("APPROVED") || action === "DONE")
+    return <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />;
+  if (action.includes("REJECTED"))
+    return <XCircle className="h-3.5 w-3.5 text-red-500" />;
+  if (action.includes("STATUS") || action.includes("status"))
+    return <TrendingUp className="h-3.5 w-3.5 text-purple-500" />;
+  if (action.includes("ASSIGN"))
+    return <UserIcon className="h-3.5 w-3.5 text-amber-500" />;
+  return <Activity className="h-3.5 w-3.5 text-gray-400" />;
+};
+
+const getLogBg = (log: TaskAllLogItem) => {
+  if (log.type === "COMMENT") return "bg-blue-50";
+  const action = log.action ?? "";
+  if (action.includes("APPROVED") || action === "DONE") return "bg-green-50";
+  if (action.includes("REJECTED")) return "bg-red-50";
+  return "bg-gray-50";
+};
+
+const getLogLabel = (log: TaskAllLogItem): string => {
+  if (log.type === "COMMENT") return log.content ?? "";
+  const action = log.action ?? "";
+  const mapping: Record<string, string> = {
+    APPROVED: "Đã phê duyệt",
+    REJECTED: "Đã từ chối",
+    STATUS_CHANGED: "Cập nhật trạng thái",
+    ASSIGNED: "Phân công thực hiện",
+    COMMENT_ADDED: "Thêm bình luận",
+    DONE: "Hoàn thành",
+    TODO: "Chuyển về chờ làm",
+    PENDING_APPROVAL: "Gửi yêu cầu phê duyệt",
+  };
+  if (mapping[action]) {
+    const detail =
+      log.newValue ? ` → ${log.newValue}` : log.oldValue ? ` (trước: ${log.oldValue})` : "";
+    return mapping[action] + detail;
+  }
+  return action || "Hoạt động";
+};
 
 // ── Task Approval Item ────────────────────────────────────────────────────────
 
@@ -164,11 +227,11 @@ const TaskApprovalItem = ({
 
   return (
     <div
-      className={`group flex items-start gap-3 rounded-xl border px-4 py-3 transition-all ${
+      className={`group flex items-start gap-3 rounded-xl border px-4 py-3.5 transition-all ${
         selected
-          ? "border-blue-300 bg-blue-50/30"
+          ? "border-blue-300 bg-blue-50/40"
           : overdue
-            ? "border-red-100 bg-red-50/20"
+            ? "border-red-200 bg-red-50/30"
             : "border-gray-100 bg-white hover:border-blue-200 hover:shadow-sm"
       }`}
     >
@@ -180,9 +243,20 @@ const TaskApprovalItem = ({
           className="mt-1 shrink-0"
         />
       )}
+
       {/* Status icon */}
-      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-amber-200 bg-amber-50">
-        <Send className="h-4 w-4 text-amber-500" />
+      <div
+        className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${
+          overdue
+            ? "border-red-200 bg-red-50"
+            : "border-amber-200 bg-amber-50"
+        }`}
+      >
+        {overdue ? (
+          <AlertTriangle className="h-4 w-4 text-red-500" />
+        ) : (
+          <Send className="h-4 w-4 text-amber-500" />
+        )}
       </div>
 
       {/* Task info */}
@@ -191,17 +265,17 @@ const TaskApprovalItem = ({
           <button
             type="button"
             onClick={() => onDetail(task)}
-            className="truncate text-left text-sm font-medium leading-snug text-gray-800 hover:text-blue-600 hover:underline"
+            className="truncate text-left text-sm font-semibold leading-snug text-gray-800 hover:text-blue-600 hover:underline"
           >
             {task.title}
           </button>
           {overdue && (
-            <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-500">
+            <span className="rounded-md bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600">
               {t("onboarding.approvals.task.overdue_badge") ?? "Quá hạn"}
             </span>
           )}
           {task.required && (
-            <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600">
+            <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
               {t("onboarding.task.required") ?? "Bắt buộc"}
             </span>
           )}
@@ -209,24 +283,27 @@ const TaskApprovalItem = ({
             {t("onboarding.task.status.pending_approval") ?? "Chờ duyệt"}
           </Tag>
         </div>
+
         {task.description && (
-          <p className="mt-1 line-clamp-1 text-xs text-gray-500">
+          <p className="mt-1 line-clamp-2 text-xs text-gray-500">
             {task.description}
           </p>
         )}
-        <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-gray-400">
+
+        <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-gray-400">
           {task.dueDate && (
-            <span
-              className={`flex items-center gap-1 ${overdue ? "font-medium text-red-500" : ""}`}
-            >
-              {overdue ? (
-                <AlertTriangle className="h-3 w-3" />
-              ) : (
-                <Clock className="h-3 w-3" />
-              )}
-              {t("onboarding.task.due")?.replace("{date}", task.dueDate) ??
-                `Hạn: ${task.dueDate}`}
-            </span>
+            <Tooltip title={`Hạn hoàn thành: ${formatDate(task.dueDate)}`}>
+              <span
+                className={`flex items-center gap-1 ${overdue ? "font-semibold text-red-500" : ""}`}
+              >
+                {overdue ? (
+                  <AlertTriangle className="h-3 w-3" />
+                ) : (
+                  <Calendar className="h-3 w-3" />
+                )}
+                {formatDate(task.dueDate)}
+              </span>
+            </Tooltip>
           )}
           {assigneeName && (
             <span className="flex items-center gap-1">
@@ -235,14 +312,32 @@ const TaskApprovalItem = ({
             </span>
           )}
           <span className="flex items-center gap-1">
-            <Send className="h-3 w-3" />
-            {t("onboarding.approvals.task.submitted") ?? "Đã gửi"}
+            <Send className="h-3 w-3 text-amber-400" />
+            <span className="text-amber-500">{t("onboarding.approvals.task.submitted") ?? "Đã gửi"}</span>
           </span>
         </div>
       </div>
 
       {/* Actions */}
       <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+        <Button
+          size="small"
+          icon={<Eye className="h-3 w-3" />}
+          onClick={() => onDetail(task)}
+          className="opacity-60 transition-opacity group-hover:opacity-100"
+        >
+          {t("onboarding.task.detail.view") ?? "Chi tiết"}
+        </Button>
+        <Button
+          size="small"
+          danger
+          icon={<XCircle className="h-3 w-3" />}
+          loading={isRejectingThis}
+          disabled={isBusy && !isRejectingThis}
+          onClick={() => onReject(task)}
+        >
+          {t("onboarding.task.action.reject") ?? "Từ chối"}
+        </Button>
         <Popconfirm
           title={t("onboarding.task.action.approve") ?? "Phê duyệt"}
           description={
@@ -264,24 +359,6 @@ const TaskApprovalItem = ({
             {t("onboarding.task.action.approve") ?? "Duyệt"}
           </Button>
         </Popconfirm>
-        <Button
-          size="small"
-          danger
-          icon={<XCircle className="h-3 w-3" />}
-          loading={isRejectingThis}
-          disabled={isBusy && !isRejectingThis}
-          onClick={() => onReject(task)}
-        >
-          {t("onboarding.task.action.reject") ?? "Từ chối"}
-        </Button>
-        <Button
-          size="small"
-          icon={<Eye className="h-3 w-3" />}
-          onClick={() => onDetail(task)}
-          className="opacity-60 transition-opacity group-hover:opacity-100"
-        >
-          {t("onboarding.task.detail.view") ?? "Chi tiết"}
-        </Button>
       </div>
     </div>
   );
@@ -316,47 +393,98 @@ const EmployeeApprovalGroup = ({
 }: EmployeeApprovalGroupProps) => {
   const { t } = useLocale();
   const hasOverdue = tasks.some((tk) => isOverdue(tk.dueDate));
+  const overdueCount = tasks.filter((tk) => isOverdue(tk.dueDate)).length;
   const employeeName =
     instance.employeeName ??
     resolveUserName(
       instance.employeeUserId,
       t("onboarding.task.instance.unknown_employee") ?? "Nhân viên",
     );
+  const progress = (instance as OnboardingInstance & { progress?: number })
+    .progress;
+
+  const allSelected =
+    tasks.length > 0 && tasks.every((tk) => selectedTaskIds?.has(tk.id));
+  const someSelected = tasks.some((tk) => selectedTaskIds?.has(tk.id));
 
   return (
     <Card
-      className={`border-l-4 ${hasOverdue ? "border-l-red-400" : "border-l-blue-400"}`}
-      styles={{ body: { padding: "16px" } }}
+      className={`overflow-hidden border-l-4 shadow-sm ${hasOverdue ? "border-l-red-400" : "border-l-blue-400"}`}
+      styles={{ body: { padding: 0 } }}
     >
       {/* Group header */}
-      <div className="mb-3 flex items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700">
+      <div
+        className={`flex items-center gap-3 px-4 py-3 ${hasOverdue ? "bg-red-50/40" : "bg-blue-50/30"}`}
+      >
+        {onSelect && (
+          <Checkbox
+            checked={allSelected}
+            indeterminate={someSelected && !allSelected}
+            onChange={(e) => {
+              tasks.forEach((tk) => onSelect?.(tk.id, e.target.checked));
+            }}
+            className="shrink-0"
+          />
+        )}
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+            hasOverdue
+              ? "bg-red-100 text-red-700"
+              : "bg-blue-100 text-blue-700"
+          }`}
+        >
           {getInitial(instance.employeeName)}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-gray-800">
+          <p className="truncate text-sm font-bold text-gray-800">
             {employeeName}
           </p>
-          {instance.templateName && (
-            <p className="truncate text-xs text-gray-400">
-              <span className="font-medium text-gray-500">
-                {t("onboarding.approvals.group.template") ?? "Chương trình"}:
-              </span>{" "}
-              {instance.templateName}
-            </p>
-          )}
+          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+            {instance.templateName && (
+              <span className="flex items-center gap-1">
+                <ShieldCheck className="h-3 w-3" />
+                {instance.templateName}
+              </span>
+            )}
+            {progress != null && (
+              <span className="flex items-center gap-1">
+                <TrendingUp className="h-3 w-3" />
+                Tiến độ: {progress}%
+              </span>
+            )}
+          </div>
         </div>
-        <Badge
-          count={tasks.length}
-          color={hasOverdue ? "#ef4444" : "#3b82f6"}
-          style={{ fontSize: 11 }}
-        />
+        <div className="flex shrink-0 items-center gap-2">
+          {overdueCount > 0 && (
+            <Tooltip title={`${overdueCount} task quá hạn`}>
+              <span className="flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-600">
+                <AlertTriangle className="h-3 w-3" />
+                {overdueCount}
+              </span>
+            </Tooltip>
+          )}
+          <Badge
+            count={tasks.length}
+            color={hasOverdue ? "#ef4444" : "#3b82f6"}
+            style={{ fontSize: 11 }}
+          />
+        </div>
       </div>
 
-      <Divider style={{ margin: "8px 0" }} />
+      {/* Progress bar */}
+      {progress != null && (
+        <Progress
+          percent={progress}
+          showInfo={false}
+          size={{ height: 4 }}
+          strokeColor={hasOverdue ? "#f87171" : "#60a5fa"}
+          trailColor="#f3f4f6"
+          style={{ margin: 0, display: "block" }}
+        />
+      )}
 
       {/* Tasks */}
-      <div className="space-y-2">
+      <div className="space-y-2 p-3">
         {tasks.map((task) => (
           <TaskApprovalItem
             key={task.id}
@@ -380,6 +508,7 @@ const EmployeeApprovalGroup = ({
 
 interface ApprovalDetailDrawerProps {
   open: boolean;
+  taskId?: string | null;
   taskDetail: TaskDetailResponse | undefined;
   loading: boolean;
   comments: CommentResponse[] | undefined;
@@ -397,6 +526,7 @@ interface ApprovalDetailDrawerProps {
 
 const ApprovalDetailDrawer = ({
   open,
+  taskId,
   taskDetail,
   loading,
   comments,
@@ -411,7 +541,26 @@ const ApprovalDetailDrawer = ({
   showApprovalActions = true,
 }: ApprovalDetailDrawerProps) => {
   const { t } = useLocale();
-  const [tab, setTab] = useState<"info" | "comments">("info");
+  const queryClient = useQueryClient();
+  const [tab, setTab] = useState<"info" | "activity" | "comments">("info");
+  const [newComment, setNewComment] = useState("");
+
+  const addCommentMutation = useMutation({
+    mutationFn: (content: string) =>
+      apiAddTaskComment({ taskId: taskId!, content }),
+    onSuccess: () => {
+      setNewComment("");
+      queryClient.invalidateQueries({
+        queryKey: ["approval-task-detail", taskId ?? ""],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["approval-task-comments", taskId ?? ""],
+      });
+      notify.success("Đã thêm bình luận");
+    },
+    onError: () => notify.error("Không thể thêm bình luận"),
+  });
+
   const assigneeName = taskDetail
     ? (taskDetail.assignedUserName ??
       resolveUserName(taskDetail.assignedUserId, taskDetail.assignedUserId))
@@ -420,31 +569,46 @@ const ApprovalDetailDrawer = ({
     ? resolveUserName(taskDetail.approverUserId, taskDetail.approverUserId)
     : undefined;
 
+  // All log entries (HISTORY + COMMENT merged)
+  const allLogs: TaskAllLogItem[] = taskDetail?.allLogs ?? [];
+
   const tabs = [
     {
       key: "info" as const,
       label: t("onboarding.detail.task.tab.info") ?? "Chi tiết",
+      icon: <Activity className="h-3.5 w-3.5" />,
+    },
+    {
+      key: "activity" as const,
+      label: "Nhật ký",
+      icon: <TrendingUp className="h-3.5 w-3.5" />,
+      count: allLogs.length,
     },
     {
       key: "comments" as const,
       label: t("onboarding.task.comments.title") ?? "Bình luận",
+      icon: <MessageSquare className="h-3.5 w-3.5" />,
+      count: comments?.length,
     },
   ];
 
   return (
     <Drawer
       open={open}
-      width={520}
+      width={560}
       onClose={onClose}
       title={
         <div className="flex items-center gap-2">
-          <Activity className="h-4 w-4 text-amber-500" />
-          <span className="flex-1 truncate">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100">
+            <ShieldCheck className="h-4 w-4 text-amber-600" />
+          </div>
+          <span className="flex-1 truncate text-sm font-semibold text-gray-800">
             {taskDetail
               ? String(
                   taskDetail.title ?? t("onboarding.approvals.drawer.title"),
                 )
-              : (t("onboarding.approvals.drawer.title") ?? "Chi tiết nhiệm vụ")}
+              : (t("onboarding.approvals.drawer.title") ??
+                "Chi tiết nhiệm vụ")}
           </span>
         </div>
       }
@@ -454,27 +618,45 @@ const ApprovalDetailDrawer = ({
       ) : taskDetail ? (
         <div className="flex h-full flex-col">
           {/* Tab nav */}
-          <div className="mb-4 flex gap-1 rounded-lg bg-gray-100 p-1">
+          <div className="mb-4 flex gap-0.5 rounded-xl bg-gray-100 p-1">
             {tabs.map((tb) => (
               <button
                 key={tb.key}
                 onClick={() => setTab(tb.key)}
-                className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-all ${
                   tab === tb.key
                     ? "bg-white text-gray-800 shadow-sm"
                     : "text-gray-500 hover:text-gray-700"
                 }`}
               >
+                {tb.icon}
                 {tb.label}
+                {tb.count != null && tb.count > 0 && (
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                      tab === tb.key
+                        ? "bg-blue-100 text-blue-700"
+                        : "bg-gray-200 text-gray-500"
+                    }`}
+                  >
+                    {tb.count}
+                  </span>
+                )}
               </button>
             ))}
           </div>
 
-          {/* Info tab */}
+          {/* ── Info tab ────────────────────────────────────────────────── */}
           {tab === "info" && (
-            <div className="space-y-4 overflow-y-auto pb-4">
-              {/* Header */}
-              <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-4">
+            <div className="flex-1 space-y-4 overflow-y-auto pb-4">
+              {/* Header banner */}
+              <div
+                className={`rounded-xl border p-4 ${
+                  taskDetail.overdue
+                    ? "border-red-100 bg-red-50/50"
+                    : "border-amber-100 bg-amber-50/40"
+                }`}
+              >
                 <div className="mb-2 flex flex-wrap items-start gap-2">
                   <Typography.Title
                     level={5}
@@ -488,11 +670,11 @@ const ApprovalDetailDrawer = ({
                   </Tag>
                 </div>
                 {taskDetail.overdue && (
-                  <div className="mt-2 flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-600">
-                    <AlertTriangle className="h-3 w-3" />
-                    {t("onboarding.task.stat.overdue") ?? "Quá hạn"}
+                  <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-red-100 px-2.5 py-1.5 text-xs font-semibold text-red-700">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    Quá hạn
                     {taskDetail.dueInHours != null &&
-                      ` — ${Math.abs(Math.round(taskDetail.dueInHours))}h`}
+                      ` — ${Math.abs(Math.round(taskDetail.dueInHours))} giờ trước`}
                   </div>
                 )}
               </div>
@@ -501,12 +683,15 @@ const ApprovalDetailDrawer = ({
               <Row gutter={[12, 12]}>
                 <Col span={12}>
                   <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      {t(
-                        "onboarding.employee.home.task_detail.field_due_date",
-                      ) ?? "Hạn hoàn thành"}
-                    </Typography.Text>
-                    <div className="mt-0.5 flex items-center gap-1 text-sm font-medium text-gray-800">
+                    <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">
+                      {t("onboarding.employee.home.task_detail.field_due_date") ??
+                        "Hạn hoàn thành"}
+                    </p>
+                    <div
+                      className={`mt-1 flex items-center gap-1.5 text-sm font-semibold ${
+                        taskDetail.overdue ? "text-red-600" : "text-gray-800"
+                      }`}
+                    >
                       <Calendar className="h-3.5 w-3.5 text-gray-400" />
                       {formatDate(taskDetail.dueDate)}
                     </div>
@@ -515,16 +700,27 @@ const ApprovalDetailDrawer = ({
                 {assigneeName && (
                   <Col span={12}>
                     <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-                      <Typography.Text
-                        type="secondary"
-                        style={{ fontSize: 12 }}
-                      >
-                        {t("onboarding.task.field.assignee") ??
-                          "Người thực hiện"}
-                      </Typography.Text>
-                      <div className="mt-0.5 flex items-center gap-1 text-sm font-medium text-gray-800">
-                        <UserIcon className="h-3.5 w-3.5 text-gray-400" />
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">
+                        {t("onboarding.task.field.assignee") ?? "Người thực hiện"}
+                      </p>
+                      <div className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-gray-800">
+                        <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
+                          {(assigneeName ?? "?")[0].toUpperCase()}
+                        </div>
                         {assigneeName}
+                      </div>
+                    </div>
+                  </Col>
+                )}
+                {taskDetail.checklistName && (
+                  <Col span={24}>
+                    <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">
+                        Checklist
+                      </p>
+                      <div className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-gray-800">
+                        <Flag className="h-3.5 w-3.5 text-gray-400" />
+                        {taskDetail.checklistName}
                       </div>
                     </div>
                   </Col>
@@ -534,12 +730,11 @@ const ApprovalDetailDrawer = ({
               {/* Description */}
               {taskDetail.description && (
                 <div>
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    {t(
-                      "onboarding.employee.home.task_detail.field_description",
-                    ) ?? "Mô tả"}
-                  </Typography.Text>
-                  <div className="mt-1.5 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-700">
+                  <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                    {t("onboarding.employee.home.task_detail.field_description") ??
+                      "Mô tả"}
+                  </p>
+                  <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm leading-relaxed text-gray-700">
                     {String(taskDetail.description)}
                   </div>
                 </div>
@@ -552,7 +747,7 @@ const ApprovalDetailDrawer = ({
                   {t("onboarding.task.approval.section_title") ?? "Phê duyệt"}
                 </span>
               </Divider>
-              <div className="space-y-2 rounded-lg border border-amber-100 bg-amber-50/40 p-3">
+              <div className="space-y-2 rounded-xl border border-amber-100 bg-amber-50/40 p-3">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-500">
                     {t("onboarding.employee.home.task_detail.field_status") ??
@@ -565,9 +760,9 @@ const ApprovalDetailDrawer = ({
                 </div>
                 {taskDetail.updatedAt && (
                   <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <Send className="h-3 w-3 text-gray-400" />
+                    <Send className="h-3 w-3 text-amber-400" />
                     {t("onboarding.approvals.task.submitted") ?? "Đã gửi"}:{" "}
-                    <span className="font-medium text-gray-700">
+                    <span className="font-semibold text-gray-700">
                       {formatDateTime(taskDetail.updatedAt)}
                     </span>
                   </div>
@@ -577,17 +772,18 @@ const ApprovalDetailDrawer = ({
                     <UserIcon className="h-3 w-3 text-gray-400" />
                     {t("onboarding.task.field.approved_by") ??
                       "Phê duyệt bởi"}:{" "}
-                    <span className="font-medium text-gray-700">
+                    <span className="font-semibold text-gray-700">
                       {approverName}
                     </span>
                   </div>
                 )}
                 {taskDetail.rejectionReason && (
-                  <div className="rounded-md border border-red-100 bg-red-50 p-2 text-xs text-red-600">
-                    <div className="font-medium">
+                  <div className="rounded-lg border border-red-100 bg-red-50 p-2.5 text-xs text-red-700">
+                    <div className="flex items-center gap-1 font-semibold">
+                      <XCircle className="h-3.5 w-3.5" />
                       {t("onboarding.task.rejection_reason") ?? "Lý do từ chối"}
                     </div>
-                    <div className="mt-0.5 text-red-700">
+                    <div className="mt-1 text-red-600">
                       {taskDetail.rejectionReason}
                     </div>
                   </div>
@@ -600,9 +796,8 @@ const ApprovalDetailDrawer = ({
                   <Divider orientationMargin={0}>
                     <span className="flex items-center gap-1 text-xs text-gray-400">
                       <Paperclip className="h-3 w-3" />
-                      {t(
-                        "onboarding.employee.home.task_detail.field_attachments",
-                      ) ?? "Tệp đính kèm"}
+                      {t("onboarding.employee.home.task_detail.field_attachments") ??
+                        "Tệp đính kèm"}
                     </span>
                   </Divider>
                   <div className="space-y-1.5">
@@ -612,7 +807,7 @@ const ApprovalDetailDrawer = ({
                         href={att.fileUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-blue-600 transition-colors hover:bg-blue-50"
+                        className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-blue-600 transition-colors hover:border-blue-200 hover:bg-blue-50"
                       >
                         <Paperclip className="h-3.5 w-3.5 shrink-0" />
                         <span className="flex-1 truncate">{att.fileName}</span>
@@ -686,40 +881,141 @@ const ApprovalDetailDrawer = ({
             </div>
           )}
 
-          {/* Comments tab */}
-          {tab === "comments" && (
-            <div className="overflow-y-auto pb-4">
-              {commentsLoading ? (
-                <Skeleton active paragraph={{ rows: 3 }} />
-              ) : (comments?.length ?? 0) === 0 ? (
+          {/* ── Activity tab ────────────────────────────────────────────── */}
+          {tab === "activity" && (
+            <div className="flex-1 overflow-y-auto pb-4">
+              {allLogs.length === 0 ? (
                 <Empty
-                  description={
-                    t("onboarding.task.comments.empty") ?? "Chưa có bình luận"
-                  }
+                  description="Chưa có hoạt động nào"
                   imageStyle={{ height: 40 }}
                 />
               ) : (
-                <div className="space-y-3">
-                  {comments?.map((c) => (
-                    <div key={c.commentId} className="flex gap-2">
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
-                        {(c.authorName ?? "U")[0].toUpperCase()}
+                <div className="relative space-y-0">
+                  {/* Vertical timeline line */}
+                  <div className="absolute left-[18px] top-0 h-full w-0.5 bg-gray-100" />
+                  {allLogs.map((log, idx) => (
+                    <div key={log.logId ?? log.commentId ?? idx} className="relative flex gap-3 pb-4">
+                      {/* Timeline dot */}
+                      <div
+                        className={`relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white shadow-sm ${getLogBg(log)}`}
+                      >
+                        {getLogIcon(log)}
                       </div>
-                      <div className="flex-1 rounded-lg bg-gray-50 px-3 py-2">
-                        <p className="text-xs font-semibold text-gray-700">
-                          {c.authorName ??
-                            t("onboarding.task.comments.unknown_author") ??
-                            "Ẩn danh"}
-                        </p>
-                        <p className="text-sm text-gray-600">{c.message}</p>
-                        {c.createdAt && (
-                          <p className="mt-1 text-[11px] text-gray-400">
-                            {formatDateTime(c.createdAt)}
+                      <div className="flex-1 pt-1">
+                        <div
+                          className={`rounded-lg border px-3 py-2 ${
+                            log.type === "COMMENT"
+                              ? "border-blue-100 bg-blue-50/50"
+                              : "border-gray-100 bg-white"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-gray-700">
+                              {log.actorName ?? log.createdByName ?? "Hệ thống"}
+                            </span>
+                            <span className="text-[10px] text-gray-400">
+                              {formatDateTime(log.createdAt)}
+                            </span>
+                            {log.type === "COMMENT" && (
+                              <Tag
+                                color="blue"
+                                style={{ margin: 0, fontSize: 10, lineHeight: "16px" }}
+                              >
+                                Bình luận
+                              </Tag>
+                            )}
+                          </div>
+                          <p className="mt-0.5 text-xs text-gray-600">
+                            {getLogLabel(log)}
                           </p>
-                        )}
+                        </div>
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Comments tab ────────────────────────────────────────────── */}
+          {tab === "comments" && (
+            <div className="flex flex-1 flex-col gap-3 overflow-hidden pb-2">
+              {/* Comment list */}
+              <div className="flex-1 overflow-y-auto">
+                {commentsLoading ? (
+                  <Skeleton active paragraph={{ rows: 3 }} />
+                ) : (comments?.length ?? 0) === 0 ? (
+                  <Empty
+                    description={
+                      t("onboarding.task.comments.empty") ??
+                      "Chưa có bình luận"
+                    }
+                    imageStyle={{ height: 40 }}
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    {comments?.map((c) => (
+                      <div key={c.commentId} className="flex gap-2.5">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
+                          {(c.authorName ?? "U")[0].toUpperCase()}
+                        </div>
+                        <div className="flex-1 rounded-xl bg-gray-50 px-3 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-semibold text-gray-700">
+                              {c.authorName ??
+                                t(
+                                  "onboarding.task.comments.unknown_author",
+                                ) ??
+                                "Ẩn danh"}
+                            </p>
+                            {c.createdAt && (
+                              <p className="text-[11px] text-gray-400">
+                                {formatDateTime(c.createdAt)}
+                              </p>
+                            )}
+                          </div>
+                          <p className="mt-1 text-sm leading-relaxed text-gray-600">
+                            {c.message}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Comment composer */}
+              {taskId && (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                    Thêm ghi chú / bình luận
+                  </p>
+                  <Input.TextArea
+                    rows={2}
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    placeholder="Nhập bình luận..."
+                    maxLength={500}
+                    className="resize-none"
+                  />
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="text-[11px] text-gray-400">
+                      {newComment.length}/500
+                    </span>
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<Send className="h-3 w-3" />}
+                      loading={addCommentMutation.isPending}
+                      disabled={!newComment.trim()}
+                      onClick={() => {
+                        const trimmed = newComment.trim();
+                        if (trimmed) addCommentMutation.mutate(trimmed);
+                      }}
+                    >
+                      Gửi
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -736,351 +1032,12 @@ const ApprovalDetailDrawer = ({
   );
 };
 
-// ── Dept Quick Confirm Modal ──────────────────────────────────────────────────
-// Fetches task detail lazily, finds the dept checkpoint, then shows a confirm form.
-
-interface DeptQuickConfirmModalProps {
-  open: boolean;
-  taskId: string | null;
-  departmentId: string;
-  onClose: () => void;
-  onConfirmed: () => void;
-}
-
-const DeptQuickConfirmModal: React.FC<DeptQuickConfirmModalProps> = ({
-  open,
-  taskId,
-  departmentId,
-  onClose,
-  onConfirmed,
-}) => {
-  const [form] = Form.useForm<{
-    evidenceNote?: string;
-    evidenceRef?: string;
-  }>();
-  const queryClient = useQueryClient();
-
-  const { data: taskDetail, isLoading } = useQuery({
-    queryKey: ["dept-quick-confirm-detail", taskId ?? ""],
-    queryFn: () => apiGetTaskDetailFull(taskId!),
-    enabled: Boolean(open && taskId),
-    select: (res: unknown) => {
-      const r = res as Record<string, unknown>;
-      return (r?.task ??
-        r?.data ??
-        r?.result ??
-        r?.payload ??
-        res) as TaskDetailResponse;
-    },
-  });
-
-  const checkpoint: DepartmentCheckpoint | undefined =
-    taskDetail?.departmentCheckpoints?.find(
-      (cp) => cp.departmentId === departmentId && cp.status === "PENDING",
-    );
-
-  const mutation = useMutation({
-    mutationFn: (values: { evidenceNote?: string; evidenceRef?: string }) =>
-      apiTaskDepartmentConfirm({
-        taskId: taskId!,
-        departmentId,
-        evidenceNote: values.evidenceNote,
-        evidenceRef: values.evidenceRef,
-      }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        predicate: (q) => {
-          const key = q.queryKey;
-          if (!Array.isArray(key)) return false;
-          return (
-            key.includes("dept-checkpoint-tasks") ||
-            key.includes("dept-quick-confirm-detail") ||
-            key.includes("approval-task-detail") ||
-            key.includes("onboarding-task-detail") ||
-            key.includes(taskId ?? "")
-          );
-        },
-      });
-      notify.success("Đã xác nhận checkpoint thành công");
-      form.resetFields();
-      onConfirmed();
-      onClose();
-    },
-    onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Xác nhận thất bại";
-      notify.error(msg);
-    },
-  });
-
-  const handleClose = () => {
-    form.resetFields();
-    onClose();
-  };
-
-  return (
-    <Modal
-      open={open}
-      title={
-        <span className="flex items-center gap-2">
-          <Building2 className="h-4 w-4 text-purple-500" />
-          Xác nhận checkpoint phòng ban
-        </span>
-      }
-      onCancel={handleClose}
-      footer={null}
-      destroyOnClose
-      width={480}
-    >
-      {isLoading ? (
-        <Skeleton active paragraph={{ rows: 3 }} />
-      ) : !checkpoint ? (
-        <div className="py-4 text-center text-sm text-gray-500">
-          {taskDetail
-            ? "Phòng ban của bạn không có checkpoint PENDING cho task này."
-            : "Không tải được thông tin task."}
-        </div>
-      ) : (
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={(values) => mutation.mutate(values)}
-        >
-          <div className="mb-4 rounded-lg border border-purple-100 bg-purple-50/40 p-3">
-            <p className="text-xs text-gray-500">Nhiệm vụ</p>
-            <p className="font-medium text-gray-800">{taskDetail?.title}</p>
-            <p className="mt-1 text-xs text-gray-500">
-              Phòng ban:{" "}
-              <span className="font-medium text-purple-700">
-                {checkpoint.departmentName ?? checkpoint.departmentId}
-              </span>
-            </p>
-          </div>
-
-          {checkpoint.requireEvidence ? (
-            <>
-              <Form.Item
-                label="Ghi chú bằng chứng"
-                name="evidenceNote"
-                rules={[
-                  {
-                    required: true,
-                    message: "Vui lòng nhập ghi chú bằng chứng",
-                  },
-                ]}
-              >
-                <Input.TextArea
-                  rows={3}
-                  placeholder="Mô tả bằng chứng xác nhận..."
-                />
-              </Form.Item>
-              <Form.Item
-                label="Tham chiếu (URL / đường dẫn file)"
-                name="evidenceRef"
-              >
-                <Input placeholder="https://..." />
-              </Form.Item>
-            </>
-          ) : (
-            <p className="mb-4 text-sm text-gray-600">
-              Xác nhận phòng ban{" "}
-              <strong>
-                {checkpoint.departmentName ?? checkpoint.departmentId}
-              </strong>{" "}
-              đã hoàn thành checkpoint này?
-            </p>
-          )}
-
-          <div className="flex justify-end gap-2">
-            <Button onClick={handleClose} disabled={mutation.isPending}>
-              Huỷ
-            </Button>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={mutation.isPending}
-            >
-              Xác nhận
-            </Button>
-          </div>
-        </Form>
-      )}
-    </Modal>
-  );
-};
-
-// ── Dept Checkpoint Item ──────────────────────────────────────────────────────
-
-interface DeptCheckpointItemProps {
-  task: OnboardingTask;
-  currentUserDeptId: string | null;
-  resolveUserName: (id: string | null | undefined, fallback?: string) => string;
-  onDetail: (task: OnboardingTask) => void;
-  onConfirm: (task: OnboardingTask) => void;
-}
-
-const DeptCheckpointItem = ({
-  task,
-  currentUserDeptId,
-  onDetail,
-  onConfirm,
-}: DeptCheckpointItemProps) => {
-  const { t } = useLocale();
-  const overdue = isOverdue(task.dueDate);
-  const canConfirmInline = Boolean(currentUserDeptId);
-
-  return (
-    <div
-      className={`group flex items-start gap-3 rounded-xl border px-4 py-3 transition-all ${
-        overdue
-          ? "border-red-100 bg-red-50/20"
-          : "border-gray-100 bg-white hover:border-purple-200 hover:shadow-sm"
-      }`}
-    >
-      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-purple-200 bg-purple-50">
-        <Building2 className="h-4 w-4 text-purple-500" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => onDetail(task)}
-            className="truncate text-left text-sm font-medium leading-snug text-gray-800 hover:text-blue-600 hover:underline"
-          >
-            {task.title}
-          </button>
-          {overdue && (
-            <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-500">
-              {t("onboarding.approvals.task.overdue_badge") ?? "Quá hạn"}
-            </span>
-          )}
-          <Tag
-            color="purple"
-            style={{ margin: 0, fontSize: 10, padding: "0 4px" }}
-          >
-            <Building2 className="mr-0.5 inline h-2.5 w-2.5" /> Phòng ban
-          </Tag>
-        </div>
-        {task.description && (
-          <p className="mt-1 line-clamp-1 text-xs text-gray-500">
-            {task.description}
-          </p>
-        )}
-        <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-gray-400">
-          {task.dueDate && (
-            <span className="flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
-              {formatDate(task.dueDate)}
-            </span>
-          )}
-          {task.assignedUserName && (
-            <span className="flex items-center gap-1">
-              <UserIcon className="h-3 w-3" />
-              {task.assignedUserName}
-            </span>
-          )}
-          {task.rawStatus && (
-            <Tag color="processing" style={{ margin: 0, fontSize: 10 }}>
-              {task.rawStatus}
-            </Tag>
-          )}
-        </div>
-      </div>
-      <div className="flex shrink-0 items-center gap-1.5">
-        {canConfirmInline && (
-          <Button
-            size="small"
-            type="primary"
-            icon={<CheckCircle2 className="h-3 w-3" />}
-            onClick={() => onConfirm(task)}
-          >
-            Xác nhận
-          </Button>
-        )}
-        <Button
-          size="small"
-          icon={<Eye className="h-3 w-3" />}
-          onClick={() => onDetail(task)}
-          className="opacity-60 transition-opacity group-hover:opacity-100"
-        >
-          {t("onboarding.task.detail.view") ?? "Chi tiết"}
-        </Button>
-      </div>
-    </div>
-  );
-};
-
-// ── Dept Checkpoint Group ─────────────────────────────────────────────────────
-
-interface DeptCheckpointGroupProps {
-  instance: OnboardingInstance;
-  tasks: OnboardingTask[];
-  currentUserDeptId: string | null;
-  resolveUserName: (id: string | null | undefined, fallback?: string) => string;
-  onDetail: (task: OnboardingTask) => void;
-  onConfirm: (task: OnboardingTask) => void;
-}
-
-const DeptCheckpointGroup = ({
-  instance,
-  tasks,
-  currentUserDeptId,
-  resolveUserName,
-  onDetail,
-  onConfirm,
-}: DeptCheckpointGroupProps) => {
-  const hasOverdue = tasks.some((tk) => isOverdue(tk.dueDate));
-  const employeeName =
-    instance.employeeName ??
-    resolveUserName(instance.employeeUserId, "Nhân viên");
-
-  return (
-    <Card
-      className={`border-l-4 ${hasOverdue ? "border-l-red-400" : "border-l-purple-400"}`}
-      styles={{ body: { padding: "16px" } }}
-    >
-      <div className="mb-3 flex items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 text-sm font-semibold text-purple-700">
-          {getInitial(instance.employeeName)}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-gray-800">
-            {employeeName}
-          </p>
-          {instance.templateName && (
-            <p className="truncate text-xs text-gray-400">
-              {instance.templateName}
-            </p>
-          )}
-        </div>
-        <Badge
-          count={tasks.length}
-          color={hasOverdue ? "#ef4444" : "#9333ea"}
-          style={{ fontSize: 11 }}
-        />
-      </div>
-      <Divider style={{ margin: "8px 0" }} />
-      <div className="space-y-2">
-        {tasks.map((task) => (
-          <DeptCheckpointItem
-            key={task.id}
-            task={task}
-            currentUserDeptId={currentUserDeptId}
-            resolveUserName={resolveUserName}
-            onDetail={onDetail}
-            onConfirm={onConfirm}
-          />
-        ))}
-      </div>
-    </Card>
-  );
-};
-
 // ── Loading Skeleton ──────────────────────────────────────────────────────────
 
 const LoadingSkeleton = () => (
   <div className="space-y-4">
     {[1, 2, 3].map((i) => (
-      <Card key={i} className="border-l-4 border-l-gray-200">
+      <Card key={i} className="border-l-4 border-l-gray-200 shadow-sm">
         <Skeleton avatar active paragraph={{ rows: 2 }} />
       </Card>
     ))}
@@ -1122,9 +1079,8 @@ const ApprovalsPage = () => {
   const [rejectReason, setRejectReason] = useState("");
   const [rejectTargetTitle, setRejectTargetTitle] = useState<string>("");
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [quickConfirmTaskId, setQuickConfirmTaskId] = useState<string | null>(
-    null,
-  );
+  const [departmentDependentTotal, setDepartmentDependentTotal] = useState(0);
+  const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null);
 
   useEffect(() => {
     if (requestedTab === "dept_checkpoints") {
@@ -1194,57 +1150,6 @@ const ApprovalsPage = () => {
   const isLoading =
     instancesLoading || (allInstances.length > 0 && tasksLoading);
 
-  // ── Step 2b: Parallel fetch dept-checkpoint tasks per instance ──────────────
-  // Fetch all tasks (no status filter) and filter client-side for responsibleDepartmentIds
-
-  const deptTaskQueries = useQueries({
-    queries: allInstances.map((instance) => ({
-      queryKey: ["dept-checkpoint-tasks", instance.id, currentUserDeptId],
-      queryFn: async () => {
-        const listRes = await apiListTasks(instance.id, {
-          page: 1,
-          size: 20,
-        });
-        const mappedTasks = extractList(
-          listRes as Record<string, unknown>,
-          "tasks",
-          "content",
-          "items",
-          "list",
-        ).map(mapTask) as OnboardingTask[];
-
-        const actionableTasks = mappedTasks.filter(
-          (tk) => tk.rawStatus !== "DONE",
-        );
-        const detailResults = await Promise.all(
-          actionableTasks.map(async (task) => {
-            const detail = unwrapTaskDetail(
-              await apiGetTaskDetailFull(task.id, {
-                includeComments: false,
-                includeAttachments: false,
-                includeActivityLogs: true,
-              }),
-            );
-            return { task, detail };
-          }),
-        );
-
-        return detailResults
-          .filter(({ detail }) =>
-            detail.departmentCheckpoints?.some(
-              (cp) =>
-                cp.departmentId === currentUserDeptId &&
-                cp.status === "PENDING",
-            ),
-          )
-          .map(({ task }) => task);
-      },
-      enabled: Boolean(instance.id) && Boolean(currentUserDeptId),
-    })),
-  });
-
-  const deptTasksLoading = deptTaskQueries.some((q) => q.isLoading);
-
   // ── Step 3: Task detail (lazy) ───────────────────────────────────────────────
 
   const { data: taskDetail, isLoading: taskDetailLoading } = useQuery({
@@ -1276,7 +1181,7 @@ const ApprovalsPage = () => {
     queryClient.invalidateQueries({ queryKey: ["approval-task-detail"] });
     queryClient.invalidateQueries({ queryKey: ["onboarding-tasks"] });
     queryClient.invalidateQueries({ queryKey: ["onboarding-task-detail"] });
-    queryClient.invalidateQueries({ queryKey: ["dept-checkpoint-tasks"] });
+    queryClient.invalidateQueries({ queryKey: ["department-dependent-tasks"] });
   };
 
   const approveMutation = useMutation({
@@ -1340,7 +1245,6 @@ const ApprovalsPage = () => {
     const q = search.trim().toLowerCase();
     const userId = currentUser?.id;
 
-    // Apply approvalTab filter on instances/tasks
     let sourceGroups = pendingGroups;
     if (approvalTab === "mine" && userId) {
       sourceGroups = pendingGroups.filter(
@@ -1349,7 +1253,6 @@ const ApprovalsPage = () => {
           g.instance.employeeUserId === userId,
       );
     } else if (approvalTab === "team" && userId) {
-      // Team: instances that the current user manages
       sourceGroups = pendingGroups.filter(
         (g) => g.instance.managerUserId === userId,
       );
@@ -1400,53 +1303,12 @@ const ApprovalsPage = () => {
     };
   }, [pendingGroups]);
 
-  const deptGroups = useMemo(() => {
-    const groups = allInstances
-      .map((instance, idx) => ({
-        instance,
-        tasks: (deptTaskQueries[idx]?.data ?? []) as OnboardingTask[],
-      }))
-      .filter(({ tasks }) => tasks.length > 0);
-    const q = search.trim().toLowerCase();
-    if (!q) return groups;
-    return groups
-      .map(({ instance, tasks }) => ({
-        instance,
-        tasks: tasks.filter(
-          (tk) =>
-            tk.title.toLowerCase().includes(q) ||
-            (
-              instance.employeeName ??
-              resolveUserName(instance.employeeUserId, "")
-            )
-              .toLowerCase()
-              .includes(q),
-        ),
-      }))
-      .filter(({ tasks }) => tasks.length > 0);
-  }, [allInstances, deptTaskQueries, search, resolveUserName]);
-
-  const deptStats = useMemo(() => {
-    const allDeptTasks = deptGroups.flatMap((g) => g.tasks);
-    return { total: allDeptTasks.length };
-  }, [deptGroups]);
-
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
   const openDetail = (task: OnboardingTask) => {
     setSelectedTaskId(task.id);
     setDrawerMode("approval");
     setDrawerOpen(true);
-  };
-
-  const openDeptDetail = (task: OnboardingTask) => {
-    setSelectedTaskId(task.id);
-    setDrawerMode("dept_checkpoint");
-    setDrawerOpen(true);
-  };
-
-  const handleConfirmCheckpoint = (task: OnboardingTask) => {
-    setQuickConfirmTaskId(task.id);
   };
 
   const handleApprove = (task: OnboardingTask) => {
@@ -1507,38 +1369,44 @@ const ApprovalsPage = () => {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* ── Page header ──────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-semibold text-ink">
-              {t("onboarding.approvals.title") ?? "Hàng đợi Phê duyệt"}
-            </h1>
-            {stats.pending > 0 && (
-              <span className="flex items-center justify-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
-                {stats.pending}
-              </span>
-            )}
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100">
+              <ShieldCheck className="h-5 w-5 text-amber-600" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">
+                {t("onboarding.approvals.title") ?? "Hàng đợi Phê duyệt"}
+              </h1>
+              <p className="text-sm text-gray-500">
+                {stats.employees > 0
+                  ? `${stats.employees} nhân viên · ${stats.pending} task chờ duyệt`
+                  : (t("onboarding.approvals.subtitle") ??
+                    "Xem xét và phê duyệt nhiệm vụ đang chờ từ nhân viên")}
+              </p>
+            </div>
           </div>
-          <p className="mt-0.5 text-sm text-muted">
-            {stats.employees > 0
-              ? `${stats.employees} ${
-                  t("onboarding.approvals.stat.employees")?.toLowerCase() ??
-                  "nhân viên"
-                } có ${stats.pending} task chờ duyệt`
-              : (t("onboarding.approvals.subtitle") ??
-                "Xem xét và phê duyệt nhiệm vụ đang chờ từ nhân viên")}
-          </p>
         </div>
         <Button
           icon={<RefreshCw className="h-4 w-4" />}
-          onClick={() => refetch()}
-          loading={isLoading || deptTasksLoading}
+          onClick={() => {
+            if (pageTab === "dept_checkpoints") {
+              queryClient.invalidateQueries({
+                queryKey: ["department-dependent-tasks"],
+              });
+              return;
+            }
+            void refetch();
+          }}
+          loading={isLoading}
         >
           {t("onboarding.approvals.refresh") ?? "Làm mới"}
         </Button>
       </div>
+
       {/* ── Main page tabs ───────────────────────────────────────────────────── */}
       <Tabs
         activeKey={pageTab}
@@ -1556,7 +1424,7 @@ const ApprovalsPage = () => {
               </span>
             ),
           },
-          ...(currentUserDeptId
+          ...(canManage
             ? [
                 {
                   key: "dept_checkpoints",
@@ -1564,9 +1432,9 @@ const ApprovalsPage = () => {
                     <span className="flex items-center gap-1.5">
                       <Building2 className="h-3.5 w-3.5" />
                       Checkpoint phòng ban
-                      {deptStats.total > 0 && (
+                      {departmentDependentTotal > 0 && (
                         <Badge
-                          count={deptStats.total}
+                          count={departmentDependentTotal}
                           size="small"
                           color="#9333ea"
                         />
@@ -1578,6 +1446,7 @@ const ApprovalsPage = () => {
             : []),
         ]}
       />
+
       {/* ── Stats (approvals tab) ────────────────────────────────────────────── */}
       {pageTab === "approvals" && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -1586,28 +1455,32 @@ const ApprovalsPage = () => {
             label={t("onboarding.approvals.stat.pending") ?? "Chờ duyệt"}
             value={stats.pending}
             colorClass="bg-blue-50"
+            borderColor="border-l-blue-400"
           />
           <StatCard
             icon={<AlertTriangle className="h-5 w-5 text-red-500" />}
             label={t("onboarding.approvals.stat.overdue") ?? "Quá hạn"}
             value={stats.overdue}
             colorClass="bg-red-50"
+            borderColor="border-l-red-400"
           />
           <StatCard
             icon={<Users className="h-5 w-5 text-purple-600" />}
             label={t("onboarding.approvals.stat.employees") ?? "Nhân viên"}
             value={stats.employees}
             colorClass="bg-purple-50"
+            borderColor="border-l-purple-400"
           />
           <StatCard
             icon={<Flag className="h-5 w-5 text-amber-500" />}
             label={t("onboarding.approvals.stat.required") ?? "Bắt buộc"}
             value={stats.required}
             colorClass="bg-amber-50"
+            borderColor="border-l-amber-400"
           />
         </div>
-      )}{" "}
-      {/* end approvals stats */}
+      )}
+
       {/* ── Filter bar (approvals tab) ───────────────────────────────────────── */}
       {pageTab === "approvals" && (
         <>
@@ -1648,7 +1521,7 @@ const ApprovalsPage = () => {
             />
             <button
               onClick={() => setOverdueFirst((v) => !v)}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
                 overdueFirst
                   ? "border-red-200 bg-red-50 text-red-600"
                   : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
@@ -1662,13 +1535,17 @@ const ApprovalsPage = () => {
 
           {/* ── Bulk approve bar ───────────────────────────────────────────── */}
           {selectedTaskIds.size > 0 && (
-            <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5">
-              <span className="text-sm font-medium text-blue-700">
+            <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100">
+                <CheckCircle2 className="h-4 w-4 text-blue-600" />
+              </div>
+              <span className="flex-1 text-sm font-semibold text-blue-700">
                 Đã chọn {selectedTaskIds.size} task
               </span>
               <Button
                 type="primary"
                 size="small"
+                icon={<ThumbsUp className="h-3 w-3" />}
                 loading={isBulkApproving}
                 onClick={handleBulkApprove}
               >
@@ -1688,8 +1565,8 @@ const ApprovalsPage = () => {
           {isLoading ? (
             <LoadingSkeleton />
           ) : filteredGroups.length === 0 ? (
-            <Card>
-              <div className="flex flex-col items-center gap-3 py-12">
+            <Card className="shadow-sm">
+              <div className="flex flex-col items-center gap-3 py-16">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50">
                   <CheckCircle2 className="h-8 w-8 text-emerald-500" />
                 </div>
@@ -1737,61 +1614,31 @@ const ApprovalsPage = () => {
           )}
         </>
       )}
+
       {/* ── Dept Checkpoints tab ─────────────────────────────────────────────── */}
       {pageTab === "dept_checkpoints" && (
         <div className="space-y-4">
-          {/* Search bar */}
-          <div className="flex flex-wrap items-center gap-3">
-            <Input
-              placeholder="Tìm theo tên task hoặc nhân viên..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              allowClear
-              className="max-w-xs"
-              prefix={<Search className="h-3.5 w-3.5 text-gray-400" />}
+          {canManage && !currentUserDeptId && (
+            <DeptDepartmentSelector
+              value={selectedDeptId}
+              onChange={setSelectedDeptId}
             />
-          </div>
-
-          {deptTasksLoading || instancesLoading ? (
-            <LoadingSkeleton />
-          ) : deptGroups.length === 0 ? (
-            <Card>
-              <div className="flex flex-col items-center gap-3 py-12">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-purple-50">
-                  <Building2 className="h-8 w-8 text-purple-400" />
-                </div>
-                <div className="text-center">
-                  <p className="text-base font-semibold text-gray-800">
-                    {search
-                      ? "Không tìm thấy kết quả"
-                      : "Không có task nào cần xác nhận"}
-                  </p>
-                  <p className="mt-1 text-sm text-gray-500">
-                    {search
-                      ? "Thử tìm kiếm với từ khóa khác"
-                      : "Các task yêu cầu xác nhận từ phòng ban của bạn sẽ hiển thị ở đây."}
-                  </p>
-                </div>
-              </div>
-            </Card>
-          ) : (
-            deptGroups.map(({ instance, tasks }) => (
-              <DeptCheckpointGroup
-                key={instance.id}
-                instance={instance}
-                tasks={tasks}
-                currentUserDeptId={currentUserDeptId}
-                resolveUserName={resolveUserName}
-                onDetail={openDeptDetail}
-                onConfirm={handleConfirmCheckpoint}
-              />
-            ))
           )}
+          <DepartmentDependentApprovals
+            departmentId={currentUserDeptId ?? selectedDeptId}
+            search={search}
+            onSearchChange={setSearch}
+            resolveUserName={resolveUserName}
+            onConfirmed={invalidateAfterAction}
+            onTotalChange={setDepartmentDependentTotal}
+          />
         </div>
       )}
+
       {/* ── Task Detail Drawer ───────────────────────────────────────────────── */}
       <ApprovalDetailDrawer
         open={drawerOpen}
+        taskId={selectedTaskId}
         taskDetail={taskDetail}
         loading={taskDetailLoading}
         comments={comments}
@@ -1810,26 +1657,17 @@ const ApprovalsPage = () => {
         }
         onReject={handleOpenRejectFromDrawer}
       />
-      {/* ── Dept Quick Confirm Modal ─────────────────────────────────────────── */}
-      {currentUserDeptId && (
-        <DeptQuickConfirmModal
-          open={Boolean(quickConfirmTaskId)}
-          taskId={quickConfirmTaskId}
-          departmentId={currentUserDeptId}
-          onClose={() => setQuickConfirmTaskId(null)}
-          onConfirmed={() => {
-            setQuickConfirmTaskId(null);
-            invalidateAfterAction();
-          }}
-        />
-      )}
+
       {/* ── Reject Modal ─────────────────────────────────────────────────────── */}
       <Modal
         title={
           <div className="flex items-center gap-2">
-            <XCircle className="h-4 w-4 text-red-500" />
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-100">
+              <XCircle className="h-4 w-4 text-red-500" />
+            </div>
             <span>
-              {t("onboarding.task.action.reject_confirm") ?? "Xác nhận từ chối"}
+              {t("onboarding.task.action.reject_confirm") ??
+                "Xác nhận từ chối"}
             </span>
           </div>
         }
@@ -1849,11 +1687,11 @@ const ApprovalsPage = () => {
       >
         <div className="py-2">
           {rejectTargetTitle && (
-            <div className="mb-3 rounded-lg border border-red-100 bg-red-50/60 px-3 py-2">
-              <p className="text-[11px] uppercase tracking-wide text-red-500">
+            <div className="mb-3 rounded-xl border border-red-100 bg-red-50/60 px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-red-500">
                 {t("onboarding.task.field.title") ?? "Nhiệm vụ"}
               </p>
-              <p className="mt-0.5 text-sm font-medium text-gray-800">
+              <p className="mt-1 text-sm font-semibold text-gray-800">
                 {rejectTargetTitle}
               </p>
             </div>

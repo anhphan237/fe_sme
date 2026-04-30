@@ -31,6 +31,9 @@ import type {
   OnboardingEventTemplateCreateRequest,
   OnboardingEventTemplateCreateResponse,
   TaskDepartmentConfirmRequest,
+  TaskDepartmentConfirmResponse,
+  TaskDepartmentDependentListRequest,
+  TaskDepartmentDependentListResponse,
   EventPublishRequest,
   EventPublishResponse,
   EventDetailRequest,
@@ -499,10 +502,19 @@ export const apiCreateEventTemplate = (
 export const apiTaskDepartmentConfirm = (
   payload: TaskDepartmentConfirmRequest,
 ) =>
-  gatewayRequest<TaskDepartmentConfirmRequest, { checkpointId: string }>(
+  gatewayRequest<TaskDepartmentConfirmRequest, TaskDepartmentConfirmResponse>(
     "com.sme.onboarding.task.department.confirm",
     payload,
   );
+
+/** com.sme.onboarding.task.department.dependent.list */
+export const apiListTaskDepartmentDependentTasks = (
+  payload: TaskDepartmentDependentListRequest,
+) =>
+  gatewayRequest<
+    TaskDepartmentDependentListRequest,
+    TaskDepartmentDependentListResponse
+  >("com.sme.onboarding.task.department.dependent.list", payload);
 
 // ── Events (publish / detail / list / attendance) ──────────
 
