@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import type { ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -102,17 +103,31 @@ const isOfficeFile = (ext: string) => {
 const isInternalEditorUrl = (url?: string) => {
   if (!url) return false;
 
-  return url.includes("/documents/editor/");
+  const normalized = url.toLowerCase();
+
+  return (
+    normalized.includes("/documents/editor/") ||
+    normalized.includes("app/documents/editor/")
+  );
 };
 
 const getEditorDocumentIdFromUrl = (url?: string) => {
   if (!url || !isInternalEditorUrl(url)) return null;
 
-  const value = url.split("/documents/editor/").pop();
+  const normalized = url.replaceAll("\\", "/");
+  const lower = normalized.toLowerCase();
 
-  if (!value) return null;
+  const marker = lower.includes("/documents/editor/")
+    ? "/documents/editor/"
+    : "app/documents/editor/";
 
-  return value.split(/[?#]/)[0] || null;
+  const startIndex = lower.indexOf(marker);
+
+  if (startIndex < 0) return null;
+
+  const value = normalized.slice(startIndex + marker.length);
+
+  return value.split(/[?#/]/)[0] || null;
 };
 
 const getStatusLabelKey = (status?: string) => {
@@ -125,6 +140,25 @@ const getStatusLabelKey = (status?: string) => {
 
   return "";
 };
+
+const getDocumentListItems = (data: unknown): DetailDocumentItem[] => {
+  if (!data) return [];
+
+  if (Array.isArray(data)) return data as DetailDocumentItem[];
+
+  if (typeof data === "object") {
+    const obj = data as Record<string, unknown>;
+
+    if (Array.isArray(obj.items)) return obj.items as DetailDocumentItem[];
+    if (Array.isArray(obj.documents)) {
+      return obj.documents as DetailDocumentItem[];
+    }
+    if (Array.isArray(obj.data)) return obj.data as DetailDocumentItem[];
+  }
+
+  return [];
+};
+
 const sanitizeFileName = (value: string) => {
   const invalidChars = new Set(["<", ">", ":", '"', "/", "\\", "|", "?", "*"]);
 
@@ -145,16 +179,17 @@ const sanitizeFileName = (value: string) => {
 
 const getDownloadFileName = (doc: DetailDocumentItem) => {
   const ext = getFileExt(doc.fileUrl, doc.name);
-  const cleanName = sanitizeFileName(doc.name || "document");
+  const cleanName = sanitizeFileName(doc.name || "document") || "document";
 
   if (!ext) return cleanName;
 
-  const lowerName = cleanName.toLowerCase();
   const suffix = `.${ext.toLowerCase()}`;
 
-  if (lowerName.endsWith(suffix)) return cleanName;
+  if (cleanName.toLowerCase().endsWith(suffix)) {
+    return cleanName;
+  }
 
-  return `${cleanName}.${ext}`;
+  return `${cleanName}${suffix}`;
 };
 
 const downloadFileWithName = async (url: string, filename: string) => {
@@ -175,22 +210,6 @@ const downloadFileWithName = async (url: string, filename: string) => {
   document.body.removeChild(link);
 
   URL.revokeObjectURL(objectUrl);
-};
-const getDocumentListItems = (data: unknown): DetailDocumentItem[] => {
-  if (!data) return [];
-
-  if (Array.isArray(data)) return data as DetailDocumentItem[];
-
-  if (typeof data === "object") {
-    const obj = data as Record<string, unknown>;
-
-    if (Array.isArray(obj.items)) return obj.items as DetailDocumentItem[];
-    if (Array.isArray(obj.documents))
-      return obj.documents as DetailDocumentItem[];
-    if (Array.isArray(obj.data)) return obj.data as DetailDocumentItem[];
-  }
-
-  return [];
 };
 
 function FileIconLarge({ url, name }: { url?: string; name?: string }) {
@@ -224,7 +243,7 @@ function FileIconLarge({ url, name }: { url?: string; name?: string }) {
   return <FileOutlined className={`${className} text-slate-400`} />;
 }
 
-function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+function InfoRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <span className="shrink-0 text-xs text-muted">{label}</span>
@@ -240,6 +259,16 @@ function DocumentPreview({ doc }: { doc: DetailDocumentItem }) {
   const ext = getFileExt(doc.fileUrl, doc.name);
   const accentColor = getExtColor(doc.fileUrl, doc.name);
   const editorDocumentId = getEditorDocumentIdFromUrl(doc.fileUrl);
+
+  const handleDownload = async () => {
+    if (!doc.fileUrl) return;
+
+    try {
+      await downloadFileWithName(doc.fileUrl, getDownloadFileName(doc));
+    } catch {
+      window.open(doc.fileUrl, "_blank", "noopener,noreferrer");
+    }
+  };
 
   if (!doc.fileUrl) {
     return (
@@ -278,23 +307,61 @@ function DocumentPreview({ doc }: { doc: DetailDocumentItem }) {
   }
 
   if (isPdfFile(ext)) {
+    const pdfUrl = `${doc.fileUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`;
+
     return (
-      <iframe
-        src={doc.fileUrl}
-        title={doc.name}
-        className="h-[680px] w-full rounded-2xl border border-stroke bg-white"
-      />
+      <div className="overflow-hidden rounded-2xl border border-stroke bg-white">
+        <div className="flex items-center justify-between border-b border-stroke bg-slate-50 px-4 py-2">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-ink">
+              {doc.name}
+            </p>
+            <p className="text-xs text-muted">
+              {t("document.detail.pdf_preview_hint")}
+            </p>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() =>
+                window.open(doc.fileUrl, "_blank", "noopener,noreferrer")
+              }
+            >
+              {t("document.action.open")}
+            </Button>
+
+            <Button
+              size="small"
+              type="primary"
+              icon={<DownloadOutlined />}
+              onClick={handleDownload}
+            >
+              {t("document.action.download")}
+            </Button>
+          </div>
+        </div>
+
+        <iframe
+          src={pdfUrl}
+          title={doc.name}
+          className="h-[calc(100vh-330px)] min-h-[520px] w-full bg-white"
+        />
+      </div>
     );
   }
 
   if (isImageFile(ext)) {
     return (
-      <div className="flex w-full justify-center">
-        <Image
-          src={doc.fileUrl}
-          alt={doc.name}
-          className="max-h-[680px] rounded-xl object-contain"
-        />
+      <div className="rounded-2xl border border-stroke bg-slate-50 p-3">
+        <div className="flex w-full justify-center">
+          <Image
+            src={doc.fileUrl}
+            alt={doc.name || "document"}
+            className="max-h-[680px] rounded-xl object-contain"
+          />
+        </div>
       </div>
     );
   }
@@ -320,13 +387,7 @@ function DocumentPreview({ doc }: { doc: DetailDocumentItem }) {
       <Button
         type="primary"
         icon={<DownloadOutlined />}
-        onClick={async () => {
-          try {
-            await downloadFileWithName(doc.fileUrl!, getDownloadFileName(doc));
-          } catch {
-            window.open(doc.fileUrl, "_blank", "noopener,noreferrer");
-          }
-        }}
+        onClick={handleDownload}
       >
         {t("document.action.download")}
         {ext ? ` (${ext.toUpperCase()})` : ""}
@@ -427,13 +488,17 @@ export default function DocumentDetail() {
   const statusLabelKey = getStatusLabelKey(doc?.status);
   const categoryText =
     doc?.categoryName || doc?.documentCategoryId || doc?.categoryId || "—";
+
+  const handleBack = () => {
+    navigate("/documents/files");
+  };
+
   const handleDownload = async () => {
     if (!doc?.fileUrl) return;
 
     try {
       await downloadFileWithName(doc.fileUrl, getDownloadFileName(doc));
     } catch {
-      // fallback nếu server/CDN không cho fetch CORS
       window.open(doc.fileUrl, "_blank", "noopener,noreferrer");
     }
   };
@@ -449,7 +514,7 @@ export default function DocumentDetail() {
           status="error"
           title={t("document.error.something_wrong")}
           extra={[
-            <Button key="back" onClick={() => navigate("/documents")}>
+            <Button key="back" onClick={handleBack}>
               {t("document.detail.back_to_list")}
             </Button>,
             <Button key="retry" type="primary" onClick={() => refetch()}>
@@ -469,7 +534,7 @@ export default function DocumentDetail() {
           title={t("document.detail.not_found")}
           subTitle={t("document.detail.not_found_desc")}
           extra={
-            <Button type="primary" onClick={() => navigate("/documents")}>
+            <Button type="primary" onClick={handleBack}>
               {t("document.detail.back_to_list")}
             </Button>
           }
@@ -481,7 +546,7 @@ export default function DocumentDetail() {
   return (
     <div className="space-y-5">
       <button
-        onClick={() => navigate("/documents")}
+        onClick={handleBack}
         className="flex items-center gap-1.5 text-sm font-medium text-muted transition hover:text-ink"
       >
         <ArrowLeftOutlined />

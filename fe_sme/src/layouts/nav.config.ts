@@ -118,17 +118,22 @@ export const NAV_SECTIONS: NavSection[] = [
       },
     ],
   },
-  {
-    titleKey: "nav.documents",
-    icon: FileText,
-    children: [
-      {
-        titleKey: "nav.documents.library",
-        to: "/documents",
-        requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
-      },
-    ],
-  },
+ {
+  titleKey: "nav.documents",
+  icon: FileText,
+  children: [
+    {
+      titleKey: "nav.documents.files",
+      to: "/documents/files",
+      requiredRoles: ["HR", "MANAGER", "EMPLOYEE"],
+    },
+    {
+      titleKey: "nav.documents.workspace",
+      to: "/documents/workspace",
+      requiredRoles: ["HR", "MANAGER"],
+    },
+  ],
+},
   {
     titleKey: "nav.surveys",
     icon: LayoutGrid,
