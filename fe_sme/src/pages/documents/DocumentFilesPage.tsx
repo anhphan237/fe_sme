@@ -52,15 +52,59 @@ type FileDocumentItem = DocumentItem & {
 const { Dragger } = Upload;
 
 type EmployeeTab = "all" | "unread" | "pending_ack";
+function normalizeDocumentFileUrl(fileUrl?: string | null): string | undefined {
+  if (!fileUrl) return undefined;
 
+  try {
+    const parsed = new URL(fileUrl, window.location.origin);
+
+    if (parsed.pathname.startsWith("/documents/editor/")) {
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+
+    return fileUrl;
+  } catch {
+    return fileUrl;
+  }
+}
+
+function isWorkspaceDocumentUrl(fileUrl?: string | null) {
+  const normalizedUrl = normalizeDocumentFileUrl(fileUrl) ?? "";
+
+  return normalizedUrl.startsWith("/documents/editor/");
+}
+
+function getWorkspaceDocumentTitle(doc: FileDocumentItem) {
+  const rawName = doc.name?.trim();
+  const rawTitle = (doc as { title?: string }).title?.trim();
+
+  if (rawTitle) return rawTitle;
+
+  if (
+    rawName &&
+    !rawName.toUpperCase().startsWith("HTTP://") &&
+    !rawName.toUpperCase().startsWith("HTTPS://") &&
+    !rawName.includes("/documents/editor/")
+  ) {
+    return rawName;
+  }
+
+  return "Tài liệu soạn thảo";
+}
 function toUnifiedFile(doc: FileDocumentItem): UnifiedDoc {
+  const fileUrl = normalizeDocumentFileUrl(doc.fileUrl);
+  const isWorkspace = isWorkspaceDocumentUrl(fileUrl);
+
   return {
     id: doc.documentId,
     kind: "FILE",
-    title: doc.name,
-    description: doc.description,
+    source: isWorkspace ? "WORKSPACE" : "UPLOAD",
+    title: isWorkspace ? getWorkspaceDocumentTitle(doc) : doc.name,
+    description: isWorkspace
+      ? doc.description || "Tài liệu được tạo bằng trình soạn thảo nội bộ."
+      : doc.description,
     status: doc.status || "ACTIVE",
-    fileUrl: doc.fileUrl,
+    fileUrl,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
@@ -179,8 +223,19 @@ function UploadFileModal({
           placeholder={t("document.field.description.placeholder")}
         />
 
-        <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-muted">
-          {t("document.files.upload_note")}
+        <div className="space-y-2 rounded-lg bg-slate-50 px-3 py-3 text-xs text-muted">
+          <p>{t("document.files.upload_note")}</p>
+
+          <div className="space-y-1 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-blue-700">
+            <p className="font-semibold">
+              {t("document.files.upload_limit_title")}
+            </p>
+
+            <ul className="ml-4 list-disc space-y-1">
+              <li>{t("document.files.upload_limit_free")}</li>
+              <li>{t("document.files.upload_limit_paid")}</li>
+            </ul>
+          </div>
         </div>
       </Form>
     </BaseModal>

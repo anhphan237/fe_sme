@@ -1,23 +1,12 @@
 import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Button,
-  Card,
-  Dropdown,
-  Empty,
-  Input,
-  Modal,
-  Tooltip,
-  message,
-} from "antd";
+import { Button, Card, Dropdown, Empty, Input, Modal, message } from "antd";
 import type { MenuProps } from "antd";
 import {
   FileAddOutlined,
   FolderAddOutlined,
   MoreOutlined,
-  ReloadOutlined,
   SearchOutlined,
-  SyncOutlined,
 } from "@ant-design/icons";
 
 import { useLocale } from "@/i18n";
@@ -52,6 +41,15 @@ type FolderModalState = {
 type NewDocModalState = {
   open: boolean;
   folderId?: string | null;
+};
+
+const formatI18n = (
+  template: string,
+  values: Record<string, string | number>,
+) => {
+  return Object.entries(values).reduce((result, [key, value]) => {
+    return result.replaceAll(`{{${key}}}`, String(value));
+  }, template);
 };
 
 const safeChildren = (node: DocFolderNode): DocFolderNode[] =>
@@ -237,7 +235,7 @@ function NewWorkspaceDocModal({
 
         <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-muted">
           {folderName
-            ? t("document.workspace.new_doc_folder_hint", {
+            ? formatI18n(t("document.workspace.new_doc_folder_hint"), {
                 folder: folderName,
               })
             : t("document.workspace.new_doc_no_folder_hint")}
@@ -462,16 +460,6 @@ export default function DocumentWorkspacePage() {
     },
   });
 
-  const refresh = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["doc-folder-tree"] });
-
-    if (selectedDocumentId) {
-      queryClient.invalidateQueries({
-        queryKey: ["doc-detail", selectedDocumentId],
-      });
-    }
-  }, [queryClient, selectedDocumentId]);
-
   const handleDeleteFolder = useCallback(
     (folderId: string) => {
       Modal.confirm({
@@ -490,13 +478,23 @@ export default function DocumentWorkspacePage() {
     setSelectedFolderId(folderId);
   }, []);
 
-  const handleSelectDocument = useCallback((documentId: string) => {
-    setSelectedDocumentId(documentId);
-  }, []);
+  const handleSelectDocument = useCallback(
+    (documentId: string, folderId: string) => {
+      setSelectedDocumentId(documentId);
+      setSelectedFolderId(folderId);
+    },
+    [],
+  );
 
   const handleMoveDocument = useCallback(
-    (documentId: string, sourceFolderId: string, targetFolderId: string) => {
-      moveDocumentMutation.mutate({
+    async (
+      documentId: string,
+      sourceFolderId: string,
+      targetFolderId: string,
+    ): Promise<void> => {
+      if (sourceFolderId === targetFolderId) return;
+
+      await moveDocumentMutation.mutateAsync({
         documentId,
         sourceFolderId,
         targetFolderId,
@@ -506,10 +504,13 @@ export default function DocumentWorkspacePage() {
   );
 
   const handleMoveFolder = useCallback(
-    (sourceFolderId: string, targetParentFolderId: string | null) => {
+    async (
+      sourceFolderId: string,
+      targetParentFolderId: string | null,
+    ): Promise<void> => {
       if (sourceFolderId === targetParentFolderId) return;
 
-      moveFolderMutation.mutate({
+      await moveFolderMutation.mutateAsync({
         sourceFolderId,
         targetParentFolderId,
       });
@@ -566,60 +567,17 @@ export default function DocumentWorkspacePage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-slate-50">
-      <div className="flex items-center gap-3 border-b border-stroke bg-white px-5 py-3">
-        <div className="flex min-w-0 flex-1 flex-col">
-          <h1 className="truncate text-lg font-bold text-ink">
-            {t("document.workspace.page_title")}
-          </h1>
-
-          <p className="truncate text-xs text-muted">
-            {t("document.workspace.page_subtitle", {
-              count: String(totalEditorDocs),
-            })}
-          </p>
-        </div>
-
-        {isFetching && !isLoading && (
-          <SyncOutlined spin className="text-sm text-brand" />
-        )}
-
-        <Tooltip title={t("document.action.refresh")}>
-          <Button icon={<ReloadOutlined />} onClick={refresh} />
-        </Tooltip>
-
-        {canManageWorkspace && (
-          <>
-            <Button
-              icon={<FolderAddOutlined />}
-              onClick={() =>
-                setFolderModal({
-                  open: true,
-                  mode: "create-root",
-                })
-              }
-            >
-              {t("document.folder.new")}
-            </Button>
-
-            <Button
-              type="primary"
-              icon={<FileAddOutlined />}
-              onClick={() =>
-                setNewDocModal({
-                  open: true,
-                  folderId: selectedFolderId,
-                })
-              }
-            >
-              {t("document.workspace.new_doc")}
-            </Button>
-          </>
-        )}
-      </div>
-
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <aside className="flex w-80 shrink-0 flex-col border-r border-stroke bg-white">
           <div className="border-b border-stroke px-3 py-3">
+            <div className="mb-2 text-xs text-muted">
+              {isFetching && !isLoading
+                ? `${t("document.action.refresh")}...`
+                : formatI18n(t("document.workspace.page_subtitle"), {
+                    count: totalEditorDocs,
+                  })}
+            </div>
+
             <div className="flex items-center gap-2">
               <Input
                 allowClear
@@ -676,6 +634,12 @@ export default function DocumentWorkspacePage() {
                     open: true,
                     mode: "create-child",
                     parentId,
+                  })
+                }
+                onCreateDocument={(folderId) =>
+                  setNewDocModal({
+                    open: true,
+                    folderId,
                   })
                 }
                 onRename={(folderId, currentName) =>

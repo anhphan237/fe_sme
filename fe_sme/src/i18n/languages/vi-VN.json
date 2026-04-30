@@ -4165,6 +4165,11 @@
   "document.workspace.empty_desc": "Tạo thư mục đầu tiên để bắt đầu quản lý tài liệu giống Notion.",
 
   "nav.documents.files": "File tài liệu",
-  "nav.documents.workspace": "Workspace tài liệu"
+  "nav.documents.workspace": "Workspace tài liệu",
+  "document.folder.root_drop_hint": "Thả thư mục vào đây để chuyển ra thư mục gốc",
+  "document.folder.root_drop_active": "Thả để chuyển thành thư mục gốc",
+  "document.files.upload_limit_title": "Lưu ý dung lượng tải lên",
+  "document.files.upload_limit_free": "Gói miễn phí: tối đa khoảng 10 MB / file",
+  "document.files.upload_limit_paid": "Gói trả phí: tối đa khoảng 100 MB / file"
 
 }

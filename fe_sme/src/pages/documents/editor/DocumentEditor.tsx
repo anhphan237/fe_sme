@@ -110,7 +110,7 @@ const getAckTime = (read: DocReadItem): string | null => {
 };
 
 const createEditorDocumentUrl = (documentId: string) => {
-  return `${window.location.origin}/documents/editor/${documentId}`;
+  return `/documents/editor/${documentId}`;
 };
 
 const buildLegacyDocumentDescription = (plainText: string) => {

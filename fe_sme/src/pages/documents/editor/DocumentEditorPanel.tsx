@@ -20,19 +20,26 @@ import {
   EditOutlined,
   ExclamationCircleOutlined,
   EyeOutlined,
-  FileTextOutlined,
   FolderOutlined,
-  InfoCircleOutlined,
   LoadingOutlined,
   ReloadOutlined,
   SaveOutlined,
+  CommentOutlined,
+  SendOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
 
 import { useLocale } from "@/i18n";
+import { useUserStore } from "@/stores/user.store";
+import { useUserNameMap } from "@/utils/resolvers/userResolver";
 import {
   apiDocAttachmentList,
   apiDocAutosave,
+  apiDocCommentAdd,
+  apiDocCommentDelete,
+  apiDocCommentTree,
   apiDocDetail,
   apiDocMarkRead,
   apiDocPublish,
@@ -53,6 +60,9 @@ import {
   blockDocToPlainText,
   normalizeBlockDoc,
 } from "./documentBlockEditor.utils";
+import type { DocCommentTreeNode } from "@/interface/document/editor";
+
+dayjs.extend(relativeTime);
 
 type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
 type EditorMode = "write" | "preview";
@@ -92,7 +102,7 @@ const estimateReadMinutes = (text: string) => {
 };
 
 const createEditorDocumentUrl = (documentId: string) => {
-  return `${window.location.origin}/documents/editor/${documentId}`;
+  return `/documents/editor/${documentId}`;
 };
 
 const buildLegacyDocumentDescription = (plainText: string) => {
@@ -101,6 +111,15 @@ const buildLegacyDocumentDescription = (plainText: string) => {
   if (!clean) return "Editor document";
 
   return clean.length > 500 ? `${clean.slice(0, 500)}...` : clean;
+};
+
+const formatI18n = (
+  template: string,
+  values: Record<string, string | number>,
+) => {
+  return Object.entries(values).reduce((result, [key, value]) => {
+    return result.replaceAll(`{{${key}}}`, String(value));
+  }, template);
 };
 
 const isSameEditorDocumentUrl = (
@@ -324,22 +343,12 @@ function BlockPreview({ value }: { value: DocumentBlockDoc }) {
       if (!block.src) return null;
 
       return (
-        <figure
+        <img
           key={block.id}
-          className="mb-5 overflow-hidden rounded-2xl border border-stroke bg-slate-50"
-        >
-          <img
-            src={block.src}
-            alt={block.alt || ""}
-            className="max-h-[460px] w-full object-contain"
-          />
-
-          {block.alt && (
-            <figcaption className="border-t border-stroke px-3 py-2 text-center text-xs text-muted">
-              {block.alt}
-            </figcaption>
-          )}
-        </figure>
+          src={block.src}
+          alt={block.alt || ""}
+          className="mx-auto mb-5 max-h-[520px] max-w-full object-contain"
+        />
       );
     }
 
@@ -389,6 +398,246 @@ function LoadingPanel() {
       <div className="flex-1 p-8">
         <Skeleton active paragraph={{ rows: 12 }} />
       </div>
+    </div>
+  );
+}
+
+function CommentNode({
+  node,
+  currentUserId,
+  resolveName,
+  depth = 0,
+  onDelete,
+  onReply,
+}: {
+  node: DocCommentTreeNode;
+  currentUserId: string;
+  resolveName: (id: string | null | undefined, fallback?: string) => string;
+  depth?: number;
+  onDelete: (commentId: string) => void;
+  onReply: (parentCommentId: string) => void;
+}) {
+  const { t } = useLocale();
+  const isOwn = node.authorUserId === currentUserId;
+  const children = node.children ?? [];
+
+  return (
+    <div style={{ marginLeft: depth * 14 }}>
+      <div
+        className={[
+          "rounded-2xl p-3",
+          depth === 0 ? "bg-slate-50" : "border border-stroke bg-white",
+        ].join(" ")}
+      >
+        <div className="mb-1.5 flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">
+            <UserOutlined />
+          </div>
+
+          <span className="text-xs font-semibold text-ink">
+            {resolveName(node.authorUserId, t("document.editor.user_fallback"))}
+          </span>
+
+          <span className="ml-auto shrink-0 text-xs text-muted">
+            {node.createdAt ? dayjs(node.createdAt).fromNow() : "—"}
+          </span>
+        </div>
+
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">
+          {node.body}
+        </p>
+
+        <div className="mt-2 flex items-center gap-3">
+          {depth < 3 && (
+            <button
+              type="button"
+              className="text-xs font-medium text-brand hover:underline"
+              onClick={() => onReply(node.commentId)}
+            >
+              {t("document.editor.comment.reply")}
+            </button>
+          )}
+
+          {isOwn && (
+            <button
+              type="button"
+              className="text-xs text-red-500 hover:underline"
+              onClick={() => onDelete(node.commentId)}
+            >
+              {t("document.editor.comment.delete")}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {children.length > 0 && (
+        <div className="mt-2 space-y-2">
+          {children.map((child) => (
+            <CommentNode
+              key={child.commentId}
+              node={child}
+              currentUserId={currentUserId}
+              resolveName={resolveName}
+              depth={depth + 1}
+              onDelete={onDelete}
+              onReply={onReply}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DocumentCommentsSection({ documentId }: { documentId: string }) {
+  const { t } = useLocale();
+  const queryClient = useQueryClient();
+  const currentUser = useUserStore((state) => state.currentUser);
+  const currentUserId =
+    (currentUser as { id?: string; userId?: string } | undefined)?.id ??
+    (currentUser as { id?: string; userId?: string } | undefined)?.userId ??
+    "";
+  const { resolveName } = useUserNameMap({ enabled: Boolean(documentId) });
+
+  const [body, setBody] = useState("");
+  const [replyTo, setReplyTo] = useState<string | null>(null);
+
+  const { data: tree, isLoading } = useQuery({
+    queryKey: ["doc-comments-tree", documentId],
+    queryFn: () => apiDocCommentTree(documentId),
+    enabled: Boolean(documentId),
+  });
+
+  const roots = tree?.roots ?? [];
+
+  const countAll = (node: DocCommentTreeNode): number => {
+    return 1 + (node.children ?? []).reduce((sum, child) => sum + countAll(child), 0);
+  };
+
+  const totalComments = roots.reduce((sum, root) => sum + countAll(root), 0);
+
+  const addMutation = useMutation({
+    mutationFn: ({ value, parentId }: { value: string; parentId?: string }) =>
+      apiDocCommentAdd(documentId, value, parentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["doc-comments-tree", documentId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["doc-detail", documentId],
+      });
+      setBody("");
+      setReplyTo(null);
+    },
+    onError: () => {
+      message.error(t("document.editor.comment.add_error"));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (commentId: string) => apiDocCommentDelete(commentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["doc-comments-tree", documentId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["doc-detail", documentId],
+      });
+    },
+    onError: () => {
+      message.error(t("document.editor.comment.delete_error"));
+    },
+  });
+
+  const submit = () => {
+    if (!body.trim()) return;
+
+    addMutation.mutate({
+      value: body.trim(),
+      parentId: replyTo ?? undefined,
+    });
+  };
+
+  return (
+    <div className="mt-4 rounded-3xl border border-stroke bg-white p-5 shadow-sm sm:p-6">
+      <div className="mb-4 flex items-center gap-2">
+        <CommentOutlined className="text-brand" />
+        <h2 className="m-0 text-base font-bold text-ink">
+          {t("document.editor.comments")}
+        </h2>
+        <Badge count={totalComments} color="blue" />
+      </div>
+
+      {isLoading ? (
+        <Skeleton active paragraph={{ rows: 4 }} />
+      ) : roots.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-stroke bg-slate-50 px-4 py-8 text-center text-sm text-muted">
+          <CommentOutlined className="mb-2 text-3xl text-slate-200" />
+          <div>{t("document.editor.comment.empty")}</div>
+        </div>
+      ) : (
+        <div className="max-h-[380px] space-y-3 overflow-y-auto pr-1">
+          {roots.map((node) => (
+            <CommentNode
+              key={node.commentId}
+              node={node}
+              currentUserId={currentUserId}
+              resolveName={resolveName}
+              onDelete={(id) => deleteMutation.mutate(id)}
+              onReply={(parentId) => setReplyTo(parentId)}
+            />
+          ))}
+        </div>
+      )}
+
+      <Divider className="my-4" />
+
+      {replyTo && (
+        <div className="mb-3 flex items-center gap-2 rounded-xl bg-blue-50 px-3 py-2 text-xs text-blue-700">
+          <span className="flex-1 truncate">
+            {t("document.editor.replying_to")}
+          </span>
+          <button
+            type="button"
+            className="shrink-0 font-medium hover:underline"
+            onClick={() => setReplyTo(null)}
+          >
+            {t("document.editor.comment.cancel_reply")}
+          </button>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <Input.TextArea
+          placeholder={
+            replyTo
+              ? t("document.editor.comment.reply_placeholder")
+              : t("document.editor.comment.placeholder")
+          }
+          value={body}
+          onChange={(event) => setBody(event.target.value)}
+          rows={3}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+              event.preventDefault();
+              submit();
+            }
+          }}
+        />
+
+        <Button
+          type="primary"
+          icon={<SendOutlined />}
+          loading={addMutation.isPending}
+          disabled={!body.trim()}
+          onClick={submit}
+          className="shrink-0"
+        />
+      </div>
+
+      <p className="mt-2 text-xs text-muted">
+        {t("document.editor.comment.submit_hint")}
+      </p>
     </div>
   );
 }
@@ -652,13 +901,13 @@ function EditorPanelContent({
 
       <div className="flex items-center gap-4 border-b border-stroke/80 bg-white/80 px-6 py-2 text-xs text-muted backdrop-blur">
         <span>
-          {t("document.editor.word_count", { count: String(wordCount) })}
+          {formatI18n(t("document.editor.word_count"), { count: wordCount })}
         </span>
 
         <span className="text-slate-200">·</span>
 
         <span>
-          {t("document.editor.read_time", { min: String(readMinutes) })}
+          {formatI18n(t("document.editor.read_time"), { min: readMinutes })}
         </span>
 
         {readCount > 0 && (
@@ -666,7 +915,7 @@ function EditorPanelContent({
             <span className="text-slate-200">·</span>
             <span className="inline-flex items-center gap-1">
               <EyeOutlined />
-              {t("document.editor.reads", { count: String(readCount) })}
+              {formatI18n(t("document.editor.reads"), { count: readCount })}
             </span>
           </>
         )}
@@ -771,42 +1020,7 @@ function EditorPanelContent({
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <div className="rounded-2xl border border-stroke bg-white px-4 py-3 shadow-sm">
-              <p className="flex items-center gap-1 text-xs font-semibold text-muted">
-                <InfoCircleOutlined />
-                {t("document.editor.info.created")}
-              </p>
-              <p className="mt-1 text-sm text-ink">
-                {doc.createdAt
-                  ? dayjs(doc.createdAt).format("DD/MM/YYYY HH:mm")
-                  : "—"}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-stroke bg-white px-4 py-3 shadow-sm">
-              <p className="flex items-center gap-1 text-xs font-semibold text-muted">
-                <ClockCircleOutlined />
-                {t("document.editor.info.modified")}
-              </p>
-              <p className="mt-1 text-sm text-ink">
-                {doc.updatedAt
-                  ? dayjs(doc.updatedAt).format("DD/MM/YYYY HH:mm")
-                  : "—"}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-stroke bg-white px-4 py-3 shadow-sm">
-              <p className="flex items-center gap-1 text-xs font-semibold text-muted">
-                <FileTextOutlined />
-                {t("document.editor.section.stats")}
-              </p>
-              <p className="mt-1 text-sm text-ink">
-                {wordCount} {t("document.editor.word_unit")} · {readMinutes}
-                {t("document.editor.minute_suffix")}
-              </p>
-            </div>
-          </div>
+          <DocumentCommentsSection documentId={doc.documentId} />
         </div>
       </div>
     </div>
@@ -825,7 +1039,7 @@ export default function DocumentEditorPanel({
     queryFn: () =>
       apiDocDetail({
         documentId: documentId!,
-        include: "activity",
+        include: "activity,reads,comments",
       }) as Promise<EditorDocumentDetail>,
     enabled: Boolean(documentId),
     refetchOnWindowFocus: false,
