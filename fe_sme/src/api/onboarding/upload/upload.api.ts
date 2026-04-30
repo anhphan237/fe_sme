@@ -19,8 +19,9 @@ const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env
   .VITE_CLOUDINARY_UPLOAD_PRESET as string | undefined;
 
-export const uploadEventCoverImage = async (
+const uploadImageToCloudinary = async (
   file: File,
+  folder: string,
 ): Promise<UploadImageResponse> => {
   if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
     throw new Error(
@@ -31,7 +32,7 @@ export const uploadEventCoverImage = async (
   const formData = new FormData();
   formData.append("file", file);
   formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-  formData.append("folder", "sme-onboarding/events");
+  formData.append("folder", folder);
 
   const response = await fetch(
     `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
@@ -58,4 +59,16 @@ export const uploadEventCoverImage = async (
     publicId: data.public_id,
     originalFilename: data.original_filename,
   };
+};
+
+export const uploadEventCoverImage = async (
+  file: File,
+): Promise<UploadImageResponse> => {
+  return uploadImageToCloudinary(file, "sme-onboarding/events");
+};
+
+export const uploadDocumentBlockImage = async (
+  file: File,
+): Promise<UploadImageResponse> => {
+  return uploadImageToCloudinary(file, "sme-onboarding/documents");
 };

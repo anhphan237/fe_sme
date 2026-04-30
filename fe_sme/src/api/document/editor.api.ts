@@ -20,68 +20,149 @@ import type {
   DocAttachmentListResponse,
 } from "@/interface/document/editor";
 
-// ── Folder ─────────────────────────────────────────────────────────────────────
+const EMPTY_PAYLOAD: Record<string, never> = {};
 
-export const apiDocFolderCreate = (name: string, parentFolderId?: string) =>
-  gatewayRequest<{ name: string; parentFolderId?: string }, { folderId: string }>(
+const cleanPayload = <T extends Record<string, unknown>>(payload: T): T => {
+  const entries = Object.entries(payload).filter(([, value]) => {
+    if (value === undefined) return false;
+    if (typeof value === "string" && value.trim() === "") return false;
+    return true;
+  });
+
+  return Object.fromEntries(entries) as T;
+};
+
+const toDraftJson = (content: unknown): string => {
+  if (typeof content === "string") return content;
+
+  try {
+    return JSON.stringify(content ?? {});
+  } catch {
+    return "{}";
+  }
+};
+
+// ──────────────────────────────────────────────
+// Folder APIs - usable for V1
+// ──────────────────────────────────────────────
+
+export const apiDocFolderCreate = (
+  name: string,
+  parentFolderId?: string | null,
+) =>
+  gatewayRequest<
+    {
+      name: string;
+      parentFolderId?: string | null;
+    },
+    { folderId: string }
+  >(
     "com.sme.document.folder.create",
-    { name, parentFolderId },
+    cleanPayload({
+      name: name.trim(),
+      parentFolderId,
+    }),
   );
 
 export const apiDocFolderRename = (folderId: string, name: string) =>
-  gatewayRequest("com.sme.document.folder.rename", { folderId, name });
+  gatewayRequest(
+    "com.sme.document.folder.rename",
+    cleanPayload({
+      folderId,
+      name: name.trim(),
+    }),
+  );
 
-export const apiDocFolderMove = (folderId: string, newParentFolderId?: string) =>
-  gatewayRequest("com.sme.document.folder.move", { folderId, newParentFolderId });
+export const apiDocFolderMove = (
+  folderId: string,
+  newParentFolderId?: string | null,
+) =>
+  gatewayRequest("com.sme.document.folder.move", {
+    folderId,
+    newParentFolderId: newParentFolderId ?? null,
+  });
 
 export const apiDocFolderDelete = (folderId: string) =>
   gatewayRequest("com.sme.document.folder.delete", { folderId });
 
-export const apiDocFolderList = () =>
-  gatewayRequest<Record<string, never>, DocFolderListResponse>(
-    "com.sme.document.folder.list",
-    {},
-  );
-
 export const apiDocFolderTree = () =>
   gatewayRequest<Record<string, never>, DocFolderTreeLiteResponse>(
     "com.sme.document.folder.tree",
-    {},
+    EMPTY_PAYLOAD,
   );
 
 export const apiDocFolderTreeWithDocuments = () =>
   gatewayRequest<Record<string, never>, DocFolderTreeResponse>(
     "com.sme.document.folder.treeWithDocuments",
-    {},
+    EMPTY_PAYLOAD,
   );
 
-export const apiDocFolderAddDocument = (folderId: string, documentId: string) =>
-  gatewayRequest("com.sme.document.folder.addDocument", { folderId, documentId });
+export const apiDocFolderAddDocument = (
+  folderId: string,
+  documentId: string,
+) =>
+  gatewayRequest("com.sme.document.folder.addDocument", {
+    folderId,
+    documentId,
+  });
 
-export const apiDocFolderRemoveDocument = (folderId: string, documentId: string) =>
-  gatewayRequest("com.sme.document.folder.removeDocument", { folderId, documentId });
+// ──────────────────────────────────────────────
+// Folder APIs - keep export for compatibility
+// Do not use in V1 if BE operation is not available
+// ──────────────────────────────────────────────
 
-// ── Document lifecycle ─────────────────────────────────────────────────────────
+export const apiDocFolderList = () =>
+  gatewayRequest<Record<string, never>, DocFolderListResponse>(
+    "com.sme.document.folder.list",
+    EMPTY_PAYLOAD,
+  );
+
+export const apiDocFolderRemoveDocument = (
+  folderId: string,
+  documentId: string,
+) =>
+  gatewayRequest("com.sme.document.folder.removeDocument", {
+    folderId,
+    documentId,
+  });
+
+// ──────────────────────────────────────────────
+// Document lifecycle APIs - usable for V1
+// ──────────────────────────────────────────────
 
 export const apiDocCreateDraft = (title: string) =>
-  gatewayRequest<{ title: string }, { documentId: string }>(
-    "com.sme.document.createDraft",
-    { title },
-  );
+  gatewayRequest<
+    {
+      title: string;
+      draftJson: string;
+    },
+    { documentId: string }
+  >("com.sme.document.createDraft", {
+    title: title.trim() || "Untitled document",
+    draftJson: "{}",
+  });
 
-export const apiDocUpdateDraft = (documentId: string, title: string, content: unknown) =>
+export const apiDocUpdateDraft = (
+  documentId: string,
+  title: string,
+  content: unknown,
+) =>
   gatewayRequest("com.sme.document.updateDraft", {
     documentId,
-    title,
-    draftJson: JSON.stringify(content),
+    title: title.trim() || "Untitled document",
+    draftJson: toDraftJson(content),
   });
 
-export const apiDocAutosave = (documentId: string, title: string, content: unknown) =>
-  gatewayRequest("com.sme.document.autosave", {
-    documentId,
-    title,
-    draftJson: JSON.stringify(content),
-  });
+/**
+ * V1 note:
+ * BE does not expose `com.sme.document.autosave` in Postman.
+ * Keep this function name for FE compatibility, but route it to updateDraft.
+ */
+export const apiDocAutosave = (
+  documentId: string,
+  title: string,
+  content: unknown,
+) => apiDocUpdateDraft(documentId, title, content);
 
 export const apiDocPublish = (documentId: string) =>
   gatewayRequest<{ documentId: string }, DocPublishResponse>(
@@ -95,13 +176,17 @@ export const apiDocDetail = (params: DocDetailParams) =>
     params,
   );
 
+// Keep export for compatibility.
+// Do not use in V1 if BE operation is not available.
 export const apiDocList = (params?: DocListParams) =>
   gatewayRequest<DocListParams, DocEditorListResponse>(
     "com.sme.document.list",
-    params ?? {},
+    params ?? ({} as DocListParams),
   );
 
-// ── Versions ───────────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Versions APIs - usable if BE has these operations
+// ──────────────────────────────────────────────
 
 export const apiDocVersionList = (documentId: string) =>
   gatewayRequest<{ documentId: string }, DocVersionListResponse>(
@@ -115,19 +200,43 @@ export const apiDocVersionGet = (documentVersionId: string) =>
     { documentVersionId },
   );
 
-export const apiDocVersionCompare = (
+export function apiDocVersionCompare(
+  documentId: string,
   fromDocumentVersionId: string,
   toDocumentVersionId: string,
-) =>
-  gatewayRequest<
-    { fromDocumentVersionId: string; toDocumentVersionId: string },
-    DocVersionCompareResponse
-  >("com.sme.document.version.compare", {
-    fromDocumentVersionId,
-    toDocumentVersionId,
-  });
+): Promise<DocVersionCompareResponse>;
 
-// ── Comments ───────────────────────────────────────────────────────────────────
+export function apiDocVersionCompare(
+  fromDocumentVersionId: string,
+  toDocumentVersionId: string,
+): Promise<DocVersionCompareResponse>;
+
+export function apiDocVersionCompare(
+  arg1: string,
+  arg2: string,
+  arg3?: string,
+): Promise<DocVersionCompareResponse> {
+  const payload =
+    arg3 !== undefined
+      ? {
+          documentId: arg1,
+          fromDocumentVersionId: arg2,
+          toDocumentVersionId: arg3,
+        }
+      : {
+          fromDocumentVersionId: arg1,
+          toDocumentVersionId: arg2,
+        };
+
+  return gatewayRequest<typeof payload, DocVersionCompareResponse>(
+    "com.sme.document.version.compare",
+    payload,
+  );
+}
+
+// ──────────────────────────────────────────────
+// Comments APIs - usable if BE has these operations
+// ──────────────────────────────────────────────
 
 export const apiDocCommentAdd = (
   documentId: string,
@@ -135,9 +244,25 @@ export const apiDocCommentAdd = (
   parentCommentId?: string,
 ) =>
   gatewayRequest<
-    { documentId: string; body: string; parentCommentId?: string },
-    { commentId: string; documentId: string; parentCommentId: string | null; createdAt: string }
-  >("com.sme.document.comment.add", { documentId, body, parentCommentId });
+    {
+      documentId: string;
+      body: string;
+      parentCommentId?: string;
+    },
+    {
+      commentId: string;
+      documentId: string;
+      parentCommentId: string | null;
+      createdAt: string;
+    }
+  >(
+    "com.sme.document.comment.add",
+    cleanPayload({
+      documentId,
+      body,
+      parentCommentId,
+    }),
+  );
 
 export const apiDocCommentTree = (documentId: string) =>
   gatewayRequest<{ documentId: string }, DocCommentTreeResponse>(
@@ -152,23 +277,41 @@ export const apiDocCommentList = (documentId: string) =>
   );
 
 export const apiDocCommentUpdate = (commentId: string, body: string) =>
-  gatewayRequest("com.sme.document.comment.update", { commentId, body });
+  gatewayRequest("com.sme.document.comment.update", {
+    commentId,
+    body,
+  });
 
 export const apiDocCommentDelete = (commentId: string) =>
   gatewayRequest("com.sme.document.comment.delete", { commentId });
 
-// ── Read receipts ──────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Read APIs - usable for V1
+// ──────────────────────────────────────────────
 
 export const apiDocMarkRead = (documentId: string) =>
   gatewayRequest("com.sme.document.read.mark", { documentId });
 
 export const apiDocReadList = (documentId: string, limit?: number) =>
-  gatewayRequest<{ documentId: string; limit?: number }, DocReadListResponse>(
+  gatewayRequest<
+    {
+      documentId: string;
+      limit?: number;
+    },
+    DocReadListResponse
+  >(
     "com.sme.document.read.list",
-    { documentId, ...(limit !== undefined ? { limit } : {}) },
+    cleanPayload({
+      documentId,
+      limit,
+    }),
   );
 
-// ── Access rules ───────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Access rules APIs
+// Keep export for compatibility.
+// Do not call in V1 because BE operation is not confirmed in Postman.
+// ──────────────────────────────────────────────
 
 export const apiDocAccessRuleList = (documentId: string) =>
   gatewayRequest<{ documentId: string }, DocAccessRuleListResponse>(
@@ -178,13 +321,29 @@ export const apiDocAccessRuleList = (documentId: string) =>
 
 export const apiDocAccessRuleAdd = (
   documentId: string,
-  rule: { roleId?: string; departmentId?: string },
-) => gatewayRequest("com.sme.document.accessRule.add", { documentId, ...rule });
+  rule: {
+    roleId?: string;
+    departmentId?: string;
+  },
+) =>
+  gatewayRequest(
+    "com.sme.document.accessRule.add",
+    cleanPayload({
+      documentId,
+      ...rule,
+    }),
+  );
 
 export const apiDocAccessRuleRemove = (documentAccessRuleId: string) =>
-  gatewayRequest("com.sme.document.accessRule.remove", { documentAccessRuleId });
+  gatewayRequest("com.sme.document.accessRule.remove", {
+    documentAccessRuleId,
+  });
 
-// ── Links ──────────────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Links APIs
+// Keep export for compatibility.
+// Do not call in V1 because BE operation is not confirmed in Postman.
+// ──────────────────────────────────────────────
 
 export const apiDocLinkList = (documentId: string) =>
   gatewayRequest<{ documentId: string }, DocLinkListResponse>(
@@ -198,14 +357,29 @@ export const apiDocLinkAdd = (
   linkType?: string,
 ) =>
   gatewayRequest<
-    { sourceDocumentId: string; targetDocumentId: string; linkType?: string },
+    {
+      sourceDocumentId: string;
+      targetDocumentId: string;
+      linkType?: string;
+    },
     { documentLinkId: string }
-  >("com.sme.document.link.add", { sourceDocumentId, targetDocumentId, linkType });
+  >(
+    "com.sme.document.link.add",
+    cleanPayload({
+      sourceDocumentId,
+      targetDocumentId,
+      linkType,
+    }),
+  );
 
 export const apiDocLinkRemove = (documentLinkId: string) =>
   gatewayRequest("com.sme.document.link.remove", { documentLinkId });
 
-// ── Assignments ────────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Assignments APIs
+// Keep export for compatibility.
+// Do not call in V1 because BE operation is not confirmed in Postman.
+// ──────────────────────────────────────────────
 
 export const apiDocAssignmentList = (documentId: string) =>
   gatewayRequest<{ documentId: string }, DocAssignmentListResponse>(
@@ -213,16 +387,31 @@ export const apiDocAssignmentList = (documentId: string) =>
     { documentId },
   );
 
-export const apiDocAssignmentAssign = (documentId: string, assigneeUserId: string) =>
+export const apiDocAssignmentAssign = (
+  documentId: string,
+  assigneeUserId: string,
+) =>
   gatewayRequest<
-    { documentId: string; assigneeUserId: string },
+    {
+      documentId: string;
+      assigneeUserId: string;
+    },
     { documentAssignmentId: string }
-  >("com.sme.document.assignment.assign", { documentId, assigneeUserId });
+  >("com.sme.document.assignment.assign", {
+    documentId,
+    assigneeUserId,
+  });
 
 export const apiDocAssignmentUnassign = (documentAssignmentId: string) =>
-  gatewayRequest("com.sme.document.assignment.unassign", { documentAssignmentId });
+  gatewayRequest("com.sme.document.assignment.unassign", {
+    documentAssignmentId,
+  });
 
-// ── Attachments ────────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Attachments APIs
+// Keep export for compatibility.
+// Do not call in V1 because BE operation is not confirmed in Postman.
+// ──────────────────────────────────────────────
 
 export const apiDocAttachmentList = (documentId: string) =>
   gatewayRequest<{ documentId: string }, DocAttachmentListResponse>(
@@ -244,4 +433,26 @@ export const apiDocAttachmentAdd = (input: {
   );
 
 export const apiDocAttachmentRemove = (documentAttachmentId: string) =>
-  gatewayRequest("com.sme.document.attachment.remove", { documentAttachmentId });
+  gatewayRequest("com.sme.document.attachment.remove", {
+    documentAttachmentId,
+  });
+  export const apiDocFolderUpdate = (
+  folderId: string,
+  payload: {
+    name?: string;
+    parentFolderId?: string | null;
+  },
+) =>
+  gatewayRequest<
+    {
+      folderId: string;
+      name?: string;
+      parentFolderId?: string | null;
+    },
+    {
+      folderId: string;
+    }
+  >("com.sme.document.folder.update", {
+    folderId,
+    ...payload,
+  });

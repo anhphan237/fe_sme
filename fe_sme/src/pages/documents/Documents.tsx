@@ -10,7 +10,6 @@ import {
   Modal,
   Empty,
   Card,
-  Skeleton,
   Tooltip,
   message,
   Tabs,
@@ -46,6 +45,7 @@ import {
   apiDocFolderDelete,
   apiDocCreateDraft,
   apiDocFolderAddDocument,
+  apiDocFolderMove,
 } from "@/api/document/editor.api";
 import type { DocFolderNode } from "@/interface/document/editor";
 import type { DocumentItem } from "@/interface/document";
@@ -73,21 +73,44 @@ type FolderDocItem = {
 };
 
 function collectEditorDocs(nodes: DocFolderNode[]): FolderDocItem[] {
-  return nodes.flatMap((n) => [
-    ...n.documents
-      .filter((d) => d.contentKind !== "FILE")
-      .map((d) => ({ ...d, folderId: n.folderId, folderName: n.name })),
-    ...collectEditorDocs(n.children),
-  ]);
+  return nodes.flatMap((node) => {
+    const documents = node.documents ?? [];
+    const children = node.children ?? [];
+
+    return [
+      ...documents
+        .filter((doc) => doc.contentKind !== "FILE")
+        .map((doc) => ({
+          ...doc,
+          folderId: node.folderId,
+          folderName: node.name,
+        })),
+      ...collectEditorDocs(children),
+    ];
+  });
 }
 
-function getDocsInFolder(nodes: DocFolderNode[], folderId: string): FolderDocItem[] {
-  for (const n of nodes) {
-    if (n.folderId === folderId)
-      return n.documents.map((d) => ({ ...d, folderId: n.folderId, folderName: n.name }));
-    const found = getDocsInFolder(n.children, folderId);
+function getDocsInFolder(
+  nodes: DocFolderNode[],
+  folderId: string,
+): FolderDocItem[] {
+  for (const node of nodes) {
+    const documents = node.documents ?? [];
+    const children = node.children ?? [];
+
+    if (node.folderId === folderId) {
+      return documents.map((doc) => ({
+        ...doc,
+        folderId: node.folderId,
+        folderName: node.name,
+      }));
+    }
+
+    const found = getDocsInFolder(children, folderId);
+
     if (found.length > 0) return found;
   }
+
   return [];
 }
 
@@ -139,23 +162,37 @@ function UploadFileModal({
     try {
       const values = await form.validateFields();
       const file = fileList[0]?.originFileObj;
-      if (!file) { message.warning(t("document.upload.select_file")); return; }
+
+      if (!file) {
+        message.warning(t("document.upload.select_file"));
+        return;
+      }
+
       const fd = new FormData();
       fd.append("file", file);
       fd.append("name", values.name ?? file.name);
-      if (values.description) fd.append("description", values.description);
-      setUploading(true);
-      const result = await apiUploadDocumentFile(fd);
-      if (selectedFolderId && result.documentId) {
-        await apiDocFolderAddDocument(selectedFolderId, result.documentId);
+
+      if (values.description) {
+        fd.append("description", values.description);
       }
+
+      setUploading(true);
+
+      await apiUploadDocumentFile(fd);
+
+      if (selectedFolderId) {
+        message.info(t("document.upload.folder_not_supported"));
+      }
+
       message.success(t("document.upload.success"));
       form.resetFields();
       setFileList([]);
       onSuccess();
       onClose();
     } catch (err: unknown) {
-      message.error(err instanceof Error ? err.message : t("document.upload.failed"));
+      message.error(
+        err instanceof Error ? err.message : t("document.upload.failed"),
+      );
     } finally {
       setUploading(false);
     }
@@ -168,7 +205,8 @@ function UploadFileModal({
       onCancel={onClose}
       onOk={handleUpload}
       okText={t("document.action.upload_file")}
-      confirmLoading={uploading}>
+      confirmLoading={uploading}
+    >
       <Form form={form} layout="vertical" className="mt-4 space-y-2">
         <Form.Item label={t("document.field.file")} required>
           <Dragger
@@ -178,25 +216,40 @@ function UploadFileModal({
             accept=".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.zip,.rar"
             onChange={({ fileList: fl }) => {
               setFileList(fl);
-              if (fl[0]?.name && !form.getFieldValue("name"))
-                form.setFieldValue("name", fl[0].name.replace(/\.[^/.]+$/, ""));
-            }}>
-            <p className="ant-upload-drag-icon"><InboxOutlined /></p>
-            <p className="ant-upload-text">{t("document.upload.dragger_text")}</p>
-            <p className="ant-upload-hint">{t("document.upload.dragger_hint")}</p>
+
+              if (fl[0]?.name && !form.getFieldValue("name")) {
+                form.setFieldValue(
+                  "name",
+                  fl[0].name.replace(/\.[^/.]+$/, ""),
+                );
+              }
+            }}
+          >
+            <p className="ant-upload-drag-icon">
+              <InboxOutlined />
+            </p>
+            <p className="ant-upload-text">
+              {t("document.upload.dragger_text")}
+            </p>
+            <p className="ant-upload-hint">
+              {t("document.upload.dragger_hint")}
+            </p>
           </Dragger>
         </Form.Item>
+
         <BaseInput
           name="name"
           label={t("document.field.name")}
           placeholder={t("document.field.name.placeholder")}
           formItemProps={{ rules: [{ required: true }] }}
         />
+
         <BaseInput
           name="description"
           label={t("document.field.description")}
           placeholder={t("document.field.description.placeholder")}
         />
+
         {selectedFolderName ? (
           <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
             <FolderOutlined className="shrink-0 text-blue-500" />
@@ -235,22 +288,34 @@ function FolderNameModal({
   const { t } = useLocale();
   const [name, setName] = useState(initialValue ?? "");
 
-  // sync when opening
-  useMemo(() => { if (open) setName(initialValue ?? ""); }, [open, initialValue]);
-
   const submit = () => {
-    if (!name.trim()) { message.warning(t("document.folder.name_placeholder")); return; }
+    if (!name.trim()) {
+      message.warning(t("document.folder.name_placeholder"));
+      return;
+    }
+
     onConfirm(name.trim());
+  };
+
+  const close = () => {
+    setName("");
+    onClose();
   };
 
   return (
     <Modal
       title={title}
       open={open}
-      onCancel={onClose}
+      onCancel={close}
       onOk={submit}
+      afterOpenChange={(visible) => {
+        if (visible) {
+          setName(initialValue ?? "");
+        }
+      }}
       confirmLoading={loading}
-      okText={t("document.folder.create_success")}>
+      okText={t("document.folder.create_success")}
+    >
       <Input
         className="mt-4"
         placeholder={t("document.folder.name_placeholder")}
@@ -262,7 +327,6 @@ function FolderNameModal({
     </Modal>
   );
 }
-
 // ── New Document modal ────────────────────────────────────────────────────────
 
 function NewDocModal({
@@ -281,21 +345,34 @@ function NewDocModal({
   const { t } = useLocale();
   const [title, setTitle] = useState("");
 
-  useMemo(() => { if (open) setTitle(""); }, [open]);
-
   const submit = () => {
-    if (!title.trim()) { message.warning(t("document.new_doc.placeholder")); return; }
+    if (!title.trim()) {
+      message.warning(t("document.new_doc.placeholder"));
+      return;
+    }
+
     onConfirm(title.trim());
+  };
+
+  const close = () => {
+    setTitle("");
+    onClose();
   };
 
   return (
     <Modal
       title={t("document.new_doc.title")}
       open={open}
-      onCancel={onClose}
+      onCancel={close}
       onOk={submit}
+      afterOpenChange={(visible) => {
+        if (visible) {
+          setTitle("");
+        }
+      }}
       confirmLoading={loading}
-      okText={t("document.new_doc.create")}>
+      okText={t("document.new_doc.create")}
+    >
       <div className="mt-4 space-y-3">
         <Input
           placeholder={t("document.new_doc.placeholder")}
@@ -304,14 +381,16 @@ function NewDocModal({
           onPressEnter={submit}
           autoFocus
         />
+
         {selectedFolderId && (
-          <p className="text-xs text-muted">{t("document.new_doc.in_folder")}</p>
+          <p className="text-xs text-muted">
+            {t("document.new_doc.in_folder")}
+          </p>
         )}
       </div>
     </Modal>
   );
 }
-
 // ── Loading Skeletons ─────────────────────────────────────────────────────────
 
 function DocCardSkeleton() {
@@ -381,6 +460,7 @@ function BatchToolbar({
 }) {
   const { t } = useLocale();
   const count = selectedIds.size;
+
   if (count === 0) return null;
 
   return (
@@ -388,16 +468,19 @@ function BatchToolbar({
       <span className="text-sm font-medium text-brand">
         {t("document.batch.selected", { count })}
       </span>
+
       <div className="ml-auto flex items-center gap-2">
         {canDelete && (
           <Button
             size="small"
             danger
             icon={<DeleteOutlined />}
-            onClick={onBatchDelete}>
+            onClick={onBatchDelete}
+          >
             {t("document.batch.delete")}
           </Button>
         )}
+
         <Button size="small" onClick={onClearSelection}>
           {t("document.batch.cancel")}
         </Button>
@@ -418,6 +501,9 @@ const Documents = () => {
 
   // ── UI state
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [selectedEditorDocumentId, setSelectedEditorDocumentId] = useState<
+    string | null
+  >(null);
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"grid" | "list">("grid");
   const [kindFilter, setKindFilter] = useState<DocKind | "ALL">("ALL");
@@ -430,7 +516,11 @@ const Documents = () => {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [newDocOpen, setNewDocOpen] = useState(false);
   const [folderModal, setFolderModal] = useState<{
-    open: boolean; mode: "create" | "rename"; parentId?: string; folderId?: string; currentName?: string;
+    open: boolean;
+    mode: "create" | "rename";
+    parentId?: string;
+    folderId?: string;
+    currentName?: string;
   }>({ open: false, mode: "create" });
 
   // ── Queries
@@ -457,7 +547,6 @@ const Documents = () => {
     refetchOnWindowFocus: true,
   });
 
-  // Acknowledgments — only needed for EMPLOYEE tab logic
   const { data: ackData, isFetching: ackFetching } = useQuery({
     queryKey: ["doc-acknowledgments"],
     queryFn: apiListAcknowledgments,
@@ -465,6 +554,7 @@ const Documents = () => {
     staleTime: 1000 * 30,
     refetchOnWindowFocus: true,
   });
+
   const ackedDocIds = useMemo(
     () => new Set((ackData?.items ?? []).map((a) => a.documentId)),
     [ackData],
@@ -495,22 +585,78 @@ const Documents = () => {
 
   const deleteFolderMutation = useMutation({
     mutationFn: (folderId: string) => apiDocFolderDelete(folderId),
-    onSuccess: () => {
+    onSuccess: (_, folderId) => {
       queryClient.invalidateQueries({ queryKey: ["doc-folder-tree"] });
-      if (selectedFolderId) setSelectedFolderId(null);
+
+      if (selectedFolderId === folderId) {
+        setSelectedFolderId(null);
+      }
+
       message.success(t("document.folder.delete_success"));
     },
     onError: () => message.error(t("document.folder.delete_error")),
   });
 
+  const moveDocumentMutation = useMutation({
+    mutationFn: async ({
+      documentId,
+      sourceFolderId,
+      targetFolderId,
+    }: {
+      documentId: string;
+      sourceFolderId: string;
+      targetFolderId: string;
+    }) => {
+      if (sourceFolderId === targetFolderId) return;
+
+      // Quan trọng: KHÔNG gọi removeDocument sau addDocument.
+      // BE hiện tại xử lý addDocument như move/upsert placement.
+      // Nếu remove sau add, document có thể bị xóa khỏi placement mới và biến mất.
+      await apiDocFolderAddDocument(targetFolderId, documentId);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["doc-folder-tree"] });
+      setSelectedFolderId(variables.targetFolderId);
+      setSelectedEditorDocumentId(variables.documentId);
+      message.success(t("document.folder.move_document_success"));
+    },
+    onError: () => {
+      message.error(t("document.folder.move_document_error"));
+    },
+  });
+
+  const moveFolderMutation = useMutation({
+    mutationFn: ({
+      sourceFolderId,
+      targetParentFolderId,
+    }: {
+      sourceFolderId: string;
+      targetParentFolderId: string | null;
+    }) => apiDocFolderMove(sourceFolderId, targetParentFolderId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["doc-folder-tree"] });
+      message.success(t("document.folder.move_folder_success"));
+    },
+    onError: () => {
+      message.error(t("document.folder.move_folder_error"));
+    },
+  });
+
   // ── Mutations — documents
   const createDocMutation = useMutation({
-    mutationFn: async ({ title, folderId }: { title: string; folderId?: string }) => {
-      // BE createDraft does NOT accept folderId — must call addDocument separately
+    mutationFn: async ({
+      title,
+      folderId,
+    }: {
+      title: string;
+      folderId?: string;
+    }) => {
       const res = await apiDocCreateDraft(title);
+
       if (folderId) {
         await apiDocFolderAddDocument(folderId, res.documentId);
       }
+
       return res;
     },
     onSuccess: (res) => {
@@ -526,27 +672,34 @@ const Documents = () => {
 
   const selectedFolderName = useMemo(() => {
     if (!selectedFolderId) return null;
+
     const find = (nodes: DocFolderNode[]): string | null => {
-      for (const n of nodes) {
-        if (n.folderId === selectedFolderId) return n.name;
-        const child = find(n.children);
+      for (const node of nodes) {
+        const children = node.children ?? [];
+
+        if (node.folderId === selectedFolderId) return node.name;
+
+        const child = find(children);
         if (child) return child;
       }
+
       return null;
     };
+
     return find(roots);
   }, [selectedFolderId, roots]);
 
-  // Loading states
   const isInitialLoading = treeLoading || fileDocsLoading;
   const isRefreshing =
-    (treeFetching || fileDocsFetching || (permissions.canAcknowledge && ackFetching)) &&
+    (treeFetching ||
+      fileDocsFetching ||
+      (permissions.canAcknowledge && ackFetching)) &&
     !isInitialLoading;
 
-  // Refresh all document queries
   const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["doc-folder-tree"] });
     queryClient.invalidateQueries({ queryKey: ["file-documents"] });
+
     if (permissions.canAcknowledge) {
       queryClient.invalidateQueries({ queryKey: ["doc-acknowledgments"] });
     }
@@ -557,10 +710,7 @@ const Documents = () => {
     [roots],
   );
 
-  const allFileDocs = useMemo(
-    () => fileDocs.map(toUnifiedFile),
-    [fileDocs],
-  );
+  const allFileDocs = useMemo(() => fileDocs.map(toUnifiedFile), [fileDocs]);
 
   const displayedDocs = useMemo(() => {
     let docs: UnifiedDoc[];
@@ -571,12 +721,13 @@ const Documents = () => {
       docs = [...allEditorDocs, ...allFileDocs];
     }
 
-    // Kind filter
-    if (kindFilter !== "ALL") docs = docs.filter((d) => d.kind === kindFilter);
+    if (kindFilter !== "ALL") {
+      docs = docs.filter((d) => d.kind === kindFilter);
+    }
 
-    // Search
     if (search.trim()) {
       const q = search.toLowerCase();
+
       docs = docs.filter(
         (d) =>
           d.title.toLowerCase().includes(q) ||
@@ -584,30 +735,37 @@ const Documents = () => {
       );
     }
 
-    // EMPLOYEE tabs
     if (permissions.canAcknowledge) {
       if (employeeTab === "pending_ack") {
         docs = docs.filter((d) => d.kind === "FILE" && !ackedDocIds.has(d.id));
       }
-      // "unread" tab: show docs where current user is not in reads[]
-      // For FILE docs we track via acknowledgments as proxy
+
       if (employeeTab === "unread") {
         docs = docs.filter((d) => d.kind === "FILE" && !ackedDocIds.has(d.id));
       }
     }
 
     return docs;
-  }, [selectedFolderId, roots, allEditorDocs, allFileDocs, kindFilter, search, permissions.canAcknowledge, employeeTab, ackedDocIds]);
+  }, [
+    selectedFolderId,
+    roots,
+    allEditorDocs,
+    allFileDocs,
+    kindFilter,
+    search,
+    permissions.canAcknowledge,
+    employeeTab,
+    ackedDocIds,
+  ]);
 
-  // ── Stats
   const totalDocs = allEditorDocs.length + allFileDocs.length;
   const publishedCount = allEditorDocs.filter((d) => d.published).length;
   const draftCount = allEditorDocs.filter((d) => d.status === "DRAFT").length;
   const filesCount = allFileDocs.length;
 
-  // Pending ack count for badge
   const pendingAckCount = useMemo(() => {
     if (!permissions.canAcknowledge) return 0;
+
     return allFileDocs.filter((d) => !ackedDocIds.has(d.id)).length;
   }, [allFileDocs, ackedDocIds, permissions.canAcknowledge]);
 
@@ -625,21 +783,62 @@ const Documents = () => {
     [deleteFolderMutation, t],
   );
 
-  // ── Open doc
-  const handleOpenDoc = useCallback(
-    (doc: UnifiedDoc) => {
-      if (doc.kind === "FILE") navigate(`/documents/${doc.id}`);
-      else navigate(`/documents/editor/${doc.id}`);
+  const handleSelectFolder = useCallback((folderId: string | null) => {
+    setSelectedFolderId(folderId);
+    setSelectedEditorDocumentId(null);
+  }, []);
+
+  const handleSelectDocumentInTree = useCallback(
+    (documentId: string) => {
+      setSelectedEditorDocumentId(documentId);
+      navigate(`/documents/editor/${documentId}`);
     },
     [navigate],
   );
 
-  // ── Batch selection
+  const handleMoveDocumentBetweenFolders = useCallback(
+    (documentId: string, sourceFolderId: string, targetFolderId: string) => {
+      if (sourceFolderId === targetFolderId) return;
+
+      moveDocumentMutation.mutate({
+        documentId,
+        sourceFolderId,
+        targetFolderId,
+      });
+    },
+    [moveDocumentMutation],
+  );
+
+  const handleMoveFolder = useCallback(
+    (sourceFolderId: string, targetParentFolderId: string | null) => {
+      if (sourceFolderId === targetParentFolderId) return;
+
+      moveFolderMutation.mutate({
+        sourceFolderId,
+        targetParentFolderId,
+      });
+    },
+    [moveFolderMutation],
+  );
+
+  const handleOpenDoc = useCallback(
+    (doc: UnifiedDoc) => {
+      if (doc.kind === "FILE") {
+        navigate(`/documents/${doc.id}`);
+      } else {
+        navigate(`/documents/editor/${doc.id}`);
+      }
+    },
+    [navigate],
+  );
+
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
+
       if (next.has(id)) next.delete(id);
       else next.add(id);
+
       return next;
     });
   }, []);
@@ -647,18 +846,18 @@ const Documents = () => {
   const handleBatchDelete = useCallback(() => {
     Modal.confirm({
       title: t("document.batch.delete_confirm_title"),
-      content: t("document.batch.delete_confirm_desc", { count: selectedIds.size }),
+      content: t("document.batch.delete_confirm_desc", {
+        count: selectedIds.size,
+      }),
       okText: t("document.batch.delete"),
       okButtonProps: { danger: true },
       onOk: () => {
-        // TODO: call batch delete API when available
         message.info("Batch delete coming soon");
         setSelectedIds(new Set());
       },
     });
   }, [selectedIds.size, t]);
 
-  // ── Employee tab items
   const employeeTabItems = [
     { key: "all", label: t("document.tab.all") },
     { key: "unread", label: t("document.tab.unread") },
@@ -679,35 +878,40 @@ const Documents = () => {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-0">
-      {/* ── Page header ─────────────────────────────────────────── */}
       <div className="border-b border-stroke bg-white px-6 py-4">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold text-ink">{t("document.page.title")}</h1>
+            <h1 className="text-xl font-bold text-ink">
+              {t("document.page.title")}
+            </h1>
+
             <p className="mt-0.5 text-sm text-muted">
               {permissions.canCreate
                 ? t("document.page.subtitle_manage")
                 : t("document.page.subtitle")}
             </p>
           </div>
+
           {permissions.canCreate && (
             <div className="flex shrink-0 items-center gap-2">
               <Button
                 icon={<FileAddOutlined />}
-                onClick={() => setUploadOpen(true)}>
+                onClick={() => setUploadOpen(true)}
+              >
                 {t("document.action.upload_file")}
               </Button>
+
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
-                onClick={() => setNewDocOpen(true)}>
+                onClick={() => setNewDocOpen(true)}
+              >
                 {t("document.action.new_document")}
               </Button>
             </div>
           )}
         </div>
 
-        {/* Stats row — only for ADMIN / HR / MANAGER */}
         {permissions.canViewStats && (
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {isInitialLoading ? (
@@ -725,18 +929,21 @@ const Documents = () => {
                   icon={<Files className="h-4 w-4" />}
                   tone="blue"
                 />
+
                 <DocStatCard
                   label={t("document.stat.published")}
                   value={publishedCount}
                   icon={<FileCheck className="h-4 w-4" />}
                   tone="teal"
                 />
+
                 <DocStatCard
                   label={t("document.stat.draft")}
                   value={draftCount}
                   icon={<BookOpen className="h-4 w-4" />}
                   tone="amber"
                 />
+
                 <DocStatCard
                   label={t("document.stat.files")}
                   value={filesCount}
@@ -749,52 +956,69 @@ const Documents = () => {
         )}
       </div>
 
-      {/* ── Body: sidebar + content ───────────────────────────── */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
-
-        {/* Folder sidebar — only for HR / MANAGER */}
         {permissions.canManageFolder && (
           <aside className="flex w-56 shrink-0 flex-col border-r border-stroke bg-white px-3 py-4">
             <DocFolderTree
               roots={roots}
               loading={treeLoading}
               selectedId={selectedFolderId}
+              selectedDocumentId={selectedEditorDocumentId}
               totalCount={totalDocs}
-              onSelect={setSelectedFolderId}
+              onSelect={handleSelectFolder}
+              onSelectDocument={handleSelectDocumentInTree}
               canManage={permissions.canManageFolder}
-              onCreateRoot={() => setFolderModal({ open: true, mode: "create" })}
+              onCreateRoot={() =>
+                setFolderModal({ open: true, mode: "create" })
+              }
               onCreateChild={(parentId) =>
                 setFolderModal({ open: true, mode: "create", parentId })
               }
               onRename={(folderId, currentName) =>
-                setFolderModal({ open: true, mode: "rename", folderId, currentName })
+                setFolderModal({
+                  open: true,
+                  mode: "rename",
+                  folderId,
+                  currentName,
+                })
               }
               onDelete={handleDeleteFolder}
+              onMoveDocument={handleMoveDocumentBetweenFolders}
+              onMoveFolder={handleMoveFolder}
             />
           </aside>
         )}
 
-        {/* Main content */}
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-surface">
-          {/* Employee tabs + acknowledgment progress */}
           {permissions.canAcknowledge && (
             <div className="border-b border-stroke bg-white px-5 pt-3">
               {allFileDocs.length > 0 && (
                 <div className="mb-2 flex items-center gap-3">
-                  <div className="flex-1 overflow-hidden rounded-full bg-slate-100" style={{ height: 6 }}>
+                  <div
+                    className="flex-1 overflow-hidden rounded-full bg-slate-100"
+                    style={{ height: 6 }}
+                  >
                     <div
                       className="h-full rounded-full transition-all duration-500"
                       style={{
-                        width: `${Math.round(((allFileDocs.length - pendingAckCount) / allFileDocs.length) * 100)}%`,
-                        backgroundColor: pendingAckCount === 0 ? "#22c55e" : "#f97316",
+                        width: `${Math.round(
+                          ((allFileDocs.length - pendingAckCount) /
+                            allFileDocs.length) *
+                            100,
+                        )}%`,
+                        backgroundColor:
+                          pendingAckCount === 0 ? "#22c55e" : "#f97316",
                       }}
                     />
                   </div>
+
                   <span className="shrink-0 text-xs text-muted">
-                    {allFileDocs.length - pendingAckCount}/{allFileDocs.length} đã xác nhận
+                    {allFileDocs.length - pendingAckCount}/{allFileDocs.length}{" "}
+                    đã xác nhận
                   </span>
                 </div>
               )}
+
               <Tabs
                 size="small"
                 activeKey={employeeTab}
@@ -804,7 +1028,6 @@ const Documents = () => {
             </div>
           )}
 
-          {/* Toolbar */}
           <div className="flex flex-wrap items-center gap-3 border-b border-stroke bg-white px-5 py-3">
             <Input
               prefix={<SearchOutlined className="text-muted" />}
@@ -828,7 +1051,6 @@ const Documents = () => {
             />
 
             <div className="ml-auto flex items-center gap-2">
-              {/* Background-refresh indicator */}
               {isRefreshing && (
                 <SyncOutlined
                   spin
@@ -836,9 +1058,11 @@ const Documents = () => {
                   title={t("document.loading.refreshing")}
                 />
               )}
+
               <span className="text-xs text-muted">
                 {displayedDocs.length} {t("document.stat.results")}
               </span>
+
               <Tooltip title={t("document.action.refresh")}>
                 <Button
                   size="small"
@@ -847,12 +1071,14 @@ const Documents = () => {
                   onClick={handleRefresh}
                 />
               </Tooltip>
+
               <Button
                 size="small"
                 type={view === "grid" ? "primary" : "default"}
                 icon={<AppstoreOutlined />}
                 onClick={() => setView("grid")}
               />
+
               <Button
                 size="small"
                 type={view === "list" ? "primary" : "default"}
@@ -862,9 +1088,7 @@ const Documents = () => {
             </div>
           </div>
 
-          {/* Document list */}
           <div className="flex-1 overflow-y-auto p-5">
-            {/* Batch toolbar */}
             {permissions.canCreate && selectedIds.size > 0 && (
               <div className="mb-4">
                 <BatchToolbar
@@ -876,7 +1100,6 @@ const Documents = () => {
               </div>
             )}
 
-            {/* Initial loading — skeleton */}
             {isInitialLoading ? (
               view === "grid" ? (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -901,22 +1124,29 @@ const Documents = () => {
                           ? t("document.empty.no_search_result")
                           : t("document.empty.no_docs")}
                       </p>
+
                       {!search && (
-                        <p className="text-muted">{t("document.empty.get_started")}</p>
+                        <p className="text-muted">
+                          {t("document.empty.get_started")}
+                        </p>
                       )}
+
                       {!search && permissions.canCreate && (
                         <div className="mt-3 flex justify-center gap-2">
                           <Button
                             type="primary"
                             size="small"
                             icon={<PlusOutlined />}
-                            onClick={() => setNewDocOpen(true)}>
+                            onClick={() => setNewDocOpen(true)}
+                          >
                             {t("document.empty.create_first")}
                           </Button>
+
                           <Button
                             size="small"
                             icon={<FileAddOutlined />}
-                            onClick={() => setUploadOpen(true)}>
+                            onClick={() => setUploadOpen(true)}
+                          >
                             {t("document.action.upload_file")}
                           </Button>
                         </div>
@@ -957,9 +1187,6 @@ const Documents = () => {
         </main>
       </div>
 
-      {/* ── Modals ─────────────────────────────────────────────── */}
-
-      {/* Upload file modal */}
       <UploadFileModal
         open={uploadOpen}
         selectedFolderId={selectedFolderId}
@@ -971,18 +1198,19 @@ const Documents = () => {
         }}
       />
 
-      {/* New document modal */}
       <NewDocModal
         open={newDocOpen}
         selectedFolderId={selectedFolderId}
         loading={createDocMutation.isPending}
         onConfirm={(title) =>
-          createDocMutation.mutate({ title, folderId: selectedFolderId ?? undefined })
+          createDocMutation.mutate({
+            title,
+            folderId: selectedFolderId ?? undefined,
+          })
         }
         onClose={() => setNewDocOpen(false)}
       />
 
-      {/* Create / rename folder modal */}
       <FolderNameModal
         open={folderModal.open}
         title={
@@ -992,7 +1220,9 @@ const Documents = () => {
               ? t("document.folder.new_sub")
               : t("document.folder.new")
         }
-        initialValue={folderModal.mode === "rename" ? folderModal.currentName : ""}
+        initialValue={
+          folderModal.mode === "rename" ? folderModal.currentName : ""
+        }
         loading={
           folderModal.mode === "rename"
             ? renameFolderMutation.isPending
@@ -1000,9 +1230,15 @@ const Documents = () => {
         }
         onConfirm={(name) => {
           if (folderModal.mode === "rename" && folderModal.folderId) {
-            renameFolderMutation.mutate({ folderId: folderModal.folderId, name });
+            renameFolderMutation.mutate({
+              folderId: folderModal.folderId,
+              name,
+            });
           } else {
-            createFolderMutation.mutate({ name, parentId: folderModal.parentId });
+            createFolderMutation.mutate({
+              name,
+              parentId: folderModal.parentId,
+            });
           }
         }}
         onClose={() => setFolderModal({ open: false, mode: "create" })}

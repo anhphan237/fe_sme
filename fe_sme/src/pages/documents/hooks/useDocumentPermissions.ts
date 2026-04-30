@@ -1,43 +1,132 @@
+import { useMemo } from "react";
 import { useUserStore } from "@/stores/user.store";
 
 export interface DocumentPermissions {
-  /** HR, MANAGER: upload file + tạo EDITOR document */
+  /** HR / Manager / Admin: create folder + create document page */
   canCreate: boolean;
-  /** ADMIN, HR: xóa tài liệu */
+
+  /** HR / Admin: delete document */
   canDelete: boolean;
-  /** HR, MANAGER: tạo/đổi tên/xóa folder */
+
+  /** HR / Manager / Admin: create, rename, move, delete folder */
   canManageFolder: boolean;
-  /** HR, MANAGER: publish document */
+
+  /** HR / Manager / Admin: publish document */
   canPublish: boolean;
-  /** ADMIN, HR: quản lý access rules */
+
+  /** HR / Admin: manage access rules - disabled in V1 UI if BE API is not available */
   canManageAccessRules: boolean;
-  /** ADMIN, HR, MANAGER: xem access rules */
+
+  /** HR / Manager / Admin: view access rules - disabled in V1 UI if BE API is not available */
   canViewAccessRules: boolean;
-  /** ADMIN, HR, MANAGER: xem stat cards */
+
+  /** HR / Manager / Admin: view document statistics */
   canViewStats: boolean;
-  /** EMPLOYEE: acknowledge tài liệu */
+
+  /** Employee / Manager: acknowledge or confirm reading document */
   canAcknowledge: boolean;
-  /** ADMIN, HR, MANAGER: xem version history */
+
+  /** HR / Manager / Admin: view version history */
   canViewVersions: boolean;
-  /** HR, MANAGER, ADMIN, EMPLOYEE: chỉnh sửa nội dung */
+
+  /** HR / Manager / Admin: edit document content */
   canEdit: boolean;
+
+  /** Everyone with login can read document if BE returns it */
+  canRead: boolean;
 }
 
+type RawRole =
+  | string
+  | {
+      code?: string;
+      roleCode?: string;
+      name?: string;
+      authority?: string;
+    };
+
+const normalizeRole = (role: RawRole): string => {
+  if (typeof role === "string") return role.trim().toUpperCase();
+
+  return (
+    role.code ??
+    role.roleCode ??
+    role.name ??
+    role.authority ??
+    ""
+  )
+    .trim()
+    .toUpperCase();
+};
+
+const toRoleCodes = (roles: RawRole[] | undefined | null): string[] => {
+  if (!Array.isArray(roles)) return [];
+
+  return roles
+    .map(normalizeRole)
+    .filter(Boolean)
+    .map((role) => {
+      if (role.startsWith("ROLE_")) return role.replace(/^ROLE_/, "");
+      return role;
+    });
+};
+
+const hasAnyRole = (roles: string[], allowedRoles: string[]) =>
+  roles.some((role) => allowedRoles.includes(role));
+
+const ADMIN_ROLES = [
+  "ADMIN",
+  "ADMIN_PLATFORM",
+  "PLATFORM_ADMIN",
+  "COMPANY_ADMIN",
+  "HR_ADMIN",
+];
+
+const HR_ROLES = ["HR", "HR_ADMIN", "COMPANY_ADMIN"];
+
+const MANAGER_ROLES = ["MANAGER"];
+
+const EMPLOYEE_ROLES = ["EMPLOYEE"];
+
+const DOCUMENT_MANAGER_ROLES = [
+  ...ADMIN_ROLES,
+  ...HR_ROLES,
+  ...MANAGER_ROLES,
+];
+
+const DOCUMENT_OWNER_ROLES = [...ADMIN_ROLES, ...HR_ROLES];
+
 export function useDocumentPermissions(): DocumentPermissions {
-  const roles = useUserStore((s) => s.currentUser?.roles ?? []);
+  const rawRoles = useUserStore((state) => state.currentUser?.roles ?? []);
+
+  const roles = useMemo(() => toRoleCodes(rawRoles as RawRole[]), [rawRoles]);
+
+  const isDocumentManager = hasAnyRole(roles, DOCUMENT_MANAGER_ROLES);
+  const isDocumentOwner = hasAnyRole(roles, DOCUMENT_OWNER_ROLES);
+  const isEmployee = hasAnyRole(roles, EMPLOYEE_ROLES);
+  const isManager = hasAnyRole(roles, MANAGER_ROLES);
 
   return {
-    canCreate: roles.some((r) => ["HR", "MANAGER"].includes(r)),
-    canDelete: roles.some((r) => ["ADMIN", "HR"].includes(r)),
-    canManageFolder: roles.some((r) => ["HR", "MANAGER"].includes(r)),
-    canPublish: roles.some((r) => ["HR", "MANAGER"].includes(r)),
-    canManageAccessRules: roles.some((r) => ["ADMIN", "HR"].includes(r)),
-    canViewAccessRules: roles.some((r) => ["ADMIN", "HR", "MANAGER"].includes(r)),
-    canViewStats: roles.some((r) => ["ADMIN", "HR", "MANAGER"].includes(r)),
-    canAcknowledge: roles.some((r) => ["EMPLOYEE"].includes(r)),
-    canViewVersions: roles.some((r) => ["ADMIN", "HR", "MANAGER"].includes(r)),
-    canEdit: roles.some((r) =>
-      ["HR", "MANAGER", "ADMIN", "EMPLOYEE"].includes(r),
-    ),
+    canRead: roles.length > 0,
+
+    canCreate: isDocumentManager,
+
+    canDelete: isDocumentOwner,
+
+    canManageFolder: isDocumentManager,
+
+    canPublish: isDocumentManager,
+
+    canManageAccessRules: isDocumentOwner,
+
+    canViewAccessRules: isDocumentManager,
+
+    canViewStats: isDocumentManager,
+
+    canAcknowledge: isEmployee || isManager,
+
+    canViewVersions: isDocumentManager,
+
+    canEdit: isDocumentManager,
   };
 }
