@@ -110,13 +110,21 @@ export interface OnboardingTemplateGetRequest {
 /** com.sme.onboarding.template.list */
 export interface OnboardingTemplateListRequest {
   status?: string;
+  level?: "TENANT" | "PLATFORM";
 }
 
 /** Minimal template summary in list */
 export interface OnboardingTemplateSummary {
   templateId: string;
   name: string;
+  description?: string;
   status: string;
+  level?: "TENANT" | "PLATFORM";
+  templateKind?: string;
+  checklistCount?: number;
+  taskCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 /** Detailed task in a checklist */
@@ -776,6 +784,7 @@ export interface TaskScheduleCalendarResponse {
 /** com.sme.onboarding.template.clone → request */
 export interface OnboardingTemplateCloneRequest {
   sourceTemplateId: string;
+  level?: "TENANT" | "PLATFORM";
   /** Name for the new cloned template */
   name: string;
 }
@@ -814,6 +823,7 @@ export interface OnboardingEventTemplateCreateResponse {
 /** Single department checkpoint on a task */
 export interface DepartmentCheckpoint {
   checkpointId: string;
+  taskId?: string;
   departmentId: string;
   departmentName?: string;
   status: "PENDING" | "CONFIRMED";
@@ -823,6 +833,8 @@ export interface DepartmentCheckpoint {
   confirmedBy?: string;
   confirmedByName?: string;
   confirmedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 /** com.sme.onboarding.task.department.confirm → request */
@@ -835,11 +847,17 @@ export interface TaskDepartmentConfirmRequest {
 
 /** com.sme.onboarding.task.department.confirm -> response */
 export interface TaskDepartmentConfirmResponse {
+  checkpointId?: string;
   taskId: string;
   departmentId: string;
   checkpointStatus: "PENDING" | "CONFIRMED";
   taskStatus: OnboardingTaskUpdateStatusRequest["status"];
   allDepartmentsConfirmed: boolean;
+  confirmedBy?: string;
+  confirmedAt?: string;
+  evidenceNote?: string;
+  evidenceRef?: string;
+  updatedAt?: string;
 }
 
 /** com.sme.onboarding.task.department.dependent.list -> request */

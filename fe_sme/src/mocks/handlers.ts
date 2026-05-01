@@ -389,9 +389,11 @@ export const handlers = [
     const body = (await request.json()) as Partial<OnboardingTemplate> & {
       templateId?: string;
       checklists?: Array<{
+        id?: string;
         name: string;
         stage?: string;
         tasks?: Array<{
+          id?: string;
           title: string;
           ownerRefId?: string;
           dueDaysOffset?: number;
@@ -402,10 +404,10 @@ export const handlers = [
     const templateId = body.templateId ?? body.id;
     const bodyStages =
       body.stages ??
-      (body.checklists ?? []).map((c: any, i: number) => ({
+      (body.checklists ?? []).map((c, i: number) => ({
         id: c.id ?? `stage-${i}`,
         name: c.name ?? "",
-        tasks: (c.tasks ?? []).map((t: any, j: number) => ({
+        tasks: (c.tasks ?? []).map((t, j: number) => ({
           id: t.id ?? `task-${j}`,
           title: t.title ?? "",
           ownerRole: (t.ownerRefId ?? "HR") as Role,
@@ -1260,11 +1262,18 @@ export const handlers = [
 
     // ── Onboarding Template: list ──────────────────────────────────────────
     if (op === "com.sme.onboarding.template.list") {
-      const { status, search } = payload as {
+      const { status, search, level } = payload as {
         status?: string;
         search?: string;
+        level?: "TENANT" | "PLATFORM";
       };
       let result = [...templates];
+      const normalizedLevel = (level ?? "TENANT").toUpperCase();
+      if (normalizedLevel === "TENANT" || normalizedLevel === "PLATFORM") {
+        result = result.filter(
+          (t) => ((t.level ?? "TENANT").toUpperCase()) === normalizedLevel,
+        );
+      }
       if (status) {
         result = result.filter(
           (t) => (t.status ?? "ACTIVE").toUpperCase() === status.toUpperCase(),
@@ -1274,7 +1283,22 @@ export const handlers = [
         const q = search.toLowerCase();
         result = result.filter((t) => t.name.toLowerCase().includes(q));
       }
-      return HttpResponse.json({ data: { templates: result } });
+      return HttpResponse.json({
+        data: {
+          templates: result.map((template) => ({
+            ...template,
+            checklistCount: template.checklistCount ?? template.stages.length,
+            taskCount:
+              template.taskCount ??
+              template.stages.reduce(
+                (sum, stage) => sum + (stage.tasks?.length ?? 0),
+                0,
+              ),
+            level: template.level ?? "TENANT",
+            templateKind: template.templateKind ?? "ONBOARDING",
+          })),
+        },
+      });
     }
 
     // ── Onboarding Template: get ───────────────────────────────────────────
@@ -1307,6 +1331,8 @@ export const handlers = [
           tasks: [],
         })),
         status: "ACTIVE",
+        level: "TENANT",
+        templateKind: "ONBOARDING",
         updatedAt: new Date().toISOString().slice(0, 10),
         companyId: "1",
       };
@@ -1398,6 +1424,8 @@ export const handlers = [
           },
         ],
         status: "ACTIVE",
+        level: "TENANT",
+        templateKind: "ONBOARDING",
         updatedAt: new Date().toISOString().slice(0, 10),
         companyId: "1",
       };

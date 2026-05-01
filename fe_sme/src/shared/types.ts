@@ -122,7 +122,12 @@ export interface OnboardingTemplate {
   status?: string;
   /** PLATFORM = global shared library; TENANT = company-owned template */
   level?: "PLATFORM" | "TENANT";
+  templateKind?: "ONBOARDING" | "TASK_LIBRARY" | string;
+  departmentTypeCode?: string | null;
+  checklistCount?: number;
+  taskCount?: number;
   stages: OnboardingStage[];
+  createdAt?: string;
   updatedAt: string;
   companyId?: string | null;
 }

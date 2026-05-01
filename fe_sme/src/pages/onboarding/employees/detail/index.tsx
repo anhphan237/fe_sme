@@ -2,15 +2,39 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Card, Input, Modal, Skeleton, Tabs, Tag } from "antd";
 import {
+  Avatar,
+  Button,
+  Card,
+  Divider,
+  Empty,
+  Input,
+  Modal,
+  Progress,
+  Skeleton,
+  Tabs,
+  Tag,
+  Tooltip,
+} from "antd";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Briefcase,
+  CalendarDays,
   CheckCircle2,
+  CheckSquare,
   Circle,
   Clock,
+  FileText,
   HourglassIcon,
   Loader2,
+  MapPin,
+  PlayCircle,
   Send,
-  CheckSquare,
+  ShieldCheck,
+  User2,
+  Users2,
+  XCircle,
 } from "lucide-react";
 import BaseModal from "@core/components/Modal/BaseModal";
 import { notify } from "@/utils/notify";
@@ -25,7 +49,7 @@ import {
   apiCancelInstance,
   apiCompleteInstance,
   apiListTasks,
-  apiListTasksByAssignee,
+  apiGetTaskTimeline,
   apiUpdateTaskStatus,
   apiGetTaskDetailFull,
   apiListTaskComments,
@@ -55,12 +79,10 @@ import type {
   TaskAttachmentAddRequest,
 } from "@/interface/onboarding";
 import type { Dayjs } from "dayjs";
-import { InfoCard } from "./components/InfoCard";
 import { TaskListPanel } from "./components/TaskListPanel";
 import { TaskDrawer } from "./components/TaskDrawer";
-import { StageProgressCard } from "./components/StageProgressCard";
-import { RiskCard } from "./components/RiskCard";
 import { STATUS_DONE, STATUS_DONE_API, STATUS_TAG_COLOR } from "./constants";
+import { formatDate } from "./helpers";
 import type { OnboardingTask } from "@/shared/types";
 import { AppLoading } from "@/components/page-loading";
 
@@ -120,6 +142,490 @@ const normalizeRequiredDocuments = (
       Boolean(doc?.documentId),
     );
 };
+
+type TranslateFn = (key: string, params?: Record<string, unknown>) => string;
+
+type TimelineTask = {
+  taskId: string;
+  title: string;
+  status?: string;
+  dueDate?: string;
+  checklistName?: string;
+  scheduleStatus?: string;
+  overdue?: boolean;
+};
+
+type AssigneeTimeline = {
+  assigneeUserId: string | null;
+  assigneeUserName: string;
+  taskCount: number;
+  doneCount: number;
+  overdueCount: number;
+  tasks: TimelineTask[];
+};
+
+const unwrapObject = (res: unknown): Record<string, unknown> => {
+  if (!res || typeof res !== "object") return {};
+  const obj = res as Record<string, unknown>;
+  const candidate =
+    obj.data ?? obj.result ?? obj.payload ?? obj.item ?? obj.timeline ?? res;
+  return candidate && typeof candidate === "object"
+    ? (candidate as Record<string, unknown>)
+    : {};
+};
+
+const getInitials = (name?: string | null): string => {
+  const clean = (name ?? "").trim();
+  if (!clean) return "?";
+  const parts = clean.split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+};
+
+const getTaskStatusLabel = (status: string | undefined, t: TranslateFn) => {
+  const raw = (status || "TODO").toUpperCase();
+  const key = `onboarding.task.status.${raw.toLowerCase()}`;
+  const label = t(key);
+  return label === key
+    ? t("onboarding.task.status.unknown", { status: raw.replace(/_/g, " ") })
+    : label;
+};
+
+const toTimelineTask = (raw: unknown): TimelineTask | null => {
+  if (!raw || typeof raw !== "object") return null;
+  const item = raw as Record<string, unknown>;
+  const taskId = String(item.taskId ?? item.id ?? "").trim();
+  if (!taskId) return null;
+  return {
+    taskId,
+    title: String(item.title ?? item.name ?? ""),
+    status:
+      typeof item.status === "string" ? item.status.toUpperCase() : undefined,
+    dueDate:
+      typeof item.dueDate === "string"
+        ? item.dueDate
+        : item.dueDate
+          ? String(item.dueDate)
+          : undefined,
+    checklistName:
+      typeof item.checklistName === "string" ? item.checklistName : undefined,
+    scheduleStatus:
+      typeof item.scheduleStatus === "string" ? item.scheduleStatus : undefined,
+    overdue: Boolean(item.overdue),
+  };
+};
+
+const mapTimelineResponse = (res: unknown): AssigneeTimeline[] => {
+  const data = unwrapObject(res);
+  const assignees = Array.isArray(data.assignees) ? data.assignees : [];
+  return assignees.map((entry) => {
+    const row =
+      entry && typeof entry === "object"
+        ? (entry as Record<string, unknown>)
+        : {};
+    const taskItems = (Array.isArray(row.tasks) ? row.tasks : [])
+      .map(toTimelineTask)
+      .filter((task): task is TimelineTask => Boolean(task));
+    const assigneeUserId =
+      typeof row.assigneeUserId === "string" && row.assigneeUserId.trim()
+        ? row.assigneeUserId
+        : null;
+    const assigneeUserName =
+      typeof row.assigneeUserName === "string" && row.assigneeUserName.trim()
+        ? row.assigneeUserName
+        : "";
+    return {
+      assigneeUserId,
+      assigneeUserName,
+      taskCount:
+        typeof row.taskCount === "number" ? row.taskCount : taskItems.length,
+      doneCount: taskItems.filter((task) => task.status === "DONE").length,
+      overdueCount: taskItems.filter(
+        (task) => task.overdue && task.status !== "DONE",
+      ).length,
+      tasks: taskItems,
+    };
+  });
+};
+
+const buildFallbackAssigneeTimeline = (
+  tasks: OnboardingTask[],
+): AssigneeTimeline[] => {
+  const groups = new Map<string, AssigneeTimeline>();
+  tasks.forEach((task) => {
+    const key = task.assignedUserId || "__unassigned__";
+    const current =
+      groups.get(key) ??
+      ({
+        assigneeUserId: task.assignedUserId ?? null,
+        assigneeUserName: task.assignedUserName || "",
+        taskCount: 0,
+        doneCount: 0,
+        overdueCount: 0,
+        tasks: [],
+      } satisfies AssigneeTimeline);
+    const status = task.rawStatus ?? "TODO";
+    current.taskCount += 1;
+    if (status === "DONE") current.doneCount += 1;
+    if (task.overdue && status !== "DONE") current.overdueCount += 1;
+    current.tasks.push({
+      taskId: task.id,
+      title: task.title,
+      status,
+      dueDate: task.dueDate,
+      checklistName: task.checklistName,
+      scheduleStatus: task.scheduleStatus,
+      overdue: task.overdue,
+    });
+    groups.set(key, current);
+  });
+  return Array.from(groups.values()).sort((a, b) => b.taskCount - a.taskCount);
+};
+
+const ProfileField = ({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value?: ReactNode;
+  icon: ReactNode;
+}) => (
+  <div className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-3">
+    <div className="mt-0.5 text-slate-400">{icon}</div>
+    <div className="min-w-0">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        {label}
+      </p>
+      <div className="mt-1 truncate text-sm font-medium text-slate-900">
+        {value || "—"}
+      </div>
+    </div>
+  </div>
+);
+
+const EmployeeProfilePanel = ({
+  employeeDetail,
+  managerDisplayName,
+  t,
+}: {
+  employeeDetail?: {
+    phone?: string | null;
+    employeeCode?: string | null;
+    jobTitle?: string | null;
+    startDate?: string | null;
+    workLocation?: string | null;
+  };
+  managerDisplayName: string;
+  t: TranslateFn;
+}) => (
+  <Card className="h-full">
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0 flex-1">
+        <h2 className="text-lg font-semibold text-slate-950">
+          {t("onboarding.detail.profile.title")}
+        </h2>
+        <p className="mt-1 truncate text-sm text-slate-500">
+          {t("onboarding.detail.profile.subtitle")}
+        </p>
+      </div>
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+        <User2 className="h-5 w-5" />
+      </div>
+    </div>
+    <Divider className="my-4" />
+    <div className="grid gap-3">
+      <ProfileField
+        label={t("employee.code")}
+        value={employeeDetail?.employeeCode}
+        icon={<FileText className="h-4 w-4" />}
+      />
+      <ProfileField
+        label={t("onboarding.detail.info.employee_title")}
+        value={employeeDetail?.jobTitle}
+        icon={<Briefcase className="h-4 w-4" />}
+      />
+      <ProfileField
+        label={t("onboarding.detail.info.manager")}
+        value={managerDisplayName}
+        icon={<User2 className="h-4 w-4" />}
+      />
+      <ProfileField
+        label={t("onboarding.detail.info.start_date")}
+        value={formatDate(employeeDetail?.startDate)}
+        icon={<CalendarDays className="h-4 w-4" />}
+      />
+      <ProfileField
+        label={t("onboarding.detail.info.work_location")}
+        value={employeeDetail?.workLocation}
+        icon={<MapPin className="h-4 w-4" />}
+      />
+      <ProfileField
+        label={t("employee.mobile_phone")}
+        value={employeeDetail?.phone}
+        icon={<Users2 className="h-4 w-4" />}
+      />
+    </div>
+  </Card>
+);
+
+const CompactTaskRow = ({
+  task,
+  t,
+  onOpen,
+}: {
+  task: OnboardingTask | TimelineTask;
+  t: TranslateFn;
+  onOpen: (taskId: string) => void;
+}) => {
+  const taskId = "id" in task ? task.id : task.taskId;
+  const status = "rawStatus" in task ? task.rawStatus : task.status;
+  const rawStatus = (status ?? "TODO").toUpperCase();
+  const isDone = rawStatus === "DONE";
+  const overdue = Boolean(task.overdue) && !isDone;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(taskId)}
+      className="flex w-full items-start gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-blue-300 hover:bg-blue-50/40">
+      <span
+        className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
+          isDone
+            ? "bg-emerald-500"
+            : overdue
+              ? "bg-red-500"
+              : rawStatus === "PENDING_APPROVAL"
+                ? "bg-amber-500"
+                : "bg-blue-500"
+        }`}
+      />
+      <span className="min-w-0 flex-1">
+        <span className="line-clamp-1 text-sm font-medium text-slate-900">
+          {task.title || t("onboarding.detail.task.untitled")}
+        </span>
+        <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <span>{getTaskStatusLabel(rawStatus, t)}</span>
+          {task.dueDate && <span>{formatDate(task.dueDate)}</span>}
+          {overdue && (
+            <span className="font-semibold text-red-600">
+              {t("onboarding.detail.action_queue.overdue")}
+            </span>
+          )}
+        </span>
+      </span>
+    </button>
+  );
+};
+
+const ActionQueuePanel = ({
+  overdueTasks,
+  pendingApprovalTasks,
+  scheduleIssueTasks,
+  nextDueTask,
+  t,
+  onOpenTask,
+}: {
+  overdueTasks: OnboardingTask[];
+  pendingApprovalTasks: OnboardingTask[];
+  scheduleIssueTasks: OnboardingTask[];
+  nextDueTask?: OnboardingTask;
+  t: TranslateFn;
+  onOpenTask: (taskId: string) => void;
+}) => {
+  const visiblePendingApprovalTasks = pendingApprovalTasks.filter(
+    (task) =>
+      !overdueTasks.some((overdueTask) => overdueTask.id === task.id),
+  );
+  const visibleScheduleIssueTasks = scheduleIssueTasks.filter(
+    (task) =>
+      !overdueTasks.some((overdueTask) => overdueTask.id === task.id) &&
+      !visiblePendingApprovalTasks.some(
+        (approvalTask) => approvalTask.id === task.id,
+      ),
+  );
+  const hasActions =
+    overdueTasks.length > 0 ||
+    visiblePendingApprovalTasks.length > 0 ||
+    visibleScheduleIssueTasks.length > 0 ||
+    nextDueTask;
+
+  return (
+    <Card className="h-full">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-base font-semibold text-slate-950">
+            {t("onboarding.detail.action_queue.title")}
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">
+            {t("onboarding.detail.action_queue.subtitle")}
+          </p>
+        </div>
+        <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-600" />
+      </div>
+
+      {!hasActions ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-5 text-sm text-emerald-700">
+          {t("onboarding.detail.action_queue.empty")}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {overdueTasks.length > 0 && (
+            <section>
+              <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-red-600">
+                <span>{t("onboarding.detail.action_queue.overdue")}</span>
+                <span>{overdueTasks.length}</span>
+              </div>
+              <div className="space-y-2">
+                {overdueTasks.slice(0, 3).map((task) => (
+                  <CompactTaskRow
+                    key={task.id}
+                    task={task}
+                    t={t}
+                    onOpen={onOpenTask}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {visiblePendingApprovalTasks.length > 0 && (
+            <section>
+              <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-amber-600">
+                <span>{t("onboarding.detail.action_queue.pending_approval")}</span>
+                <span>{visiblePendingApprovalTasks.length}</span>
+              </div>
+              <div className="space-y-2">
+                {visiblePendingApprovalTasks.slice(0, 3).map((task) => (
+                  <CompactTaskRow
+                    key={task.id}
+                    task={task}
+                    t={t}
+                    onOpen={onOpenTask}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {visibleScheduleIssueTasks.length > 0 && (
+            <section>
+              <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-orange-600">
+                <span>{t("onboarding.detail.action_queue.schedule_issue")}</span>
+                <span>{visibleScheduleIssueTasks.length}</span>
+              </div>
+              <div className="space-y-2">
+                {visibleScheduleIssueTasks.slice(0, 3).map((task) => (
+                  <CompactTaskRow
+                    key={task.id}
+                    task={task}
+                    t={t}
+                    onOpen={onOpenTask}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {nextDueTask && (
+            <section>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-blue-600">
+                {t("onboarding.detail.action_queue.next_due")}
+              </div>
+              <CompactTaskRow task={nextDueTask} t={t} onOpen={onOpenTask} />
+            </section>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+};
+
+const AssigneeTimelinePanel = ({
+  assignees,
+  isLoading,
+  t,
+}: {
+  assignees: AssigneeTimeline[];
+  isLoading: boolean;
+  t: TranslateFn;
+}) => (
+  <Card className="h-full">
+    <div className="mb-4 flex items-center justify-between gap-3">
+      <div>
+        <h3 className="text-base font-semibold text-slate-950">
+          {t("onboarding.detail.assignee.title")}
+        </h3>
+        <p className="mt-1 text-sm text-slate-500">
+          {t("onboarding.detail.assignee.subtitle")}
+        </p>
+      </div>
+      <Users2 className="h-5 w-5 shrink-0 text-blue-600" />
+    </div>
+
+    {isLoading ? (
+      <div className="space-y-3">
+        {[1, 2, 3].map((item) => (
+          <Skeleton.Input key={item} active block style={{ height: 72 }} />
+        ))}
+      </div>
+    ) : assignees.length === 0 ? (
+      <Empty
+        description={t("onboarding.detail.assignee.empty")}
+        imageStyle={{ height: 48 }}
+      />
+    ) : (
+      <div className="space-y-3">
+        {assignees.map((assignee) => {
+          const assigneeName =
+            assignee.assigneeUserName ||
+            t("onboarding.detail.assignee.unassigned");
+          const percent =
+            assignee.taskCount > 0
+              ? Math.round((assignee.doneCount / assignee.taskCount) * 100)
+              : 0;
+          return (
+            <div
+              key={assignee.assigneeUserId ?? assigneeName}
+              className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="flex items-start gap-3">
+                <Avatar className="bg-slate-100 font-semibold text-slate-700">
+                  {getInitials(assigneeName)}
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="truncate text-sm font-semibold text-slate-900">
+                      {assigneeName}
+                    </p>
+                    <span className="text-xs text-slate-500">
+                      {assignee.doneCount}/{assignee.taskCount}
+                    </span>
+                  </div>
+                  <Progress
+                    className="mt-2"
+                    percent={percent}
+                    size="small"
+                    showInfo={false}
+                    strokeColor={percent === 100 ? "#10b981" : "#2563eb"}
+                  />
+                </div>
+              </div>
+
+              {assignee.overdueCount > 0 && (
+                <div className="mt-3 inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-600">
+                  <AlertTriangle className="h-3 w-3" />
+                  {t("onboarding.detail.assignee.overdue_count", {
+                    count: assignee.overdueCount,
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </Card>
+);
 
 // ── Activity Feed ─────────────────────────────────────────────────────────────
 
@@ -227,7 +733,7 @@ const ActivityFeed = ({
                                 ? "font-normal text-gray-400 line-through"
                                 : "font-medium text-gray-800"
                             }`}>
-                            {task.title}
+                            {task.title || t("onboarding.detail.task.untitled")}
                           </span>
                           {task.dueDate && (
                             <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-400">
@@ -322,41 +828,35 @@ const EmployeeDetail = () => {
     queryKey: [
       "onboarding-tasks-by-instance",
       instance?.id ?? instanceId ?? "",
-      isEmployee ? "assignee" : "manager",
     ],
-    // Chờ instance load để luôn filter chính xác theo onboarding hiện tại
+    // Use the BE instance-scoped endpoint so HR/manager/employee see the full onboarding scope.
     enabled: Boolean(instance?.id),
     refetchOnMount: "always",
-    queryFn: () => {
-      if (isEmployee) {
-        // Nhân viên xem task của chính mình → dùng listByAssignee
-        return apiListTasksByAssignee({ size: 100 });
-      }
-      // HR/Manager xem task của instance → dùng listByOnboarding
-      return apiListTasks(instance!.id);
-    },
-    select: (res: unknown) => {
-      const all = extractList(
+    queryFn: () =>
+      apiListTasks(instance!.id, {
+        size: 100,
+        sortBy: "due_date",
+        sortOrder: "ASC",
+      }),
+    select: (res: unknown) =>
+      extractList(
         res as Record<string, unknown>,
         "tasks",
         "content",
         "items",
         "list",
-      ).map(mapTask) as OnboardingTask[];
-
-      if (isEmployee) {
-        // Filter về đúng onboarding instance đang xem
-        const currentInstanceId = instance?.id;
-        if (!currentInstanceId) return all;
-        return all.filter((tk) => tk.onboardingId === currentInstanceId);
-      }
-      // HR/Manager view: chỉ tính task được assign cho nhân viên của instance
-      // (khớp ngữ nghĩa listByAssignee để thống kê chính xác)
-      const employeeUserId = instance?.employeeUserId;
-      if (!employeeUserId) return all;
-      return all.filter((tk) => tk.assignedUserId === employeeUserId);
-    },
+      ).map(mapTask) as OnboardingTask[],
   });
+
+  const { data: timelineAssignees = [], isFetching: timelineFetching } =
+    useQuery({
+      queryKey: ["onboarding-task-timeline", instance?.id ?? ""],
+      queryFn: () =>
+        apiGetTaskTimeline({ onboardingId: instance!.id, includeDone: true }),
+      enabled: Boolean(instance?.id),
+      refetchOnMount: "always",
+      select: mapTimelineResponse,
+    });
 
   const { data: templateDetail } = useQuery({
     queryKey: ["template-detail", instance?.templateId ?? ""],
@@ -454,6 +954,9 @@ const EmployeeDetail = () => {
   const invalidateTasks = () => {
     queryClient.invalidateQueries({
       queryKey: ["onboarding-tasks-by-instance"],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["onboarding-task-timeline"],
     });
     queryClient.invalidateQueries({
       queryKey: ["onboarding-task-detail", selectedTaskId],
@@ -625,31 +1128,56 @@ const EmployeeDetail = () => {
   const managerDisplayName =
     managerDetail?.fullName || instance?.managerName || "—";
 
-  const completedCount = tasks.filter((t) => t.status === STATUS_DONE).length;
-  const totalTasks = tasks.length;
-  const progressPercent =
-    totalTasks > 0
-      ? Math.round((completedCount / totalTasks) * 100)
-      : (instance?.progress ?? 0);
+  const overdueTasks = useMemo(
+    () =>
+      tasks.filter(
+        (task) =>
+          task.overdue &&
+          task.rawStatus !== "DONE" &&
+          task.rawStatus !== "CANCELLED",
+      ),
+    [tasks],
+  );
 
-  const stageProgress = useMemo(() => {
-    const groups: Record<
-      string,
-      { name: string; done: number; total: number }
-    > = {};
-    for (const task of tasks) {
-      const key = task.checklistName ?? "—";
-      if (!groups[key]) groups[key] = { name: key, done: 0, total: 0 };
-      groups[key].total++;
-      if (task.rawStatus === "DONE") groups[key].done++;
-    }
-    return Object.values(groups).map((g) => ({
-      name: g.name,
-      done: g.done,
-      total: g.total,
-      percent: Math.round((g.done / (g.total || 1)) * 100),
-    }));
+  const pendingApprovalTasks = useMemo(
+    () => tasks.filter((task) => task.rawStatus === "PENDING_APPROVAL"),
+    [tasks],
+  );
+
+  const scheduleIssueTasks = useMemo(
+    () =>
+      tasks.filter(
+        (task) =>
+          ["MISSED", "CANCELLED"].includes(task.scheduleStatus ?? "") &&
+          task.rawStatus !== "DONE",
+      ),
+    [tasks],
+  );
+
+  const nextDueTask = useMemo(() => {
+    return tasks
+      .filter(
+        (task) =>
+          task.rawStatus !== "DONE" &&
+          task.rawStatus !== "PENDING_APPROVAL" &&
+          !task.overdue &&
+          !["MISSED", "CANCELLED"].includes(task.scheduleStatus ?? "") &&
+          task.dueDate,
+      )
+      .sort(
+        (a, b) =>
+          new Date(a.dueDate ?? "").getTime() -
+          new Date(b.dueDate ?? "").getTime(),
+      )[0];
   }, [tasks]);
+
+  const assigneeTimeline = useMemo(
+    () =>
+      timelineAssignees.length > 0
+        ? timelineAssignees
+        : buildFallbackAssigneeTimeline(tasks),
+    [tasks, timelineAssignees],
+  );
 
   const instanceStatus = instance?.status?.toUpperCase() ?? "";
   const isActioning =
@@ -815,6 +1343,21 @@ const EmployeeDetail = () => {
     setNoShowReason("");
   };
 
+  const openTaskDrawerById = (taskId: string) => {
+    const task = tasks.find((item) => item.id === taskId);
+    if (task) {
+      openTaskDrawer(task);
+      return;
+    }
+    setSelectedTaskId(taskId);
+    setDrawerTab("info");
+    setScheduleMode(null);
+    setScheduleDates([null, null]);
+    setScheduleReason("");
+    setCancelScheduleReason("");
+    setNoShowReason("");
+  };
+
   const closeTaskDrawer = () => {
     setSelectedTaskId(null);
     setCommentInput("");
@@ -843,7 +1386,7 @@ const EmployeeDetail = () => {
       formData.append("name", file.name);
       const uploadRes = await apiUploadDocumentFile(formData);
       if (!uploadRes.fileUrl) {
-        throw new Error("Upload succeeded but file URL is missing");
+        throw new Error(t("onboarding.task.attachment.missing_url"));
       }
       await addAttachmentMutation.mutateAsync({
         taskId: selectedTaskId,
@@ -938,103 +1481,150 @@ const EmployeeDetail = () => {
 
   return (
     <div className="relative space-y-6">
-      {(instanceFetching || tasksFetching) && !instanceLoading && (
-        <AppLoading />
-      )}
+      {(instanceFetching || tasksFetching || timelineFetching) &&
+        !instanceLoading && <AppLoading />}
       {/* ── Page header ──────────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-ink">
-            {employeeDisplayName !== "-"
-              ? employeeDisplayName
-              : (templateDetail?.name ?? t("onboarding.detail.title_fallback"))}
-          </h1>
-          <p className="mt-0.5 text-sm text-muted">
-            {templateDetail?.name ?? t("onboarding.detail.subtitle")}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button onClick={() => navigate("/onboarding/employees")}>
-            {t("global.back")}
-          </Button>
-          {canManage && instanceStatus === "DRAFT" && (
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+          <div className="flex min-w-0 gap-4">
+            <Avatar
+              size={64}
+              className="shrink-0 bg-slate-900 text-lg font-semibold text-white">
+              {getInitials(employeeDisplayName)}
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Tag color="blue" className="m-0">
+                  {templateDetail?.name ??
+                    instance.templateName ??
+                    t("onboarding.detail.title_fallback")}
+                </Tag>
+                <Tag
+                  color={
+                    instanceStatus === "ACTIVE"
+                      ? "success"
+                      : instanceStatus === "CANCELLED"
+                        ? "warning"
+                        : "default"
+                  }
+                  className="m-0">
+                  {instance.status}
+                </Tag>
+                {templateDetail?.description && (
+                  <Tooltip title={templateDetail.description}>
+                    <Tag className="m-0 cursor-help">
+                      {t("onboarding.detail.template.description")}
+                    </Tag>
+                  </Tooltip>
+                )}
+              </div>
+              <h1 className="truncate text-2xl font-semibold leading-tight text-slate-950">
+                {employeeDisplayName !== "-"
+                  ? employeeDisplayName
+                  : (templateDetail?.name ?? t("onboarding.detail.title_fallback"))}
+              </h1>
+              <p className="mt-2 truncate text-sm text-slate-500">
+                {employeeDisplayEmail || t("onboarding.detail.profile.no_email")}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
             <Button
-              type="primary"
-              onClick={handleActivate}
-              disabled={isActioning}>
-              {t("onboarding.detail.action.activate")}
+              icon={<ArrowLeft className="h-4 w-4" />}
+              onClick={() => navigate("/onboarding/employees")}>
+              {t("global.back")}
             </Button>
-          )}
-          {canManage && instanceStatus === "ACTIVE" && (
-            <>
-              <Button
-                onClick={() => setConfirmAction("cancel")}
-                disabled={isActioning}>
-                {t("onboarding.detail.action.cancel")}
-              </Button>
+            {canManage && instanceStatus === "DRAFT" && (
               <Button
                 type="primary"
-                onClick={() => setConfirmAction("complete")}
+                icon={<PlayCircle className="h-4 w-4" />}
+                onClick={handleActivate}
                 disabled={isActioning}>
-                {t("onboarding.detail.action.complete")}
+                {t("onboarding.detail.action.activate")}
               </Button>
-            </>
-          )}
+            )}
+            {canManage && instanceStatus === "ACTIVE" && (
+              <>
+                <Button
+                  icon={<XCircle className="h-4 w-4" />}
+                  onClick={() => setConfirmAction("cancel")}
+                  disabled={isActioning}>
+                  {t("onboarding.detail.action.cancel")}
+                </Button>
+                <Button
+                  type="primary"
+                  icon={<CheckCircle2 className="h-4 w-4" />}
+                  onClick={() => setConfirmAction("complete")}
+                  disabled={isActioning}>
+                  {t("onboarding.detail.action.complete")}
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* ── Info card ────────────────────────────────────────────────────────── */}
-      <InfoCard
-        instance={instance}
-        template={templateDetail}
-        employeeDisplayName={employeeDisplayName}
-        employeeDisplayEmail={employeeDisplayEmail}
-        employeeDetail={employeeDetail}
-        managerDisplayName={managerDisplayName}
-        completedCount={completedCount}
-        totalTasks={totalTasks}
-        progressPercent={progressPercent}
-      />
-
-      {/* ── Tabs ─────────────────────────────────────────────────────────────── */}
-      <Tabs
-        activeKey={tab}
-        onChange={setTab}
-        items={[
-          { key: "checklist", label: t("onboarding.detail.tab.checklist") },
-          { key: "activity", label: t("onboarding.detail.tab.activity") },
-        ]}
-      />
-
-      {/* ── Checklist tab ────────────────────────────────────────────────────── */}
-      {tab === "checklist" && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="flex flex-col gap-4">
-            <StageProgressCard stageProgress={stageProgress} />
-            <RiskCard tasks={tasks} onTaskClick={openTaskDrawer} />
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="min-w-0 space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-white px-4 pt-2 shadow-sm">
+            <Tabs
+              activeKey={tab}
+              onChange={setTab}
+              items={[
+                {
+                  key: "checklist",
+                  label: t("onboarding.detail.tab.checklist"),
+                },
+                { key: "activity", label: t("onboarding.detail.tab.activity") },
+              ]}
+            />
           </div>
-          <TaskListPanel
-            tasks={tasks}
-            isLoading={tasksLoading}
-            isUpdating={updateTaskStatus.isPending}
-            canManage={canManage}
-            currentUserId={userId}
-            canApproveOrReject={canApproveOrReject}
-            onToggle={handleToggleTask}
-            onOpenDrawer={openTaskDrawer}
-            onApprove={(task) => approveMutation.mutate(task.id)}
-            onReject={(task) => {
-              setSelectedTaskId(task.id);
-              setRejectModalOpen(true);
-            }}
-            isApproving={approveMutation.isPending}
-            isRejecting={rejectMutation.isPending}
+
+          {tab === "checklist" && (
+            <TaskListPanel
+              tasks={tasks}
+              isLoading={tasksLoading}
+              isUpdating={updateTaskStatus.isPending}
+              canManage={canManage}
+              currentUserId={userId}
+              canApproveOrReject={canApproveOrReject}
+              onToggle={handleToggleTask}
+              onOpenDrawer={openTaskDrawer}
+              onApprove={(task) => approveMutation.mutate(task.id)}
+              onReject={(task) => {
+                setSelectedTaskId(task.id);
+                setRejectModalOpen(true);
+              }}
+              isApproving={approveMutation.isPending}
+              isRejecting={rejectMutation.isPending}
+            />
+          )}
+
+          {tab === "activity" && <ActivityFeed tasks={tasks} t={t} />}
+        </div>
+
+        <div className="space-y-4">
+          <EmployeeProfilePanel
+            employeeDetail={employeeDetail}
+            managerDisplayName={managerDisplayName}
+            t={t}
+          />
+          <ActionQueuePanel
+            overdueTasks={overdueTasks}
+            pendingApprovalTasks={pendingApprovalTasks}
+            scheduleIssueTasks={scheduleIssueTasks}
+            nextDueTask={nextDueTask}
+            t={t}
+            onOpenTask={openTaskDrawerById}
+          />
+          <AssigneeTimelinePanel
+            assignees={assigneeTimeline}
+            isLoading={timelineFetching && assigneeTimeline.length === 0}
+            t={t}
           />
         </div>
-      )}
-
-      {/* ── Activity tab ─────────────────────────────────────────────────────── */}
-      {tab === "activity" && <ActivityFeed tasks={tasks} t={t} />}
+      </div>
 
       {/* ── Task detail drawer ───────────────────────────────────────────────── */}
       <TaskDrawer
@@ -1186,16 +1776,13 @@ const EmployeeDetail = () => {
         okButtonProps={{ danger: true, loading: rejectMutation.isPending }}>
         <div className="py-2">
           <p className="mb-3 text-sm text-gray-600">
-            {t("onboarding.task.reject.desc") ??
-              "Lý do từ chối (không bắt buộc):"}
+            {t("onboarding.task.reject.desc")}
           </p>
           <Input.TextArea
             rows={3}
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
-            placeholder={
-              t("onboarding.task.reject.placeholder") ?? "Nhập lý do từ chối..."
-            }
+            placeholder={t("onboarding.task.reject.placeholder")}
             maxLength={500}
           />
         </div>

@@ -1,10 +1,19 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import {
+  forwardRef,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  Building2,
   CheckCircle2,
   Download,
   FileSpreadsheet,
   Library,
+  RefreshCw,
   Search as SearchIcon,
   Upload,
 } from "lucide-react";
@@ -15,12 +24,11 @@ import {
   Input,
   Modal,
   Result,
+  Segmented,
   Select,
-  Skeleton,
   Spin,
   Steps,
   Tag,
-  Typography,
   Upload as AntUpload,
   message,
 } from "antd";
@@ -41,8 +49,6 @@ import type { TaskLibraryItem } from "@/interface/onboarding";
 import type { DepartmentTypeItem } from "@/interface/company";
 import { AppRouters } from "@/constants/router";
 import TaskLibraryStatusTag from "@/core/components/Status/TaskLibraryStatusTag";
-
-const { Title, Text } = Typography;
 
 type StatusFilter = "ACTIVE" | "INACTIVE" | "";
 
@@ -387,6 +393,34 @@ const ImportModal = forwardRef<ImportModalRef, ImportModalProps>(
   },
 );
 
+const MetricCard = ({
+  icon,
+  label,
+  value,
+  toneClass,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: number;
+  toneClass: string;
+}) => (
+  <div className="flex min-h-[92px] items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+    <div
+      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${toneClass}`}
+    >
+      {icon}
+    </div>
+    <div className="min-w-0">
+      <div className="text-2xl font-semibold leading-none text-slate-900">
+        {value}
+      </div>
+      <div className="mt-1 truncate text-xs font-medium text-slate-500">
+        {label}
+      </div>
+    </div>
+  </div>
+);
+
 const TaskLibrary = () => {
   const navigate = useNavigate();
   const { t } = useLocale();
@@ -404,7 +438,7 @@ const TaskLibrary = () => {
 
   const queryKey = ["task-libraries", statusFilter, page, pageSize] as const;
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey,
     queryFn: () =>
       apiListTaskLibraries({
@@ -412,20 +446,46 @@ const TaskLibrary = () => {
         page,
         size: pageSize,
       }),
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
   });
 
   const items = data?.items ?? [];
   const totalCount = data?.totalCount ?? 0;
 
-  const filtered = search.trim()
-    ? items.filter(
-        (it) =>
-          it.name.toLowerCase().includes(search.toLowerCase()) ||
-          (it.departmentTypeName ?? "")
-            .toLowerCase()
-            .includes(search.toLowerCase()),
-      )
-    : items;
+  const filtered = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) return items;
+    return items.filter(
+      (it) =>
+        it.name.toLowerCase().includes(keyword) ||
+        (it.departmentTypeName ?? "").toLowerCase().includes(keyword) ||
+        (it.departmentTypeCode ?? "").toLowerCase().includes(keyword),
+    );
+  }, [items, search]);
+
+  const stats = useMemo(() => {
+    const departments = new Set(
+      filtered
+        .map((it) => it.departmentTypeCode ?? it.departmentTypeName)
+        .filter(Boolean),
+    );
+    return {
+      total: totalCount,
+      departments: departments.size,
+      active: filtered.filter((it) => it.status === "ACTIVE").length,
+      inactive: filtered.filter((it) => it.status === "INACTIVE").length,
+    };
+  }, [filtered, totalCount]);
+
+  const hasActiveFilter = Boolean(search.trim() || statusFilter !== "ACTIVE");
+
+  const resetFilters = () => {
+    setSearch("");
+    setStatusFilter("ACTIVE");
+    setPage(1);
+  };
 
   const downloadMutation = useMutation({
     mutationFn: apiDownloadTaskLibraryTemplate,
@@ -438,14 +498,17 @@ const TaskLibrary = () => {
       dataIndex: "name",
       key: "name",
       render: (name: string, row: TaskLibraryItem) => (
-        <span
-          className="font-medium text-brand cursor-pointer hover:underline"
-          onClick={() =>
-            navigate(`${AppRouters.ONBOARDING_TASK_LIBRARY}/${row.templateId}`)
-          }
-        >
-          {name}
-        </span>
+        <div className="flex items-center gap-3 py-1">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand/10">
+            <Library className="h-4 w-4 text-brand" />
+          </div>
+          <div className="min-w-0">
+            <div className="truncate font-semibold text-slate-900">{name}</div>
+            <div className="mt-0.5 truncate text-xs text-slate-400">
+              {row.templateId}
+            </div>
+          </div>
+        </div>
       ),
     },
     {
@@ -454,7 +517,12 @@ const TaskLibrary = () => {
       key: "department",
       render: (name?: string, row?: TaskLibraryItem) =>
         name ? (
-          <Tag color="blue">{name}</Tag>
+          <Tag color="blue" className="!m-0">
+            <span className="inline-flex items-center gap-1">
+              <Building2 className="h-3 w-3" />
+              {name}
+            </span>
+          </Tag>
         ) : (
           <span className="text-slate-400 text-xs">
             {row?.departmentTypeCode ?? "—"}
@@ -470,120 +538,180 @@ const TaskLibrary = () => {
     },
   ];
 
+  const pageLoading = isLoading;
+  const refreshOverlay = isFetching && !pageLoading;
+
   return (
-    <div className="flex flex-col gap-6 p-6">
-      {/* Header */}
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand/10">
-            <Library className="h-5 w-5 text-brand" />
-          </div>
-          <div>
-            <Title level={4} className="!mb-0 !leading-tight">
-              {t("onboarding.task_library.title")}
-            </Title>
-            <Text className="text-slate-400 text-sm">
-              {t("onboarding.task_library.subtitle")}
-            </Text>
+    <div className="relative flex flex-col gap-5 p-6">
+      {refreshOverlay && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-start justify-center bg-white/55 backdrop-blur-[1px]">
+          <div className="mt-28 flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 shadow-lg">
+            <Spin />
+            <span>{t("global.loading")}</span>
           </div>
         </div>
-        {isHR && (
-          <div className="flex items-center gap-2 shrink-0">
-            <Button
-              icon={<Download className="h-4 w-4" />}
-              loading={downloadMutation.isPending}
-              onClick={() => downloadMutation.mutate()}
-            >
-              {t("onboarding.task_library.action.download_template")}
-            </Button>
-            <Button
-              type="primary"
-              icon={<Upload className="h-4 w-4" />}
-              onClick={() => importModalRef.current?.open()}
-            >
-              {t("onboarding.task_library.action.import")}
+      )}
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center">
+            <Input
+              prefix={<SearchIcon className="h-4 w-4 text-slate-400" />}
+              placeholder={t("global.search")}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              allowClear
+              className="w-full lg:max-w-xs"
+            />
+            <Segmented<StatusFilter>
+              value={statusFilter}
+              onChange={(v) => {
+                setStatusFilter(v);
+                setPage(1);
+              }}
+              options={[
+                {
+                  value: "",
+                  label: t("onboarding.task_library.filter.all"),
+                },
+                {
+                  value: "ACTIVE",
+                  label: t("onboarding.task_library.filter.active"),
+                },
+                {
+                  value: "INACTIVE",
+                  label: t("onboarding.task_library.filter.inactive"),
+                },
+              ]}
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {isHR && (
+              <>
+                <Button
+                  icon={<Download className="h-4 w-4" />}
+                  loading={downloadMutation.isPending}
+                  onClick={() => downloadMutation.mutate()}
+                >
+                  {t("onboarding.task_library.action.download_template")}
+                </Button>
+                <Button
+                  type="primary"
+                  icon={<Upload className="h-4 w-4" />}
+                  onClick={() => importModalRef.current?.open()}
+                >
+                  {t("onboarding.task_library.action.import")}
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <MetricCard
+          icon={<Library className="h-5 w-5 text-brand" />}
+          label={t("onboarding.task_library.title")}
+          value={stats.total}
+          toneClass="bg-brand/10"
+        />
+        <MetricCard
+          icon={<Building2 className="h-5 w-5 text-blue-600" />}
+          label={t("onboarding.task_library.col.department")}
+          value={stats.departments}
+          toneClass="bg-blue-50"
+        />
+        <MetricCard
+          icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+          label={t("onboarding.task_library.filter.active")}
+          value={stats.active}
+          toneClass="bg-emerald-50"
+        />
+        <MetricCard
+          icon={<Library className="h-5 w-5 text-slate-500" />}
+          label={t("onboarding.task_library.filter.inactive")}
+          value={stats.inactive}
+          toneClass="bg-slate-100"
+        />
+      </div>
+
+      <div className="overflow-hidden shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+          {search.trim() && (
+            <Tag color="blue" className="!m-0">
+              {filtered.length} / {items.length}
+            </Tag>
+          )}
+        </div>
+
+        {pageLoading ? (
+          <div className="flex min-h-[430px] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/70">
+            <Spin size="large" tip={t("global.loading")} />
+          </div>
+        ) : isError ? (
+          <div className="flex min-h-[430px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-red-100 bg-red-50/40 p-6 text-center">
+            <div className="text-sm font-medium text-red-600">
+              {error instanceof Error ? error.message : "Error"}
+            </div>
+            <Button type="primary" onClick={() => refetch()}>
+              {t("global.retry")}
             </Button>
           </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex min-h-[430px] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60">
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={
+                <div className="flex flex-col items-center gap-1">
+                  <span className="font-medium text-slate-700">
+                    {t("onboarding.task_library.empty.title")}
+                  </span>
+                  <span className="text-slate-400 text-sm">
+                    {t("onboarding.task_library.empty.desc")}
+                  </span>
+                </div>
+              }
+            >
+              {hasActiveFilter && (
+                <Button onClick={resetFilters}>{t("global.reset")}</Button>
+              )}
+            </Empty>
+          </div>
+        ) : (
+          <MyTable<TaskLibraryItem>
+            columns={columns}
+            dataSource={filtered}
+            rowKey="templateId"
+            onRow={(row) => ({
+              onClick: () =>
+                navigate(
+                  `${AppRouters.ONBOARDING_TASK_LIBRARY}/${row.templateId}`,
+                ),
+              className: "cursor-pointer",
+            })}
+            pagination={
+              search.trim()
+                ? false
+                : {
+                    current: page,
+                    pageSize,
+                    total: totalCount,
+                    showSizeChanger: true,
+                    pageSizeOptions: ["10", "20", "50"],
+                    showTotal: (total) =>
+                      t("global.pagination.total", {
+                        total: String(total),
+                      }),
+                    onChange: (p, ps) => {
+                      setPage(p);
+                      setPageSize(ps);
+                    },
+                  }
+            }
+          />
         )}
       </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Input
-          prefix={<SearchIcon className="h-4 w-4 text-slate-400" />}
-          placeholder={t("global.search")}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          allowClear
-          className="w-64"
-        />
-        <Select
-          value={statusFilter}
-          onChange={(v) => {
-            setStatusFilter(v);
-            setPage(1);
-          }}
-          className="w-40"
-          options={[
-            { value: "", label: t("onboarding.task_library.filter.all") },
-            {
-              value: "ACTIVE",
-              label: t("onboarding.task_library.filter.active"),
-            },
-            {
-              value: "INACTIVE",
-              label: t("onboarding.task_library.filter.inactive"),
-            },
-          ]}
-        />
-        {totalCount > 0 && (
-          <Text className="ml-auto text-slate-400 text-sm">
-            {t("global.pagination.total", { total: String(totalCount) })}
-          </Text>
-        )}
-      </div>
-
-      {/* Table */}
-      {isLoading ? (
-        <Skeleton active paragraph={{ rows: 6 }} />
-      ) : filtered.length === 0 ? (
-        <Empty
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={
-            <div className="flex flex-col items-center gap-1">
-              <span className="font-medium text-slate-700">
-                {t("onboarding.task_library.empty.title")}
-              </span>
-              <span className="text-slate-400 text-sm">
-                {t("onboarding.task_library.empty.desc")}
-              </span>
-            </div>
-          }
-        />
-      ) : (
-        <MyTable<TaskLibraryItem>
-          columns={columns}
-          dataSource={filtered}
-          rowKey="templateId"
-          pagination={
-            search.trim()
-              ? false
-              : {
-                  current: page,
-                  pageSize,
-                  total: totalCount,
-                  showSizeChanger: true,
-                  pageSizeOptions: ["10", "20", "50"],
-                  showTotal: (total) =>
-                    t("global.pagination.total", { total: String(total) }),
-                  onChange: (p, ps) => {
-                    setPage(p);
-                    setPageSize(ps);
-                  },
-                }
-          }
-        />
-      )}
 
       <ImportModal
         ref={importModalRef}

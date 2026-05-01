@@ -50,10 +50,18 @@ import type {
 export const apiListTemplates = (params?: {
   status?: string;
   search?: string;
+  level?: "TENANT" | "PLATFORM";
 }) =>
-  gatewayRequest<{ status: string; search?: string }, unknown>(
+  gatewayRequest<
+    { status: string; search?: string; level: "TENANT" | "PLATFORM" },
+    unknown
+  >(
     "com.sme.onboarding.template.list",
-    { status: params?.status ?? "ACTIVE", search: params?.search },
+    {
+      status: params?.status ?? "ACTIVE",
+      search: params?.search,
+      level: params?.level ?? "TENANT",
+    },
     { flatPayload: true },
   );
 

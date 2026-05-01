@@ -100,6 +100,7 @@ export interface PlatformTemplateListRequest {
   size?: number;
   search?: string;
   status?: string;
+  level?: "PLATFORM" | "TENANT";
 }
 
 export interface PlatformTemplateItem {

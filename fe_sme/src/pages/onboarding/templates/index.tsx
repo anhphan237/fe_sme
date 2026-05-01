@@ -1,8 +1,8 @@
-import { useState, useCallback, useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
-  CheckCircle2,
+  Clock3,
   Copy,
   Eye,
   FileText,
@@ -12,8 +12,8 @@ import {
   Pencil,
   Plus,
   Power,
-  Search as SearchIcon,
-  XCircle,
+  Search,
+  Sparkles,
 } from "lucide-react";
 import {
   Button,
@@ -30,197 +30,202 @@ import {
 import type { MenuProps } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useLocale } from "@/i18n";
-import { useUserStore } from "@/stores/user.store";
-import {
-  apiListTemplates,
-  apiUpdateTemplate,
-  apiCloneTemplate,
-} from "@/api/onboarding/onboarding.api";
+import { apiCloneTemplate, apiListTemplates, apiUpdateTemplate } from "@/api/onboarding/onboarding.api";
 import { extractList } from "@/api/core/types";
-import { mapTemplate } from "@/utils/mappers/onboarding";
-import type { OnboardingTemplate } from "@/shared/types";
 import MyTable from "@/components/table";
-
-// ── Types ─────────────────────────────────────────────────────────────────────
+import { useLocale } from "@/i18n";
+import type { OnboardingTemplate } from "@/shared/types";
+import { useUserStore } from "@/stores/user.store";
+import { formatDate } from "@/utils/format-datetime";
+import { mapTemplate } from "@/utils/mappers/onboarding";
 
 export type StatusFilter = "ACTIVE" | "INACTIVE" | "DRAFT" | "";
+type TemplateStatus = Exclude<StatusFilter, "">;
 type ViewMode = "grid" | "list";
+type SourceView = "TENANT" | "PLATFORM";
 
+const TENANT_LEVEL = "TENANT" as const;
+const PLATFORM_LEVEL = "PLATFORM" as const;
 
-const normalizeTemplateStatus = (
-  status?: string,
-): "ACTIVE" | "INACTIVE" | "DRAFT" => {
+type TemplateLevel = typeof TENANT_LEVEL | typeof PLATFORM_LEVEL;
+
+const extractTemplatesByLevel = (res: unknown, level: TemplateLevel) =>
+  extractList(res as Record<string, unknown>, "templates", "items", "list")
+    .map(mapTemplate)
+    .filter((template) => (template.level ?? level) === level);
+
+const matchesTemplateSearch = (template: OnboardingTemplate, query: string) => {
+  const keyword = query.trim().toLowerCase();
+  if (!keyword) return true;
+
+  return (
+    template.name.toLowerCase().includes(keyword) ||
+    (template.description ?? "").toLowerCase().includes(keyword) ||
+    (template.templateKind ?? "").toLowerCase().includes(keyword)
+  );
+};
+
+const normalizeTemplateStatus = (status?: string): TemplateStatus => {
   const normalized = (status ?? "DRAFT").toUpperCase();
   if (normalized === "ACTIVE" || normalized === "INACTIVE") return normalized;
   return "DRAFT";
 };
 
-// ── StatusBadge ───────────────────────────────────────────────────────────────
+const getStageCount = (template: OnboardingTemplate): number | undefined =>
+  template.checklistCount ?? (template.stages.length > 0 ? template.stages.length : undefined);
+
+const getTaskCount = (template: OnboardingTemplate): number | undefined =>
+  template.taskCount ??
+  (template.stages.length > 0
+    ? template.stages.reduce((sum, stage) => sum + (stage.tasks?.length ?? 0), 0)
+    : undefined);
+
+const formatMetric = (value?: number) => (typeof value === "number" ? value : "--");
+
+const getTemplateKindLabel = (templateKind?: string): string => {
+  if (!templateKind) return "ONBOARDING";
+  return templateKind.replaceAll("_", " ");
+};
 
 const StatusBadge = ({ status }: { status?: string }) => {
   const { t } = useLocale();
   const normalizedStatus = normalizeTemplateStatus(status);
-  const colorMap = {
+  const colorMap: Record<TemplateStatus, "success" | "warning" | "default"> = {
     ACTIVE: "success",
     DRAFT: "warning",
     INACTIVE: "default",
-  } as const;
-  const dotMap = {
+  };
+  const dotMap: Record<TemplateStatus, string> = {
     ACTIVE: "bg-emerald-500",
     DRAFT: "bg-amber-500",
     INACTIVE: "bg-slate-400",
-  } as const;
-  const labelMap = {
+  };
+  const labelMap: Record<TemplateStatus, string> = {
     ACTIVE: t("onboarding.template.status.active"),
     DRAFT: t("onboarding.template.status.draft"),
     INACTIVE: t("onboarding.template.status.inactive"),
-  } as const;
+  };
 
   return (
     <Tag
       color={colorMap[normalizedStatus]}
-      className="inline-flex items-center gap-1 !m-0"
+      className="!m-0 inline-flex items-center gap-1.5 !rounded-md"
     >
-      <span
-        className={`inline-block h-1.5 w-1.5 rounded-full ${dotMap[normalizedStatus]}`}
-      />
+      <span className={`h-1.5 w-1.5 rounded-full ${dotMap[normalizedStatus]}`} />
       {labelMap[normalizedStatus]}
     </Tag>
   );
 };
 
-// ── Templates (page) ──────────────────────────────────────────────────────────
-
 const Templates = () => {
   const navigate = useNavigate();
   const { t } = useLocale();
-
-  const currentUser = useUserStore((s) => s.currentUser);
+  const currentUser = useUserStore((state) => state.currentUser);
   const userRoles = (currentUser?.roles ?? []) as string[];
   const isHR = userRoles.includes("HR");
 
-  // ── State ────────────────────────────────────────────────────────────────
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
-  const [searchText, setSearchText] = useState<string>("");
+  const [searchText, setSearchText] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
-
+  const [sourceView, setSourceView] = useState<SourceView>(TENANT_LEVEL);
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
   const {
-    data: rawData,
-    isLoading,
-    isError,
-    error,
-    refetch,
+    data: tenantTemplates = [],
+    isLoading: isTenantLoading,
+    isError: isTenantError,
+    error: tenantError,
+    refetch: refetchTenantTemplates,
   } = useQuery({
-    queryKey: ["templates", "all"],
-    queryFn: () => apiListTemplates({ status: "" }),
-    select: (res: unknown) =>
-      extractList(
-        res as Record<string, unknown>,
-        "templates",
-        "items",
-        "list",
-      ).map(mapTemplate) as OnboardingTemplate[],
+    queryKey: ["templates", TENANT_LEVEL, "all"],
+    queryFn: () => apiListTemplates({ status: "", level: TENANT_LEVEL }),
+    select: (res: unknown) => extractTemplatesByLevel(res, TENANT_LEVEL),
   });
 
-  // Derived: stats
-  const stats = useMemo(() => {
-    const list = rawData ?? [];
-    const active = list.filter(
-      (tmpl) => normalizeTemplateStatus(tmpl.status) === "ACTIVE",
-    ).length;
-    const draft = list.filter(
-      (tmpl) => normalizeTemplateStatus(tmpl.status) === "DRAFT",
-    ).length;
-    return {
-      total: list.length,
-      active,
-      draft,
-      inactive: list.length - active - draft,
-    };
-  }, [rawData]);
+  const {
+    data: platformTemplates = [],
+    isLoading: isPlatformLoading,
+    isError: isPlatformError,
+    error: platformError,
+    refetch: refetchPlatformTemplates,
+  } = useQuery({
+    queryKey: ["templates", PLATFORM_LEVEL, "active"],
+    queryFn: () => apiListTemplates({ status: "ACTIVE", level: PLATFORM_LEVEL }),
+    select: (res: unknown) => extractTemplatesByLevel(res, PLATFORM_LEVEL),
+  });
 
-  // Derived: filtered list (status + search)
-  const data = useMemo(() => {
-    let list = rawData ?? [];
-    if (statusFilter) {
-      list = list.filter(
-        (tmpl) => normalizeTemplateStatus(tmpl.status) === statusFilter,
-      );
-    }
-    const q = searchText.trim().toLowerCase();
-    if (q) {
-      list = list.filter(
-        (tmpl) =>
-          tmpl.name.toLowerCase().includes(q) ||
-          (tmpl.description ?? "").toLowerCase().includes(q),
-      );
-    }
-    return list;
-  }, [rawData, statusFilter, searchText]);
+  const tenantData = useMemo(() => {
+    return tenantTemplates.filter((template) => {
+      const matchesStatus =
+        !statusFilter || normalizeTemplateStatus(template.status) === statusFilter;
+      if (!matchesStatus) return false;
+      return matchesTemplateSearch(template, searchText);
+    });
+  }, [tenantTemplates, searchText, statusFilter]);
 
-  const statusOptions = [
-    { value: "", label: t("onboarding.template.filter.all") },
-    { value: "DRAFT", label: t("onboarding.template.filter.draft") },
-    { value: "ACTIVE", label: t("onboarding.template.filter.active") },
-    { value: "INACTIVE", label: t("onboarding.template.filter.inactive") },
-  ];
-
-  const handleNewTemplate = useCallback(
-    () => navigate("/onboarding/templates/new"),
-    [navigate],
+  const platformData = useMemo(
+    () => platformTemplates.filter((template) => matchesTemplateSearch(template, searchText)),
+    [platformTemplates, searchText],
   );
 
-  /** Navigate to full template editor for editing structure */
-  const handleEditStructure = useCallback(
-    (tmpl: OnboardingTemplate) => {
-      navigate(`/onboarding/templates/${tmpl.id}`);
+  const isTenantView = sourceView === TENANT_LEVEL;
+  const visibleCount = isTenantView ? tenantData.length : platformData.length;
+  const totalCount = isTenantView ? tenantTemplates.length : platformTemplates.length;
+
+  const statusOptions = useMemo(
+    () => [
+      { value: "", label: t("onboarding.template.filter.all") },
+      { value: "ACTIVE", label: t("onboarding.template.filter.active") },
+      { value: "DRAFT", label: t("onboarding.template.filter.draft") },
+      { value: "INACTIVE", label: t("onboarding.template.filter.inactive") },
+    ],
+    [t],
+  );
+
+  const handleNewTemplate = useCallback(() => {
+    navigate("/onboarding/templates/new");
+  }, [navigate]);
+
+  const openTemplate = useCallback(
+    (template: OnboardingTemplate) => {
+      navigate(`/onboarding/templates/${template.id}`);
     },
     [navigate],
   );
 
-  /** Clone template via API — shows confirmation with editable name */
-  const handleDuplicate = useCallback(
-    (tmpl: OnboardingTemplate) => {
-      const defaultName = `Copy of ${tmpl.name}`;
+  const duplicateTemplate = useCallback(
+    (template: OnboardingTemplate) => {
+      const defaultName = `Copy of ${template.name}`;
+      let nextName = defaultName;
+
       Modal.confirm({
         title: t("onboarding.template.action.duplicate"),
         content: (
           <Input
-            id="clone-name-input"
+            autoFocus
             defaultValue={defaultName}
-            onPressEnter={() => {
-              // Allow pressing enter to confirm via the input
-              const el = document.getElementById(
-                "clone-name-input",
-              ) as HTMLInputElement | null;
-              if (el) el.blur();
+            onChange={(event) => {
+              nextName = event.target.value;
             }}
           />
         ),
-        okText: t("onboarding.template.action.duplicate_confirm") ?? "Sao chép",
-        cancelText: t("global.cancel") ?? "Huỷ",
+        okText: t("onboarding.template.action.duplicate_confirm"),
+        cancelText: t("global.cancel"),
         onOk: async () => {
-          const el = document.getElementById(
-            "clone-name-input",
-          ) as HTMLInputElement | null;
-          const name = el?.value?.trim() || defaultName;
-          setLoadingId(tmpl.id);
+          setLoadingId(template.id);
           try {
-            await apiCloneTemplate({ sourceTemplateId: tmpl.id, name });
-            refetch();
-            message.success(
-              t("onboarding.template.action.duplicate_success") ??
-                "Đã sao chép template",
-            );
+            await apiCloneTemplate({
+              sourceTemplateId: template.id,
+              level: template.level ?? TENANT_LEVEL,
+              name: nextName.trim() || defaultName,
+            });
+            await refetchTenantTemplates();
+            message.success(t("onboarding.template.action.duplicate_success"));
           } catch (err) {
             message.error(
               err instanceof Error
                 ? err.message
-                : (t("onboarding.template.error.something_wrong") ??
-                    "Đã xảy ra lỗi"),
+                : t("onboarding.template.error.something_wrong"),
             );
           } finally {
             setLoadingId(null);
@@ -228,29 +233,75 @@ const Templates = () => {
         },
       });
     },
-    [refetch, t],
+    [refetchTenantTemplates, t],
   );
 
-  // ── Toggle status (activate / deactivate) ────────────────────────────────
+  const clonePlatformSample = useCallback(
+    (template: OnboardingTemplate) => {
+      const defaultName = template.name;
+      let nextName = defaultName;
+
+      Modal.confirm({
+        title: t("onboarding.template.platform.clone.title"),
+        content: (
+          <Input
+            autoFocus
+            defaultValue={defaultName}
+            placeholder={t("onboarding.template.platform.clone.name_placeholder")}
+            onChange={(event) => {
+              nextName = event.target.value;
+            }}
+          />
+        ),
+        okText: t("onboarding.template.platform.clone.confirm"),
+        cancelText: t("global.cancel"),
+        onOk: async () => {
+          setLoadingId(template.id);
+          try {
+            const result = await apiCloneTemplate({
+              sourceTemplateId: template.id,
+              level: PLATFORM_LEVEL,
+              name: nextName.trim() || defaultName,
+            });
+            await refetchTenantTemplates();
+            message.success(t("onboarding.template.action.duplicate_success"));
+            if (result.templateId) {
+              navigate(`/onboarding/templates/${result.templateId}`);
+            }
+          } catch (err) {
+            message.error(
+              err instanceof Error
+                ? err.message
+                : t("onboarding.template.error.something_wrong"),
+            );
+          } finally {
+            setLoadingId(null);
+          }
+        },
+      });
+    },
+    [navigate, refetchTenantTemplates, t],
+  );
+
   const toggleStatusMutation = useMutation({
     mutationFn: ({
       templateId,
       status,
     }: {
       templateId: string;
-      status: string;
+      status: TemplateStatus;
     }) => apiUpdateTemplate({ templateId, status }),
   });
 
   const getStatusAction = useCallback(
-    (tmpl: OnboardingTemplate) => {
-      const status = normalizeTemplateStatus(tmpl.status);
+    (template: OnboardingTemplate) => {
+      const status = normalizeTemplateStatus(template.status);
       if (status === "ACTIVE") {
         return {
-          nextStatus: "INACTIVE",
+          nextStatus: "INACTIVE" as const,
           title: t("onboarding.template.deactivate.title"),
           content: t("onboarding.template.deactivate.message", {
-            name: tmpl.name,
+            name: template.name,
           }),
           okText: t("onboarding.template.deactivate.confirm"),
           successMessage: t("onboarding.template.toast.deactivated"),
@@ -262,10 +313,10 @@ const Templates = () => {
 
       if (status === "DRAFT") {
         return {
-          nextStatus: "ACTIVE",
+          nextStatus: "ACTIVE" as const,
           title: t("onboarding.template.publish.title"),
           content: t("onboarding.template.publish.message", {
-            name: tmpl.name,
+            name: template.name,
           }),
           okText: t("onboarding.template.publish.confirm"),
           successMessage: t("onboarding.template.toast.published"),
@@ -276,10 +327,10 @@ const Templates = () => {
       }
 
       return {
-        nextStatus: "ACTIVE",
+        nextStatus: "ACTIVE" as const,
         title: t("onboarding.template.activate.title"),
         content: t("onboarding.template.activate.message", {
-          name: tmpl.name,
+          name: template.name,
         }),
         okText: t("onboarding.template.activate.confirm"),
         successMessage: t("onboarding.template.toast.activated"),
@@ -291,23 +342,23 @@ const Templates = () => {
     [t],
   );
 
-  const handleToggleStatus = useCallback(
-    (tmpl: OnboardingTemplate) => {
-      const action = getStatusAction(tmpl);
+  const toggleTemplateStatus = useCallback(
+    (template: OnboardingTemplate) => {
+      const action = getStatusAction(template);
       Modal.confirm({
         title: action.title,
         content: action.content,
         okText: action.okText,
-        cancelText: t("onboarding.template.ai.modal.cancel"),
+        cancelText: t("global.cancel"),
         okButtonProps: { danger: action.danger },
         onOk: async () => {
-          setLoadingId(tmpl.id);
+          setLoadingId(template.id);
           try {
             await toggleStatusMutation.mutateAsync({
-              templateId: tmpl.id,
+              templateId: template.id,
               status: action.nextStatus,
             });
-            refetch();
+            await refetchTenantTemplates();
             message.success(action.successMessage);
           } catch {
             message.error(action.errorMessage);
@@ -317,308 +368,294 @@ const Templates = () => {
         },
       });
     },
-    [getStatusAction, refetch, t, toggleStatusMutation],
+    [getStatusAction, refetchTenantTemplates, t, toggleStatusMutation],
   );
 
-  // ── Card overflow menu (HR — less common actions) ───────────────────────
-  const buildOverflowMenu = (tmpl: OnboardingTemplate): MenuProps["items"] => {
-    const action = getStatusAction(tmpl);
-    return [
-      {
-        key: "duplicate",
-        label: t("onboarding.template.action.duplicate"),
-        icon: <Copy className="h-3.5 w-3.5" />,
-        onClick: () => handleDuplicate(tmpl),
-      },
-      { type: "divider" as const },
-      {
-        key: "toggle-status",
-        label: action.label,
-        icon: <Power className="h-3.5 w-3.5" />,
-        danger: action.danger,
-        onClick: () => handleToggleStatus(tmpl),
-      },
-    ];
-  };
+  const buildOverflowMenu = useCallback(
+    (template: OnboardingTemplate): MenuProps["items"] => {
+      const action = getStatusAction(template);
+      return [
+        {
+          key: "duplicate",
+          label: t("onboarding.template.action.duplicate"),
+          icon: <Copy className="h-3.5 w-3.5" />,
+          onClick: () => duplicateTemplate(template),
+        },
+        { type: "divider" as const },
+        {
+          key: "toggle-status",
+          label: action.label,
+          icon: <Power className="h-3.5 w-3.5" />,
+          danger: action.danger,
+          onClick: () => toggleTemplateStatus(template),
+        },
+      ];
+    },
+    [duplicateTemplate, getStatusAction, t, toggleTemplateStatus],
+  );
 
-  // ── Table columns (list view) ────────────────────────────────────────────
-
-  const nameColumn = {
-    title: t("onboarding.template.col.name"),
-    key: "name",
-    render: (_: unknown, tmpl: OnboardingTemplate) => {
-      const isActive = normalizeTemplateStatus(tmpl.status) === "ACTIVE";
-      const busy = loadingId === tmpl.id;
-      const handleClick = () => {
-        handleEditStructure(tmpl);
-      };
+  const renderTemplateActions = useCallback((template: OnboardingTemplate) => {
+    const busy = loadingId === template.id;
+    if (!isHR) {
       return (
-        <button
-          type="button"
-          className="flex items-center gap-3 text-left hover:opacity-80 transition-opacity disabled:opacity-50"
-          onClick={handleClick}
-          disabled={busy}
+        <Tooltip title={t("onboarding.template.action.view_details")}>
+          <Button
+            size="small"
+            icon={<Eye className="h-3.5 w-3.5" />}
+            loading={busy}
+            aria-label={t("onboarding.template.action.view_details")}
+            onClick={() => openTemplate(template)}
+          />
+        </Tooltip>
+      );
+    }
+
+    return (
+      <div className="flex items-center gap-1.5">
+        <Tooltip title={t("onboarding.template.action.edit")}>
+          <Button
+            size="small"
+            icon={<Pencil className="h-3.5 w-3.5" />}
+            loading={busy}
+            aria-label={t("onboarding.template.action.edit")}
+            onClick={() => openTemplate(template)}
+          />
+        </Tooltip>
+        <Dropdown
+          trigger={["click"]}
+          menu={{ items: buildOverflowMenu(template) }}
+          placement="bottomRight"
         >
-          <div
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
-              isActive ? "bg-brand/10" : "bg-slate-100"
-            }`}
+          <Button
+            size="small"
+            icon={<MoreHorizontal className="h-3.5 w-3.5" />}
+            aria-label="more actions"
+          />
+        </Dropdown>
+      </div>
+    );
+  }, [buildOverflowMenu, isHR, loadingId, openTemplate, t]);
+
+  const columns: ColumnsType<OnboardingTemplate> = useMemo(
+    () => [
+      {
+        title: t("onboarding.template.col.name"),
+        key: "name",
+        render: (_: unknown, template) => (
+          <button
+            type="button"
+            className="flex max-w-md items-start gap-3 text-left transition hover:text-brand"
+            onClick={() => openTemplate(template)}
           >
-            <FileText
-              className={`h-4.5 w-4.5 ${isActive ? "text-brand" : "text-slate-400"}`}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-semibold text-ink hover:text-brand transition-colors">
-              {tmpl.name}
+            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+              <FileText className="h-4.5 w-4.5" />
             </span>
-            {tmpl.level === "PLATFORM" && (
-              <Tag color="purple" className="!m-0 !text-[10px]">
-                PLATFORM
-              </Tag>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold text-ink">
+                {template.name || t("onboarding.template.card.untitled")}
+              </span>
+              <span className="mt-1 block line-clamp-1 text-xs text-slate-500">
+                {template.description || t("onboarding.template.card.no_description")}
+              </span>
+            </span>
+          </button>
+        ),
+      },
+      {
+        title: t("onboarding.template.col.status"),
+        key: "status",
+        width: 140,
+        render: (_: unknown, template) => <StatusBadge status={template.status} />,
+      },
+      {
+        title: t("onboarding.template.col.structure"),
+        key: "structure",
+        width: 180,
+        render: (_: unknown, template) => (
+          <div className="text-xs text-slate-600">
+            <div className="font-medium text-ink">
+              {formatMetric(getStageCount(template))}{" "}
+              {t("onboarding.template.meta.stages_label")}
+            </div>
+            <div>
+              {formatMetric(getTaskCount(template))}{" "}
+              {t("onboarding.template.meta.tasks_label")}
+            </div>
+          </div>
+        ),
+      },
+      {
+        title: t("onboarding.template.col.updated_at"),
+        key: "updatedAt",
+        width: 150,
+        render: (_: unknown, template) => (
+          <span className="text-xs text-slate-600">{formatDate(template.updatedAt)}</span>
+        ),
+      },
+      {
+        title: t("onboarding.template.col.actions"),
+        key: "actions",
+        width: 130,
+        align: "right",
+        render: (_: unknown, template) => renderTemplateActions(template),
+      },
+    ],
+    [openTemplate, renderTemplateActions, t],
+  );
+
+  const renderCard = (template: OnboardingTemplate) => {
+    const status = normalizeTemplateStatus(template.status);
+    const isInactive = status === "INACTIVE";
+    const busy = loadingId === template.id;
+    const stageCount = formatMetric(getStageCount(template));
+    const taskCount = formatMetric(getTaskCount(template));
+
+    return (
+      <article
+        key={template.id}
+        className={`rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 ${
+          isInactive ? "opacity-70" : ""
+        }`}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 items-start gap-3 text-left"
+            onClick={() => openTemplate(template)}
+            disabled={busy}
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-600">
+              {busy ? (
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent opacity-60" />
+              ) : (
+                <FileText className="h-4.5 w-4.5" />
+              )}
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold text-ink">
+                {template.name || t("onboarding.template.card.untitled")}
+              </span>
+              <span className="mt-1.5 flex flex-wrap items-center gap-2">
+                <StatusBadge status={template.status} />
+                <span className="text-xs text-slate-500">
+                  {getTemplateKindLabel(template.templateKind)}
+                </span>
+              </span>
+            </span>
+          </button>
+          <div className="shrink-0">{renderTemplateActions(template)}</div>
+        </div>
+
+        <button type="button" className="mt-4 w-full text-left" onClick={() => openTemplate(template)} disabled={busy}>
+          <p className="line-clamp-2 min-h-[38px] text-sm leading-5 text-slate-600">
+            {template.description || t("onboarding.template.card.no_description")}
+          </p>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
+            <span className="flex items-center gap-4">
+              <span>
+                <strong className="text-ink">{stageCount}</strong>{" "}
+                {t("onboarding.template.meta.stages_label")}
+              </span>
+              <span>
+                <strong className="text-ink">{taskCount}</strong>{" "}
+                {t("onboarding.template.meta.tasks_label")}
+              </span>
+            </span>
+            {template.updatedAt && (
+              <span className="inline-flex items-center gap-1.5">
+                <Clock3 className="h-3.5 w-3.5" />
+                {formatDate(template.updatedAt)}
+              </span>
             )}
           </div>
         </button>
-      );
-    },
-  };
-
-  const statusColumn = {
-    title: t("onboarding.template.col.status"),
-    key: "status",
-    width: 140,
-    render: (_: unknown, tmpl: OnboardingTemplate) => (
-      <StatusBadge status={tmpl.status} />
-    ),
-  };
-
-  const actionsColumn: ColumnsType<OnboardingTemplate>[number] = {
-    title: t("onboarding.template.col.actions"),
-    key: "actions",
-    width: isHR ? 200 : 140,
-    render: (_: unknown, tmpl: OnboardingTemplate) => {
-      return (
-        <div className="flex items-center justify-end gap-1.5">
-          <Dropdown
-            trigger={["click"]}
-            menu={{ items: buildOverflowMenu(tmpl) }}
-            placement="bottomRight"
-          >
-            <Button
-              size="small"
-              icon={<MoreHorizontal className="h-3.5 w-3.5" />}
-              aria-label="more actions"
-            />
-          </Dropdown>
-        </div>
-      );
-    },
-  };
-
-  const columns: ColumnsType<OnboardingTemplate> = [
-    nameColumn,
-    statusColumn,
-    actionsColumn,
-  ];
-
-  // ── Render helpers ───────────────────────────────────────────────────────
-
-  const renderStatCard = (
-    label: string,
-    value: number,
-    tone: "ink" | "brand" | "muted",
-    icon: ReactNode,
-  ) => (
-    <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
-      <div
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-          tone === "brand" ? "bg-brand/10" : "bg-slate-100"
-        }`}
-      >
-        <span
-          className={
-            tone === "brand"
-              ? "text-brand"
-              : tone === "muted"
-                ? "text-slate-400"
-                : "text-slate-600"
-          }
-        >
-          {icon}
-        </span>
-      </div>
-      <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-          {label}
-        </p>
-        <p
-          className={`mt-0.5 text-2xl font-semibold leading-tight ${
-            tone === "brand"
-              ? "text-brand"
-              : tone === "muted"
-                ? "text-slate-400"
-                : "text-ink"
-          }`}
-        >
-          {value}
-        </p>
-      </div>
-    </div>
-  );
-
-  const renderCard = (tmpl: OnboardingTemplate) => {
-    const status = normalizeTemplateStatus(tmpl.status);
-    const isActive = status === "ACTIVE";
-    const isDraft = status === "DRAFT";
-    const isInactive = status === "INACTIVE";
-    const busy = loadingId === tmpl.id;
-
-    const handleCardClick = () => {
-      handleEditStructure(tmpl);
-    };
-
-    const accentBorder = isDraft
-      ? "border-amber-300/60"
-      : isActive
-        ? "border-brand/20"
-        : "border-slate-200";
-
-    const accentBar = isDraft
-      ? "bg-amber-400"
-      : isActive
-        ? "bg-brand"
-        : "bg-slate-300";
-
-    const iconBg = isActive
-      ? "bg-brand/10"
-      : isDraft
-        ? "bg-amber-50"
-        : "bg-slate-100";
-
-    const iconColor = isActive
-      ? "text-brand"
-      : isDraft
-        ? "text-amber-500"
-        : "text-slate-400";
-
-    return (
-      <div
-        key={tmpl.id}
-        className={`group relative flex flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg ${accentBorder} ${isInactive ? "opacity-70" : ""}`}
-      >
-        {/* Top accent bar */}
-        <div
-          className={`h-0.5 w-full ${accentBar} transition-all duration-200 group-hover:h-[3px]`}
-        />
-        {/* Card body — fully clickable */}
-        <button
-          type="button"
-          className="flex flex-1 flex-col gap-4 px-5 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-inset"
-          onClick={handleCardClick}
-          disabled={busy}
-        >
-          {/* Header row: icon + title + action buttons */}
-          <div className="flex items-start gap-3">
-            {/* Icon */}
-            <div
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-sm ring-1 ring-black/[0.04] transition-transform duration-200 group-hover:scale-105 ${iconBg}`}
-            >
-              {busy ? (
-                <span className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent opacity-50" />
-              ) : (
-                <FileText className={`h-5 w-5 ${iconColor}`} />
-              )}
-            </div>
-
-            {/* Title + badges */}
-            <div className="min-w-0 flex-1 pt-0.5">
-              <p className="truncate text-[13.5px] font-semibold leading-snug text-ink transition-colors duration-150 group-hover:text-brand">
-                {tmpl.name || t("onboarding.template.card.untitled")}
-              </p>
-              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                <StatusBadge status={tmpl.status} />
-                {tmpl.level === "PLATFORM" && (
-                  <Tag
-                    color="purple"
-                    className="!m-0 !text-[10px] !leading-none"
-                  >
-                    PLATFORM
-                  </Tag>
-                )}
-              </div>
-            </div>
-            <div
-              className="flex shrink-0 items-center gap-0.5"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {isHR ? (
-                <Dropdown
-                  trigger={["click"]}
-                  menu={{ items: buildOverflowMenu(tmpl) }}
-                  placement="bottomRight"
-                >
-                  <Button
-                    type="text"
-                    size="small"
-                    className="!text-slate-300 hover:!text-slate-600"
-                    icon={<MoreHorizontal className="h-3.5 w-3.5" />}
-                    aria-label="more actions"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                </Dropdown>
-              ) : (
-                <Tooltip title={t("onboarding.template.action.view_details")}>
-                  <Button
-                    type="text"
-                    size="small"
-                    className="!text-slate-300 hover:!text-brand"
-                    icon={<Eye className="h-3.5 w-3.5" />}
-                    loading={busy}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                    }}
-                  />
-                </Tooltip>
-              )}
-            </div>
-          </div>
-
-          {/* Description */}
-          {tmpl.description ? (
-            <p className="line-clamp-2 text-[11.5px] leading-relaxed text-slate-500">
-              {tmpl.description}
-            </p>
-          ) : (
-            <p className="text-[11.5px] italic text-slate-300">
-              {t("onboarding.template.card.no_description")}
-            </p>
-          )}
-        </button>
-      </div>
+      </article>
     );
   };
 
-  const renderGrid = () => (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-      {data.map(renderCard)}
-    </div>
-  );
+  const renderPlatformSampleCard = (template: OnboardingTemplate) => {
+    const busy = loadingId === template.id;
+    const stageCount = formatMetric(getStageCount(template));
+    const taskCount = formatMetric(getTaskCount(template));
+
+    return (
+      <article
+        key={template.id}
+        className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-600">
+              {busy ? (
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent opacity-60" />
+              ) : (
+                <Sparkles className="h-4.5 w-4.5" />
+              )}
+            </span>
+            <div className="min-w-0 flex-1">
+              <h3 className="truncate text-sm font-semibold text-ink">
+                {template.name || t("onboarding.template.card.untitled")}
+              </h3>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                <Tag className="!m-0 !rounded-md" color="default">
+                  {t("onboarding.template.scope.platform_samples")}
+                </Tag>
+                <span className="text-xs text-slate-500">
+                  {getTemplateKindLabel(template.templateKind)}
+                </span>
+              </div>
+            </div>
+          </div>
+          {isHR && (
+            <Button
+              size="small"
+              type="primary"
+              icon={<Copy className="h-3.5 w-3.5" />}
+              loading={busy}
+              onClick={() => clonePlatformSample(template)}
+            >
+              {t("onboarding.template.platform.action.use")}
+            </Button>
+          )}
+        </div>
+
+        <p className="mt-4 line-clamp-2 min-h-[38px] text-sm leading-5 text-slate-600">
+          {template.description || t("onboarding.template.card.no_description")}
+        </p>
+
+        <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-slate-100 pt-3 text-xs text-slate-500">
+          <span>
+            <strong className="text-ink">{stageCount}</strong>{" "}
+            {t("onboarding.template.meta.stages_label")}
+          </span>
+          <span>
+            <strong className="text-ink">{taskCount}</strong>{" "}
+            {t("onboarding.template.meta.tasks_label")}
+          </span>
+          {template.updatedAt && (
+            <span className="ml-auto inline-flex items-center gap-1.5">
+              <Clock3 className="h-3.5 w-3.5" />
+              {formatDate(template.updatedAt)}
+            </span>
+          )}
+        </div>
+      </article>
+    );
+  };
 
   const renderLoadingGrid = () => (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div
-          key={i}
-          className="rounded-2xl border border-slate-200 bg-white p-4"
-        >
-          <Skeleton active paragraph={{ rows: 2 }} />
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div key={index} className="rounded-lg border border-slate-200 bg-white p-4">
+          <Skeleton active paragraph={{ rows: 4 }} />
         </div>
       ))}
     </div>
   );
 
-  const renderEmpty = () => (
-    <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-slate-200 bg-white py-16">
+  const renderTenantEmpty = () => (
+    <div className="rounded-lg border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
       <Empty
         description={
           statusFilter === "INACTIVE"
@@ -629,145 +666,191 @@ const Templates = () => {
         }
       />
       {isHR && !statusFilter && (
-        <div className="flex items-center gap-2">
-          <Button
-            icon={<Plus className="h-3.5 w-3.5" />}
-            type="primary"
-            onClick={handleNewTemplate}
-          >
-            {t("onboarding.template.action.new")}
-          </Button>
-        </div>
+        <Button
+          className="mt-3"
+          icon={<Plus className="h-3.5 w-3.5" />}
+          type="primary"
+          onClick={handleNewTemplate}
+        >
+          {t("onboarding.template.action.new")}
+        </Button>
       )}
     </div>
   );
 
-  // ── Render ───────────────────────────────────────────────────────────────
-
   return (
     <div className="flex h-full flex-col gap-4">
-      {/* Page header — title + primary actions */}
-      <div className="flex items-start justify-end  gap-4">
-        {isHR && (
-          <div className="flex shrink-0 items-center gap-2">
-            <Button
-              type="primary"
-              icon={<Plus className="h-3.5 w-3.5" />}
-              onClick={handleNewTemplate}
-            >
-              {t("onboarding.template.action.new")}
-            </Button>
+      <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex w-fit rounded-lg border border-slate-200 bg-slate-50 p-1">
+            {[
+              {
+                key: TENANT_LEVEL,
+                label: t("onboarding.template.scope.tenant_only"),
+                count: tenantTemplates.length,
+                icon: FileText,
+              },
+              {
+                key: PLATFORM_LEVEL,
+                label: t("onboarding.template.scope.platform_samples"),
+                count: platformTemplates.length,
+                icon: Sparkles,
+              },
+            ].map((item) => {
+              const Icon = item.icon;
+              const active = sourceView === item.key;
+
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setSourceView(item.key)}
+                  className={`flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium transition ${
+                    active
+                      ? "bg-white text-ink shadow-sm"
+                      : "text-slate-500 hover:bg-white hover:text-ink"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{item.label}</span>
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
+                    {item.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-        )}
-      </div>
 
-      {/* Stats strip */}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        {renderStatCard(
-          t("onboarding.template.stats.total"),
-          stats.total,
-          "ink",
-          <FileText className="h-4.5 w-4.5" />,
-        )}
-        {renderStatCard(
-          t("onboarding.template.stats.active"),
-          stats.active,
-          "brand",
-          <CheckCircle2 className="h-4.5 w-4.5" />,
-        )}
-        {renderStatCard(
-          t("onboarding.template.stats.draft"),
-          stats.draft,
-          "ink",
-          <Pencil className="h-4.5 w-4.5" />,
-        )}
-        {renderStatCard(
-          t("onboarding.template.stats.inactive"),
-          stats.inactive,
-          "muted",
-          <XCircle className="h-4.5 w-4.5" />,
-        )}
-      </div>
-
-      {/* Search + filter + view toggle */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Input
-            prefix={<SearchIcon className="h-3.5 w-3.5 text-slate-400" />}
-            placeholder={t("onboarding.template.search.placeholder")}
-            allowClear
-            className="w-72"
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-          />
-          <Select<StatusFilter>
-            value={statusFilter}
-            onChange={setStatusFilter}
-            options={statusOptions}
-            className="w-40"
-          />
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-end">
+            <Input
+              prefix={<Search className="h-3.5 w-3.5 text-slate-400" />}
+              placeholder={t("onboarding.template.search.placeholder")}
+              allowClear
+              className="lg:w-72"
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
+            />
+            {isTenantView && (
+              <Select<StatusFilter>
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={statusOptions}
+                className="lg:w-44"
+              />
+            )}
+            {isTenantView && (
+              <div className="flex w-fit items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
+                <Tooltip title={t("onboarding.template.view.grid")}>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("grid")}
+                    className={`flex h-8 w-8 items-center justify-center rounded-md transition ${
+                      viewMode === "grid"
+                        ? "bg-white text-brand shadow-sm"
+                        : "text-slate-500 hover:bg-white"
+                    }`}
+                    aria-label={t("onboarding.template.view.grid")}
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </button>
+                </Tooltip>
+                <Tooltip title={t("onboarding.template.view.list")}>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("list")}
+                    className={`flex h-8 w-8 items-center justify-center rounded-md transition ${
+                      viewMode === "list"
+                        ? "bg-white text-brand shadow-sm"
+                        : "text-slate-500 hover:bg-white"
+                    }`}
+                    aria-label={t("onboarding.template.view.list")}
+                  >
+                    <ListIcon className="h-4 w-4" />
+                  </button>
+                </Tooltip>
+              </div>
+            )}
+            {isHR && isTenantView && (
+              <Button
+                type="primary"
+                icon={<Plus className="h-3.5 w-3.5" />}
+                onClick={handleNewTemplate}
+              >
+                {t("onboarding.template.action.new")}
+              </Button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5">
-          <button
-            type="button"
-            onClick={() => setViewMode("grid")}
-            className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition ${
-              viewMode === "grid"
-                ? "bg-brand/10 text-brand"
-                : "text-slate-500 hover:bg-slate-50"
-            }`}
-          >
-            <LayoutGrid className="h-3.5 w-3.5" />
-            {t("onboarding.template.view.grid")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode("list")}
-            className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition ${
-              viewMode === "list"
-                ? "bg-brand/10 text-brand"
-                : "text-slate-500 hover:bg-slate-50"
-            }`}
-          >
-            <ListIcon className="h-3.5 w-3.5" />
-            {t("onboarding.template.view.list")}
-          </button>
+        <div className="mt-3 text-xs text-slate-500">
+          {t("onboarding.template.result_count", {
+            count: visibleCount,
+            total: totalCount,
+          })}
+          {!isHR && (
+            <Tag color="default" className="!ml-2 !rounded-md" data-testid="readonly-banner">
+              {t("onboarding.template.readonly.badge")}
+            </Tag>
+          )}
         </div>
-      </div>
+      </section>
 
-      {/* Error banner */}
-      {isError && (
-        <div className="flex items-center gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3">
-          <AlertTriangle className="h-5 w-5 shrink-0 text-red-400" />
+      {isTenantView && isTenantError && (
+        <div className="flex items-center gap-3 rounded-lg border border-red-100 bg-red-50 px-4 py-3">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-red-500" />
           <p className="flex-1 text-sm text-red-700">
-            {(error as Error)?.message ??
-              t("onboarding.template.error.something_wrong")}
+            {(tenantError as Error)?.message ?? t("onboarding.template.error.something_wrong")}
           </p>
-          <Button size="small" onClick={() => refetch()}>
+          <Button size="small" onClick={() => refetchTenantTemplates()}>
             {t("onboarding.template.error.retry")}
           </Button>
         </div>
       )}
 
-      {/* Content area */}
-      <div className="flex-1 min-h-0">
-        {isLoading ? (
+      {!isTenantView && isPlatformError && (
+        <div className="flex items-center gap-3 rounded-lg border border-red-100 bg-red-50 px-4 py-3">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-red-500" />
+          <p className="flex-1 text-sm text-red-700">
+            {(platformError as Error)?.message ??
+              t("onboarding.template.error.something_wrong")}
+          </p>
+          <Button size="small" onClick={() => refetchPlatformTemplates()}>
+            {t("onboarding.template.error.retry")}
+          </Button>
+        </div>
+      )}
+
+      <section className="min-h-0 flex-1">
+        {isTenantView ? (
+          isTenantLoading ? (
+            renderLoadingGrid()
+          ) : tenantData.length === 0 ? (
+            renderTenantEmpty()
+          ) : viewMode === "grid" ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {tenantData.map(renderCard)}
+            </div>
+          ) : (
+            <MyTable<OnboardingTemplate>
+              columns={columns}
+              dataSource={tenantData}
+              rowKey="id"
+              loading={isTenantLoading}
+              wrapClassName="!h-full w-full"
+              pagination={{ pageSize: 12, hideOnSinglePage: true }}
+            />
+          )
+        ) : isPlatformLoading ? (
           renderLoadingGrid()
-        ) : data.length === 0 ? (
-          renderEmpty()
-        ) : viewMode === "grid" ? (
-          renderGrid()
+        ) : platformData.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
+            <Empty description={t("onboarding.template.platform.empty")} />
+          </div>
         ) : (
-          <MyTable<OnboardingTemplate>
-            columns={columns}
-            dataSource={data}
-            rowKey="id"
-            loading={isLoading}
-            wrapClassName="!h-full w-full"
-            pagination={false}
-          />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {platformData.map(renderPlatformSampleCard)}
+          </div>
         )}
-      </div>
+      </section>
     </div>
   );
 };

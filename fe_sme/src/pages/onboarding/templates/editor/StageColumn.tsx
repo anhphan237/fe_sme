@@ -16,13 +16,15 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  CalendarClock,
   Copy,
   GripVertical,
   MoreHorizontal,
+  Pencil,
   Plus,
   Trash2,
 } from "lucide-react";
-import { Dropdown, Input, Modal } from "antd";
+import { Dropdown, Input, InputNumber, Modal } from "antd";
 import { useLocale } from "@/i18n";
 import type { ChecklistDraft, TaskDraft } from "./constants";
 import { STAGE_ACCENTS, getStageMeta } from "./constants";
@@ -71,7 +73,6 @@ const FlagDot = ({
 
 interface SortableTaskMiniCardProps {
   task: TaskDraft;
-  taskIndex: number;
   readOnly?: boolean;
   onClick: () => void;
   onClone: () => void;
@@ -80,7 +81,6 @@ interface SortableTaskMiniCardProps {
 
 const SortableTaskMiniCard = ({
   task,
-  taskIndex,
   readOnly,
   onClick,
   onClone,
@@ -185,7 +185,6 @@ const SortableTaskMiniCard = ({
 
 export interface StageColumnProps {
   checklist: ChecklistDraft;
-  checklistIndex: number;
   readOnly?: boolean;
   onAddTask: () => void;
   onEditTask: (ti: number) => void;
@@ -193,13 +192,13 @@ export interface StageColumnProps {
   onDeleteTask: (ti: number) => void;
   onReorderTasks: (from: number, to: number) => void;
   onRenameStage: (name: string) => void;
+  onUpdateDeadline: (deadlineDays: number) => void;
   onCloneStage: () => void;
   onDeleteStage: () => void;
 }
 
 export const StageColumn = ({
   checklist,
-  checklistIndex,
   readOnly,
   onAddTask,
   onEditTask,
@@ -207,15 +206,24 @@ export const StageColumn = ({
   onDeleteTask,
   onReorderTasks,
   onRenameStage,
+  onUpdateDeadline,
   onCloneStage,
   onDeleteStage,
 }: StageColumnProps) => {
   const { t } = useLocale();
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameValue, setRenameValue] = useState(checklist.name);
+  const [deadlineOpen, setDeadlineOpen] = useState(false);
+  const [deadlineValue, setDeadlineValue] = useState<number>(0);
 
   const meta = getStageMeta(checklist.stageType);
   const accents = STAGE_ACCENTS[meta.accent];
+  const maxTaskDueDays = checklist.tasks.length
+    ? Math.max(...checklist.tasks.map((task) => task.dueDaysOffset ?? 0))
+    : 0;
+  const deadlineDays =
+    checklist.deadlineDays ?? (checklist.tasks.length ? maxTaskDueDays : 0);
+  const deadlineIsBeforeTasks = deadlineDays < maxTaskDueDays;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -242,6 +250,16 @@ export const StageColumn = ({
     setRenameOpen(false);
   };
 
+  const openDeadline = () => {
+    setDeadlineValue(deadlineDays);
+    setDeadlineOpen(true);
+  };
+
+  const confirmDeadline = () => {
+    onUpdateDeadline(Math.max(0, Number(deadlineValue) || 0));
+    setDeadlineOpen(false);
+  };
+
   const menuItems = readOnly
     ? []
     : [
@@ -249,6 +267,13 @@ export const StageColumn = ({
           key: "rename",
           label: t("onboarding.template.editor.pipeline.stage_menu.rename"),
           onClick: openRename,
+        },
+        {
+          key: "deadline",
+          label:
+            t("onboarding.template.editor.stage.deadline_edit") ??
+            "Chỉnh ngày kết thúc",
+          onClick: openDeadline,
         },
         {
           key: "clone",
@@ -293,12 +318,32 @@ export const StageColumn = ({
               </Dropdown>
             )}
           </div>
-          <div className={`mt-1.5 flex items-center gap-2 pl-5 text-[11px] ${accents.text}`}>
-            <span>{t(meta.dayRangeKey)}</span>
-            <span className="text-muted/40">·</span>
-            <span className="font-medium text-muted">
-              {checklist.tasks.length} nhiệm vụ
-            </span>
+          <div className="mt-2 flex items-center justify-between gap-2 pl-5">
+            <div className={`flex min-w-0 items-center gap-2 text-[11px] ${accents.text}`}>
+              <span>{t(meta.dayRangeKey)}</span>
+              <span className="text-muted/40">·</span>
+              <span className="font-medium text-muted">
+                {checklist.tasks.length} nhiệm vụ
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={readOnly ? undefined : openDeadline}
+              title={`Ngày dự kiến kết thúc: D+${deadlineDays}`}
+              className={`flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition ${
+                deadlineIsBeforeTasks
+                  ? "border-amber-200 bg-amber-50 text-amber-700"
+                  : "border-slate-200 bg-white/70 text-slate-600"
+              } ${
+                readOnly
+                  ? "cursor-default"
+                  : "hover:border-brand/40 hover:bg-white hover:text-brand"
+              }`}
+            >
+              <CalendarClock className="h-3.5 w-3.5" />
+              D+{deadlineDays}
+              {!readOnly && <Pencil className="h-3 w-3 opacity-50" />}
+            </button>
           </div>
         </div>
 
@@ -320,7 +365,6 @@ export const StageColumn = ({
                 <SortableTaskMiniCard
                   key={task.id}
                   task={task}
-                  taskIndex={ti}
                   readOnly={readOnly}
                   onClick={() => onEditTask(ti)}
                   onClone={() => onCloneTask(ti)}
@@ -363,6 +407,47 @@ export const StageColumn = ({
           autoFocus
           className="mt-2"
         />
+      </Modal>
+
+      {/* Deadline modal */}
+      <Modal
+        open={deadlineOpen}
+        title={
+          t("onboarding.template.editor.stage.deadline_title") ??
+          "Ngày dự kiến kết thúc checklist"
+        }
+        onOk={confirmDeadline}
+        onCancel={() => setDeadlineOpen(false)}
+        okText={t("onboarding.template.editor.btn.save")}
+        cancelText={t("onboarding.template.editor.btn.cancel")}
+        destroyOnClose>
+        <div className="space-y-3">
+          <p className="text-sm leading-relaxed text-slate-600">
+            {t("onboarding.template.editor.stage.deadline_hint") ??
+              "Trong template, ngày kết thúc nên lưu theo số ngày tương đối từ ngày bắt đầu onboarding. Khi tạo onboarding cho nhân viên, hệ thống sẽ tính ngày thực tế = ngày bắt đầu + số ngày này."}
+          </p>
+          <div>
+            <p className="mb-1.5 text-xs font-semibold text-slate-500">
+              {t("onboarding.template.editor.stage.deadline_days_label")}
+            </p>
+            <InputNumber
+              min={0}
+              value={deadlineValue}
+              onChange={(value) => setDeadlineValue(Number(value ?? 0))}
+              addonBefore="D+"
+              addonAfter="ngày"
+              className="w-full"
+              autoFocus
+            />
+          </div>
+          {Number(deadlineValue) < maxTaskDueDays && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              Task muộn nhất trong checklist đang ở D+{maxTaskDueDays}. Nếu
+              ngày kết thúc nhỏ hơn mốc này, checklist sẽ có deadline trước
+              task cuối.
+            </div>
+          )}
+        </div>
       </Modal>
     </>
   );
