@@ -4236,8 +4236,18 @@
   "onboarding.detail.action.manager_evaluation_send_now_desc": "Hệ thống sẽ gửi khảo sát đánh giá ngay sau khi hoàn thành onboarding. Nếu chưa có mẫu khảo sát mặc định, hệ thống sẽ báo lỗi và không hoàn tất.",
   "onboarding.detail.action.manager_evaluation_send_later": "Gửi sau",
   "onboarding.detail.action.manager_evaluation_send_later_desc": "Onboarding vẫn được hoàn tất. HR có thể gửi đánh giá cho quản lý sau.",
-  "onboarding.detail.toast.completed_manager_evaluation_pending": "Hoàn tất onboarding. Khảo sát đánh giá quản lý sẽ được gửi sau."
-
-
+  "onboarding.detail.toast.completed_manager_evaluation_pending": "Hoàn tất onboarding. Khảo sát đánh giá quản lý sẽ được gửi sau.",
+  
+  "document.tab.required": "Cần xác nhận",
+  "document.tab.library": "Thư viện chung",
+  "document.tab.uploaded_files": "File tải lên",
+  "document.tab.editor_docs": "Tài liệu soạn trên hệ thống",
+  "document.tab.acknowledged": "Đã xác nhận",
+  "document.ack.progress_text": "tài liệu đã xác nhận",
+  "document.upload.notice_library_title": "File tải lên tại đây sẽ nằm trong thư viện chung",
+  "document.upload.notice_library_desc": "Người dùng có quyền phù hợp có thể xem hoặc tải xuống, nhưng hệ thống sẽ không bắt xác nhận đọc.",
+  "document.upload.notice_task_title": "Muốn nhân viên bắt buộc xác nhận?",
+  "document.upload.notice_task_desc": "Hãy gắn tài liệu này vào task onboarding. Khi đó tài liệu sẽ xuất hiện trong mục Cần xác nhận.",
+  "document.upload.selected_folder_note": "Thư mục đang chọn:"
 
 }

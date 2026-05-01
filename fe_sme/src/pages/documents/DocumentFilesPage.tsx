@@ -35,7 +35,6 @@ import BaseModal from "@core/components/Modal/BaseModal";
 
 import {
   apiGetDocuments,
-  apiListAcknowledgments,
   apiUploadDocumentFile,
 } from "@/api/document/document.api";
 import type { DocumentItem } from "@/interface/document";
@@ -45,13 +44,48 @@ import DocItemRow from "./components/DocItemRow";
 import DocStatCard from "./components/DocStatCard";
 import type { DocKind, UnifiedDoc } from "./components/types";
 import { useDocumentPermissions } from "./hooks/useDocumentPermissions";
+
+const { Dragger } = Upload;
+
 type FileDocumentItem = DocumentItem & {
   createdAt?: string;
   updatedAt?: string;
+  title?: string;
+  ackCount?: number;
+  readCount?: number;
 };
-const { Dragger } = Upload;
 
-type EmployeeTab = "all" | "unread" | "pending_ack";
+type DocumentTab = "ALL" | "LIBRARY_FILE" | "WORKSPACE_DOC";
+
+type PageDoc = UnifiedDoc & {
+  source?: "UPLOAD" | "WORKSPACE";
+  documentGroup?: "LIBRARY_FILE" | "WORKSPACE_DOC";
+  editorDocumentId?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  ackCount?: number;
+  readCount?: number;
+};
+
+const getGroupPriority = (group?: PageDoc["documentGroup"]) => {
+  if (group === "LIBRARY_FILE") return 0;
+  if (group === "WORKSPACE_DOC") return 1;
+
+  return 2;
+};
+
+const sortDocuments = (a: PageDoc, b: PageDoc) => {
+  const groupDiff =
+    getGroupPriority(a.documentGroup) - getGroupPriority(b.documentGroup);
+
+  if (groupDiff !== 0) return groupDiff;
+
+  return a.title.localeCompare(b.title, "vi", {
+    numeric: true,
+    sensitivity: "base",
+  });
+};
+
 function normalizeDocumentFileUrl(fileUrl?: string | null): string | undefined {
   if (!fileUrl) return undefined;
 
@@ -74,9 +108,20 @@ function isWorkspaceDocumentUrl(fileUrl?: string | null) {
   return normalizedUrl.startsWith("/documents/editor/");
 }
 
+function getWorkspaceDocumentId(fileUrl?: string | null) {
+  const normalizedUrl = normalizeDocumentFileUrl(fileUrl) ?? "";
+
+  if (!normalizedUrl.startsWith("/documents/editor/")) return null;
+
+  return normalizedUrl
+    .replace("/documents/editor/", "")
+    .split(/[/?#]/)[0]
+    ?.trim();
+}
+
 function getWorkspaceDocumentTitle(doc: FileDocumentItem) {
   const rawName = doc.name?.trim();
-  const rawTitle = (doc as { title?: string }).title?.trim();
+  const rawTitle = doc.title?.trim();
 
   if (rawTitle) return rawTitle;
 
@@ -89,24 +134,30 @@ function getWorkspaceDocumentTitle(doc: FileDocumentItem) {
     return rawName;
   }
 
-  return "Tài liệu soạn thảo";
+  return "Tài liệu soạn trên hệ thống";
 }
-function toUnifiedFile(doc: FileDocumentItem): UnifiedDoc {
+
+function toUnifiedFile(doc: FileDocumentItem): PageDoc {
   const fileUrl = normalizeDocumentFileUrl(doc.fileUrl);
   const isWorkspace = isWorkspaceDocumentUrl(fileUrl);
+  const editorDocumentId = getWorkspaceDocumentId(fileUrl);
 
   return {
     id: doc.documentId,
-    kind: "FILE",
+    kind: isWorkspace ? "EDITOR" : "FILE",
     source: isWorkspace ? "WORKSPACE" : "UPLOAD",
+    documentGroup: isWorkspace ? "WORKSPACE_DOC" : "LIBRARY_FILE",
     title: isWorkspace ? getWorkspaceDocumentTitle(doc) : doc.name,
     description: isWorkspace
       ? doc.description || "Tài liệu được tạo bằng trình soạn thảo nội bộ."
       : doc.description,
     status: doc.status || "ACTIVE",
     fileUrl,
+    editorDocumentId,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
+    ackCount: doc.ackCount,
+    readCount: doc.readCount,
   };
 }
 
@@ -223,18 +274,21 @@ function UploadFileModal({
           placeholder={t("document.field.description.placeholder")}
         />
 
-        <div className="space-y-2 rounded-lg bg-slate-50 px-3 py-3 text-xs text-muted">
-          <p>{t("document.files.upload_note")}</p>
-
-          <div className="space-y-1 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-blue-700">
+        <div className="space-y-2">
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
             <p className="font-semibold">
-              {t("document.files.upload_limit_title")}
+              {t("document.upload.notice_library_title")}
             </p>
 
-            <ul className="ml-4 list-disc space-y-1">
-              <li>{t("document.files.upload_limit_free")}</li>
-              <li>{t("document.files.upload_limit_paid")}</li>
-            </ul>
+            <p className="mt-0.5">{t("document.upload.notice_library_desc")}</p>
+          </div>
+
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            <p className="font-semibold">
+              {t("document.upload.notice_task_title")}
+            </p>
+
+            <p className="mt-0.5">{t("document.upload.notice_task_desc")}</p>
           </div>
         </div>
       </Form>
@@ -246,9 +300,11 @@ function DocCardSkeleton() {
   return (
     <div className="flex flex-col overflow-hidden rounded-2xl border border-stroke bg-white shadow-sm">
       <div className="h-1 w-full animate-pulse bg-slate-100" />
+
       <div className="flex flex-1 flex-col gap-3 p-4">
         <div className="flex items-start gap-3">
           <div className="h-10 w-10 shrink-0 animate-pulse rounded-xl bg-slate-100" />
+
           <div className="flex-1 space-y-2 pt-1">
             <div className="h-3 w-3/4 animate-pulse rounded bg-slate-100" />
             <div className="h-3 w-1/2 animate-pulse rounded bg-slate-100" />
@@ -270,10 +326,12 @@ function DocRowSkeleton() {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-stroke bg-white px-4 py-3">
       <div className="h-9 w-9 shrink-0 animate-pulse rounded-lg bg-slate-100" />
+
       <div className="flex-1 space-y-1.5">
         <div className="h-3 w-1/3 animate-pulse rounded bg-slate-100" />
         <div className="h-3 w-1/4 animate-pulse rounded bg-slate-100" />
       </div>
+
       <div className="flex gap-1.5">
         <div className="h-5 w-12 animate-pulse rounded bg-slate-100" />
         <div className="h-5 w-16 animate-pulse rounded bg-slate-100" />
@@ -290,6 +348,7 @@ function StatCardSkeleton() {
           <div className="h-2.5 w-20 animate-pulse rounded bg-slate-100" />
           <div className="h-7 w-12 animate-pulse rounded bg-slate-100" />
         </div>
+
         <div className="h-10 w-10 animate-pulse rounded-xl bg-slate-100" />
       </div>
     </div>
@@ -307,32 +366,42 @@ function BatchToolbar({
   onBatchDelete: () => void;
   canDelete: boolean;
 }) {
-  const { t } = useLocale();
   const count = selectedIds.size;
 
   if (count === 0) return null;
 
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-brand/20 bg-brand/5 px-4 py-2.5">
-      <span className="text-sm font-medium text-brand">
-        {t("document.batch.selected", { count })}
-      </span>
+    <div className="fixed bottom-6 left-1/2 z-50 w-[min(760px,calc(100vw-48px))] -translate-x-1/2 rounded-2xl border border-blue-200 bg-white px-4 py-3 shadow-2xl">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-base font-bold text-blue-600">
+            {count}
+          </div>
 
-      <div className="ml-auto flex items-center gap-2">
-        {canDelete && (
-          <Button
-            size="small"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={onBatchDelete}
-          >
-            {t("document.batch.delete")}
-          </Button>
-        )}
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-ink">
+              Đã chọn {count} tài liệu
+            </p>
 
-        <Button size="small" onClick={onClearSelection}>
-          {t("document.batch.cancel")}
-        </Button>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
+              <span className="rounded-full bg-slate-100 px-2 py-0.5">
+                Sẵn sàng xử lý
+              </span>
+
+        
+            </div>
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2">
+          <Button onClick={onClearSelection}>Bỏ chọn</Button>
+
+          {canDelete && (
+            <Button danger icon={<DeleteOutlined />} onClick={onBatchDelete}>
+              Xóa tài liệu
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -348,7 +417,7 @@ export default function DocumentFilesPage() {
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"grid" | "list">("grid");
   const [kindFilter, setKindFilter] = useState<DocKind | "ALL">("ALL");
-  const [employeeTab, setEmployeeTab] = useState<EmployeeTab>("all");
+  const [documentTab, setDocumentTab] = useState<DocumentTab>("ALL");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const {
@@ -363,26 +432,21 @@ export default function DocumentFilesPage() {
     refetchOnWindowFocus: true,
   });
 
-  const { data: ackData, isFetching: ackFetching } = useQuery({
-    queryKey: ["doc-acknowledgments"],
-    queryFn: apiListAcknowledgments,
-    enabled: permissions.canAcknowledge,
-    staleTime: 30_000,
-    refetchOnWindowFocus: true,
-  });
-
-  const ackedDocIds = useMemo(
-    () => new Set((ackData?.items ?? []).map((item) => item.documentId)),
-    [ackData],
-  );
-
   const allFileDocs = useMemo(() => fileDocs.map(toUnifiedFile), [fileDocs]);
 
   const displayedDocs = useMemo(() => {
-    let docs = [...allFileDocs];
+    let docs: PageDoc[] = allFileDocs;
 
     if (kindFilter !== "ALL") {
       docs = docs.filter((doc) => doc.kind === kindFilter);
+    }
+
+    if (documentTab === "LIBRARY_FILE") {
+      docs = docs.filter((doc) => doc.documentGroup === "LIBRARY_FILE");
+    }
+
+    if (documentTab === "WORKSPACE_DOC") {
+      docs = docs.filter((doc) => doc.documentGroup === "WORKSPACE_DOC");
     }
 
     if (search.trim()) {
@@ -397,52 +461,41 @@ export default function DocumentFilesPage() {
       });
     }
 
-    if (permissions.canAcknowledge) {
-      if (employeeTab === "pending_ack") {
-        docs = docs.filter((doc) => !ackedDocIds.has(doc.id));
-      }
-
-      if (employeeTab === "unread") {
-        docs = docs.filter((doc) => !ackedDocIds.has(doc.id));
-      }
-    }
-
-    return docs;
-  }, [
-    allFileDocs,
-    ackedDocIds,
-    employeeTab,
-    kindFilter,
-    permissions.canAcknowledge,
-    search,
-  ]);
+    return [...docs].sort(sortDocuments);
+  }, [allFileDocs, documentTab, kindFilter, search]);
 
   const totalFiles = allFileDocs.length;
+
+  const uploadFileCount = allFileDocs.filter(
+    (doc) => doc.source !== "WORKSPACE",
+  ).length;
+
+  const workspaceDocCount = allFileDocs.filter(
+    (doc) => doc.source === "WORKSPACE",
+  ).length;
+
   const activeFiles = allFileDocs.filter(
     (doc) => doc.status?.toUpperCase() === "ACTIVE",
   ).length;
-  const acknowledgedFiles = allFileDocs.filter((doc) =>
-    ackedDocIds.has(doc.id),
+
+  const acknowledgedFiles = allFileDocs.filter(
+    (doc) => Number(doc.ackCount ?? 0) > 0,
   ).length;
-  const pendingAckCount = permissions.canAcknowledge
-    ? allFileDocs.filter((doc) => !ackedDocIds.has(doc.id)).length
-    : 0;
 
   const isInitialLoading = fileDocsLoading;
-  const isRefreshing =
-    (fileDocsFetching || (permissions.canAcknowledge && ackFetching)) &&
-    !isInitialLoading;
+  const isRefreshing = fileDocsFetching && !isInitialLoading;
 
   const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["file-documents"] });
-
-    if (permissions.canAcknowledge) {
-      queryClient.invalidateQueries({ queryKey: ["doc-acknowledgments"] });
-    }
-  }, [permissions.canAcknowledge, queryClient]);
+  }, [queryClient]);
 
   const handleOpenDoc = useCallback(
-    (doc: UnifiedDoc) => {
+    (doc: PageDoc) => {
+      if (doc.source === "WORKSPACE" && doc.editorDocumentId) {
+        navigate(`/documents/editor/${doc.editorDocumentId}`);
+        return;
+      }
+
       navigate(`/documents/files/${doc.id}`);
     },
     [navigate],
@@ -463,35 +516,33 @@ export default function DocumentFilesPage() {
   }, []);
 
   const handleBatchDelete = useCallback(() => {
+    const count = selectedIds.size;
+
     Modal.confirm({
-      title: t("document.batch.delete_confirm_title"),
-      content: t("document.batch.delete_confirm_desc", {
-        count: selectedIds.size,
-      }),
-      okText: t("document.batch.delete"),
+      title: "Xóa tài liệu đã chọn?",
+      content: `Thao tác này sẽ áp dụng cho ${count} tài liệu đang được chọn.`,
+      okText: "Xóa tài liệu",
+      cancelText: "Bỏ qua",
       okButtonProps: { danger: true },
       onOk: () => {
-        message.info(t("document.batch.delete_coming_soon"));
+        message.info("Chức năng xóa nhiều tài liệu sẽ được bổ sung sau.");
         setSelectedIds(new Set());
       },
     });
-  }, [selectedIds.size, t]);
+  }, [selectedIds.size]);
 
-  const employeeTabItems = [
-    { key: "all", label: t("document.tab.all") },
-    { key: "unread", label: t("document.tab.unread") },
+  const documentTabItems = [
     {
-      key: "pending_ack",
-      label: (
-        <span>
-          {t("document.tab.pending_ack")}
-          {pendingAckCount > 0 && (
-            <span className="ml-1.5 rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
-              {pendingAckCount}
-            </span>
-          )}
-        </span>
-      ),
+      key: "ALL",
+      label: `${t("document.tab.all")} (${totalFiles})`,
+    },
+    {
+      key: "LIBRARY_FILE",
+      label: `${t("document.tab.uploaded_files")} (${uploadFileCount})`,
+    },
+    {
+      key: "WORKSPACE_DOC",
+      label: `${t("document.tab.editor_docs")} (${workspaceDocCount})`,
     },
   ];
 
@@ -554,7 +605,7 @@ export default function DocumentFilesPage() {
 
                 <DocStatCard
                   label={t("document.files.stat.uploaded")}
-                  value={totalFiles}
+                  value={uploadFileCount}
                   icon={<UploadCloud className="h-4 w-4" />}
                   tone="amber"
                 />
@@ -564,43 +615,14 @@ export default function DocumentFilesPage() {
         )}
       </div>
 
-      {permissions.canAcknowledge && (
-        <div className="border-b border-stroke bg-white px-5 pt-3">
-          {allFileDocs.length > 0 && (
-            <div className="mb-2 flex items-center gap-3">
-              <div
-                className="flex-1 overflow-hidden rounded-full bg-slate-100"
-                style={{ height: 6 }}
-              >
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${Math.round(
-                      ((allFileDocs.length - pendingAckCount) /
-                        allFileDocs.length) *
-                        100,
-                    )}%`,
-                    backgroundColor:
-                      pendingAckCount === 0 ? "#22c55e" : "#f97316",
-                  }}
-                />
-              </div>
-
-              <span className="shrink-0 text-xs text-muted">
-                {allFileDocs.length - pendingAckCount}/{allFileDocs.length}{" "}
-                {t("document.files.ack_progress")}
-              </span>
-            </div>
-          )}
-
-          <Tabs
-            size="small"
-            activeKey={employeeTab}
-            onChange={(key) => setEmployeeTab(key as EmployeeTab)}
-            items={employeeTabItems}
-          />
-        </div>
-      )}
+      <div className="border-b border-stroke bg-white px-5 pt-3">
+        <Tabs
+          size="small"
+          activeKey={documentTab}
+          onChange={(key) => setDocumentTab(key as DocumentTab)}
+          items={documentTabItems}
+        />
+      </div>
 
       <div className="flex flex-wrap items-center gap-3 border-b border-stroke bg-white px-5 py-3">
         <Input
@@ -615,10 +637,11 @@ export default function DocumentFilesPage() {
         <Select
           value={kindFilter}
           onChange={(value) => setKindFilter(value as DocKind | "ALL")}
-          className="w-36"
+          className="w-40"
           options={[
             { label: t("document.filter.all_types"), value: "ALL" },
             { label: t("document.filter.type_file"), value: "FILE" },
+            { label: t("document.filter.type_doc"), value: "EDITOR" },
           ]}
           suffixIcon={<FilterOutlined />}
         />
@@ -661,16 +684,14 @@ export default function DocumentFilesPage() {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-5">
+      <div className="min-h-0 flex-1 overflow-y-auto p-5 pb-28">
         {permissions.canCreate && selectedIds.size > 0 && (
-          <div className="mb-4">
-            <BatchToolbar
-              selectedIds={selectedIds}
-              onClearSelection={() => setSelectedIds(new Set())}
-              onBatchDelete={handleBatchDelete}
-              canDelete={permissions.canDelete}
-            />
-          </div>
+          <BatchToolbar
+            selectedIds={selectedIds}
+            onClearSelection={() => setSelectedIds(new Set())}
+            onBatchDelete={handleBatchDelete}
+            canDelete={permissions.canDelete}
+          />
         )}
 
         {isInitialLoading ? (
@@ -755,7 +776,6 @@ export default function DocumentFilesPage() {
         onClose={() => setUploadOpen(false)}
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ["file-documents"] });
-          queryClient.invalidateQueries({ queryKey: ["doc-acknowledgments"] });
         }}
       />
     </div>

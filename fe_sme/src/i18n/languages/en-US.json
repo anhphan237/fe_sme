@@ -4129,8 +4129,19 @@
   "onboarding.detail.action.manager_evaluation_send_now_desc": "The system will send the evaluation survey immediately after completing onboarding. If no default survey template exists, the system will show an error and will not complete onboarding.",
   "onboarding.detail.action.manager_evaluation_send_later": "Send later",
   "onboarding.detail.action.manager_evaluation_send_later_desc": "Onboarding will still be completed. HR can send the manager evaluation later.",
-  "onboarding.detail.toast.completed_manager_evaluation_pending": "Onboarding completed. Manager evaluation survey will be sent later."
+  "onboarding.detail.toast.completed_manager_evaluation_pending": "Onboarding completed. Manager evaluation survey will be sent later.",
   
+  "document.tab.required": "Required",
+  "document.tab.library": "Company library",
+  "document.tab.uploaded_files": "Uploaded files",
+  "document.tab.editor_docs": "Editor documents",
+  "document.tab.acknowledged": "Acknowledged",
+  "document.ack.progress_text": "documents acknowledged",
+  "document.upload.notice_library_title": "Files uploaded here are stored in the company library",
+  "document.upload.notice_library_desc": "Authorized users can view or download them, but acknowledgement is not required by default.",
+  "document.upload.notice_task_title": "Need employee acknowledgement?",
+  "document.upload.notice_task_desc": "Attach this document to an onboarding task. It will then appear under Required documents.",
+  "document.upload.selected_folder_note": "Selected folder:"
 
 
 }
