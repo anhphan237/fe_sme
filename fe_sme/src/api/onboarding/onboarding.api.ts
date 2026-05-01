@@ -148,11 +148,35 @@ export const apiCancelInstance = (instanceId: string, reason?: string) =>
   );
 
 /** com.sme.onboarding.instance.complete */
-export const apiCompleteInstance = (instanceId: string) =>
-  gatewayRequest<{ instanceId: string }, unknown>(
+export type ManagerEvaluationMode = "SEND_NOW" | "SEND_LATER";
+
+export type CompleteOnboardingRequest = {
+  instanceId: string;
+  managerEvaluationMode?: ManagerEvaluationMode;
+  managerEvaluationTemplateId?: string;
+  managerEvaluationDueDays?: number;
+};
+
+export const apiCompleteInstance = (
+  input: string | CompleteOnboardingRequest,
+) => {
+  const payload: CompleteOnboardingRequest =
+    typeof input === "string"
+      ? {
+          instanceId: input,
+          managerEvaluationMode: "SEND_NOW",
+          managerEvaluationDueDays: 7,
+        }
+      : {
+          ...input,
+          managerEvaluationMode: input.managerEvaluationMode ?? "SEND_NOW",
+        };
+
+  return gatewayRequest(
     "com.sme.onboarding.instance.complete",
-    { instanceId },
+    payload,
   );
+};
 
 // ── Tasks ──────────────────────────────────────────────────
 

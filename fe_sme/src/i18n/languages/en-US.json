@@ -4118,5 +4118,19 @@
   "onboarding.detail.toast.completed_manager_evaluation_skipped": "Onboarding completed. Manager evaluation survey skipped.",
   "onboarding.detail.action.confirm_complete_manager_evaluation_note": "Once completed, the system will send a post-onboarding employee evaluation survey to your direct manager.",
   "onboarding.detail.action.confirm_complete_manager": "Manager receives evaluation" ,
-    "onboarding.employee.filter.all": "All"
+  "onboarding.employee.filter.all": "All",
+  "onboarding.employee.filter.in_progress": "In progress",
+  "onboarding.employee.filter.pending": "Pending",
+  "onboarding.detail.status.completed": "Completed",
+
+  "onboarding.detail.action.confirm_complete_official_note": "After completion, the employee will be changed to official status.",
+  "onboarding.detail.action.manager_evaluation_timing_title": "When do you want to send the manager evaluation?",
+  "onboarding.detail.action.manager_evaluation_send_now": "Send to manager now",
+  "onboarding.detail.action.manager_evaluation_send_now_desc": "The system will send the evaluation survey immediately after completing onboarding. If no default survey template exists, the system will show an error and will not complete onboarding.",
+  "onboarding.detail.action.manager_evaluation_send_later": "Send later",
+  "onboarding.detail.action.manager_evaluation_send_later_desc": "Onboarding will still be completed. HR can send the manager evaluation later.",
+  "onboarding.detail.toast.completed_manager_evaluation_pending": "Onboarding completed. Manager evaluation survey will be sent later."
+  
+
+
 }

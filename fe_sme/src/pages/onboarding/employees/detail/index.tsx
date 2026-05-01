@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Card, Input, Modal, Skeleton, Tabs, Tag } from "antd";
+import { Button, Card, Input, Modal, Radio, Skeleton, Tabs, Tag } from "antd";
 import {
   CheckCircle2,
   Circle,
@@ -12,12 +12,14 @@ import {
   Send,
   CheckSquare,
 } from "lucide-react";
+
 import BaseModal from "@core/components/Modal/BaseModal";
 import { notify } from "@/utils/notify";
 import { isOnboardingEmployee, canManageOnboarding } from "@/shared/rbac";
 import { useUserStore } from "@/stores/user.store";
 import { useGlobalStore } from "@/stores/global.store";
 import { useLocale } from "@/i18n";
+
 import {
   apiGetInstance,
   apiGetTemplate,
@@ -41,11 +43,12 @@ import {
   apiCancelTaskSchedule,
   apiMarkTaskNoShow,
 } from "@/api/onboarding/onboarding.api";
+
 import { apiGetUserById, apiSearchUsers } from "@/api/identity/identity.api";
 import { apiUploadDocumentFile } from "@/api/document/document.api";
-import { extractList } from "@/api/core/types";
 import { mapInstance, mapTask, mapTemplate } from "@/utils/mappers/onboarding";
 import { mapUserDetail } from "@/utils/mappers/identity";
+
 import type { GetUserResponse, UserListItem } from "@/interface/identity";
 import type {
   CommentResponse,
@@ -55,14 +58,17 @@ import type {
   TaskAttachmentAddRequest,
 } from "@/interface/onboarding";
 import type { Dayjs } from "dayjs";
+import type { OnboardingTask } from "@/shared/types";
+
 import { InfoCard } from "./components/InfoCard";
 import { TaskListPanel } from "./components/TaskListPanel";
 import { TaskDrawer } from "./components/TaskDrawer";
 import { StageProgressCard } from "./components/StageProgressCard";
 import { RiskCard } from "./components/RiskCard";
 import { STATUS_DONE, STATUS_DONE_API, STATUS_TAG_COLOR } from "./constants";
-import type { OnboardingTask } from "@/shared/types";
 import { AppLoading } from "@/components/page-loading";
+
+type ManagerEvaluationMode = "SEND_NOW" | "SEND_LATER";
 
 const extractErrorMessage = (err: unknown, fallback: string): string => {
   if (err instanceof Error && err.message.trim()) {
@@ -228,7 +234,8 @@ const ActivityFeed = ({
                                     raw === "WAIT_ACK"
                                   ? "border-amber-200 bg-amber-50"
                                   : "border-gray-100 bg-gray-50"
-                          }`}>
+                          }`}
+                        >
                           {icon}
                         </div>
 
@@ -248,7 +255,8 @@ const ActivityFeed = ({
                               isDone
                                 ? "font-normal text-gray-400 line-through"
                                 : "font-medium text-gray-800"
-                            }`}>
+                            }`}
+                          >
                             {task.title}
                           </span>
 
@@ -262,7 +270,8 @@ const ActivityFeed = ({
 
                         <Tag
                           color={STATUS_TAG_COLOR[raw] ?? "default"}
-                          style={{ margin: 0, fontSize: 11, flexShrink: 0 }}>
+                          style={{ margin: 0, fontSize: 11, flexShrink: 0 }}
+                        >
                           {t(`onboarding.task.status.${raw.toLowerCase()}`)}
                         </Tag>
                       </div>
@@ -302,6 +311,9 @@ const EmployeeDetail = () => {
     "cancel" | "complete" | null
   >(null);
 
+  const [managerEvaluationMode, setManagerEvaluationMode] =
+    useState<ManagerEvaluationMode>("SEND_NOW");
+
   const [scheduleMode, setScheduleMode] = useState<
     null | "propose" | "reschedule"
   >(null);
@@ -334,79 +346,72 @@ const EmployeeDetail = () => {
     },
   });
 
- const {
-  data: tasks = [],
-  isLoading: tasksLoading,
-  isFetching: tasksFetching,
-} = useQuery({
-  queryKey: [
-    "onboarding-tasks-by-instance",
-    instance?.id ?? instanceId ?? "",
-    isEmployee ? "assignee" : "onboarding",
-  ],
-  enabled: Boolean(instance?.id),
-  refetchOnMount: "always",
-  queryFn: () => {
-    if (isEmployee) {
-      return apiListTasksByAssignee({ size: 100 });
-    }
-
-    return apiListTasks(instance!.id);
-  },
-  select: (res: unknown) => {
-    const r = res as Record<string, unknown>;
-
-    const data =
-      (r?.data as Record<string, unknown> | undefined) ??
-      (r?.result as Record<string, unknown> | undefined) ??
-      (r?.payload as Record<string, unknown> | undefined) ??
-      r;
-
-    const rawTasks =
-      data?.tasks ??
-      data?.content ??
-      data?.items ??
-      data?.list ??
-      [];
-
-    const all = (Array.isArray(rawTasks) ? rawTasks : []).map(
-      mapTask,
-    ) as OnboardingTask[];
-
-  
-    if (isEmployee) {
-      const currentInstanceId = instance?.id ?? instanceId;
-
-      if (!currentInstanceId) {
-        return all;
+  const {
+    data: tasks = [],
+    isLoading: tasksLoading,
+    isFetching: tasksFetching,
+  } = useQuery({
+    queryKey: [
+      "onboarding-tasks-by-instance",
+      instance?.id ?? instanceId ?? "",
+      isEmployee ? "assignee" : "onboarding",
+    ],
+    enabled: Boolean(instance?.id),
+    refetchOnMount: "always",
+    queryFn: () => {
+      if (isEmployee) {
+        return apiListTasksByAssignee({ size: 100 });
       }
 
-      return all.filter((task) => {
-        const rawTask = task as OnboardingTask & {
-          onboardingId?: string | null;
-          onboardingInstanceId?: string | null;
-          instanceId?: string | null;
-        };
+      return apiListTasks(instance!.id);
+    },
+    select: (res: unknown) => {
+      const r = res as Record<string, unknown>;
 
-        const taskOnboardingId =
-          rawTask.onboardingId ??
-          rawTask.onboardingInstanceId ??
-          rawTask.instanceId ??
-          null;
+      const data =
+        (r?.data as Record<string, unknown> | undefined) ??
+        (r?.result as Record<string, unknown> | undefined) ??
+        (r?.payload as Record<string, unknown> | undefined) ??
+        r;
 
-       
-        if (!taskOnboardingId) {
-          return true;
+      const rawTasks =
+        data?.tasks ?? data?.content ?? data?.items ?? data?.list ?? [];
+
+      const all = (Array.isArray(rawTasks) ? rawTasks : []).map(
+        mapTask,
+      ) as OnboardingTask[];
+
+      if (isEmployee) {
+        const currentInstanceId = instance?.id ?? instanceId;
+
+        if (!currentInstanceId) {
+          return all;
         }
 
-        return taskOnboardingId === currentInstanceId;
-      });
-    }
+        return all.filter((task) => {
+          const rawTask = task as OnboardingTask & {
+            onboardingId?: string | null;
+            onboardingInstanceId?: string | null;
+            instanceId?: string | null;
+          };
 
-  
-    return all;
-  },
-});
+          const taskOnboardingId =
+            rawTask.onboardingId ??
+            rawTask.onboardingInstanceId ??
+            rawTask.instanceId ??
+            null;
+
+          if (!taskOnboardingId) {
+            return true;
+          }
+
+          return taskOnboardingId === currentInstanceId;
+        });
+      }
+
+      return all;
+    },
+  });
 
   const { data: templateDetail } = useQuery({
     queryKey: ["template-detail", instance?.templateId ?? ""],
@@ -508,9 +513,12 @@ const EmployeeDetail = () => {
     queryClient.invalidateQueries({
       queryKey: ["onboarding-tasks-by-instance"],
     });
-    queryClient.invalidateQueries({
-      queryKey: ["onboarding-task-detail", selectedTaskId],
-    });
+
+    if (selectedTaskId) {
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-task-detail", selectedTaskId],
+      });
+    }
   };
 
   const updateTaskStatus = useMutation({
@@ -533,7 +541,12 @@ const EmployeeDetail = () => {
   });
 
   const completeInstance = useMutation({
-    mutationFn: (id: string) => apiCompleteInstance(id),
+    mutationFn: ({ id, mode }: { id: string; mode: ManagerEvaluationMode }) =>
+      apiCompleteInstance({
+        instanceId: id,
+        managerEvaluationMode: mode,
+        managerEvaluationDueDays: mode === "SEND_NOW" ? 7 : undefined,
+      }),
   });
 
   const acknowledgeMutation = useMutation({
@@ -676,8 +689,9 @@ const EmployeeDetail = () => {
   const managerDisplayName =
     managerDetail?.fullName || instance?.managerName || "—";
 
-  const completedCount = tasks.filter((task) => task.status === STATUS_DONE)
-    .length;
+  const completedCount = tasks.filter(
+    (task) => task.status === STATUS_DONE,
+  ).length;
   const totalTasks = tasks.length;
   const progressPercent =
     totalTasks > 0
@@ -765,12 +779,17 @@ const EmployeeDetail = () => {
     if (!instanceId) return;
 
     try {
-      const res = await completeInstance.mutateAsync(instanceId);
+      const res = await completeInstance.mutateAsync({
+        id: instanceId,
+        mode: managerEvaluationMode,
+      });
 
       queryClient.invalidateQueries({ queryKey: ["instance", instanceId] });
       queryClient.invalidateQueries({
         queryKey: ["onboarding-tasks-by-instance"],
       });
+      queryClient.invalidateQueries({ queryKey: ["instances"] });
+      queryClient.invalidateQueries({ queryKey: ["onboarding-instances"] });
 
       const raw = res as Record<string, unknown>;
       const data =
@@ -786,6 +805,10 @@ const EmployeeDetail = () => {
       if (managerEvaluationStatus === "SENT") {
         notify.success(
           t("onboarding.detail.toast.completed_with_manager_evaluation"),
+        );
+      } else if (managerEvaluationStatus === "PENDING") {
+        notify.success(
+          t("onboarding.detail.toast.completed_manager_evaluation_pending"),
         );
       } else if (managerEvaluationStatus === "SKIPPED") {
         notify.success(
@@ -1042,7 +1065,8 @@ const EmployeeDetail = () => {
           </p>
           <Button
             className="mt-4"
-            onClick={() => navigate("/onboarding/employees")}>
+            onClick={() => navigate("/onboarding/employees")}
+          >
             {t("onboarding.detail.back_to_list")}
           </Button>
         </Card>
@@ -1082,7 +1106,8 @@ const EmployeeDetail = () => {
             <Button
               type="primary"
               onClick={handleActivate}
-              disabled={isActioning}>
+              disabled={isActioning}
+            >
               {t("onboarding.detail.action.activate")}
             </Button>
           )}
@@ -1091,13 +1116,18 @@ const EmployeeDetail = () => {
             <>
               <Button
                 onClick={() => setConfirmAction("cancel")}
-                disabled={isActioning}>
+                disabled={isActioning}
+              >
                 {t("onboarding.detail.action.cancel")}
               </Button>
               <Button
                 type="primary"
-                onClick={() => setConfirmAction("complete")}
-                disabled={isActioning}>
+                onClick={() => {
+                  setManagerEvaluationMode("SEND_NOW");
+                  setConfirmAction("complete");
+                }}
+                disabled={isActioning}
+              >
                 {t("onboarding.detail.action.complete")}
               </Button>
             </>
@@ -1136,7 +1166,15 @@ const EmployeeDetail = () => {
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="flex flex-col gap-4">
             <StageProgressCard stageProgress={stageProgress} />
-            <RiskCard tasks={tasks} onTaskClick={openTaskDrawer} />
+            <RiskCard
+              tasks={tasks}
+              onTaskClick={(taskId) => {
+                const task = tasks.find((item) => item.id === taskId);
+                if (task) {
+                  openTaskDrawer(task);
+                }
+              }}
+            />
           </div>
 
           <TaskListPanel
@@ -1316,7 +1354,8 @@ const EmployeeDetail = () => {
         }}
         okText={t("onboarding.task.action.reject")}
         cancelText={t("global.cancel_action")}
-        okButtonProps={{ danger: true, loading: rejectMutation.isPending }}>
+        okButtonProps={{ danger: true, loading: rejectMutation.isPending }}
+      >
         <div className="py-2">
           <p className="mb-3 text-sm text-gray-600">
             {t("onboarding.task.reject.desc") ??
@@ -1338,7 +1377,8 @@ const EmployeeDetail = () => {
         open={confirmAction === "cancel"}
         title={t("onboarding.detail.action.confirm_cancel_title")}
         onCancel={() => setConfirmAction(null)}
-        footer={null}>
+        footer={null}
+      >
         <div className="grid gap-4">
           <p className="text-sm text-muted">
             {t("onboarding.detail.action.confirm_cancel_desc")}
@@ -1347,7 +1387,8 @@ const EmployeeDetail = () => {
           <div className="flex justify-end gap-3">
             <Button
               onClick={() => setConfirmAction(null)}
-              disabled={isActioning}>
+              disabled={isActioning}
+            >
               {t("global.cancel_action")}
             </Button>
             <Button onClick={handleCancel} disabled={isActioning}>
@@ -1358,40 +1399,109 @@ const EmployeeDetail = () => {
       </BaseModal>
 
       <BaseModal
-        open={confirmAction === "complete"}
-        title={t("onboarding.detail.action.confirm_complete_title")}
-        onCancel={() => setConfirmAction(null)}
-        footer={null}>
-        <div className="grid gap-4">
-          <div className="space-y-2 text-sm text-muted">
-            <p>{t("onboarding.detail.action.confirm_complete_desc")}</p>
-            <p>
-              {t(
-                "onboarding.detail.action.confirm_complete_manager_evaluation_note",
-              )}
-            </p>
-            <p className="font-medium text-ink">
-              {t("onboarding.detail.action.confirm_complete_manager")}:{" "}
-              {managerDisplayName || "—"}
-            </p>
-          </div>
+  open={confirmAction === "complete"}
+  title="Hoàn tất onboarding"
+  onCancel={() => setConfirmAction(null)}
+  footer={null}
+>
+  <div className="grid gap-5">
+    <div className="space-y-2">
+      <p className="text-sm text-slate-600">
+        Bạn sắp hoàn tất quá trình onboarding cho nhân viên này.
+      </p>
 
-          <div className="flex justify-end gap-3">
-            <Button
-              onClick={() => setConfirmAction(null)}
-              disabled={isActioning}>
-              {t("global.cancel_action")}
-            </Button>
-            <Button
-              type="primary"
-              onClick={handleComplete}
-              loading={completeInstance.isPending}
-              disabled={isActioning}>
-              {t("onboarding.detail.action.confirm")}
-            </Button>
+      <div className="rounded-xl bg-slate-50 px-4 py-3">
+        <p className="text-sm text-slate-700">
+          Sau bước này, nhân viên sẽ được chuyển sang{" "}
+          <span className="font-semibold text-slate-900">
+            trạng thái chính thức
+          </span>
+          .
+        </p>
+
+        <p className="mt-1 text-sm text-slate-700">
+          <span className="font-medium text-slate-900">
+            Quản lý nhận đánh giá:
+          </span>{" "}
+          {managerDisplayName || "—"}
+        </p>
+      </div>
+    </div>
+
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <p className="mb-3 text-sm font-semibold text-slate-900">
+        Chọn thời điểm gửi đánh giá cho quản lý
+      </p>
+
+      <Radio.Group
+        value={managerEvaluationMode}
+        onChange={(event) =>
+          setManagerEvaluationMode(
+            event.target.value as ManagerEvaluationMode,
+          )
+        }
+        className="grid gap-3"
+      >
+        <label
+          className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${
+            managerEvaluationMode === "SEND_NOW"
+              ? "border-blue-500 bg-blue-50"
+              : "border-slate-200 bg-white hover:border-slate-300"
+          }`}
+        >
+          <Radio value="SEND_NOW" className="mt-0.5" />
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-slate-900">
+              Gửi ngay sau khi hoàn tất
+            </div>
+            <div className="mt-1 text-sm leading-6 text-slate-600">
+              Hệ thống sẽ gửi khảo sát đánh giá cho quản lý ngay sau khi
+              onboarding được hoàn tất. Nếu chưa có mẫu khảo sát mặc định, hệ
+              thống sẽ báo để HR kiểm tra lại.
+            </div>
           </div>
-        </div>
-      </BaseModal>
+        </label>
+
+        <label
+          className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${
+            managerEvaluationMode === "SEND_LATER"
+              ? "border-blue-500 bg-blue-50"
+              : "border-slate-200 bg-white hover:border-slate-300"
+          }`}
+        >
+          <Radio value="SEND_LATER" className="mt-0.5" />
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-slate-900">
+              Để gửi sau
+            </div>
+            <div className="mt-1 text-sm leading-6 text-slate-600">
+              Onboarding vẫn được hoàn tất ngay. HR có thể gửi đánh giá cho
+              quản lý vào thời điểm phù hợp sau đó.
+            </div>
+          </div>
+        </label>
+      </Radio.Group>
+    </div>
+
+    <div className="flex justify-end gap-3 pt-1">
+      <Button
+        onClick={() => setConfirmAction(null)}
+        disabled={isActioning}
+      >
+        Quay lại
+      </Button>
+
+      <Button
+        type="primary"
+        onClick={handleComplete}
+        loading={completeInstance.isPending}
+        disabled={isActioning}
+      >
+        Hoàn tất onboarding
+      </Button>
+    </div>
+  </div>
+</BaseModal>
     </div>
   );
 };
