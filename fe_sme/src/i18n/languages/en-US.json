@@ -4113,5 +4113,9 @@
   "document.folder.root_drop_active": "Release to move this folder to root",
   "document.files.upload_limit_title": "Upload size notice",
   "document.files.upload_limit_free": "Free plan: up to about 10 MB / file",
-  "document.files.upload_limit_paid": "Paid plans: up to about 100 MB / file"
+  "document.files.upload_limit_paid": "Paid plans: up to about 100 MB / file",
+  "onboarding.detail.toast.completed_with_manager_evaluation": "Onboarding completed and manager evaluation survey sent.",
+  "onboarding.detail.toast.completed_manager_evaluation_skipped": "Onboarding completed. Manager evaluation survey skipped.",
+  "onboarding.detail.action.confirm_complete_manager_evaluation_note": "Once completed, the system will send a post-onboarding employee evaluation survey to your direct manager.",
+  "onboarding.detail.action.confirm_complete_manager": "Manager receives evaluation" 
 }
