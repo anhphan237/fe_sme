@@ -4117,5 +4117,6 @@
   "onboarding.detail.toast.completed_with_manager_evaluation": "Onboarding completed and manager evaluation survey sent.",
   "onboarding.detail.toast.completed_manager_evaluation_skipped": "Onboarding completed. Manager evaluation survey skipped.",
   "onboarding.detail.action.confirm_complete_manager_evaluation_note": "Once completed, the system will send a post-onboarding employee evaluation survey to your direct manager.",
-  "onboarding.detail.action.confirm_complete_manager": "Manager receives evaluation" 
+  "onboarding.detail.action.confirm_complete_manager": "Manager receives evaluation" ,
+    "onboarding.employee.filter.all": "All"
 }
