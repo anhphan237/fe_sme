@@ -4227,6 +4227,17 @@
   "onboarding.detail.toast.completed_manager_evaluation_skipped": "Hoàn tất onboarding. Khảo sát đánh giá quản lý đã được bỏ qua.",
   "onboarding.detail.action.confirm_complete_manager_evaluation_note": "Sau khi hoàn thành, hệ thống sẽ gửi khảo sát đánh giá nhân viên sau onboarding cho quản lý trực tiếp.",
   "onboarding.detail.action.confirm_complete_manager": "Quản lý nhận khảo sát",
-  "onboarding.employee.filter.all": "Tất cả"
+  "onboarding.employee.filter.all": "Tất cả",
+  "onboarding.detail.status.completed": "Đã hoàn tất",
+
+  "onboarding.detail.action.confirm_complete_official_note": "Sau khi hoàn thành, nhân viên sẽ được chuyển sang trạng thái chính thức.",
+  "onboarding.detail.action.manager_evaluation_timing_title": "Bạn muốn gửi đánh giá cho quản lý khi nào?",
+  "onboarding.detail.action.manager_evaluation_send_now": "Gửi ngay cho quản lý",
+  "onboarding.detail.action.manager_evaluation_send_now_desc": "Hệ thống sẽ gửi khảo sát đánh giá ngay sau khi hoàn thành onboarding. Nếu chưa có mẫu khảo sát mặc định, hệ thống sẽ báo lỗi và không hoàn tất.",
+  "onboarding.detail.action.manager_evaluation_send_later": "Gửi sau",
+  "onboarding.detail.action.manager_evaluation_send_later_desc": "Onboarding vẫn được hoàn tất. HR có thể gửi đánh giá cho quản lý sau.",
+  "onboarding.detail.toast.completed_manager_evaluation_pending": "Hoàn tất onboarding. Khảo sát đánh giá quản lý sẽ được gửi sau."
+
+
 
 }
