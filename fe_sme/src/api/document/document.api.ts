@@ -3,15 +3,16 @@ import type {
   DocumentListResponse,
   UploadDocumentRequest,
   UploadDocumentResponse,
-  AcknowledgeDocumentRequest,
   AcknowledgeDocumentResponse,
   AcknowledgmentListResponse,
 } from "@/interface/document";
 import { useUserStore } from "@/stores/user.store";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+
 const getBaseUrl = (): string =>
   import.meta.env.DEV && BASE_URL ? "" : BASE_URL.replace(/\/$/, "");
+
 const getToken = () =>
   localStorage.getItem("auth_token") || useUserStore.getState().token;
 
@@ -20,14 +21,24 @@ const readString = (
   ...keys: Array<string>
 ): string | undefined => {
   if (!value || typeof value !== "object") return undefined;
+
   const obj = value as Record<string, unknown>;
+
   for (const key of keys) {
     const candidate = obj[key];
+
     if (typeof candidate === "string" && candidate.trim()) {
       return candidate.trim();
     }
   }
+
   return undefined;
+};
+
+export type AcknowledgeDocumentPayload = {
+  documentId: string;
+  onboardingId?: string;
+  taskId?: string;
 };
 
 // ──────────────────────────────────────────────
@@ -49,6 +60,7 @@ export const apiUploadDocumentFile = async (
   formData: FormData,
 ): Promise<UploadDocumentResponse> => {
   const token = getToken();
+
   const res = await fetch(`${getBaseUrl()}/api/v1/documents/upload`, {
     method: "POST",
     headers: {
@@ -56,7 +68,9 @@ export const apiUploadDocumentFile = async (
     },
     body: formData,
   });
+
   const json = await res.json().catch(() => ({}));
+
   if (!res.ok) {
     throw new Error(
       json.message ?? json.errorCode ?? `Upload failed (${res.status})`,
@@ -64,6 +78,7 @@ export const apiUploadDocumentFile = async (
   }
 
   const payload = (json.data ?? json) as unknown;
+
   const fileUrl =
     readString(payload, "fileUrl", "url", "secureUrl", "secure_url") ??
     readString(json, "fileUrl", "url", "secureUrl", "secure_url");
@@ -88,10 +103,17 @@ export const apiUploadDocumentFile = async (
 export const apiUploadDocumentAttachment = async (
   documentId: string,
   formData: FormData,
-): Promise<{ documentAttachmentId: string; documentId: string; mediaKind: string }> => {
+): Promise<{
+  documentAttachmentId: string;
+  documentId: string;
+  mediaKind: string;
+}> => {
   const token = getToken();
+
   const res = await fetch(
-    `${getBaseUrl()}/api/v1/documents/${encodeURIComponent(documentId)}/attachments/upload`,
+    `${getBaseUrl()}/api/v1/documents/${encodeURIComponent(
+      documentId,
+    )}/attachments/upload`,
     {
       method: "POST",
       headers: {
@@ -100,13 +122,17 @@ export const apiUploadDocumentAttachment = async (
       body: formData,
     },
   );
+
   const json = await res.json().catch(() => ({}));
+
   if (!res.ok) {
     throw new Error(
       json.message ?? json.errorCode ?? `Upload failed (${res.status})`,
     );
   }
+
   const payload = (json.data ?? json) as Record<string, unknown>;
+
   return {
     documentAttachmentId: (payload.documentAttachmentId as string) ?? "",
     documentId: (payload.documentId as string) ?? documentId,
@@ -128,11 +154,31 @@ export const apiListAcknowledgments = () =>
     {},
   );
 
+/**
+ * Acknowledge document.
+ *
+ * Hỗ trợ 2 kiểu gọi:
+ * - apiAcknowledgeDocument(documentId, onboardingId)
+ * - apiAcknowledgeDocument({ documentId, onboardingId, taskId })
+ */
 export const apiAcknowledgeDocument = (
-  documentId: string,
+  input: string | AcknowledgeDocumentPayload,
   onboardingId?: string,
-) =>
-  gatewayRequest<AcknowledgeDocumentRequest, AcknowledgeDocumentResponse>(
+) => {
+  const payload: AcknowledgeDocumentPayload =
+    typeof input === "string"
+      ? {
+          documentId: input,
+          onboardingId,
+        }
+      : {
+          documentId: input.documentId,
+          onboardingId: input.onboardingId,
+          taskId: input.taskId,
+        };
+
+  return gatewayRequest<AcknowledgeDocumentPayload, AcknowledgeDocumentResponse>(
     "com.sme.content.document.acknowledge",
-    { documentId, onboardingId },
+    payload,
   );
+};

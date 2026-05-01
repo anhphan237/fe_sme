@@ -52,6 +52,31 @@ type DetailDocumentItem = DocumentItem & {
   ackCount?: number;
 };
 
+type AckItem = {
+  documentId: string;
+  status?: string | null;
+  onboardingId?: string | null;
+  taskId?: string | null;
+  readAt?: string | null;
+  ackedAt?: string | null;
+};
+
+const normalizeStatus = (value?: string | null) =>
+  (value ?? "").trim().toUpperCase();
+
+const isAckedStatus = (value?: string | null) =>
+  normalizeStatus(value) === "ACKED";
+
+const isGeneralReadScope = (onboardingId?: string | null) => {
+  const value = (onboardingId ?? "").trim().toUpperCase();
+
+  return !value || value.includes("GENERAL");
+};
+
+const isRequiredAckItem = (item: AckItem) => {
+  return Boolean(item.documentId) && !isGeneralReadScope(item.onboardingId);
+};
+
 const STATUS_COLOR: Record<string, string> = {
   ACTIVE: "green",
   INACTIVE: "default",
@@ -150,9 +175,11 @@ const getDocumentListItems = (data: unknown): DetailDocumentItem[] => {
     const obj = data as Record<string, unknown>;
 
     if (Array.isArray(obj.items)) return obj.items as DetailDocumentItem[];
+
     if (Array.isArray(obj.documents)) {
       return obj.documents as DetailDocumentItem[];
     }
+
     if (Array.isArray(obj.data)) return obj.data as DetailDocumentItem[];
   }
 
@@ -462,15 +489,28 @@ export default function DocumentDetail() {
     refetchOnWindowFocus: true,
   });
 
-  const ackedDocIds = useMemo(
-    () => new Set((ackData?.items ?? []).map((item) => item.documentId)),
-    [ackData],
-  );
+  const currentRequiredAck = useMemo(() => {
+    if (!documentId) return null;
 
-  const isAcknowledged = documentId ? ackedDocIds.has(documentId) : false;
+    return (
+      ((ackData?.items ?? []) as AckItem[]).find(
+        (item) => item.documentId === documentId && isRequiredAckItem(item),
+      ) ?? null
+    );
+  }, [ackData, documentId]);
+
+  const canAcknowledgeThisDocument =
+    permissions.canAcknowledge && Boolean(currentRequiredAck);
+
+  const isAcknowledged = isAckedStatus(currentRequiredAck?.status);
 
   const ackMutation = useMutation({
-    mutationFn: () => apiAcknowledgeDocument(documentId!),
+    mutationFn: () =>
+      apiAcknowledgeDocument({
+        documentId: documentId!,
+        onboardingId: currentRequiredAck?.onboardingId ?? undefined,
+        taskId: currentRequiredAck?.taskId ?? undefined,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["doc-acknowledgments"] });
       queryClient.invalidateQueries({
@@ -801,7 +841,7 @@ export default function DocumentDetail() {
             </Card>
           )}
 
-          {permissions.canAcknowledge && (
+          {canAcknowledgeThisDocument && (
             <Card className="border border-stroke bg-white shadow-sm">
               <div className="flex items-center gap-2">
                 <CheckCircleOutlined
