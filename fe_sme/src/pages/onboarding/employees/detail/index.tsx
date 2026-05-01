@@ -65,16 +65,38 @@ import type { OnboardingTask } from "@/shared/types";
 import { AppLoading } from "@/components/page-loading";
 
 const extractErrorMessage = (err: unknown, fallback: string): string => {
-  if (err instanceof Error && err.message.trim()) return err.message;
-  if (
-    typeof err === "object" &&
-    err !== null &&
-    "message" in err &&
-    typeof (err as { message?: unknown }).message === "string"
-  ) {
-    const msg = (err as { message: string }).message.trim();
-    if (msg) return msg;
+  if (err instanceof Error && err.message.trim()) {
+    return err.message.trim();
   }
+
+  if (typeof err === "object" && err !== null) {
+    const obj = err as Record<string, unknown>;
+
+    const response = obj.response as Record<string, unknown> | undefined;
+    const responseData = response?.data as Record<string, unknown> | undefined;
+
+    if (
+      typeof responseData?.message === "string" &&
+      responseData.message.trim()
+    ) {
+      return responseData.message.trim();
+    }
+
+    const data = obj.data as Record<string, unknown> | undefined;
+    if (typeof data?.message === "string" && data.message.trim()) {
+      return data.message.trim();
+    }
+
+    const result = obj.result as Record<string, unknown> | undefined;
+    if (typeof result?.message === "string" && result.message.trim()) {
+      return result.message.trim();
+    }
+
+    if (typeof obj.message === "string" && obj.message.trim()) {
+      return obj.message.trim();
+    }
+  }
+
   return fallback;
 };
 
@@ -90,6 +112,7 @@ const normalizeRequiredDocuments = (
     [];
 
   const list = Array.isArray(source) ? source : [];
+
   return list
     .map((item) => {
       if (typeof item === "string") {
@@ -102,6 +125,7 @@ const normalizeRequiredDocuments = (
         const documentId = String(
           raw.documentId ?? raw.id ?? raw.document_id ?? "",
         ).trim();
+
         if (!documentId) return null;
 
         const title =
@@ -121,8 +145,6 @@ const normalizeRequiredDocuments = (
     );
 };
 
-// ── Activity Feed ─────────────────────────────────────────────────────────────
-
 const ACTIVITY_STATUS_ICON: Record<string, ReactNode> = {
   DONE: <CheckCircle2 className="h-4 w-4 text-emerald-500" />,
   IN_PROGRESS: <Loader2 className="h-4 w-4 animate-spin text-blue-500" />,
@@ -138,14 +160,15 @@ const ActivityFeed = ({
   tasks: OnboardingTask[];
   t: (key: string, params?: Record<string, unknown>) => string;
 }) => {
-  // Group by checklistName / stage
   const groups = useMemo(() => {
     const map = new Map<string, OnboardingTask[]>();
+
     for (const task of tasks) {
       const key = task.checklistName ?? "—";
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(task);
     }
+
     return Array.from(map.entries());
   }, [tasks]);
 
@@ -164,14 +187,15 @@ const ActivityFeed = ({
       <h3 className="mb-5 text-base font-semibold text-gray-800">
         {t("onboarding.detail.activity.title")}
       </h3>
+
       <div className="space-y-6">
         {groups.map(([group, groupTasks]) => {
           const doneCount = groupTasks.filter(
-            (tk) => tk.rawStatus === "DONE",
+            (task) => task.rawStatus === "DONE",
           ).length;
+
           return (
             <div key={group}>
-              {/* Stage header */}
               <div className="mb-3 flex items-center gap-2 border-b border-gray-100 pb-1.5">
                 <Clock className="h-3.5 w-3.5 text-blue-400" />
                 <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -182,19 +206,17 @@ const ActivityFeed = ({
                 </span>
               </div>
 
-              {/* Tasks in stage */}
               <div className="space-y-2 pl-1">
-                {groupTasks.map((task, idx) => {
+                {groupTasks.map((task, index) => {
                   const raw = task.rawStatus ?? "TODO";
                   const isDone = raw === "DONE";
                   const icon = ACTIVITY_STATUS_ICON[raw] ?? (
                     <Circle className="h-4 w-4 text-gray-300" />
                   );
-                  const isLast = idx === groupTasks.length - 1;
+                  const isLast = index === groupTasks.length - 1;
 
                   return (
                     <div key={task.id} className="flex gap-3">
-                      {/* Connector + icon */}
                       <div className="flex flex-col items-center">
                         <div
                           className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${
@@ -209,6 +231,7 @@ const ActivityFeed = ({
                           }`}>
                           {icon}
                         </div>
+
                         {!isLast && (
                           <div
                             className={`mt-0.5 w-0.5 flex-1 min-h-[1rem] ${
@@ -218,7 +241,6 @@ const ActivityFeed = ({
                         )}
                       </div>
 
-                      {/* Task content */}
                       <div className="mb-1 flex min-w-0 flex-1 items-start justify-between gap-2 pb-1">
                         <div className="min-w-0">
                           <span
@@ -229,6 +251,7 @@ const ActivityFeed = ({
                             }`}>
                             {task.title}
                           </span>
+
                           {task.dueDate && (
                             <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-400">
                               <Clock className="h-3 w-3" />
@@ -236,6 +259,7 @@ const ActivityFeed = ({
                             </p>
                           )}
                         </div>
+
                         <Tag
                           color={STATUS_TAG_COLOR[raw] ?? "default"}
                           style={{ margin: 0, fontSize: 11, flexShrink: 0 }}>
@@ -254,21 +278,19 @@ const ActivityFeed = ({
   );
 };
 
-// ── Page ──────────────────────────────────────────────────────────────────────
-
 const EmployeeDetail = () => {
   const { employeeId: instanceId } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { t } = useLocale();
+
   const currentUser = useUserStore((state) => state.currentUser);
   const setBreadcrumbs = useGlobalStore((state) => state.setBreadcrumbs);
+
   const isEmployee = isOnboardingEmployee(currentUser?.roles ?? []);
   const canManage = canManageOnboarding(currentUser?.roles ?? []);
   const userId = currentUser?.id ?? "";
   const isHr = (currentUser?.roles ?? []).includes("HR");
-
-  // ── Local state ─────────────────────────────────────────────────────────────
 
   const [tab, setTab] = useState("checklist");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -280,7 +302,6 @@ const EmployeeDetail = () => {
     "cancel" | "complete" | null
   >(null);
 
-  // Schedule state
   const [scheduleMode, setScheduleMode] = useState<
     null | "propose" | "reschedule"
   >(null);
@@ -291,8 +312,6 @@ const EmployeeDetail = () => {
   const [cancelScheduleReason, setCancelScheduleReason] = useState("");
   const [noShowReason, setNoShowReason] = useState("");
   const [uploadingFile, setUploadingFile] = useState(false);
-
-  // ── Queries ──────────────────────────────────────────────────────────────────
 
   const {
     data: instance,
@@ -308,55 +327,86 @@ const EmployeeDetail = () => {
     select: (res: unknown) => {
       const r = res as Record<string, unknown>;
       const raw = r?.instance ?? r?.data ?? r?.result ?? r?.payload ?? res;
+
       return mapInstance(
         raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {},
       );
     },
   });
 
-  const {
-    data: tasks = [],
-    isLoading: tasksLoading,
-    isFetching: tasksFetching,
-  } = useQuery({
-    queryKey: [
-      "onboarding-tasks-by-instance",
-      instance?.id ?? instanceId ?? "",
-      isEmployee ? "assignee" : "manager",
-    ],
-    // Chờ instance load để luôn filter chính xác theo onboarding hiện tại
-    enabled: Boolean(instance?.id),
-    refetchOnMount: "always",
-    queryFn: () => {
-      if (isEmployee) {
-        // Nhân viên xem task của chính mình → dùng listByAssignee
-        return apiListTasksByAssignee({ size: 100 });
-      }
-      // HR/Manager xem task của instance → dùng listByOnboarding
-      return apiListTasks(instance!.id);
-    },
-    select: (res: unknown) => {
-      const all = extractList(
-        res as Record<string, unknown>,
-        "tasks",
-        "content",
-        "items",
-        "list",
-      ).map(mapTask) as OnboardingTask[];
+ const {
+  data: tasks = [],
+  isLoading: tasksLoading,
+  isFetching: tasksFetching,
+} = useQuery({
+  queryKey: [
+    "onboarding-tasks-by-instance",
+    instance?.id ?? instanceId ?? "",
+    isEmployee ? "assignee" : "onboarding",
+  ],
+  enabled: Boolean(instance?.id),
+  refetchOnMount: "always",
+  queryFn: () => {
+    if (isEmployee) {
+      return apiListTasksByAssignee({ size: 100 });
+    }
 
-      if (isEmployee) {
-        // Filter về đúng onboarding instance đang xem
-        const currentInstanceId = instance?.id;
-        if (!currentInstanceId) return all;
-        return all.filter((tk) => tk.onboardingId === currentInstanceId);
+    return apiListTasks(instance!.id);
+  },
+  select: (res: unknown) => {
+    const r = res as Record<string, unknown>;
+
+    const data =
+      (r?.data as Record<string, unknown> | undefined) ??
+      (r?.result as Record<string, unknown> | undefined) ??
+      (r?.payload as Record<string, unknown> | undefined) ??
+      r;
+
+    const rawTasks =
+      data?.tasks ??
+      data?.content ??
+      data?.items ??
+      data?.list ??
+      [];
+
+    const all = (Array.isArray(rawTasks) ? rawTasks : []).map(
+      mapTask,
+    ) as OnboardingTask[];
+
+  
+    if (isEmployee) {
+      const currentInstanceId = instance?.id ?? instanceId;
+
+      if (!currentInstanceId) {
+        return all;
       }
-      // HR/Manager view: chỉ tính task được assign cho nhân viên của instance
-      // (khớp ngữ nghĩa listByAssignee để thống kê chính xác)
-      const employeeUserId = instance?.employeeUserId;
-      if (!employeeUserId) return all;
-      return all.filter((tk) => tk.assignedUserId === employeeUserId);
-    },
-  });
+
+      return all.filter((task) => {
+        const rawTask = task as OnboardingTask & {
+          onboardingId?: string | null;
+          onboardingInstanceId?: string | null;
+          instanceId?: string | null;
+        };
+
+        const taskOnboardingId =
+          rawTask.onboardingId ??
+          rawTask.onboardingInstanceId ??
+          rawTask.instanceId ??
+          null;
+
+       
+        if (!taskOnboardingId) {
+          return true;
+        }
+
+        return taskOnboardingId === currentInstanceId;
+      });
+    }
+
+  
+    return all;
+  },
+});
 
   const { data: templateDetail } = useQuery({
     queryKey: ["template-detail", instance?.templateId ?? ""],
@@ -365,6 +415,7 @@ const EmployeeDetail = () => {
     select: (res: unknown) => {
       const r = res as Record<string, unknown>;
       const raw = r?.template ?? r?.data ?? r?.result ?? r?.payload ?? res;
+
       return mapTemplate(
         raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {},
       );
@@ -397,12 +448,13 @@ const EmployeeDetail = () => {
       const r = res as Record<string, unknown>;
       const rawCandidate =
         r?.task ?? r?.data ?? r?.result ?? r?.payload ?? r?.item ?? res;
+
       const detail =
         rawCandidate && typeof rawCandidate === "object"
           ? (rawCandidate as Record<string, unknown>)
           : {};
 
-      const selectedTask = tasks.find((tk) => tk.id === selectedTaskId);
+      const selectedTask = tasks.find((task) => task.id === selectedTaskId);
       const requiredDocuments = normalizeRequiredDocuments(
         detail,
         selectedTask,
@@ -422,9 +474,11 @@ const EmployeeDetail = () => {
     select: (res: unknown) => {
       const r = res as Record<string, unknown>;
       const list = r?.comments ?? r?.data ?? [];
+
       return (Array.isArray(list) ? list : []).map((item) => {
         const c = item as Record<string, unknown>;
         const content = String(c.content ?? c.message ?? "");
+
         return {
           ...(c as unknown as CommentResponse),
           message: content,
@@ -445,11 +499,10 @@ const EmployeeDetail = () => {
         (r as { items?: unknown }).items ??
         (r as { list?: unknown }).list ??
         (Array.isArray(r) ? r : []);
+
       return (Array.isArray(list) ? list : []) as UserListItem[];
     },
   });
-
-  // ── Helpers ──────────────────────────────────────────────────────────────────
 
   const invalidateTasks = () => {
     queryClient.invalidateQueries({
@@ -459,8 +512,6 @@ const EmployeeDetail = () => {
       queryKey: ["onboarding-task-detail", selectedTaskId],
     });
   };
-
-  // ── Mutations ────────────────────────────────────────────────────────────────
 
   const updateTaskStatus = useMutation({
     mutationFn: ({ taskId, status }: { taskId: string; status: string }) =>
@@ -476,9 +527,11 @@ const EmployeeDetail = () => {
       managerUserId?: string;
     }) => apiActivateInstance({ instanceId, managerUserId }),
   });
+
   const cancelInstance = useMutation({
     mutationFn: (id: string) => apiCancelInstance(id),
   });
+
   const completeInstance = useMutation({
     mutationFn: (id: string) => apiCompleteInstance(id),
   });
@@ -617,15 +670,14 @@ const EmployeeDetail = () => {
     onError: () => notify.error(t("onboarding.task.toast.failed")),
   });
 
-  // ── Derived data ─────────────────────────────────────────────────────────────
-
   const employeeDisplayName =
     employeeDetail?.fullName || instance?.employeeName || "-";
   const employeeDisplayEmail = employeeDetail?.email ?? null;
   const managerDisplayName =
     managerDetail?.fullName || instance?.managerName || "—";
 
-  const completedCount = tasks.filter((t) => t.status === STATUS_DONE).length;
+  const completedCount = tasks.filter((task) => task.status === STATUS_DONE)
+    .length;
   const totalTasks = tasks.length;
   const progressPercent =
     totalTasks > 0
@@ -637,17 +689,23 @@ const EmployeeDetail = () => {
       string,
       { name: string; done: number; total: number }
     > = {};
+
     for (const task of tasks) {
       const key = task.checklistName ?? "—";
       if (!groups[key]) groups[key] = { name: key, done: 0, total: 0 };
+
       groups[key].total++;
-      if (task.rawStatus === "DONE") groups[key].done++;
+
+      if (task.rawStatus === "DONE") {
+        groups[key].done++;
+      }
     }
-    return Object.values(groups).map((g) => ({
-      name: g.name,
-      done: g.done,
-      total: g.total,
-      percent: Math.round((g.done / (g.total || 1)) * 100),
+
+    return Object.values(groups).map((group) => ({
+      name: group.name,
+      done: group.done,
+      total: group.total,
+      percent: Math.round((group.done / (group.total || 1)) * 100),
     }));
   }, [tasks]);
 
@@ -657,15 +715,12 @@ const EmployeeDetail = () => {
     cancelInstance.isPending ||
     completeInstance.isPending;
 
-  // Issue #4 (partial): HR always can approve/reject; Manager only if they are the line manager of this instance
   const canApproveOrReject =
     canManage && (isHr || instance?.managerUserId === userId);
 
   const taskIndex = selectedTaskId
-    ? tasks.findIndex((tk) => tk.id === selectedTaskId)
+    ? tasks.findIndex((task) => task.id === selectedTaskId)
     : -1;
-
-  // ── Side effects ─────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (instanceId && employeeDisplayName !== "-") {
@@ -673,43 +728,78 @@ const EmployeeDetail = () => {
     }
   }, [instanceId, employeeDisplayName, setBreadcrumbs]);
 
-  // ── Handlers ─────────────────────────────────────────────────────────────────
-
   const handleActivate = async () => {
     if (!instanceId) return;
+
     try {
       await activateInstance.mutateAsync({
         instanceId,
         managerUserId: instance?.managerUserId ?? undefined,
       });
+
       queryClient.invalidateQueries({ queryKey: ["instance", instanceId] });
       notify.success(t("onboarding.detail.toast.activated"));
-    } catch {
-      notify.error(t("onboarding.detail.toast.action_failed"));
+    } catch (err) {
+      notify.error(
+        extractErrorMessage(err, t("onboarding.detail.toast.action_failed")),
+      );
     }
   };
 
   const handleCancel = async () => {
     if (!instanceId) return;
+
     try {
       await cancelInstance.mutateAsync(instanceId);
       queryClient.invalidateQueries({ queryKey: ["instance", instanceId] });
       notify.success(t("onboarding.detail.toast.cancelled"));
       setConfirmAction(null);
-    } catch {
-      notify.error(t("onboarding.detail.toast.action_failed"));
+    } catch (err) {
+      notify.error(
+        extractErrorMessage(err, t("onboarding.detail.toast.action_failed")),
+      );
     }
   };
 
   const handleComplete = async () => {
     if (!instanceId) return;
+
     try {
-      await completeInstance.mutateAsync(instanceId);
+      const res = await completeInstance.mutateAsync(instanceId);
+
       queryClient.invalidateQueries({ queryKey: ["instance", instanceId] });
-      notify.success(t("onboarding.detail.toast.completed"));
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-tasks-by-instance"],
+      });
+
+      const raw = res as Record<string, unknown>;
+      const data =
+        (raw?.data as Record<string, unknown> | undefined) ??
+        (raw?.result as Record<string, unknown> | undefined) ??
+        (raw?.payload as Record<string, unknown> | undefined) ??
+        raw;
+
+      const managerEvaluationStatus = String(
+        data?.managerEvaluationStatus ?? "",
+      ).toUpperCase();
+
+      if (managerEvaluationStatus === "SENT") {
+        notify.success(
+          t("onboarding.detail.toast.completed_with_manager_evaluation"),
+        );
+      } else if (managerEvaluationStatus === "SKIPPED") {
+        notify.success(
+          t("onboarding.detail.toast.completed_manager_evaluation_skipped"),
+        );
+      } else {
+        notify.success(t("onboarding.detail.toast.completed"));
+      }
+
       setConfirmAction(null);
-    } catch {
-      notify.error(t("onboarding.detail.toast.action_failed"));
+    } catch (err) {
+      notify.error(
+        extractErrorMessage(err, t("onboarding.detail.toast.action_failed")),
+      );
     }
   };
 
@@ -719,11 +809,14 @@ const EmployeeDetail = () => {
         taskId: task.id,
         status: "IN_PROGRESS",
       });
+
       invalidateTasks();
       notify.success(t("onboarding.task.toast.started"));
       return true;
-    } catch {
-      notify.error(t("onboarding.detail.toast.task_failed"));
+    } catch (err) {
+      notify.error(
+        extractErrorMessage(err, t("onboarding.detail.toast.task_failed")),
+      );
       return false;
     }
   };
@@ -732,31 +825,38 @@ const EmployeeDetail = () => {
     const isDone = task.status === STATUS_DONE;
     const rawStatus = task.rawStatus ?? "";
 
-    // Revert DONE → TODO
     if (isDone) {
       try {
-        await updateTaskStatus.mutateAsync({ taskId: task.id, status: "TODO" });
+        await updateTaskStatus.mutateAsync({
+          taskId: task.id,
+          status: "TODO",
+        });
+
         invalidateTasks();
         notify.success(t("onboarding.detail.toast.task_undone"));
-      } catch {
-        notify.error(t("onboarding.detail.toast.task_failed"));
+      } catch (err) {
+        notify.error(
+          extractErrorMessage(err, t("onboarding.detail.toast.task_failed")),
+        );
       }
+
       return;
     }
 
-    // API flow: TODO/ASSIGNED -> IN_PROGRESS trước khi thao tác tiếp theo
     if (rawStatus === "TODO" || rawStatus === "ASSIGNED") {
       await handleStartTask(task);
       return;
     }
 
-    // requireAck flow: IN_PROGRESS -> acknowledge -> WAIT_ACK -> DONE
     if (task.requireAck && rawStatus === "IN_PROGRESS") {
       try {
         await acknowledgeMutation.mutateAsync(task.id);
-      } catch {
-        notify.error(t("onboarding.detail.toast.task_failed"));
+      } catch (err) {
+        notify.error(
+          extractErrorMessage(err, t("onboarding.detail.toast.task_failed")),
+        );
       }
+
       return;
     }
 
@@ -766,42 +866,50 @@ const EmployeeDetail = () => {
           taskId: task.id,
           status: STATUS_DONE_API,
         });
+
         invalidateTasks();
         notify.success(t("onboarding.detail.toast.task_done"));
-      } catch {
-        notify.error(t("onboarding.detail.toast.task_failed"));
+      } catch (err) {
+        notify.error(
+          extractErrorMessage(err, t("onboarding.detail.toast.task_failed")),
+        );
       }
+
       return;
     }
 
-    // requiresManagerApproval flow: IN_PROGRESS -> PENDING_APPROVAL
     if (task.requiresManagerApproval && rawStatus === "IN_PROGRESS") {
       try {
         await updateTaskStatus.mutateAsync({
           taskId: task.id,
           status: "PENDING_APPROVAL",
         });
+
         invalidateTasks();
         notify.success(t("onboarding.task.toast.submitted_approval"));
-      } catch {
-        notify.error(t("onboarding.detail.toast.task_failed"));
+      } catch (err) {
+        notify.error(
+          extractErrorMessage(err, t("onboarding.detail.toast.task_failed")),
+        );
       }
+
       return;
     }
 
-    // Chỉ cho DONE khi task đang IN_PROGRESS
     if (rawStatus !== "IN_PROGRESS") return;
 
-    // Normal flow: IN_PROGRESS -> DONE
     try {
       await updateTaskStatus.mutateAsync({
         taskId: task.id,
         status: STATUS_DONE_API,
       });
+
       invalidateTasks();
       notify.success(t("onboarding.detail.toast.task_done"));
-    } catch {
-      notify.error(t("onboarding.detail.toast.task_failed"));
+    } catch (err) {
+      notify.error(
+        extractErrorMessage(err, t("onboarding.detail.toast.task_failed")),
+      );
     }
   };
 
@@ -827,6 +935,7 @@ const EmployeeDetail = () => {
 
   const handleAddComment = (parentCommentId?: string) => {
     if (!selectedTaskId || !commentInput.trim()) return;
+
     addCommentMutation.mutate({
       taskId: selectedTaskId,
       content: commentInput.trim(),
@@ -836,15 +945,20 @@ const EmployeeDetail = () => {
 
   const handleUploadAttachment = async (file: File) => {
     if (!selectedTaskId) return;
+
     setUploadingFile(true);
+
     try {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("name", file.name);
+
       const uploadRes = await apiUploadDocumentFile(formData);
+
       if (!uploadRes.fileUrl) {
         throw new Error("Upload succeeded but file URL is missing");
       }
+
       await addAttachmentMutation.mutateAsync({
         taskId: selectedTaskId,
         fileName: file.name,
@@ -861,6 +975,7 @@ const EmployeeDetail = () => {
 
   const handleProposeSchedule = () => {
     if (!selectedTaskId || !scheduleDates[0] || !scheduleDates[1]) return;
+
     scheduleProposeMutation.mutate({
       taskId: selectedTaskId,
       scheduledStartAt: scheduleDates[0].toISOString(),
@@ -870,6 +985,7 @@ const EmployeeDetail = () => {
 
   const handleReschedule = () => {
     if (!selectedTaskId || !scheduleDates[0] || !scheduleDates[1]) return;
+
     rescheduleMutation.mutate({
       taskId: selectedTaskId,
       scheduledStartAt: scheduleDates[0].toISOString(),
@@ -877,8 +993,6 @@ const EmployeeDetail = () => {
       reason: scheduleReason || undefined,
     });
   };
-
-  // ── Loading / Error states ───────────────────────────────────────────────────
 
   if (instanceLoading && !instance) {
     return <Skeleton.Input active block style={{ height: 256 }} />;
@@ -895,6 +1009,7 @@ const EmployeeDetail = () => {
             {t("onboarding.detail.subtitle")}
           </p>
         </div>
+
         <Card>
           <div className="flex flex-col items-center gap-3 py-6 text-center">
             <p className="text-sm font-medium text-ink">
@@ -920,6 +1035,7 @@ const EmployeeDetail = () => {
             {t("onboarding.detail.subtitle")}
           </p>
         </div>
+
         <Card>
           <p className="text-sm text-muted">
             {t("onboarding.detail.not_found")}
@@ -934,14 +1050,17 @@ const EmployeeDetail = () => {
     );
   }
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  const isEmployeeOfficialOrCompleted =
+    instanceStatus === "DONE" ||
+    instanceStatus === "COMPLETED" ||
+    instanceStatus === "OFFICIAL";
 
   return (
     <div className="relative space-y-6">
       {(instanceFetching || tasksFetching) && !instanceLoading && (
         <AppLoading />
       )}
-      {/* ── Page header ──────────────────────────────────────────────────────── */}
+
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-ink">
@@ -953,10 +1072,12 @@ const EmployeeDetail = () => {
             {templateDetail?.name ?? t("onboarding.detail.subtitle")}
           </p>
         </div>
+
         <div className="flex shrink-0 items-center gap-2">
           <Button onClick={() => navigate("/onboarding/employees")}>
             {t("global.back")}
           </Button>
+
           {canManage && instanceStatus === "DRAFT" && (
             <Button
               type="primary"
@@ -965,6 +1086,7 @@ const EmployeeDetail = () => {
               {t("onboarding.detail.action.activate")}
             </Button>
           )}
+
           {canManage && instanceStatus === "ACTIVE" && (
             <>
               <Button
@@ -980,10 +1102,15 @@ const EmployeeDetail = () => {
               </Button>
             </>
           )}
+
+          {isEmployeeOfficialOrCompleted && (
+            <Tag color="green" style={{ marginInlineEnd: 0 }}>
+              {t("onboarding.detail.status.completed")}
+            </Tag>
+          )}
         </div>
       </div>
 
-      {/* ── Info card ────────────────────────────────────────────────────────── */}
       <InfoCard
         instance={instance}
         template={templateDetail}
@@ -996,7 +1123,6 @@ const EmployeeDetail = () => {
         progressPercent={progressPercent}
       />
 
-      {/* ── Tabs ─────────────────────────────────────────────────────────────── */}
       <Tabs
         activeKey={tab}
         onChange={setTab}
@@ -1006,13 +1132,13 @@ const EmployeeDetail = () => {
         ]}
       />
 
-      {/* ── Checklist tab ────────────────────────────────────────────────────── */}
       {tab === "checklist" && (
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="flex flex-col gap-4">
             <StageProgressCard stageProgress={stageProgress} />
             <RiskCard tasks={tasks} onTaskClick={openTaskDrawer} />
           </div>
+
           <TaskListPanel
             tasks={tasks}
             isLoading={tasksLoading}
@@ -1033,10 +1159,8 @@ const EmployeeDetail = () => {
         </div>
       )}
 
-      {/* ── Activity tab ─────────────────────────────────────────────────────── */}
       {tab === "activity" && <ActivityFeed tasks={tasks} t={t} />}
 
-      {/* ── Task detail drawer ───────────────────────────────────────────────── */}
       <TaskDrawer
         open={Boolean(selectedTaskId)}
         taskDetail={taskDetail}
@@ -1074,7 +1198,8 @@ const EmployeeDetail = () => {
         onAddComment={handleAddComment}
         onStart={async () => {
           if (!taskDetail) return;
-          const task = tasks.find((tk) => tk.id === taskDetail.taskId);
+
+          const task = tasks.find((item) => item.id === taskDetail.taskId);
           if (task) await handleStartTask(task);
         }}
         onAcknowledge={() =>
@@ -1082,34 +1207,42 @@ const EmployeeDetail = () => {
         }
         onConfirmComplete={async () => {
           if (!taskDetail) return;
+
           try {
             await updateTaskStatus.mutateAsync({
               taskId: taskDetail.taskId,
               status: STATUS_DONE_API,
             });
+
             invalidateTasks();
             closeTaskDrawer();
             notify.success(t("onboarding.task.toast.done"));
-          } catch {
-            notify.error(t("onboarding.task.toast.failed"));
+          } catch (err) {
+            notify.error(
+              extractErrorMessage(err, t("onboarding.task.toast.failed")),
+            );
           }
         }}
         onSubmitApproval={async () => {
           if (!taskDetail) return;
+
           try {
             await updateTaskStatus.mutateAsync({
               taskId: taskDetail.taskId,
               status: "PENDING_APPROVAL",
             });
+
             invalidateTasks();
             closeTaskDrawer();
             notify.success(t("onboarding.task.toast.submitted_approval"));
-          } catch {
-            notify.error(t("onboarding.task.toast.failed"));
+          } catch (err) {
+            notify.error(
+              extractErrorMessage(err, t("onboarding.task.toast.failed")),
+            );
           }
         }}
         onMarkDone={async () => {
-          const task = tasks.find((tk) => tk.id === selectedTaskId);
+          const task = tasks.find((item) => item.id === selectedTaskId);
           if (task) await handleToggleTask(task);
           closeTaskDrawer();
         }}
@@ -1134,8 +1267,9 @@ const EmployeeDetail = () => {
           }
         }}
         onAssign={(assigneeUserId) => {
-          if (selectedTaskId)
+          if (selectedTaskId) {
             assignMutation.mutate({ taskId: selectedTaskId, assigneeUserId });
+          }
         }}
         onUploadAttachment={handleUploadAttachment}
         onScheduleModeChange={setScheduleMode}
@@ -1165,7 +1299,6 @@ const EmployeeDetail = () => {
         onCheckpointConfirmed={invalidateTasks}
       />
 
-      {/* ── Reject reason modal ──────────────────────────────────────────────── */}
       <Modal
         title={t("onboarding.task.action.reject")}
         open={rejectModalOpen}
@@ -1192,7 +1325,7 @@ const EmployeeDetail = () => {
           <Input.TextArea
             rows={3}
             value={rejectReason}
-            onChange={(e) => setRejectReason(e.target.value)}
+            onChange={(event) => setRejectReason(event.target.value)}
             placeholder={
               t("onboarding.task.reject.placeholder") ?? "Nhập lý do từ chối..."
             }
@@ -1201,7 +1334,6 @@ const EmployeeDetail = () => {
         </div>
       </Modal>
 
-      {/* ── Confirm cancel modal ─────────────────────────────────────────────── */}
       <BaseModal
         open={confirmAction === "cancel"}
         title={t("onboarding.detail.action.confirm_cancel_title")}
@@ -1211,6 +1343,7 @@ const EmployeeDetail = () => {
           <p className="text-sm text-muted">
             {t("onboarding.detail.action.confirm_cancel_desc")}
           </p>
+
           <div className="flex justify-end gap-3">
             <Button
               onClick={() => setConfirmAction(null)}
@@ -1224,16 +1357,25 @@ const EmployeeDetail = () => {
         </div>
       </BaseModal>
 
-      {/* ── Confirm complete modal ───────────────────────────────────────────── */}
       <BaseModal
         open={confirmAction === "complete"}
         title={t("onboarding.detail.action.confirm_complete_title")}
         onCancel={() => setConfirmAction(null)}
         footer={null}>
         <div className="grid gap-4">
-          <p className="text-sm text-muted">
-            {t("onboarding.detail.action.confirm_complete_desc")}
-          </p>
+          <div className="space-y-2 text-sm text-muted">
+            <p>{t("onboarding.detail.action.confirm_complete_desc")}</p>
+            <p>
+              {t(
+                "onboarding.detail.action.confirm_complete_manager_evaluation_note",
+              )}
+            </p>
+            <p className="font-medium text-ink">
+              {t("onboarding.detail.action.confirm_complete_manager")}:{" "}
+              {managerDisplayName || "—"}
+            </p>
+          </div>
+
           <div className="flex justify-end gap-3">
             <Button
               onClick={() => setConfirmAction(null)}
@@ -1243,6 +1385,7 @@ const EmployeeDetail = () => {
             <Button
               type="primary"
               onClick={handleComplete}
+              loading={completeInstance.isPending}
               disabled={isActioning}>
               {t("onboarding.detail.action.confirm")}
             </Button>
