@@ -4226,6 +4226,7 @@
   "onboarding.detail.toast.completed_with_manager_evaluation": "Hoàn tất onboarding và đã gửi khảo sát đánh giá cho quản lý.",
   "onboarding.detail.toast.completed_manager_evaluation_skipped": "Hoàn tất onboarding. Khảo sát đánh giá quản lý đã được bỏ qua.",
   "onboarding.detail.action.confirm_complete_manager_evaluation_note": "Sau khi hoàn thành, hệ thống sẽ gửi khảo sát đánh giá nhân viên sau onboarding cho quản lý trực tiếp.",
-  "onboarding.detail.action.confirm_complete_manager": "Quản lý nhận khảo sát"
+  "onboarding.detail.action.confirm_complete_manager": "Quản lý nhận khảo sát",
+  "onboarding.employee.filter.all": "Tất cả"
 
 }
