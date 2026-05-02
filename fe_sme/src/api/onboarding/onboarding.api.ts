@@ -147,36 +147,6 @@ export const apiCancelInstance = (instanceId: string, reason?: string) =>
     { instanceId, reason },
   );
 
-/** com.sme.onboarding.instance.complete */
-export type ManagerEvaluationMode = "SEND_NOW" | "SEND_LATER";
-
-export type CompleteOnboardingRequest = {
-  instanceId: string;
-  managerEvaluationMode?: ManagerEvaluationMode;
-  managerEvaluationTemplateId?: string;
-  managerEvaluationDueDays?: number;
-};
-
-export const apiCompleteInstance = (
-  input: string | CompleteOnboardingRequest,
-) => {
-  const payload: CompleteOnboardingRequest =
-    typeof input === "string"
-      ? {
-          instanceId: input,
-          managerEvaluationMode: "SEND_NOW",
-          managerEvaluationDueDays: 7,
-        }
-      : {
-          ...input,
-          managerEvaluationMode: input.managerEvaluationMode ?? "SEND_NOW",
-        };
-
-  return gatewayRequest(
-    "com.sme.onboarding.instance.complete",
-    payload,
-  );
-};
 
 // ── Tasks ──────────────────────────────────────────────────
 
@@ -573,4 +543,77 @@ export const apiEventAttendanceSummary = (
     EventAttendanceSummaryResponse
   >("com.sme.onboarding.event.attendance.summary", payload);
 
-  
+
+export type ManagerEvaluationMode = "SEND_NOW" | "SEND_LATER";
+
+export type CompleteOnboardingRequest = {
+  instanceId: string;
+  managerEvaluationMode?: ManagerEvaluationMode;
+  managerEvaluationTemplateId?: string;
+  managerEvaluationDueDays?: number;
+};
+
+export type ManagerEvaluationStatus =
+  | "PENDING"
+  | "SENT"
+  | "SUBMITTED"
+  | "SKIPPED";
+
+export type ManagerEvaluationStatusResponse = {
+  instanceId: string;
+  onboardingStatus: string;
+  managerEvaluationStatus: ManagerEvaluationStatus;
+  managerEvaluationSurveyInstanceId?: string | null;
+  managerUserId?: string | null;
+  managerName?: string | null;
+  targetEmployeeUserId?: string | null;
+  targetEmployeeName?: string | null;
+  targetEmployeeEmail?: string | null;
+  message?: string | null;
+};
+
+export type SendManagerEvaluationRequest = {
+  instanceId: string;
+  managerEvaluationTemplateId?: string;
+  managerEvaluationDueDays?: number;
+};
+
+export const apiCompleteInstance = (
+  input: string | CompleteOnboardingRequest,
+) => {
+  const payload: CompleteOnboardingRequest =
+    typeof input === "string"
+      ? {
+          instanceId: input,
+          managerEvaluationMode: "SEND_NOW",
+          managerEvaluationDueDays: 7,
+        }
+      : {
+          ...input,
+          managerEvaluationMode: input.managerEvaluationMode ?? "SEND_NOW",
+        };
+
+  return gatewayRequest(
+    "com.sme.onboarding.instance.complete",
+    payload,
+  );
+};
+
+export const apiGetManagerEvaluationStatus = (instanceId: string) =>
+  gatewayRequest(
+    "com.sme.onboarding.managerEvaluation.status",
+    {
+      instanceId,
+    },
+  );
+
+export const apiSendManagerEvaluation = (
+  payload: SendManagerEvaluationRequest,
+) =>
+  gatewayRequest(
+    "com.sme.onboarding.managerEvaluation.send",
+    {
+      managerEvaluationDueDays: 7,
+      ...payload,
+    },
+  );

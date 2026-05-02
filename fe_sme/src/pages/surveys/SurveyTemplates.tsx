@@ -23,6 +23,13 @@ import { extractList } from "@/api/core/types";
 import type { SurveyTemplateSummary } from "@/interface/survey";
 import { StageTag, TemplateStatusTag } from "./components/SurveyStatusTag";
 
+type TemplateTab = "ONBOARDING" | "MANAGER_EVALUATION";
+
+type SurveyTemplateRow = SurveyTemplateSummary & {
+  targetRole?: string | null;
+  target_role?: string | null;
+};
+
 const normalizeStage = (stage?: string | null) => {
   const value = String(stage ?? "")
     .trim()
@@ -31,24 +38,41 @@ const normalizeStage = (stage?: string | null) => {
   if (value === "DAY_7" || value === "D7") return "D7";
   if (value === "DAY_30" || value === "D30") return "D30";
   if (value === "DAY_60" || value === "D60") return "D60";
+  if (value === "COMPLETED" || value === "DONE" || value === "FINISHED") {
+    return "COMPLETED";
+  }
   if (value === "CUSTOM") return "CUSTOM";
 
   return value;
 };
 
-const STAGE_OPTIONS = [
-  { value: "", label: "All stages" },
-  { value: "D7", label: "Day 7" },
-  { value: "D30", label: "Day 30" },
-  { value: "D60", label: "Day 60" },
-  { value: "CUSTOM", label: "Custom" },
+const normalizeTargetRole = (template?: Partial<SurveyTemplateRow>) =>
+  String(template?.targetRole ?? template?.target_role ?? "")
+    .trim()
+    .toUpperCase();
+
+const isManagerEvaluationTemplate = (template: SurveyTemplateSummary) => {
+  const row = template as SurveyTemplateRow;
+
+  return (
+    normalizeStage(row.stage) === "COMPLETED" &&
+    normalizeTargetRole(row) === "MANAGER"
+  );
+};
+
+const getStageFilterOptions = (t: (key: string) => string) => [
+  { value: "", label: t("survey.template.filter.allStages") },
+  { value: "D7", label: t("survey.template.stage.d7") },
+  { value: "D30", label: t("survey.template.stage.d30") },
+  { value: "D60", label: t("survey.template.stage.d60") },
+  { value: "CUSTOM", label: t("survey.template.stage.custom") },
 ];
 
-const STATUS_OPTIONS = [
-  { value: "", label: "All status" },
-  { value: "ACTIVE", label: "Active" },
-  { value: "ARCHIVED", label: "Archived" },
-  { value: "DRAFT", label: "Draft" },
+const getStatusFilterOptions = (t: (key: string) => string) => [
+  { value: "", label: t("survey.template.filter.allStatuses") },
+  { value: "ACTIVE", label: t("survey.template.status.active") },
+  { value: "ARCHIVED", label: t("survey.template.status.archived") },
+  { value: "DRAFT", label: t("survey.template.status.draft") },
 ];
 
 const SurveyTemplates = () => {
@@ -57,11 +81,15 @@ const SurveyTemplates = () => {
   const archiveConfirmRef = useRef<ConfirmModalHandles>(null);
   const deleteConfirmRef = useRef<ConfirmModalHandles>(null);
 
+  const [activeTab, setActiveTab] = useState<TemplateTab>("ONBOARDING");
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
   const queryClient = useQueryClient();
+
+  const stageFilterOptions = useMemo(() => getStageFilterOptions(t), [t]);
+  const statusFilterOptions = useMemo(() => getStatusFilterOptions(t), [t]);
 
   const {
     data: templatesRaw,
@@ -87,9 +115,7 @@ const SurveyTemplates = () => {
     mutationFn: (templateId: string) =>
       apiArchiveSurveyTemplate({ templateId }),
     onSuccess: async () => {
-      notify.success(
-        t("survey.template.archive_success") || "Archive template successfully",
-      );
+      notify.success(t("survey.template.archive_success"));
       await refetchTemplates();
     },
     onError: (error: unknown) => {
@@ -97,9 +123,7 @@ const SurveyTemplates = () => {
         error instanceof Error ? error.message : t("global.save_failed");
 
       if (message.includes("survey template not found")) {
-        notify.error(
-          "Template không tồn tại hoặc không thuộc công ty hiện tại.",
-        );
+        notify.error(t("survey.template.error.notFound"));
         return;
       }
 
@@ -110,7 +134,7 @@ const SurveyTemplates = () => {
   const deleteMutation = useMutation({
     mutationFn: (templateId: string) => apiDeleteSurveyTemplate({ templateId }),
     onSuccess: async () => {
-      notify.success("Xóa mẫu khảo sát thành công");
+      notify.success(t("survey.template.delete_success"));
       await refetchTemplates();
     },
     onError: (error: unknown) => {
@@ -121,14 +145,12 @@ const SurveyTemplates = () => {
         message.includes("template already used") ||
         message.includes("template already sent")
       ) {
-        notify.error("Mẫu này đã được gửi, chỉ có thể lưu trữ.");
+        notify.error(t("survey.template.error.usedArchiveOnly"));
         return;
       }
 
       if (message.includes("survey template not found")) {
-        notify.error(
-          "Template không tồn tại hoặc không thuộc công ty hiện tại.",
-        );
+        notify.error(t("survey.template.error.notFound"));
         return;
       }
 
@@ -150,7 +172,7 @@ const SurveyTemplates = () => {
 
   const handleDelete = async (row: SurveyTemplateSummary) => {
     const result = await deleteConfirmRef.current?.open({
-      message: `Bạn có chắc muốn xóa mẫu khảo sát "${row.name}"? Nếu mẫu đã từng được gửi, hệ thống sẽ không cho xóa và bạn cần dùng chức năng lưu trữ.`,
+      message: t("survey.template.delete_confirm", { name: row.name }),
     });
 
     if (result?.code === CONFIRM_CODE.CONFIRMED) {
@@ -158,16 +180,66 @@ const SurveyTemplates = () => {
     }
   };
 
+  const onboardingTemplates = useMemo(
+    () =>
+      templates.filter((template) => !isManagerEvaluationTemplate(template)),
+    [templates],
+  );
+
+  const managerEvaluationTemplates = useMemo(
+    () => templates.filter(isManagerEvaluationTemplate),
+    [templates],
+  );
+
   const filtered = useMemo(() => {
-    const kw = search.toLowerCase();
-    return templates.filter((tmpl) => {
-      const matchSearch = !kw || tmpl.name.toLowerCase().includes(kw);
+    const kw = search.trim().toLowerCase();
+    const source =
+      activeTab === "MANAGER_EVALUATION"
+        ? managerEvaluationTemplates
+        : onboardingTemplates;
+
+    return source.filter((tmpl) => {
+      const name = String(tmpl.name ?? "").toLowerCase();
+      const matchSearch = !kw || name.includes(kw);
       const matchStage =
-        !stageFilter || normalizeStage(tmpl.stage) === stageFilter;
-      const matchStatus = !statusFilter || tmpl.status === statusFilter;
+        activeTab === "MANAGER_EVALUATION" ||
+        !stageFilter ||
+        normalizeStage(tmpl.stage) === stageFilter;
+      const matchStatus =
+        !statusFilter ||
+        String(tmpl.status ?? "").toUpperCase() === statusFilter;
+
       return matchSearch && matchStage && matchStatus;
     });
-  }, [templates, search, stageFilter, statusFilter]);
+  }, [
+    activeTab,
+    onboardingTemplates,
+    managerEvaluationTemplates,
+    search,
+    stageFilter,
+    statusFilter,
+  ]);
+
+  const handleCreateTemplate = () => {
+    if (activeTab === "MANAGER_EVALUATION") {
+      navigate("/surveys/templates/new", {
+        state: {
+          preset: "MANAGER_EVALUATION_COMPLETED",
+          name: t("survey.template.managerEvaluation.defaultName"),
+          description: t(
+            "survey.template.managerEvaluation.defaultDescription",
+          ),
+          stage: "COMPLETED",
+          targetRole: "MANAGER",
+          isDefault: true,
+          status: "ACTIVE",
+        },
+      });
+      return;
+    }
+
+    navigate("/surveys/templates/new");
+  };
 
   const columns: ColumnsType<SurveyTemplateSummary> = [
     {
@@ -188,8 +260,38 @@ const SurveyTemplates = () => {
       title: t("survey.template.col.stage"),
       dataIndex: "stage",
       key: "stage",
-      width: 120,
-      render: (value) => <StageTag stage={normalizeStage(value)} />,
+      width: 130,
+      render: (value) => {
+        const normalized = normalizeStage(value);
+
+        if (normalized === "COMPLETED") {
+          return (
+            <span className="inline-flex rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-600">
+              {t("survey.template.stage.completed")}
+            </span>
+          );
+        }
+
+        return <StageTag stage={normalized} />;
+      },
+    },
+    {
+      title: t("survey.template.col.targetRole"),
+      key: "targetRole",
+      width: 140,
+      render: (_, row) => {
+        const role = normalizeTargetRole(row as SurveyTemplateRow);
+
+        return role === "MANAGER" ? (
+          <span className="text-sm font-medium text-purple-600">
+            {t("survey.role.manager")}
+          </span>
+        ) : (
+          <span className="text-sm text-slate-500">
+            {t("survey.role.employee")}
+          </span>
+        );
+      },
     },
     {
       title: t("survey.template.col.status"),
@@ -199,15 +301,18 @@ const SurveyTemplates = () => {
       render: (status: string) => <TemplateStatusTag status={status} />,
     },
     {
-      title: "Default",
+      title: t("survey.template.col.default"),
       dataIndex: "isDefault",
+      width: 120,
       render: (_, row) => {
         const stage = normalizeStage(row.stage);
 
         if (stage === "CUSTOM") return "-";
 
         return row.isDefault ? (
-          <span className="font-medium text-emerald-600">Default</span>
+          <span className="font-medium text-emerald-600">
+            {t("survey.template.default.on")}
+          </span>
         ) : (
           <span className="text-slate-400">-</span>
         );
@@ -259,6 +364,52 @@ const SurveyTemplates = () => {
 
   return (
     <div className="space-y-5">
+      <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("ONBOARDING");
+              setStageFilter("");
+            }}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+              activeTab === "ONBOARDING"
+                ? "bg-blue-50 text-blue-600"
+                : "text-slate-500 hover:bg-slate-50"
+            }`}
+          >
+            {t("survey.template.tab.onboarding")}
+            <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs text-slate-500">
+              {onboardingTemplates.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("MANAGER_EVALUATION");
+              setStageFilter("");
+            }}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+              activeTab === "MANAGER_EVALUATION"
+                ? "bg-blue-50 text-blue-600"
+                : "text-slate-500 hover:bg-slate-50"
+            }`}
+          >
+            {t("survey.template.tab.managerEvaluation")}
+            <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs text-slate-500">
+              {managerEvaluationTemplates.length}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {activeTab === "MANAGER_EVALUATION" && (
+        <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          {t("survey.template.managerEvaluation.listNotice")}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <div className="w-60">
           <BaseInput
@@ -270,20 +421,22 @@ const SurveyTemplates = () => {
           />
         </div>
 
-        <div className="w-36">
-          <BaseSelect
-            name="stage"
-            options={STAGE_OPTIONS}
-            placeholder={t("survey.template.col.stage")}
-            onChange={(v) => setStageFilter((v as string) || "")}
-            allowClear
-          />
-        </div>
+        {activeTab === "ONBOARDING" && (
+          <div className="w-40">
+            <BaseSelect
+              name="stage"
+              options={stageFilterOptions}
+              placeholder={t("survey.template.col.stage")}
+              onChange={(v) => setStageFilter((v as string) || "")}
+              allowClear
+            />
+          </div>
+        )}
 
-        <div className="w-36">
+        <div className="w-44">
           <BaseSelect
             name="status"
-            options={STATUS_OPTIONS}
+            options={statusFilterOptions}
             placeholder={t("survey.template.col.status")}
             onChange={(v) => setStatusFilter((v as string) || "")}
             allowClear
@@ -292,13 +445,17 @@ const SurveyTemplates = () => {
 
         <div className="ml-auto flex items-center gap-3">
           <span className="text-xs text-slate-400">
-            {filtered.length} {filtered.length === 1 ? "template" : "templates"}
+            {t("survey.template.resultCount", { count: filtered.length })}
           </span>
           <BaseButton
             type="primary"
             icon={<Plus className="h-4 w-4" />}
-            label="survey.template.new"
-            onClick={() => navigate("/surveys/templates/new")}
+            label={
+              activeTab === "MANAGER_EVALUATION"
+                ? "survey.template.managerEvaluation.createShort"
+                : "survey.template.new"
+            }
+            onClick={handleCreateTemplate}
           />
         </div>
       </div>
@@ -315,7 +472,13 @@ const SurveyTemplates = () => {
             emptyText: isError ? (
               t("global.save_failed")
             ) : (
-              <Empty description={t("survey.template.empty.title")} />
+              <Empty
+                description={
+                  activeTab === "MANAGER_EVALUATION"
+                    ? t("survey.template.managerEvaluation.empty")
+                    : t("survey.template.empty.title")
+                }
+              />
             ),
           }}
         />
@@ -323,12 +486,9 @@ const SurveyTemplates = () => {
 
       <ConfirmModal
         ref={archiveConfirmRef}
-        title={t("survey.template.archive") || "Archive"}
+        title={t("survey.template.archive")}
       />
-      <ConfirmModal
-        ref={deleteConfirmRef}
-        title={t("global.delete") || "Delete"}
-      />
+      <ConfirmModal ref={deleteConfirmRef} title={t("global.delete")} />
     </div>
   );
 };
