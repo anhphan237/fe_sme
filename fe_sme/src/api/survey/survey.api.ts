@@ -20,6 +20,7 @@ import type {
   ImportSurveyQuestionsRequest,
   SurveyAiSummaryPayload,
   SurveyAiSummaryResponse,
+  ManagerEvaluationReportRequest,
 } from "@/interface/survey";
 
 // ── Template ────────────────────────────────────────────────
@@ -243,5 +244,13 @@ export const apiUpdateManagerEvaluationSurveyTemplate = (
 ) =>
   gatewayRequest(
     "com.sme.survey.template.managerEvaluation.update",
+    payload,
+  );
+
+export const apiGetManagerEvaluationReport = (
+  payload: ManagerEvaluationReportRequest,
+) =>
+  gatewayRequest(
+    "com.sme.survey.managerEvaluation.report",
     payload,
   );
