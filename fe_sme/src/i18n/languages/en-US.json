@@ -4188,7 +4188,25 @@
   "survey.dimension.manager.teamIntegration": "Team integration",
   "survey.dimension.manager.attitudeCulture": "Attitude and culture fit",
   "survey.dimension.manager.recommendation": "Recommendation for continued employment",
-  "survey.dimension.manager.overallComment": "Overall comment"
+  "survey.dimension.manager.overallComment": "Overall comment",
+  
+  "survey.reports.tab.onboardingFeedback": "Onboarding Feedback",
+  "survey.reports.tab.managerEvaluation": "Manager Evaluation",
+
+  "survey.reports.onboardingFeedback.title": "Onboarding Feedback Report",
+  "survey.reports.onboardingFeedback.description": "Track employee feedback during the onboarding process at various milestones.",
+
+  "survey.reports.managerEvaluation.title": "Manager Evaluation Report",
+  "survey.reports.managerEvaluation.description": "Aggregate manager evaluations for employees who have completed the onboarding process.",
+
+  "survey.reports.managerEvaluation.noticeTitle": "Report for HR and Managers",
+  "survey.reports.managerEvaluation.noticeDesc": "This tab is only for manager surveys evaluating employees after onboarding is complete.",
+
+  "survey.reports.managerEvaluation.noTemplateTitle": "No Post-Onboarding Evaluation Template Available",
+  "survey.reports.managerEvaluation.noTemplateDesc": "Please create a survey template of type 'Post-Onboarding Evaluation' for the system to generate reports for HR and managers.",
+
+  "survey.reports.managerEvaluation.topConcerns": "Top Concerns",
+  "survey.reports.managerEvaluation.topStrengths": "Top Strengths"
 
 
 }

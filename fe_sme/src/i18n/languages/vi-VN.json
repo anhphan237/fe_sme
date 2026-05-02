@@ -4295,6 +4295,25 @@
   "survey.dimension.manager.teamIntegration": "Khả năng hòa nhập đội nhóm",
   "survey.dimension.manager.attitudeCulture": "Thái độ và phù hợp văn hóa",
   "survey.dimension.manager.recommendation": "Đề xuất tiếp tục chính thức",
-  "survey.dimension.manager.overallComment": "Nhận xét tổng quan"
+  "survey.dimension.manager.overallComment": "Nhận xét tổng quan",
+  
+  "survey.reports.tab.onboardingFeedback": "Khảo sát onboarding",
+  "survey.reports.tab.managerEvaluation": "Đánh giá sau onboarding",
+
+  "survey.reports.onboardingFeedback.title": "Báo cáo khảo sát onboarding",
+  "survey.reports.onboardingFeedback.description": "Theo dõi phản hồi của nhân viên trong quá trình onboarding theo từng mốc khảo sát.",
+
+  "survey.reports.managerEvaluation.title": "Báo cáo đánh giá nhân viên sau onboarding",
+  "survey.reports.managerEvaluation.description": "Tổng hợp đánh giá của quản lý đối với nhân viên đã hoàn thành onboarding.",
+
+  "survey.reports.managerEvaluation.noticeTitle": "Báo cáo dành cho HR và quản lý",
+  "survey.reports.managerEvaluation.noticeDesc": "Tab này chỉ dùng cho các khảo sát quản lý đánh giá nhân viên sau khi onboarding đã hoàn tất.",
+
+  "survey.reports.managerEvaluation.noTemplateTitle": "Chưa có mẫu đánh giá sau onboarding",
+  "survey.reports.managerEvaluation.noTemplateDesc": "Hãy tạo mẫu khảo sát có loại Đánh giá sau onboarding để hệ thống có dữ liệu báo cáo riêng cho HR và quản lý.",
+
+  "survey.reports.managerEvaluation.topConcerns": "Điểm cần theo dõi",
+  "survey.reports.managerEvaluation.topStrengths": "Điểm mạnh của nhân viên",
+  "survey.reports.managerEvaluation.overallRating": "Đánh giá tổng thể"
 
 }
