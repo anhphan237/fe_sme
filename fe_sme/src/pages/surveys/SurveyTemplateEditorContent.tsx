@@ -1,4 +1,4 @@
-import { Form, Modal, Switch } from "antd";
+import { Alert, Form, Modal, Switch } from "antd";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import BaseButton from "@/components/button";
@@ -8,9 +8,11 @@ import BaseTextArea from "@core/components/TextArea/BaseTextArea";
 import { useLocale } from "@/i18n";
 import { notify } from "@/utils/notify";
 import {
+  apiCreateManagerEvaluationSurveyTemplate,
   apiCreateSurveyQuestion,
   apiCreateSurveyTemplate,
   apiDeleteSurveyQuestion,
+  apiUpdateManagerEvaluationSurveyTemplate,
   apiUpdateSurveyQuestion,
   apiUpdateSurveyTemplate,
 } from "@/api/survey/survey.api";
@@ -34,16 +36,189 @@ import {
 import SurveyQuestionBuilder from "./components/SurveyQuestionBuilder";
 import { useSurveyExcelImport } from "./hooks/useSurveyExcelImport";
 
+type TemplatePreset = "MANAGER_EVALUATION_COMPLETED";
+
 type Props = {
   templateId?: string;
   initialValues: TemplateFormValues;
   initialQuestions: LocalQuestion[];
   onCancel: () => void;
   isEditMode: boolean;
+  preset?: TemplatePreset;
 };
 
 type SaveTemplatePayload = {
   forceReplaceDefault?: boolean;
+};
+
+type TargetRole = "EMPLOYEE" | "MANAGER" | "BOTH";
+
+type TemplatePayload = {
+  name: string;
+  description?: string;
+  stage?: string;
+  status: string;
+  targetRole: TargetRole;
+  isDefault: boolean;
+  forceReplaceDefault?: boolean;
+};
+
+type ManagerEvaluationTemplatePayload = {
+  templateId?: string;
+  name: string;
+  description?: string;
+  isDefault?: boolean;
+  forceReplaceDefault?: boolean;
+};
+
+type ApiCreateResult = {
+  templateId?: string;
+  id?: string;
+  data?: {
+    templateId?: string;
+    id?: string;
+  };
+};
+
+const STAGE_COMPLETED = "COMPLETED";
+const TARGET_ROLE_MANAGER = "MANAGER";
+const STATUS_ACTIVE = "ACTIVE";
+
+const normalizeTargetRole = (value?: string): TargetRole => {
+  const raw = String(value ?? "").trim().toUpperCase();
+
+  if (raw === "MANAGER") return "MANAGER";
+  if (raw === "BOTH") return "BOTH";
+
+  return "EMPLOYEE";
+};
+
+const isCustomStage = (stage: unknown): boolean =>
+  String(stage ?? "").trim().toUpperCase() === "CUSTOM";
+
+const isCompletedStage = (stage: unknown): boolean =>
+  String(stage ?? "").trim().toUpperCase() === STAGE_COMPLETED;
+
+const isManagerRole = (targetRole: unknown): boolean =>
+  String(targetRole ?? "").trim().toUpperCase() === TARGET_ROLE_MANAGER;
+
+const withCompletedStageOption = (
+  options: Array<{ value: string; label: string }>,
+  completedLabel: string,
+): Array<{ value: string; label: string }> => {
+  if (options.some((item) => item.value === STAGE_COMPLETED)) {
+    return options;
+  }
+
+  return [
+    ...options,
+    {
+      value: STAGE_COMPLETED,
+      label: completedLabel,
+    },
+  ];
+};
+
+const getManagerEvaluationDimensionOptions = (
+  t: (key: string) => string,
+): Array<{ value: string; label: string }> => [
+  {
+    value: "ROLE_FIT",
+    label: t("survey.dimension.manager.roleFit"),
+  },
+  {
+    value: "WORK_QUALITY",
+    label: t("survey.dimension.manager.workQuality"),
+  },
+  {
+    value: "LEARNING_ABILITY",
+    label: t("survey.dimension.manager.learningAbility"),
+  },
+  {
+    value: "PROACTIVENESS",
+    label: t("survey.dimension.manager.proactiveness"),
+  },
+  {
+    value: "TEAM_INTEGRATION",
+    label: t("survey.dimension.manager.teamIntegration"),
+  },
+  {
+    value: "ATTITUDE_CULTURE",
+    label: t("survey.dimension.manager.attitudeCulture"),
+  },
+  {
+    value: "RECOMMENDATION",
+    label: t("survey.dimension.manager.recommendation"),
+  },
+  {
+    value: "OVERALL_COMMENT",
+    label: t("survey.dimension.manager.overallComment"),
+  },
+];
+
+const extractCreatedTemplateId = (result: unknown): string => {
+  const raw = result as ApiCreateResult;
+
+  return (
+    raw?.templateId ??
+    raw?.id ??
+    raw?.data?.templateId ??
+    raw?.data?.id ??
+    ""
+  );
+};
+
+const extractErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim();
+  }
+
+  if (typeof error === "object" && error !== null) {
+    const obj = error as Record<string, unknown>;
+
+    const message = obj.message;
+    if (typeof message === "string" && message.trim()) {
+      return message.trim();
+    }
+
+    const data = obj.data as Record<string, unknown> | undefined;
+    if (typeof data?.message === "string" && data.message.trim()) {
+      return data.message.trim();
+    }
+
+    const response = obj.response as Record<string, unknown> | undefined;
+    const responseData = response?.data as Record<string, unknown> | undefined;
+
+    if (
+      typeof responseData?.message === "string" &&
+      responseData.message.trim()
+    ) {
+      return responseData.message.trim();
+    }
+  }
+
+  return fallback;
+};
+
+const normalizeManagerEvaluationQuestionDimension = (
+  dimensionCode?: string,
+): string => {
+  const raw = String(dimensionCode ?? "").trim().toUpperCase();
+
+  const allowed = new Set([
+    "ROLE_FIT",
+    "WORK_QUALITY",
+    "LEARNING_ABILITY",
+    "PROACTIVENESS",
+    "TEAM_INTEGRATION",
+    "ATTITUDE_CULTURE",
+    "RECOMMENDATION",
+    "OVERALL_COMMENT",
+  ]);
+
+  if (allowed.has(raw)) return raw;
+
+  return "ROLE_FIT";
 };
 
 const SurveyTemplateEditorContent = ({
@@ -52,15 +227,50 @@ const SurveyTemplateEditorContent = ({
   initialQuestions,
   onCancel,
   isEditMode,
+  preset,
 }: Props) => {
   const { t } = useLocale();
   const queryClient = useQueryClient();
   const [templateForm] = Form.useForm<TemplateFormValues>();
 
-  const stageOptions = getStageOptions(t);
+  const isManagerEvaluationTemplate =
+    preset === "MANAGER_EVALUATION_COMPLETED" ||
+    (isCompletedStage(initialValues.stage) &&
+      isManagerRole(initialValues.targetRole));
+
+  const stageOptions = isManagerEvaluationTemplate
+    ? withCompletedStageOption(
+        getStageOptions(t),
+        t("survey.template.stage.completed"),
+      )
+    : getStageOptions(t);
+
   const statusOptions = getStatusOptions(t);
   const questionTypeOptions = getQuestionTypeOptions(t);
-  const dimensionOptions = getDimensionOptions(t);
+
+  const dimensionOptions = isManagerEvaluationTemplate
+    ? getManagerEvaluationDimensionOptions(t)
+    : getDimensionOptions(t);
+
+  const normalizedInitialValues: TemplateFormValues =
+    isManagerEvaluationTemplate
+      ? ({
+          ...initialValues,
+          stage: STAGE_COMPLETED as unknown as TemplateFormValues["stage"],
+          targetRole: TARGET_ROLE_MANAGER,
+          status: STATUS_ACTIVE,
+          isDefault: Boolean(initialValues.isDefault),
+        } as TemplateFormValues)
+      : initialValues;
+
+  const normalizedInitialQuestions = isManagerEvaluationTemplate
+    ? initialQuestions.map((question) => ({
+        ...question,
+        dimensionCode: normalizeManagerEvaluationQuestionDimension(
+          question.dimensionCode,
+        ),
+      }))
+    : initialQuestions;
 
   const {
     localQuestions,
@@ -76,7 +286,7 @@ const SurveyTemplateEditorContent = ({
     deleteOption,
     importQuestions,
   } = useSurveyTemplateEditor({
-    initialQuestions,
+    initialQuestions: normalizedInitialQuestions,
     isEdit: isEditMode,
   });
 
@@ -86,58 +296,113 @@ const SurveyTemplateEditorContent = ({
     handleChooseImportFile,
     handleImportFileChange,
   } = useSurveyExcelImport({
-    onImportQuestions: importQuestions,
+    onImportQuestions: (questions) => {
+      if (!isManagerEvaluationTemplate) {
+        importQuestions(questions);
+        return;
+      }
+
+      importQuestions(
+        questions.map((question) => ({
+          ...question,
+          dimensionCode: normalizeManagerEvaluationQuestionDimension(
+            question.dimensionCode,
+          ),
+        })),
+      );
+    },
     sampleTemplateUrl: "/files/survey_questions_template.xlsx",
   });
 
   const buildTemplatePayload = (
     values: TemplateFormValues,
     override?: SaveTemplatePayload,
-  ) => ({
-    name: values.name,
-    description: values.description,
-    stage: values.stage,
-    status: values.status ?? "DRAFT",
-    targetRole: values.targetRole ?? "EMPLOYEE",
-    ...(isEditMode
-      ? {
-          isDefault:
-            values.stage === "CUSTOM" ? false : Boolean(values.isDefault),
-        }
-      : {}),
-    ...override,
+  ): TemplatePayload => {
+    const normalizedValues: TemplateFormValues = isManagerEvaluationTemplate
+      ? ({
+          ...values,
+          stage: STAGE_COMPLETED as unknown as TemplateFormValues["stage"],
+          targetRole: TARGET_ROLE_MANAGER,
+          status: STATUS_ACTIVE,
+        } as TemplateFormValues)
+      : values;
+
+    const stage = String(normalizedValues.stage ?? "").trim();
+
+    return {
+      name: normalizedValues.name.trim(),
+      description: normalizedValues.description,
+      stage: stage || undefined,
+      status: normalizedValues.status ?? "DRAFT",
+      targetRole: normalizeTargetRole(normalizedValues.targetRole),
+      isDefault: isCustomStage(stage) ? false : Boolean(normalizedValues.isDefault),
+      ...override,
+    };
+  };
+
+  const buildManagerEvaluationPayload = (
+    templatePayload: TemplatePayload,
+  ): ManagerEvaluationTemplatePayload => ({
+    templateId,
+    name: templatePayload.name,
+    description: templatePayload.description,
+    isDefault: Boolean(templatePayload.isDefault),
+    forceReplaceDefault: templatePayload.forceReplaceDefault,
   });
 
   const saveMutation = useMutation({
     mutationFn: async (override?: SaveTemplatePayload) => {
+      if (isManagerEvaluationTemplate) {
+        templateForm.setFieldsValue({
+          stage: STAGE_COMPLETED as unknown as TemplateFormValues["stage"],
+          targetRole: TARGET_ROLE_MANAGER,
+          status: STATUS_ACTIVE,
+        } as Partial<TemplateFormValues>);
+      }
+
       const values = await templateForm.validateFields();
 
       if (validationErrors.length > 0) {
         notify.error(validationErrors[0]);
-        throw new Error("Validation failed");
+        throw new Error(t("survey.template.editor.validationFailed"));
       }
 
       const templatePayload = buildTemplatePayload(values, override);
-
       let currentTemplateId = templateId ?? "";
 
-      if (isEditMode && currentTemplateId) {
+      if (isManagerEvaluationTemplate) {
+        const managerPayload = buildManagerEvaluationPayload(templatePayload);
+
+        if (isEditMode && currentTemplateId) {
+          await apiUpdateManagerEvaluationSurveyTemplate({
+            ...managerPayload,
+            templateId: currentTemplateId,
+          });
+        } else {
+          const created = await apiCreateManagerEvaluationSurveyTemplate(
+            managerPayload,
+          );
+
+          currentTemplateId = extractCreatedTemplateId(created);
+
+          if (!currentTemplateId) {
+            throw new Error(t("survey.template.editor.missingTemplateId"));
+          }
+        }
+      } else if (isEditMode && currentTemplateId) {
         await apiUpdateSurveyTemplate({
           templateId: currentTemplateId,
           ...templatePayload,
-        });
+        } as Parameters<typeof apiUpdateSurveyTemplate>[0]);
       } else {
-        const created = (await apiCreateSurveyTemplate(templatePayload)) as {
-          templateId?: string;
-          id?: string;
-        };
+        const created = await apiCreateSurveyTemplate(
+          templatePayload as Parameters<typeof apiCreateSurveyTemplate>[0],
+        );
 
-        currentTemplateId = created?.templateId ?? created?.id ?? "";
+        currentTemplateId = extractCreatedTemplateId(created);
 
         if (!currentTemplateId) {
-          throw new Error(
-            "Cannot determine templateId after template creation.",
-          );
+          throw new Error(t("survey.template.editor.missingTemplateId"));
         }
       }
 
@@ -150,13 +415,17 @@ const SurveyTemplateEditorContent = ({
           ? question.options.map((item) => item.trim()).filter(Boolean)
           : [];
 
-        const payload = {
+        const dimensionCode = isManagerEvaluationTemplate
+          ? normalizeManagerEvaluationQuestionDimension(question.dimensionCode)
+          : question.dimensionCode;
+
+        const questionPayload = {
           templateId: currentTemplateId,
           content: question.content.trim(),
           type: question.type,
           required: question.required,
           sortOrder: question.sortOrder,
-          dimensionCode: question.dimensionCode,
+          dimensionCode,
           measurable: question.measurable,
           optionsJson: JSON.stringify(options),
           ...(isChoiceType(question.type) ? { options } : {}),
@@ -169,11 +438,11 @@ const SurveyTemplateEditorContent = ({
         };
 
         if (question.isNew || !question.questionId) {
-          await apiCreateSurveyQuestion(payload);
+          await apiCreateSurveyQuestion(questionPayload);
         } else if (question.isDirty) {
           await apiUpdateSurveyQuestion({
             questionId: question.questionId,
-            ...payload,
+            ...questionPayload,
           });
         }
       }
@@ -203,13 +472,16 @@ const SurveyTemplateEditorContent = ({
       onCancel();
     },
     onError: (error: unknown) => {
-      const message =
-        error instanceof Error ? error.message : t("global.save_failed");
+      const message = extractErrorMessage(error, t("global.save_failed"));
 
       if (message.includes("DEFAULT_TEMPLATE_ALREADY_EXISTS")) {
         Modal.confirm({
-          title: "Replace default template?",
-          content: "Đã có default. Bạn có muốn thay thế không?",
+          title: t("survey.template.default.replaceTitle"),
+          content: isManagerEvaluationTemplate
+            ? t("survey.template.default.replaceManagerEvaluationDesc")
+            : t("survey.template.default.replaceDesc"),
+          okText: t("survey.template.default.replaceConfirm"),
+          cancelText: t("global.cancel"),
           onOk: () => {
             saveMutation.mutate({
               forceReplaceDefault: true,
@@ -220,12 +492,12 @@ const SurveyTemplateEditorContent = ({
       }
 
       if (message.includes("CUSTOM_STAGE_CANNOT_BE_DEFAULT")) {
-        notify.error("Custom survey cannot be default.");
+        notify.error(t("survey.template.default.customCannotDefault"));
         return;
       }
 
       if (message.includes("ONLY_ACTIVE_TEMPLATE_CAN_BE_DEFAULT")) {
-        notify.error("Only ACTIVE template can be set as default.");
+        notify.error(t("survey.template.default.onlyActiveCanDefault"));
         return;
       }
 
@@ -238,25 +510,38 @@ const SurveyTemplateEditorContent = ({
       <div>
         <h1 className="text-lg font-semibold text-[#223A59]">
           {isEditMode
-            ? t("survey.template.editor.edit_title") || "Edit survey template"
-            : t("survey.template.editor.title") || "Create survey template"}
+            ? t("survey.template.editor.edit_title")
+            : isManagerEvaluationTemplate
+              ? t("survey.template.managerEvaluation.createTitle")
+              : t("survey.template.editor.title")}
         </h1>
+
         <p className="mt-0.5 text-sm text-slate-500">
-          {t("survey.template.editor.subtitle") ||
-            "Create and manage template information and questions."}
+          {isManagerEvaluationTemplate
+            ? t("survey.template.managerEvaluation.subtitle")
+            : t("survey.template.editor.subtitle")}
         </p>
       </div>
+
+      {isManagerEvaluationTemplate && (
+        <Alert
+          type="info"
+          showIcon
+          message={t("survey.template.managerEvaluation.noticeTitle")}
+          description={t("survey.template.managerEvaluation.noticeDesc")}
+        />
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-1">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">
-            {t("survey.template.editor.template_info") || "Template info"}
+            {t("survey.template.editor.template_info")}
           </h2>
 
           <Form
             form={templateForm}
             layout="vertical"
-            initialValues={initialValues}
+            initialValues={normalizedInitialValues}
           >
             <BaseInput
               name="name"
@@ -265,9 +550,7 @@ const SurveyTemplateEditorContent = ({
                 rules: [
                   {
                     required: true,
-                    message:
-                      t("survey.template.validation.name_required") ||
-                      "Template name is required",
+                    message: t("survey.template.validation.name_required"),
                   },
                 ],
               }}
@@ -287,45 +570,54 @@ const SurveyTemplateEditorContent = ({
                 label={t("survey.template.stage_label")}
                 options={stageOptions}
                 placeholder={t("global.select")}
+                disabled={isManagerEvaluationTemplate}
                 onChange={(value) => {
-                  if (value === "CUSTOM") {
+                  if (String(value).toUpperCase() === "CUSTOM") {
                     templateForm.setFieldValue("isDefault", false);
                   }
                 }}
               />
+
+              {isManagerEvaluationTemplate && (
+                <p className="mt-1 text-xs text-slate-500">
+                  {t("survey.template.managerEvaluation.stageLockedHint")}
+                </p>
+              )}
             </div>
 
             <div className="mt-4">
               <BaseSelect
                 name="status"
-                label={t("survey.template.status_label") || "Status"}
+                label={t("survey.template.status_label")}
                 options={statusOptions}
                 placeholder={t("global.select")}
+                disabled={isManagerEvaluationTemplate}
               />
             </div>
 
             <div className="mt-4">
               <BaseSelect
                 name="targetRole"
-                label={t("survey.template.target_role") || "Target role"}
+                label={t("survey.template.target_role")}
                 options={[
                   {
                     value: "EMPLOYEE",
-                    label: t("survey.role.employee") || "Employee",
+                    label: t("survey.role.employee"),
                   },
                   {
                     value: "MANAGER",
-                    label: t("survey.role.manager") || "Manager",
+                    label: t("survey.role.manager"),
                   },
                 ]}
                 placeholder={t("global.select")}
+                disabled={isManagerEvaluationTemplate}
                 formItemProps={{
                   rules: [
                     {
                       required: true,
-                      message:
-                        t("survey.template.validation.target_role_required") ||
-                        "Target role is required",
+                      message: t(
+                        "survey.template.validation.target_role_required",
+                      ),
                     },
                   ],
                 }}
@@ -335,20 +627,26 @@ const SurveyTemplateEditorContent = ({
             <div className="mt-4">
               <Form.Item shouldUpdate noStyle>
                 {({ getFieldValue }) => {
-                  const stage = getFieldValue("stage");
-                  const disabled = !isEditMode || stage === "CUSTOM";
+                  const currentStage = getFieldValue("stage");
+                  const disabled = isCustomStage(currentStage);
 
                   return (
                     <Form.Item name="isDefault" valuePropName="checked">
                       <Switch
                         disabled={disabled}
-                        checkedChildren="Default"
-                        unCheckedChildren="Normal"
+                        checkedChildren={t("survey.template.default.on")}
+                        unCheckedChildren={t("survey.template.default.off")}
                       />
                     </Form.Item>
                   );
                 }}
               </Form.Item>
+
+              <p className="mt-1 text-xs text-slate-500">
+                {isManagerEvaluationTemplate
+                  ? t("survey.template.managerEvaluation.defaultHint")
+                  : t("survey.template.default.normalHint")}
+              </p>
             </div>
           </Form>
         </div>
@@ -364,7 +662,19 @@ const SurveyTemplateEditorContent = ({
           onImportFileChange={handleImportFileChange}
           onDownloadSample={handleDownloadSample}
           onAddQuestion={addQuestion}
-          onUpdateQuestion={updateQuestion}
+          onUpdateQuestion={(questionId, patch) => {
+            updateQuestion(
+              questionId,
+              isManagerEvaluationTemplate && patch.dimensionCode
+                ? {
+                    ...patch,
+                    dimensionCode: normalizeManagerEvaluationQuestionDimension(
+                      patch.dimensionCode,
+                    ),
+                  }
+                : patch,
+            );
+          }}
           onDeleteQuestion={deleteQuestion}
           onDuplicateQuestion={duplicateQuestion}
           onMoveQuestion={moveQuestion}
@@ -376,6 +686,7 @@ const SurveyTemplateEditorContent = ({
 
       <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
         <BaseButton label="global.cancel" onClick={onCancel} />
+
         <BaseButton
           type="primary"
           label="survey.template.save"

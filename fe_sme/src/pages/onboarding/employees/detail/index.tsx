@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Card, Input, Modal, Radio, Skeleton, Tabs, Tag } from "antd";
+import { Alert, Button, Card, Input, Modal, Radio, Skeleton, Tabs, Tag } from "antd";
 import {
   CheckCircle2,
   Circle,
@@ -12,20 +12,20 @@ import {
   Send,
   CheckSquare,
 } from "lucide-react";
-
 import BaseModal from "@core/components/Modal/BaseModal";
 import { notify } from "@/utils/notify";
 import { isOnboardingEmployee, canManageOnboarding } from "@/shared/rbac";
 import { useUserStore } from "@/stores/user.store";
 import { useGlobalStore } from "@/stores/global.store";
 import { useLocale } from "@/i18n";
-
 import {
   apiGetInstance,
   apiGetTemplate,
   apiActivateInstance,
   apiCancelInstance,
   apiCompleteInstance,
+  apiGetManagerEvaluationStatus,
+  apiSendManagerEvaluation,
   apiListTasks,
   apiListTasksByAssignee,
   apiUpdateTaskStatus,
@@ -43,12 +43,10 @@ import {
   apiCancelTaskSchedule,
   apiMarkTaskNoShow,
 } from "@/api/onboarding/onboarding.api";
-
 import { apiGetUserById, apiSearchUsers } from "@/api/identity/identity.api";
 import { apiUploadDocumentFile } from "@/api/document/document.api";
 import { mapInstance, mapTask, mapTemplate } from "@/utils/mappers/onboarding";
 import { mapUserDetail } from "@/utils/mappers/identity";
-
 import type { GetUserResponse, UserListItem } from "@/interface/identity";
 import type {
   CommentResponse,
@@ -58,14 +56,13 @@ import type {
   TaskAttachmentAddRequest,
 } from "@/interface/onboarding";
 import type { Dayjs } from "dayjs";
-import type { OnboardingTask } from "@/shared/types";
-
 import { InfoCard } from "./components/InfoCard";
 import { TaskListPanel } from "./components/TaskListPanel";
 import { TaskDrawer } from "./components/TaskDrawer";
 import { StageProgressCard } from "./components/StageProgressCard";
 import { RiskCard } from "./components/RiskCard";
 import { STATUS_DONE, STATUS_DONE_API, STATUS_TAG_COLOR } from "./constants";
+import type { OnboardingTask } from "@/shared/types";
 import { AppLoading } from "@/components/page-loading";
 
 type ManagerEvaluationMode = "SEND_NOW" | "SEND_LATER";
@@ -80,11 +77,7 @@ const extractErrorMessage = (err: unknown, fallback: string): string => {
 
     const response = obj.response as Record<string, unknown> | undefined;
     const responseData = response?.data as Record<string, unknown> | undefined;
-
-    if (
-      typeof responseData?.message === "string" &&
-      responseData.message.trim()
-    ) {
+    if (typeof responseData?.message === "string" && responseData.message.trim()) {
       return responseData.message.trim();
     }
 
@@ -118,7 +111,6 @@ const normalizeRequiredDocuments = (
     [];
 
   const list = Array.isArray(source) ? source : [];
-
   return list
     .map((item) => {
       if (typeof item === "string") {
@@ -131,7 +123,6 @@ const normalizeRequiredDocuments = (
         const documentId = String(
           raw.documentId ?? raw.id ?? raw.document_id ?? "",
         ).trim();
-
         if (!documentId) return null;
 
         const title =
@@ -151,6 +142,8 @@ const normalizeRequiredDocuments = (
     );
 };
 
+// ── Activity Feed ─────────────────────────────────────────────────────────────
+
 const ACTIVITY_STATUS_ICON: Record<string, ReactNode> = {
   DONE: <CheckCircle2 className="h-4 w-4 text-emerald-500" />,
   IN_PROGRESS: <Loader2 className="h-4 w-4 animate-spin text-blue-500" />,
@@ -166,15 +159,14 @@ const ActivityFeed = ({
   tasks: OnboardingTask[];
   t: (key: string, params?: Record<string, unknown>) => string;
 }) => {
+  // Group by checklistName / stage
   const groups = useMemo(() => {
     const map = new Map<string, OnboardingTask[]>();
-
     for (const task of tasks) {
       const key = task.checklistName ?? "—";
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(task);
     }
-
     return Array.from(map.entries());
   }, [tasks]);
 
@@ -193,15 +185,14 @@ const ActivityFeed = ({
       <h3 className="mb-5 text-base font-semibold text-gray-800">
         {t("onboarding.detail.activity.title")}
       </h3>
-
       <div className="space-y-6">
         {groups.map(([group, groupTasks]) => {
           const doneCount = groupTasks.filter(
-            (task) => task.rawStatus === "DONE",
+            (tk) => tk.rawStatus === "DONE",
           ).length;
-
           return (
             <div key={group}>
+              {/* Stage header */}
               <div className="mb-3 flex items-center gap-2 border-b border-gray-100 pb-1.5">
                 <Clock className="h-3.5 w-3.5 text-blue-400" />
                 <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -212,17 +203,19 @@ const ActivityFeed = ({
                 </span>
               </div>
 
+              {/* Tasks in stage */}
               <div className="space-y-2 pl-1">
-                {groupTasks.map((task, index) => {
+                {groupTasks.map((task, idx) => {
                   const raw = task.rawStatus ?? "TODO";
                   const isDone = raw === "DONE";
                   const icon = ACTIVITY_STATUS_ICON[raw] ?? (
                     <Circle className="h-4 w-4 text-gray-300" />
                   );
-                  const isLast = index === groupTasks.length - 1;
+                  const isLast = idx === groupTasks.length - 1;
 
                   return (
                     <div key={task.id} className="flex gap-3">
+                      {/* Connector + icon */}
                       <div className="flex flex-col items-center">
                         <div
                           className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${
@@ -234,11 +227,9 @@ const ActivityFeed = ({
                                     raw === "WAIT_ACK"
                                   ? "border-amber-200 bg-amber-50"
                                   : "border-gray-100 bg-gray-50"
-                          }`}
-                        >
+                          }`}>
                           {icon}
                         </div>
-
                         {!isLast && (
                           <div
                             className={`mt-0.5 w-0.5 flex-1 min-h-[1rem] ${
@@ -248,6 +239,7 @@ const ActivityFeed = ({
                         )}
                       </div>
 
+                      {/* Task content */}
                       <div className="mb-1 flex min-w-0 flex-1 items-start justify-between gap-2 pb-1">
                         <div className="min-w-0">
                           <span
@@ -255,11 +247,9 @@ const ActivityFeed = ({
                               isDone
                                 ? "font-normal text-gray-400 line-through"
                                 : "font-medium text-gray-800"
-                            }`}
-                          >
+                            }`}>
                             {task.title}
                           </span>
-
                           {task.dueDate && (
                             <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-400">
                               <Clock className="h-3 w-3" />
@@ -267,11 +257,9 @@ const ActivityFeed = ({
                             </p>
                           )}
                         </div>
-
                         <Tag
                           color={STATUS_TAG_COLOR[raw] ?? "default"}
-                          style={{ margin: 0, fontSize: 11, flexShrink: 0 }}
-                        >
+                          style={{ margin: 0, fontSize: 11, flexShrink: 0 }}>
                           {t(`onboarding.task.status.${raw.toLowerCase()}`)}
                         </Tag>
                       </div>
@@ -287,19 +275,21 @@ const ActivityFeed = ({
   );
 };
 
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 const EmployeeDetail = () => {
   const { employeeId: instanceId } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { t } = useLocale();
-
   const currentUser = useUserStore((state) => state.currentUser);
   const setBreadcrumbs = useGlobalStore((state) => state.setBreadcrumbs);
-
   const isEmployee = isOnboardingEmployee(currentUser?.roles ?? []);
   const canManage = canManageOnboarding(currentUser?.roles ?? []);
   const userId = currentUser?.id ?? "";
   const isHr = (currentUser?.roles ?? []).includes("HR");
+
+  // ── Local state ─────────────────────────────────────────────────────────────
 
   const [tab, setTab] = useState("checklist");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -310,10 +300,13 @@ const EmployeeDetail = () => {
   const [confirmAction, setConfirmAction] = useState<
     "cancel" | "complete" | null
   >(null);
-
   const [managerEvaluationMode, setManagerEvaluationMode] =
     useState<ManagerEvaluationMode>("SEND_NOW");
+  const [completeInlineError, setCompleteInlineError] = useState<string | null>(
+    null,
+  );
 
+  // Schedule state
   const [scheduleMode, setScheduleMode] = useState<
     null | "propose" | "reschedule"
   >(null);
@@ -324,6 +317,8 @@ const EmployeeDetail = () => {
   const [cancelScheduleReason, setCancelScheduleReason] = useState("");
   const [noShowReason, setNoShowReason] = useState("");
   const [uploadingFile, setUploadingFile] = useState(false);
+
+  // ── Queries ──────────────────────────────────────────────────────────────────
 
   const {
     data: instance,
@@ -339,7 +334,6 @@ const EmployeeDetail = () => {
     select: (res: unknown) => {
       const r = res as Record<string, unknown>;
       const raw = r?.instance ?? r?.data ?? r?.result ?? r?.payload ?? res;
-
       return mapInstance(
         raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {},
       );
@@ -354,20 +348,21 @@ const EmployeeDetail = () => {
     queryKey: [
       "onboarding-tasks-by-instance",
       instance?.id ?? instanceId ?? "",
-      isEmployee ? "assignee" : "onboarding",
+      isEmployee ? "assignee" : "manager",
     ],
+    // Chờ instance load để luôn filter chính xác theo onboarding hiện tại
     enabled: Boolean(instance?.id),
     refetchOnMount: "always",
     queryFn: () => {
       if (isEmployee) {
+        // Nhân viên xem task của chính mình → dùng listByAssignee
         return apiListTasksByAssignee({ size: 100 });
       }
-
+      // HR/Manager xem task của instance → dùng listByOnboarding
       return apiListTasks(instance!.id);
     },
     select: (res: unknown) => {
       const r = res as Record<string, unknown>;
-
       const data =
         (r?.data as Record<string, unknown> | undefined) ??
         (r?.result as Record<string, unknown> | undefined) ??
@@ -383,10 +378,7 @@ const EmployeeDetail = () => {
 
       if (isEmployee) {
         const currentInstanceId = instance?.id ?? instanceId;
-
-        if (!currentInstanceId) {
-          return all;
-        }
+        if (!currentInstanceId) return all;
 
         return all.filter((task) => {
           const rawTask = task as OnboardingTask & {
@@ -401,9 +393,7 @@ const EmployeeDetail = () => {
             rawTask.instanceId ??
             null;
 
-          if (!taskOnboardingId) {
-            return true;
-          }
+          if (!taskOnboardingId) return true;
 
           return taskOnboardingId === currentInstanceId;
         });
@@ -420,7 +410,6 @@ const EmployeeDetail = () => {
     select: (res: unknown) => {
       const r = res as Record<string, unknown>;
       const raw = r?.template ?? r?.data ?? r?.result ?? r?.payload ?? res;
-
       return mapTemplate(
         raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {},
       );
@@ -441,6 +430,40 @@ const EmployeeDetail = () => {
     select: (res: unknown) => mapUserDetail(res as GetUserResponse),
   });
 
+  const {
+    data: managerEvaluation,
+    isFetching: managerEvaluationFetching,
+  } = useQuery({
+    queryKey: ["manager-evaluation-status", instanceId],
+    enabled:
+      Boolean(instanceId) &&
+      canManage &&
+      ["DONE", "COMPLETED", "OFFICIAL"].includes(
+        String(instance?.status ?? "").toUpperCase(),
+      ),
+    queryFn: () => apiGetManagerEvaluationStatus(instanceId!),
+    select: (res: unknown) => {
+      const raw = res as Record<string, unknown>;
+      const data =
+        (raw?.data as Record<string, unknown> | undefined) ??
+        (raw?.result as Record<string, unknown> | undefined) ??
+        (raw?.payload as Record<string, unknown> | undefined) ??
+        raw;
+
+      return data as {
+        instanceId?: string;
+        onboardingStatus?: string;
+        managerEvaluationStatus?: "PENDING" | "SENT" | "SUBMITTED" | "SKIPPED";
+        managerEvaluationSurveyInstanceId?: string | null;
+        managerUserId?: string | null;
+        managerName?: string | null;
+        targetEmployeeName?: string | null;
+        targetEmployeeEmail?: string | null;
+        message?: string | null;
+      };
+    },
+  });
+
   const { data: taskDetail, isLoading: taskDetailLoading } = useQuery({
     queryKey: ["onboarding-task-detail", selectedTaskId ?? ""],
     queryFn: () =>
@@ -453,13 +476,12 @@ const EmployeeDetail = () => {
       const r = res as Record<string, unknown>;
       const rawCandidate =
         r?.task ?? r?.data ?? r?.result ?? r?.payload ?? r?.item ?? res;
-
       const detail =
         rawCandidate && typeof rawCandidate === "object"
           ? (rawCandidate as Record<string, unknown>)
           : {};
 
-      const selectedTask = tasks.find((task) => task.id === selectedTaskId);
+      const selectedTask = tasks.find((tk) => tk.id === selectedTaskId);
       const requiredDocuments = normalizeRequiredDocuments(
         detail,
         selectedTask,
@@ -479,11 +501,9 @@ const EmployeeDetail = () => {
     select: (res: unknown) => {
       const r = res as Record<string, unknown>;
       const list = r?.comments ?? r?.data ?? [];
-
       return (Array.isArray(list) ? list : []).map((item) => {
         const c = item as Record<string, unknown>;
         const content = String(c.content ?? c.message ?? "");
-
         return {
           ...(c as unknown as CommentResponse),
           message: content,
@@ -504,22 +524,22 @@ const EmployeeDetail = () => {
         (r as { items?: unknown }).items ??
         (r as { list?: unknown }).list ??
         (Array.isArray(r) ? r : []);
-
       return (Array.isArray(list) ? list : []) as UserListItem[];
     },
   });
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
 
   const invalidateTasks = () => {
     queryClient.invalidateQueries({
       queryKey: ["onboarding-tasks-by-instance"],
     });
-
-    if (selectedTaskId) {
-      queryClient.invalidateQueries({
-        queryKey: ["onboarding-task-detail", selectedTaskId],
-      });
-    }
+    queryClient.invalidateQueries({
+      queryKey: ["onboarding-task-detail", selectedTaskId],
+    });
   };
+
+  // ── Mutations ────────────────────────────────────────────────────────────────
 
   const updateTaskStatus = useMutation({
     mutationFn: ({ taskId, status }: { taskId: string; status: string }) =>
@@ -535,18 +555,46 @@ const EmployeeDetail = () => {
       managerUserId?: string;
     }) => apiActivateInstance({ instanceId, managerUserId }),
   });
-
   const cancelInstance = useMutation({
     mutationFn: (id: string) => apiCancelInstance(id),
   });
-
   const completeInstance = useMutation({
-    mutationFn: ({ id, mode }: { id: string; mode: ManagerEvaluationMode }) =>
+    mutationFn: ({
+      id,
+      mode,
+    }: {
+      id: string;
+      mode: ManagerEvaluationMode;
+    }) =>
       apiCompleteInstance({
         instanceId: id,
         managerEvaluationMode: mode,
         managerEvaluationDueDays: mode === "SEND_NOW" ? 7 : undefined,
       }),
+  });
+
+  const sendManagerEvaluationMutation = useMutation({
+    mutationFn: () =>
+      apiSendManagerEvaluation({
+        instanceId: instanceId!,
+        managerEvaluationDueDays: 7,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["manager-evaluation-status", instanceId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["instance", instanceId] });
+
+      notify.success("Đã gửi khảo sát đánh giá cho quản lý.");
+    },
+    onError: (err) => {
+      notify.error(
+        extractErrorMessage(
+          err,
+          "Không thể gửi khảo sát đánh giá. Vui lòng kiểm tra lại mẫu khảo sát.",
+        ),
+      );
+    },
   });
 
   const acknowledgeMutation = useMutation({
@@ -683,15 +731,15 @@ const EmployeeDetail = () => {
     onError: () => notify.error(t("onboarding.task.toast.failed")),
   });
 
+  // ── Derived data ─────────────────────────────────────────────────────────────
+
   const employeeDisplayName =
     employeeDetail?.fullName || instance?.employeeName || "-";
   const employeeDisplayEmail = employeeDetail?.email ?? null;
   const managerDisplayName =
     managerDetail?.fullName || instance?.managerName || "—";
 
-  const completedCount = tasks.filter(
-    (task) => task.status === STATUS_DONE,
-  ).length;
+  const completedCount = tasks.filter((t) => t.status === STATUS_DONE).length;
   const totalTasks = tasks.length;
   const progressPercent =
     totalTasks > 0
@@ -703,38 +751,40 @@ const EmployeeDetail = () => {
       string,
       { name: string; done: number; total: number }
     > = {};
-
     for (const task of tasks) {
       const key = task.checklistName ?? "—";
       if (!groups[key]) groups[key] = { name: key, done: 0, total: 0 };
-
       groups[key].total++;
-
-      if (task.rawStatus === "DONE") {
-        groups[key].done++;
-      }
+      if (task.rawStatus === "DONE") groups[key].done++;
     }
-
-    return Object.values(groups).map((group) => ({
-      name: group.name,
-      done: group.done,
-      total: group.total,
-      percent: Math.round((group.done / (group.total || 1)) * 100),
+    return Object.values(groups).map((g) => ({
+      name: g.name,
+      done: g.done,
+      total: g.total,
+      percent: Math.round((g.done / (g.total || 1)) * 100),
     }));
   }, [tasks]);
 
   const instanceStatus = instance?.status?.toUpperCase() ?? "";
+  const isEmployeeOfficialOrCompleted =
+    instanceStatus === "DONE" ||
+    instanceStatus === "COMPLETED" ||
+    instanceStatus === "OFFICIAL";
+
   const isActioning =
     activateInstance.isPending ||
     cancelInstance.isPending ||
     completeInstance.isPending;
 
+  // Issue #4 (partial): HR always can approve/reject; Manager only if they are the line manager of this instance
   const canApproveOrReject =
     canManage && (isHr || instance?.managerUserId === userId);
 
   const taskIndex = selectedTaskId
-    ? tasks.findIndex((task) => task.id === selectedTaskId)
+    ? tasks.findIndex((tk) => tk.id === selectedTaskId)
     : -1;
+
+  // ── Side effects ─────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (instanceId && employeeDisplayName !== "-") {
@@ -742,41 +792,38 @@ const EmployeeDetail = () => {
     }
   }, [instanceId, employeeDisplayName, setBreadcrumbs]);
 
+  // ── Handlers ─────────────────────────────────────────────────────────────────
+
   const handleActivate = async () => {
     if (!instanceId) return;
-
     try {
       await activateInstance.mutateAsync({
         instanceId,
         managerUserId: instance?.managerUserId ?? undefined,
       });
-
       queryClient.invalidateQueries({ queryKey: ["instance", instanceId] });
       notify.success(t("onboarding.detail.toast.activated"));
-    } catch (err) {
-      notify.error(
-        extractErrorMessage(err, t("onboarding.detail.toast.action_failed")),
-      );
+    } catch {
+      notify.error(t("onboarding.detail.toast.action_failed"));
     }
   };
 
   const handleCancel = async () => {
     if (!instanceId) return;
-
     try {
       await cancelInstance.mutateAsync(instanceId);
       queryClient.invalidateQueries({ queryKey: ["instance", instanceId] });
       notify.success(t("onboarding.detail.toast.cancelled"));
       setConfirmAction(null);
-    } catch (err) {
-      notify.error(
-        extractErrorMessage(err, t("onboarding.detail.toast.action_failed")),
-      );
+    } catch {
+      notify.error(t("onboarding.detail.toast.action_failed"));
     }
   };
 
   const handleComplete = async () => {
     if (!instanceId) return;
+
+    setCompleteInlineError(null);
 
     try {
       const res = await completeInstance.mutateAsync({
@@ -790,6 +837,9 @@ const EmployeeDetail = () => {
       });
       queryClient.invalidateQueries({ queryKey: ["instances"] });
       queryClient.invalidateQueries({ queryKey: ["onboarding-instances"] });
+      queryClient.invalidateQueries({
+        queryKey: ["manager-evaluation-status", instanceId],
+      });
 
       const raw = res as Record<string, unknown>;
       const data =
@@ -820,9 +870,17 @@ const EmployeeDetail = () => {
 
       setConfirmAction(null);
     } catch (err) {
-      notify.error(
-        extractErrorMessage(err, t("onboarding.detail.toast.action_failed")),
+      const message = extractErrorMessage(
+        err,
+        t("onboarding.detail.toast.action_failed"),
       );
+
+      if (managerEvaluationMode === "SEND_NOW") {
+        setCompleteInlineError(message);
+        return;
+      }
+
+      notify.error(message);
     }
   };
 
@@ -832,14 +890,11 @@ const EmployeeDetail = () => {
         taskId: task.id,
         status: "IN_PROGRESS",
       });
-
       invalidateTasks();
       notify.success(t("onboarding.task.toast.started"));
       return true;
-    } catch (err) {
-      notify.error(
-        extractErrorMessage(err, t("onboarding.detail.toast.task_failed")),
-      );
+    } catch {
+      notify.error(t("onboarding.detail.toast.task_failed"));
       return false;
     }
   };
@@ -848,38 +903,31 @@ const EmployeeDetail = () => {
     const isDone = task.status === STATUS_DONE;
     const rawStatus = task.rawStatus ?? "";
 
+    // Revert DONE → TODO
     if (isDone) {
       try {
-        await updateTaskStatus.mutateAsync({
-          taskId: task.id,
-          status: "TODO",
-        });
-
+        await updateTaskStatus.mutateAsync({ taskId: task.id, status: "TODO" });
         invalidateTasks();
         notify.success(t("onboarding.detail.toast.task_undone"));
-      } catch (err) {
-        notify.error(
-          extractErrorMessage(err, t("onboarding.detail.toast.task_failed")),
-        );
+      } catch {
+        notify.error(t("onboarding.detail.toast.task_failed"));
       }
-
       return;
     }
 
+    // API flow: TODO/ASSIGNED -> IN_PROGRESS trước khi thao tác tiếp theo
     if (rawStatus === "TODO" || rawStatus === "ASSIGNED") {
       await handleStartTask(task);
       return;
     }
 
+    // requireAck flow: IN_PROGRESS -> acknowledge -> WAIT_ACK -> DONE
     if (task.requireAck && rawStatus === "IN_PROGRESS") {
       try {
         await acknowledgeMutation.mutateAsync(task.id);
-      } catch (err) {
-        notify.error(
-          extractErrorMessage(err, t("onboarding.detail.toast.task_failed")),
-        );
+      } catch {
+        notify.error(t("onboarding.detail.toast.task_failed"));
       }
-
       return;
     }
 
@@ -889,50 +937,42 @@ const EmployeeDetail = () => {
           taskId: task.id,
           status: STATUS_DONE_API,
         });
-
         invalidateTasks();
         notify.success(t("onboarding.detail.toast.task_done"));
-      } catch (err) {
-        notify.error(
-          extractErrorMessage(err, t("onboarding.detail.toast.task_failed")),
-        );
+      } catch {
+        notify.error(t("onboarding.detail.toast.task_failed"));
       }
-
       return;
     }
 
+    // requiresManagerApproval flow: IN_PROGRESS -> PENDING_APPROVAL
     if (task.requiresManagerApproval && rawStatus === "IN_PROGRESS") {
       try {
         await updateTaskStatus.mutateAsync({
           taskId: task.id,
           status: "PENDING_APPROVAL",
         });
-
         invalidateTasks();
         notify.success(t("onboarding.task.toast.submitted_approval"));
-      } catch (err) {
-        notify.error(
-          extractErrorMessage(err, t("onboarding.detail.toast.task_failed")),
-        );
+      } catch {
+        notify.error(t("onboarding.detail.toast.task_failed"));
       }
-
       return;
     }
 
+    // Chỉ cho DONE khi task đang IN_PROGRESS
     if (rawStatus !== "IN_PROGRESS") return;
 
+    // Normal flow: IN_PROGRESS -> DONE
     try {
       await updateTaskStatus.mutateAsync({
         taskId: task.id,
         status: STATUS_DONE_API,
       });
-
       invalidateTasks();
       notify.success(t("onboarding.detail.toast.task_done"));
-    } catch (err) {
-      notify.error(
-        extractErrorMessage(err, t("onboarding.detail.toast.task_failed")),
-      );
+    } catch {
+      notify.error(t("onboarding.detail.toast.task_failed"));
     }
   };
 
@@ -958,7 +998,6 @@ const EmployeeDetail = () => {
 
   const handleAddComment = (parentCommentId?: string) => {
     if (!selectedTaskId || !commentInput.trim()) return;
-
     addCommentMutation.mutate({
       taskId: selectedTaskId,
       content: commentInput.trim(),
@@ -968,20 +1007,15 @@ const EmployeeDetail = () => {
 
   const handleUploadAttachment = async (file: File) => {
     if (!selectedTaskId) return;
-
     setUploadingFile(true);
-
     try {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("name", file.name);
-
       const uploadRes = await apiUploadDocumentFile(formData);
-
       if (!uploadRes.fileUrl) {
         throw new Error("Upload succeeded but file URL is missing");
       }
-
       await addAttachmentMutation.mutateAsync({
         taskId: selectedTaskId,
         fileName: file.name,
@@ -998,7 +1032,6 @@ const EmployeeDetail = () => {
 
   const handleProposeSchedule = () => {
     if (!selectedTaskId || !scheduleDates[0] || !scheduleDates[1]) return;
-
     scheduleProposeMutation.mutate({
       taskId: selectedTaskId,
       scheduledStartAt: scheduleDates[0].toISOString(),
@@ -1008,7 +1041,6 @@ const EmployeeDetail = () => {
 
   const handleReschedule = () => {
     if (!selectedTaskId || !scheduleDates[0] || !scheduleDates[1]) return;
-
     rescheduleMutation.mutate({
       taskId: selectedTaskId,
       scheduledStartAt: scheduleDates[0].toISOString(),
@@ -1016,6 +1048,8 @@ const EmployeeDetail = () => {
       reason: scheduleReason || undefined,
     });
   };
+
+  // ── Loading / Error states ───────────────────────────────────────────────────
 
   if (instanceLoading && !instance) {
     return <Skeleton.Input active block style={{ height: 256 }} />;
@@ -1032,7 +1066,6 @@ const EmployeeDetail = () => {
             {t("onboarding.detail.subtitle")}
           </p>
         </div>
-
         <Card>
           <div className="flex flex-col items-center gap-3 py-6 text-center">
             <p className="text-sm font-medium text-ink">
@@ -1058,15 +1091,13 @@ const EmployeeDetail = () => {
             {t("onboarding.detail.subtitle")}
           </p>
         </div>
-
         <Card>
           <p className="text-sm text-muted">
             {t("onboarding.detail.not_found")}
           </p>
           <Button
             className="mt-4"
-            onClick={() => navigate("/onboarding/employees")}
-          >
+            onClick={() => navigate("/onboarding/employees")}>
             {t("onboarding.detail.back_to_list")}
           </Button>
         </Card>
@@ -1074,17 +1105,14 @@ const EmployeeDetail = () => {
     );
   }
 
-  const isEmployeeOfficialOrCompleted =
-    instanceStatus === "DONE" ||
-    instanceStatus === "COMPLETED" ||
-    instanceStatus === "OFFICIAL";
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <div className="relative space-y-6">
       {(instanceFetching || tasksFetching) && !instanceLoading && (
         <AppLoading />
       )}
-
+      {/* ── Page header ──────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-ink">
@@ -1096,51 +1124,41 @@ const EmployeeDetail = () => {
             {templateDetail?.name ?? t("onboarding.detail.subtitle")}
           </p>
         </div>
-
         <div className="flex shrink-0 items-center gap-2">
           <Button onClick={() => navigate("/onboarding/employees")}>
             {t("global.back")}
           </Button>
-
           {canManage && instanceStatus === "DRAFT" && (
             <Button
               type="primary"
               onClick={handleActivate}
-              disabled={isActioning}
-            >
+              disabled={isActioning}>
               {t("onboarding.detail.action.activate")}
             </Button>
           )}
-
           {canManage && instanceStatus === "ACTIVE" && (
             <>
               <Button
                 onClick={() => setConfirmAction("cancel")}
-                disabled={isActioning}
-              >
+                disabled={isActioning}>
                 {t("onboarding.detail.action.cancel")}
               </Button>
               <Button
                 type="primary"
                 onClick={() => {
                   setManagerEvaluationMode("SEND_NOW");
+                  setCompleteInlineError(null);
                   setConfirmAction("complete");
                 }}
-                disabled={isActioning}
-              >
+                disabled={isActioning}>
                 {t("onboarding.detail.action.complete")}
               </Button>
             </>
           )}
-
-          {isEmployeeOfficialOrCompleted && (
-            <Tag color="green" style={{ marginInlineEnd: 0 }}>
-              {t("onboarding.detail.status.completed")}
-            </Tag>
-          )}
         </div>
       </div>
 
+      {/* ── Info card ────────────────────────────────────────────────────────── */}
       <InfoCard
         instance={instance}
         template={templateDetail}
@@ -1153,6 +1171,66 @@ const EmployeeDetail = () => {
         progressPercent={progressPercent}
       />
 
+      {canManage && isEmployeeOfficialOrCompleted && (
+        <Card className="border border-slate-200 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold text-slate-900">
+                  Đánh giá sau onboarding
+                </p>
+
+                {managerEvaluationFetching && (
+                  <Tag color="default">Đang kiểm tra</Tag>
+                )}
+
+                {!managerEvaluationFetching &&
+                  managerEvaluation?.managerEvaluationStatus === "PENDING" && (
+                    <Tag color="warning">Chưa gửi</Tag>
+                  )}
+
+                {!managerEvaluationFetching &&
+                  managerEvaluation?.managerEvaluationStatus === "SENT" && (
+                    <Tag color="processing">Đã gửi</Tag>
+                  )}
+
+                {!managerEvaluationFetching &&
+                  managerEvaluation?.managerEvaluationStatus === "SUBMITTED" && (
+                    <Tag color="success">Đã hoàn tất</Tag>
+                  )}
+              </div>
+
+              <p className="mt-1 text-sm text-slate-600">
+                {managerEvaluation?.managerEvaluationStatus === "PENDING"
+                  ? "Onboarding đã hoàn tất nhưng chưa gửi khảo sát đánh giá cho quản lý."
+                  : managerEvaluation?.managerEvaluationStatus === "SENT"
+                    ? "Khảo sát đánh giá đã được gửi cho quản lý. Đang chờ phản hồi."
+                    : managerEvaluation?.managerEvaluationStatus === "SUBMITTED"
+                      ? "Quản lý đã hoàn tất phần đánh giá nhân viên sau onboarding."
+                      : "Hệ thống sẽ kiểm tra trạng thái khảo sát đánh giá của quản lý."}
+              </p>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Quản lý:{" "}
+                <span className="font-medium text-slate-700">
+                  {managerEvaluation?.managerName || managerDisplayName || "—"}
+                </span>
+              </p>
+            </div>
+
+            {managerEvaluation?.managerEvaluationStatus === "PENDING" && (
+              <Button
+                type="primary"
+                loading={sendManagerEvaluationMutation.isPending}
+                onClick={() => sendManagerEvaluationMutation.mutate()}>
+                Gửi khảo sát cho quản lý
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* ── Tabs ─────────────────────────────────────────────────────────────── */}
       <Tabs
         activeKey={tab}
         onChange={setTab}
@@ -1162,6 +1240,7 @@ const EmployeeDetail = () => {
         ]}
       />
 
+      {/* ── Checklist tab ────────────────────────────────────────────────────── */}
       {tab === "checklist" && (
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="flex flex-col gap-4">
@@ -1170,13 +1249,10 @@ const EmployeeDetail = () => {
               tasks={tasks}
               onTaskClick={(taskId) => {
                 const task = tasks.find((item) => item.id === taskId);
-                if (task) {
-                  openTaskDrawer(task);
-                }
+                if (task) openTaskDrawer(task);
               }}
             />
           </div>
-
           <TaskListPanel
             tasks={tasks}
             isLoading={tasksLoading}
@@ -1197,8 +1273,10 @@ const EmployeeDetail = () => {
         </div>
       )}
 
+      {/* ── Activity tab ─────────────────────────────────────────────────────── */}
       {tab === "activity" && <ActivityFeed tasks={tasks} t={t} />}
 
+      {/* ── Task detail drawer ───────────────────────────────────────────────── */}
       <TaskDrawer
         open={Boolean(selectedTaskId)}
         taskDetail={taskDetail}
@@ -1236,8 +1314,7 @@ const EmployeeDetail = () => {
         onAddComment={handleAddComment}
         onStart={async () => {
           if (!taskDetail) return;
-
-          const task = tasks.find((item) => item.id === taskDetail.taskId);
+          const task = tasks.find((tk) => tk.id === taskDetail.taskId);
           if (task) await handleStartTask(task);
         }}
         onAcknowledge={() =>
@@ -1245,42 +1322,34 @@ const EmployeeDetail = () => {
         }
         onConfirmComplete={async () => {
           if (!taskDetail) return;
-
           try {
             await updateTaskStatus.mutateAsync({
               taskId: taskDetail.taskId,
               status: STATUS_DONE_API,
             });
-
             invalidateTasks();
             closeTaskDrawer();
             notify.success(t("onboarding.task.toast.done"));
-          } catch (err) {
-            notify.error(
-              extractErrorMessage(err, t("onboarding.task.toast.failed")),
-            );
+          } catch {
+            notify.error(t("onboarding.task.toast.failed"));
           }
         }}
         onSubmitApproval={async () => {
           if (!taskDetail) return;
-
           try {
             await updateTaskStatus.mutateAsync({
               taskId: taskDetail.taskId,
               status: "PENDING_APPROVAL",
             });
-
             invalidateTasks();
             closeTaskDrawer();
             notify.success(t("onboarding.task.toast.submitted_approval"));
-          } catch (err) {
-            notify.error(
-              extractErrorMessage(err, t("onboarding.task.toast.failed")),
-            );
+          } catch {
+            notify.error(t("onboarding.task.toast.failed"));
           }
         }}
         onMarkDone={async () => {
-          const task = tasks.find((item) => item.id === selectedTaskId);
+          const task = tasks.find((tk) => tk.id === selectedTaskId);
           if (task) await handleToggleTask(task);
           closeTaskDrawer();
         }}
@@ -1305,9 +1374,8 @@ const EmployeeDetail = () => {
           }
         }}
         onAssign={(assigneeUserId) => {
-          if (selectedTaskId) {
+          if (selectedTaskId)
             assignMutation.mutate({ taskId: selectedTaskId, assigneeUserId });
-          }
         }}
         onUploadAttachment={handleUploadAttachment}
         onScheduleModeChange={setScheduleMode}
@@ -1337,6 +1405,7 @@ const EmployeeDetail = () => {
         onCheckpointConfirmed={invalidateTasks}
       />
 
+      {/* ── Reject reason modal ──────────────────────────────────────────────── */}
       <Modal
         title={t("onboarding.task.action.reject")}
         open={rejectModalOpen}
@@ -1354,8 +1423,7 @@ const EmployeeDetail = () => {
         }}
         okText={t("onboarding.task.action.reject")}
         cancelText={t("global.cancel_action")}
-        okButtonProps={{ danger: true, loading: rejectMutation.isPending }}
-      >
+        okButtonProps={{ danger: true, loading: rejectMutation.isPending }}>
         <div className="py-2">
           <p className="mb-3 text-sm text-gray-600">
             {t("onboarding.task.reject.desc") ??
@@ -1364,7 +1432,7 @@ const EmployeeDetail = () => {
           <Input.TextArea
             rows={3}
             value={rejectReason}
-            onChange={(event) => setRejectReason(event.target.value)}
+            onChange={(e) => setRejectReason(e.target.value)}
             placeholder={
               t("onboarding.task.reject.placeholder") ?? "Nhập lý do từ chối..."
             }
@@ -1373,22 +1441,20 @@ const EmployeeDetail = () => {
         </div>
       </Modal>
 
+      {/* ── Confirm cancel modal ─────────────────────────────────────────────── */}
       <BaseModal
         open={confirmAction === "cancel"}
         title={t("onboarding.detail.action.confirm_cancel_title")}
         onCancel={() => setConfirmAction(null)}
-        footer={null}
-      >
+        footer={null}>
         <div className="grid gap-4">
           <p className="text-sm text-muted">
             {t("onboarding.detail.action.confirm_cancel_desc")}
           </p>
-
           <div className="flex justify-end gap-3">
             <Button
               onClick={() => setConfirmAction(null)}
-              disabled={isActioning}
-            >
+              disabled={isActioning}>
               {t("global.cancel_action")}
             </Button>
             <Button onClick={handleCancel} disabled={isActioning}>
@@ -1398,110 +1464,148 @@ const EmployeeDetail = () => {
         </div>
       </BaseModal>
 
+      {/* ── Confirm complete modal ───────────────────────────────────────────── */}
       <BaseModal
-  open={confirmAction === "complete"}
-  title="Hoàn tất onboarding"
-  onCancel={() => setConfirmAction(null)}
-  footer={null}
->
-  <div className="grid gap-5">
-    <div className="space-y-2">
-      <p className="text-sm text-slate-600">
-        Bạn sắp hoàn tất quá trình onboarding cho nhân viên này.
-      </p>
+        open={confirmAction === "complete"}
+        title="Hoàn tất onboarding"
+        onCancel={() => setConfirmAction(null)}
+        footer={null}>
+        <div className="grid gap-5">
+          <div className="space-y-2">
+            <p className="text-sm text-slate-600">
+              Bạn sắp hoàn tất quá trình onboarding cho nhân viên này.
+            </p>
 
-      <div className="rounded-xl bg-slate-50 px-4 py-3">
-        <p className="text-sm text-slate-700">
-          Sau bước này, nhân viên sẽ được chuyển sang{" "}
-          <span className="font-semibold text-slate-900">
-            trạng thái chính thức
-          </span>
-          .
-        </p>
+            <div className="rounded-xl bg-slate-50 px-4 py-3">
+              <p className="text-sm text-slate-700">
+                Sau bước này, nhân viên sẽ được chuyển sang{" "}
+                <span className="font-semibold text-slate-900">
+                  trạng thái chính thức
+                </span>
+                .
+              </p>
 
-        <p className="mt-1 text-sm text-slate-700">
-          <span className="font-medium text-slate-900">
-            Quản lý nhận đánh giá:
-          </span>{" "}
-          {managerDisplayName || "—"}
-        </p>
-      </div>
-    </div>
-
-    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-      <p className="mb-3 text-sm font-semibold text-slate-900">
-        Chọn thời điểm gửi đánh giá cho quản lý
-      </p>
-
-      <Radio.Group
-        value={managerEvaluationMode}
-        onChange={(event) =>
-          setManagerEvaluationMode(
-            event.target.value as ManagerEvaluationMode,
-          )
-        }
-        className="grid gap-3"
-      >
-        <label
-          className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${
-            managerEvaluationMode === "SEND_NOW"
-              ? "border-blue-500 bg-blue-50"
-              : "border-slate-200 bg-white hover:border-slate-300"
-          }`}
-        >
-          <Radio value="SEND_NOW" className="mt-0.5" />
-          <div className="min-w-0">
-            <div className="text-sm font-semibold text-slate-900">
-              Gửi ngay sau khi hoàn tất
-            </div>
-            <div className="mt-1 text-sm leading-6 text-slate-600">
-              Hệ thống sẽ gửi khảo sát đánh giá cho quản lý ngay sau khi
-              onboarding được hoàn tất. Nếu chưa có mẫu khảo sát mặc định, hệ
-              thống sẽ báo để HR kiểm tra lại.
+              <p className="mt-1 text-sm text-slate-700">
+                <span className="font-medium text-slate-900">
+                  Quản lý nhận đánh giá:
+                </span>{" "}
+                {managerDisplayName || "—"}
+              </p>
             </div>
           </div>
-        </label>
 
-        <label
-          className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${
-            managerEvaluationMode === "SEND_LATER"
-              ? "border-blue-500 bg-blue-50"
-              : "border-slate-200 bg-white hover:border-slate-300"
-          }`}
-        >
-          <Radio value="SEND_LATER" className="mt-0.5" />
-          <div className="min-w-0">
-            <div className="text-sm font-semibold text-slate-900">
-              Để gửi sau
-            </div>
-            <div className="mt-1 text-sm leading-6 text-slate-600">
-              Onboarding vẫn được hoàn tất ngay. HR có thể gửi đánh giá cho
-              quản lý vào thời điểm phù hợp sau đó.
-            </div>
+          {completeInlineError && (
+            <Alert
+              type="warning"
+              showIcon
+              message="Chưa thể gửi đánh giá ngay"
+              description={
+                <div className="space-y-3">
+                  <p>{completeInlineError}</p>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        setManagerEvaluationMode("SEND_LATER");
+                        setCompleteInlineError(null);
+                      }}>
+                      Chọn gửi sau
+                    </Button>
+
+                    <Button
+                      size="small"
+                      type="primary"
+                      onClick={() => {
+                        navigate("/surveys/templates/new", {
+                          state: {
+                            preset: "MANAGER_EVALUATION_COMPLETED",
+                            stage: "COMPLETED",
+                            targetRole: "MANAGER",
+                            isDefault: true,
+                            status: "ACTIVE",
+                          },
+                        });
+                      }}>
+                      Tạo mẫu đánh giá
+                    </Button>
+                  </div>
+                </div>
+              }
+            />
+          )}
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="mb-3 text-sm font-semibold text-slate-900">
+              Chọn thời điểm gửi đánh giá cho quản lý
+            </p>
+
+            <Radio.Group
+              value={managerEvaluationMode}
+              onChange={(event) => {
+                setManagerEvaluationMode(
+                  event.target.value as ManagerEvaluationMode,
+                );
+                setCompleteInlineError(null);
+              }}
+              className="grid gap-3">
+              <label
+                className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${
+                  managerEvaluationMode === "SEND_NOW"
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-slate-200 bg-white hover:border-slate-300"
+                }`}>
+                <Radio value="SEND_NOW" className="mt-0.5" />
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-900">
+                    Gửi ngay sau khi hoàn tất
+                  </div>
+                  <div className="mt-1 text-sm leading-6 text-slate-600">
+                    Hệ thống sẽ gửi khảo sát đánh giá cho quản lý ngay sau khi
+                    onboarding được hoàn tất. Nếu chưa có mẫu khảo sát mặc định,
+                    hệ thống sẽ báo để HR kiểm tra lại.
+                  </div>
+                </div>
+              </label>
+
+              <label
+                className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${
+                  managerEvaluationMode === "SEND_LATER"
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-slate-200 bg-white hover:border-slate-300"
+                }`}>
+                <Radio value="SEND_LATER" className="mt-0.5" />
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-900">
+                    Để gửi sau
+                  </div>
+                  <div className="mt-1 text-sm leading-6 text-slate-600">
+                    Onboarding vẫn được hoàn tất ngay. Sau đó, HR có thể gửi
+                    khảo sát đánh giá cho quản lý từ trang chi tiết onboarding
+                    này.
+                  </div>
+                </div>
+              </label>
+            </Radio.Group>
           </div>
-        </label>
-      </Radio.Group>
-    </div>
 
-    <div className="flex justify-end gap-3 pt-1">
-      <Button
-        onClick={() => setConfirmAction(null)}
-        disabled={isActioning}
-      >
-        Quay lại
-      </Button>
+          <div className="flex justify-end gap-3 pt-1">
+            <Button
+              onClick={() => setConfirmAction(null)}
+              disabled={isActioning}>
+              Quay lại
+            </Button>
 
-      <Button
-        type="primary"
-        onClick={handleComplete}
-        loading={completeInstance.isPending}
-        disabled={isActioning}
-      >
-        Hoàn tất onboarding
-      </Button>
-    </div>
-  </div>
-</BaseModal>
+            <Button
+              type="primary"
+              onClick={handleComplete}
+              loading={completeInstance.isPending}
+              disabled={isActioning}>
+              Hoàn tất onboarding
+            </Button>
+          </div>
+        </div>
+      </BaseModal>
     </div>
   );
 };

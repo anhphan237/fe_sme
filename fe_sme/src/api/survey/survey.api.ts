@@ -221,3 +221,27 @@ export const apiGetSurveyAiSummary = (payload: SurveyAiSummaryPayload) =>
     "com.sme.survey.analytics.aiSummary",
     payload,
   );
+
+export type ManagerEvaluationTemplatePayload = {
+  templateId?: string;
+  name: string;
+  description?: string;
+  isDefault?: boolean;
+  forceReplaceDefault?: boolean;
+};
+
+export const apiCreateManagerEvaluationSurveyTemplate = (
+  payload: ManagerEvaluationTemplatePayload,
+) =>
+  gatewayRequest(
+    "com.sme.survey.template.managerEvaluation.create",
+    payload,
+  );
+
+export const apiUpdateManagerEvaluationSurveyTemplate = (
+  payload: ManagerEvaluationTemplatePayload & { templateId: string },
+) =>
+  gatewayRequest(
+    "com.sme.survey.template.managerEvaluation.update",
+    payload,
+  );
