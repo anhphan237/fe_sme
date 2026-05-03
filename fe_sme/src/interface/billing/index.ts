@@ -86,6 +86,8 @@ export interface SubscriptionHistoryItem {
   newPlanCode: string | null;
   billingCycle: string;
   changedBy: string | null;
+  /** Resolved from tenant users; null/omit if Stripe/system or unknown */
+  changedByName?: string | null;
   changedAt: string;
   effectiveFrom: string | null;
   /** null = current segment until next change */
@@ -121,6 +123,9 @@ export interface SubscriptionPlanTimelineSegment {
   effectiveFrom: string;
   effectiveTo: string | null;
   historyId: string;
+  changedBy?: string | null;
+  changedByName?: string | null;
+  changedAt?: string;
 }
 
 export interface SubscriptionPlanTimelineResponse

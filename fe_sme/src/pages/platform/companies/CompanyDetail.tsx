@@ -1113,6 +1113,11 @@ const CompanyDetail = () => {
                             )}
                           </th>
                           <th className="px-4 py-2.5">
+                            {t(
+                              "platform.company_detail.sub_history_changed_by",
+                            )}
+                          </th>
+                          <th className="px-4 py-2.5">
                             {t("platform.company_detail.sub_history_effective")}
                           </th>
                         </tr>
@@ -1142,6 +1147,11 @@ const CompanyDetail = () => {
                                     "DD MMM YYYY HH:mm",
                                   )
                                 : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-slate-500">
+                              {item.changedByName?.trim() ||
+                                item.changedBy?.trim() ||
+                                "—"}
                             </td>
                             <td className="px-4 py-3 text-slate-500">
                               {item.effectiveFrom
