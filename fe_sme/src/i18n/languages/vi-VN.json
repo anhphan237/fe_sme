@@ -4535,7 +4535,11 @@
 
 "survey.managerEvaluation.answerTable.question": "Câu hỏi",
 "survey.managerEvaluation.answerTable.type": "Loại",
-"survey.managerEvaluation.answerTable.answer": "Câu trả lời"
+"survey.managerEvaluation.answerTable.answer": "Câu trả lời",
+"document.detail.pdf_preview_hint": "Tệp PDF có thể xem trước trực tiếp tại đây. Nếu có vấn đề về hiển thị, vui lòng tải xuống để xem đầy đủ.",
+"document.action.open": "Mở PDF",
+"document.filter.uploaded_file": "File tải lên",
+"document.filter.web_document": "Tài liệu soạn trên web"
 
 
 }

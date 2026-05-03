@@ -1,23 +1,22 @@
 ﻿import { Tabs } from "antd";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ComponentProps } from "react";
 
 import SurveyReportsFilterBar from "./components/SurveyReportsFilterBar";
 import SurveyReportsKpiRow from "./components/SurveyReportsKpiRow";
 import SurveyDimensionChartCard from "./components/SurveyDimensionChartCard";
 import SurveyTrendChartCard from "./components/SurveyTrendChartCard";
 import SurveyInsightCard from "./components/SurveyInsightCard";
-import SurveyQuestionStatsTable from "./components/SurveyQuestionStatsTable";
-import SurveyResponsesTable from "./components/SurveyResponsesTable";
 import SurveyStageTrendCard from "./components/SurveyStageTrendCard";
 import SurveyRecommendationCard from "./components/SurveyRecommendationCard";
 import SurveyTextFeedbackCard from "./components/SurveyTextFeedbackCard";
 import SurveyExecutiveSummaryCard from "./components/SurveyExecutiveSummaryCard";
+import ManagerEvaluationReportTab from "./components/ManagerEvaluationReportTab";
+import SurveyEmployeeInsightCard from "./components/SurveyEmployeeInsightCard";
 
 import { useSurveyReportsPage } from "./hooks/useSurveyReportsPage";
 import { useSurveyAiSummary } from "./hooks/useSurveyAiSummary";
 import { useLocale } from "@/i18n";
-import { useEffect, useMemo, useRef, useState } from "react";
-import ManagerEvaluationReportTab from "./components/ManagerEvaluationReportTab";
-import SurveyEmployeeInsightCard from "./components/SurveyEmployeeInsightCard";
 
 type TemplateOption = {
   value?: string;
@@ -43,6 +42,11 @@ type SurveyReportFilters = {
 
 type SurveyReportTab = "ONBOARDING_FEEDBACK" | "MANAGER_EVALUATION";
 
+type UnknownRecord = Record<string, unknown>;
+
+type EmployeeInsightAnalytics =
+  ComponentProps<typeof SurveyEmployeeInsightCard>["analytics"];
+
 const REFRESH_COOLDOWN_MS = 20_000;
 
 const tr = (t: (key: string) => string, key: string, fallback: string) => {
@@ -50,10 +54,80 @@ const tr = (t: (key: string) => string, key: string, fallback: string) => {
   return value === key ? fallback : value;
 };
 
+const isRecord = (value: unknown): value is UnknownRecord => {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+};
+
 const getText = (value: unknown): string => {
   if (typeof value === "string") return value.trim();
   if (typeof value === "number") return String(value);
   return "";
+};
+
+const getArray = (value: unknown, key: string): unknown[] => {
+  if (!isRecord(value)) return [];
+
+  const raw = value[key];
+
+  return Array.isArray(raw) ? raw : [];
+};
+
+const toNullableNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === "") return null;
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().replace(",", ".");
+    const parsed = Number(normalized);
+
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+};
+
+const normalizeResponseSummaryForInsight = (item: unknown): UnknownRecord => {
+  if (!isRecord(item)) {
+    return {
+      overallScore: null,
+      averageScore: null,
+    };
+  }
+
+  const rawOverallScore = item.overallScore;
+  const rawAverageScore = item.averageScore;
+
+  const overallScore =
+    rawOverallScore !== undefined
+      ? toNullableNumber(rawOverallScore)
+      : toNullableNumber(rawAverageScore);
+
+  const averageScore =
+    rawAverageScore !== undefined ? toNullableNumber(rawAverageScore) : overallScore;
+
+  return {
+    ...item,
+    overallScore,
+    averageScore,
+  };
+};
+
+const normalizeAnalyticsForEmployeeInsight = (
+  analytics: unknown,
+): EmployeeInsightAnalytics => {
+  if (!analytics || !isRecord(analytics)) return null;
+
+  const responseSummaries = getArray(analytics, "responseSummaries").map(
+    normalizeResponseSummaryForInsight,
+  );
+
+  return {
+    ...analytics,
+    responseSummaries,
+  } as NonNullable<EmployeeInsightAnalytics>;
 };
 
 const getTemplateValue = (template: TemplateOption): string =>
@@ -67,6 +141,7 @@ const getTemplateLabel = (template: TemplateOption): string =>
 
 const getTemplateStage = (template: TemplateOption): string => {
   const raw = template.raw ?? {};
+
   return (
     getText(template.stage) ||
     getText(template.stageCode) ||
@@ -77,6 +152,7 @@ const getTemplateStage = (template: TemplateOption): string => {
 
 const getTemplateTargetRole = (template: TemplateOption): string => {
   const raw = template.raw ?? {};
+
   return (
     getText(template.targetRole) ||
     getText(template.target_role) ||
@@ -87,6 +163,7 @@ const getTemplateTargetRole = (template: TemplateOption): string => {
 
 const getTemplatePurpose = (template: TemplateOption): string => {
   const raw = template.raw ?? {};
+
   return (
     getText(template.purpose) ||
     getText(raw.purpose) ||
@@ -112,8 +189,6 @@ const SurveyReports = () => {
     filters,
     analytics,
     analyticsLoading,
-    responses,
-    responsesLoading,
     templateOptions,
     dimensionChartData,
     trendChartData,
@@ -144,6 +219,11 @@ const SurveyReports = () => {
         }))
         .filter((template) => Boolean(template.value)),
     [templateOptions],
+  );
+
+  const employeeInsightAnalytics = useMemo(
+    () => normalizeAnalyticsForEmployeeInsight(analytics),
+    [analytics],
   );
 
   useEffect(() => {
@@ -220,6 +300,7 @@ const SurveyReports = () => {
         <h1 className="text-xl font-semibold text-slate-900">
           {tr(t, "survey.reports.title", "Báo cáo khảo sát")}
         </h1>
+
         <p className="mt-1 text-sm text-slate-500">
           {tr(
             t,
@@ -277,10 +358,12 @@ const SurveyReports = () => {
                   stageTrends={analytics?.stageTrends ?? []}
                   loading={analyticsLoading}
                 />
+
                 <SurveyEmployeeInsightCard
-                  analytics={analytics}
+                  analytics={employeeInsightAnalytics}
                   loading={analyticsLoading}
                 />
+
                 <div className="grid gap-5 xl:grid-cols-2">
                   <SurveyDimensionChartCard
                     data={dimensionChartData}
@@ -320,16 +403,6 @@ const SurveyReports = () => {
                     loading={analyticsLoading}
                   />
                 </div>
-
-                {/* <SurveyQuestionStatsTable
-                  data={questionTableData}
-                  loading={analyticsLoading}
-                /> */}
-
-                {/* <SurveyResponsesTable
-                  responses={responses}
-                  loading={responsesLoading}
-                /> */}
               </div>
             ),
           },
