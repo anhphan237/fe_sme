@@ -1,33 +1,33 @@
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
 import {
-  Modal,
-  Upload,
+  Alert,
   Button,
+  Col,
+  Modal,
+  Row,
+  Space,
+  Spin,
+  Statistic,
   Table,
   Tag,
-  Space,
-  Alert,
-  Statistic,
-  Row,
-  Col,
-  Spin,
   Typography,
+  Upload,
 } from "antd";
 import {
-  InboxOutlined,
-  DownloadOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
+  DownloadOutlined,
+  InboxOutlined,
 } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
 import {
+  apiCommitBulkImportExcel,
   apiDownloadBulkImportTemplate,
   apiValidateBulkImportExcel,
-  apiCommitBulkImportExcel,
 } from "@/api/identity/identity.api";
 import type {
-  BulkUserImportValidateResponse,
   BulkUserImportCommitResponse,
+  BulkUserImportValidateResponse,
 } from "@/interface/identity";
 import { useLocale } from "@/i18n";
 
@@ -40,6 +40,13 @@ interface Props {
   open: boolean;
   onClose: (refetch?: boolean) => void;
 }
+
+const DASH = "—";
+
+const extractErrorMessage = (err: unknown, fallback: string): string => {
+  if (err instanceof Error && err.message.trim()) return err.message;
+  return fallback;
+};
 
 export default function UserExcelImportModal({ open, onClose }: Props) {
   const { t } = useLocale();
@@ -72,13 +79,13 @@ export default function UserExcelImportModal({ open, onClose }: Props) {
     try {
       const blob = await apiDownloadBulkImportTemplate();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "user_import_template.xlsx";
-      a.click();
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "bulk-user-import-template.xlsx";
+      anchor.click();
       URL.revokeObjectURL(url);
-    } catch {
-      setError("Failed to download template.");
+    } catch (err) {
+      setError(extractErrorMessage(err, "Failed to download template."));
     }
   };
 
@@ -92,7 +99,7 @@ export default function UserExcelImportModal({ open, onClose }: Props) {
       setValidateResult(result);
       setStep("validated");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Validation failed");
+      setError(extractErrorMessage(err, "Validation failed."));
       setStep("idle");
     }
   };
@@ -107,53 +114,52 @@ export default function UserExcelImportModal({ open, onClose }: Props) {
       setCommitResult(result);
       setStep("done");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Import failed");
+      setError(extractErrorMessage(err, "Import failed."));
       setStep("validated");
     }
   };
 
-  // ── Validate result columns ────────────────────────────
   const validateColumns = [
     {
       title: t("user.import.col.row"),
       dataIndex: "rowNumber",
-      width: 60,
+      width: 70,
     },
     {
       title: t("user.import.col.email"),
       dataIndex: "email",
-      render: (v: string | null) => v ?? <Text type="secondary">—</Text>,
+      render: (value: string | null) => value ?? <Text type="secondary">{DASH}</Text>,
     },
     {
       title: t("user.import.col.full_name"),
       dataIndex: "fullName",
-      render: (v: string | null) => v ?? <Text type="secondary">—</Text>,
+      render: (value: string | null) => value ?? <Text type="secondary">{DASH}</Text>,
     },
     {
       title: t("user.import.col.status"),
       dataIndex: "status",
-      width: 100,
-      render: (v: string) =>
-        v === "VALID" ? (
+      width: 130,
+      render: (value: "VALID" | "INVALID") =>
+        value === "VALID" ? (
           <Tag color="success" icon={<CheckCircleOutlined />}>
-            {v}
+            VALID
           </Tag>
         ) : (
           <Tag color="error" icon={<CloseCircleOutlined />}>
-            {v}
+            INVALID
           </Tag>
         ),
     },
     {
       title: t("user.import.col.errors"),
       dataIndex: "errors",
-      render: (errs: string[]) =>
-        errs.length ? (
-          <ul className="list-none m-0 p-0 space-y-1">
-            {errs.map((e, i) => (
-              <li key={i}>
+      render: (errors: string[]) =>
+        errors.length > 0 ? (
+          <ul className="m-0 list-none space-y-1 p-0">
+            {errors.map((message, index) => (
+              <li key={`${message}-${index}`}>
                 <Text type="danger" className="text-xs">
-                  {e}
+                  {message}
                 </Text>
               </li>
             ))}
@@ -162,37 +168,37 @@ export default function UserExcelImportModal({ open, onClose }: Props) {
     },
   ];
 
-  // ── Commit result columns ───────────────────────────────
   const commitColumns = [
     {
       title: t("user.import.col.row"),
       dataIndex: "rowNumber",
-      width: 60,
+      width: 70,
     },
     {
       title: t("user.import.col.email"),
       dataIndex: "email",
-      render: (v: string | null) => v ?? <Text type="secondary">—</Text>,
+      render: (value: string | null) => value ?? <Text type="secondary">{DASH}</Text>,
     },
     {
       title: t("user.import.col.full_name"),
       dataIndex: "fullName",
-      render: (v: string | null) => v ?? <Text type="secondary">—</Text>,
+      render: (value: string | null) => value ?? <Text type="secondary">{DASH}</Text>,
     },
     {
       title: t("user.import.col.status"),
       dataIndex: "status",
-      width: 130,
-      render: (v: string) => {
-        if (v === "CREATED")
+      width: 180,
+      render: (value: "CREATED" | "FAILED_VALIDATION" | "FAILED_CREATE") => {
+        if (value === "CREATED") {
           return (
             <Tag color="success" icon={<CheckCircleOutlined />}>
-              {v}
+              CREATED
             </Tag>
           );
+        }
         return (
           <Tag color="error" icon={<CloseCircleOutlined />}>
-            {v}
+            {value}
           </Tag>
         );
       },
@@ -200,13 +206,13 @@ export default function UserExcelImportModal({ open, onClose }: Props) {
     {
       title: t("user.import.col.errors"),
       dataIndex: "errors",
-      render: (errs: string[]) =>
-        errs.length ? (
-          <ul className="list-none m-0 p-0 space-y-1">
-            {errs.map((e, i) => (
-              <li key={i}>
+      render: (errors: string[]) =>
+        errors.length > 0 ? (
+          <ul className="m-0 list-none space-y-1 p-0">
+            {errors.map((message, index) => (
+              <li key={`${message}-${index}`}>
                 <Text type="danger" className="text-xs">
-                  {e}
+                  {message}
                 </Text>
               </li>
             ))}
@@ -215,24 +221,24 @@ export default function UserExcelImportModal({ open, onClose }: Props) {
     },
   ];
 
-  // ── Footer buttons ─────────────────────────────────────
+  const hasSelectedFile = fileList.length > 0;
+
   const footer = () => {
     if (step === "idle") {
       return (
         <Space>
-          <Button onClick={() => handleClose()}>Cancel</Button>
-          <Button
-            type="primary"
-            disabled={!selectedFileRef.current}
-            onClick={handleValidate}>
+          <Button onClick={() => handleClose()}>{t("global.cancel")}</Button>
+          <Button type="primary" disabled={!hasSelectedFile} onClick={handleValidate}>
             {t("user.import.validate_btn")}
           </Button>
         </Space>
       );
     }
+
     if (step === "validating" || step === "committing") {
       return null;
     }
+
     if (step === "validated") {
       return (
         <Space>
@@ -242,13 +248,12 @@ export default function UserExcelImportModal({ open, onClose }: Props) {
             disabled={!validateResult || validateResult.validRows === 0}
             onClick={handleCommit}>
             {t("user.import.commit_btn")}
-            {validateResult && validateResult.validRows > 0
-              ? ` (${validateResult.validRows})`
-              : ""}
+            {validateResult && validateResult.validRows > 0 ? ` (${validateResult.validRows})` : ""}
           </Button>
         </Space>
       );
     }
+
     if (step === "done") {
       return (
         <Button type="primary" onClick={() => handleClose(true)}>
@@ -256,6 +261,7 @@ export default function UserExcelImportModal({ open, onClose }: Props) {
         </Button>
       );
     }
+
     return null;
   };
 
@@ -265,29 +271,16 @@ export default function UserExcelImportModal({ open, onClose }: Props) {
       title={t("user.import.excel.title")}
       onCancel={() => handleClose()}
       footer={footer()}
-      width={780}
+      width={860}
       destroyOnClose>
-      {/* Global error */}
-      {error && (
-        <Alert
-          type="error"
-          message={error}
-          closable
-          onClose={() => setError(null)}
-          className="mb-4"
-        />
-      )}
+      {error ? (
+        <Alert type="error" message={error} closable onClose={() => setError(null)} className="mb-4" />
+      ) : null}
 
-      {/* ── STEP: idle ─────────────────────────────────── */}
-      {(step === "idle" || step === "validating") && (
-        <Spin
-          spinning={step === "validating"}
-          tip={t("user.import.validating")}>
+      {step === "idle" || step === "validating" ? (
+        <Spin spinning={step === "validating"} tip={t("user.import.validating")}>
           <div className="mb-3 flex justify-end">
-            <Button
-              size="small"
-              icon={<DownloadOutlined />}
-              onClick={handleDownloadTemplate}>
+            <Button size="small" icon={<DownloadOutlined />} onClick={handleDownloadTemplate}>
               {t("user.import.download_template")}
             </Button>
           </div>
@@ -300,7 +293,7 @@ export default function UserExcelImportModal({ open, onClose }: Props) {
               const isXlsx =
                 file.type ===
                   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-                file.name.endsWith(".xlsx");
+                file.name.toLowerCase().endsWith(".xlsx");
               if (!isXlsx) {
                 setError(t("user.import.upload_only_xlsx"));
                 return Upload.LIST_IGNORE;
@@ -314,7 +307,7 @@ export default function UserExcelImportModal({ open, onClose }: Props) {
                   size: file.size,
                 },
               ]);
-              return false; // prevent auto-upload
+              return false;
             }}
             onRemove={() => {
               selectedFileRef.current = null;
@@ -324,30 +317,23 @@ export default function UserExcelImportModal({ open, onClose }: Props) {
               <InboxOutlined />
             </p>
             <p className="ant-upload-text">{t("user.import.upload_hint")}</p>
-            <p className="ant-upload-hint">
-              {t("user.import.upload_only_xlsx")}
-            </p>
+            <p className="ant-upload-hint">{t("user.import.upload_only_xlsx")}</p>
           </Dragger>
         </Spin>
-      )}
+      ) : null}
 
-      {/* ── STEP: committing ─────────────────────────── */}
-      {step === "committing" && (
-        <div className="flex flex-col items-center py-12 gap-4">
+      {step === "committing" ? (
+        <div className="flex flex-col items-center gap-4 py-12">
           <Spin size="large" />
           <Text type="secondary">{t("user.import.committing")}</Text>
         </div>
-      )}
+      ) : null}
 
-      {/* ── STEP: validated ──────────────────────────── */}
-      {step === "validated" && validateResult && (
+      {step === "validated" && validateResult ? (
         <>
           <Row gutter={16} className="mb-4">
             <Col span={8}>
-              <Statistic
-                title={t("user.import.total_rows")}
-                value={validateResult.totalRows}
-              />
+              <Statistic title={t("user.import.total_rows")} value={validateResult.totalRows} />
             </Col>
             <Col span={8}>
               <Statistic
@@ -361,28 +347,20 @@ export default function UserExcelImportModal({ open, onClose }: Props) {
               <Statistic
                 title={t("user.import.invalid_rows")}
                 value={validateResult.invalidRows}
-                valueStyle={
-                  validateResult.invalidRows > 0
-                    ? { color: "#cf1322" }
-                    : undefined
-                }
-                prefix={
-                  validateResult.invalidRows > 0 ? (
-                    <CloseCircleOutlined />
-                  ) : undefined
-                }
+                valueStyle={validateResult.invalidRows > 0 ? { color: "#cf1322" } : undefined}
+                prefix={validateResult.invalidRows > 0 ? <CloseCircleOutlined /> : undefined}
               />
             </Col>
           </Row>
 
-          {validateResult.invalidRows > 0 && (
+          {validateResult.invalidRows > 0 ? (
             <Alert
               type="warning"
               showIcon
-              message={`${validateResult.invalidRows} row(s) have errors and will be skipped during import.`}
+              message={`${validateResult.invalidRows} row(s) have validation errors and will be skipped at commit.`}
               className="mb-3"
             />
-          )}
+          ) : null}
 
           <Table
             dataSource={validateResult.rows}
@@ -393,17 +371,13 @@ export default function UserExcelImportModal({ open, onClose }: Props) {
             scroll={{ x: true }}
           />
         </>
-      )}
+      ) : null}
 
-      {/* ── STEP: done ────────────────────────────────── */}
-      {step === "done" && commitResult && (
+      {step === "done" && commitResult ? (
         <>
           <Row gutter={16} className="mb-4">
             <Col span={8}>
-              <Statistic
-                title={t("user.import.total_rows")}
-                value={commitResult.totalRows}
-              />
+              <Statistic title={t("user.import.total_rows")} value={commitResult.totalRows} />
             </Col>
             <Col span={8}>
               <Statistic
@@ -417,26 +391,20 @@ export default function UserExcelImportModal({ open, onClose }: Props) {
               <Statistic
                 title={t("user.import.failed_rows")}
                 value={commitResult.failedRows}
-                valueStyle={
-                  commitResult.failedRows > 0 ? { color: "#cf1322" } : undefined
-                }
-                prefix={
-                  commitResult.failedRows > 0 ? (
-                    <CloseCircleOutlined />
-                  ) : undefined
-                }
+                valueStyle={commitResult.failedRows > 0 ? { color: "#cf1322" } : undefined}
+                prefix={commitResult.failedRows > 0 ? <CloseCircleOutlined /> : undefined}
               />
             </Col>
           </Row>
 
-          {commitResult.createdRows > 0 && (
+          {commitResult.createdRows > 0 ? (
             <Alert
               type="success"
               showIcon
               message={`Successfully created ${commitResult.createdRows} user(s).`}
               className="mb-3"
             />
-          )}
+          ) : null}
 
           <Table
             dataSource={commitResult.rows}
@@ -447,7 +415,7 @@ export default function UserExcelImportModal({ open, onClose }: Props) {
             scroll={{ x: true }}
           />
         </>
-      )}
+      ) : null}
     </Modal>
   );
 }

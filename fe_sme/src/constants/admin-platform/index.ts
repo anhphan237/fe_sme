@@ -4,6 +4,9 @@ import type { PlatformTemplateFormValue } from "@/shared/types";
 export const PLATFORM_TEMPLATE_OPERATION =
   "com.sme.platform.template.create" as const;
 
+export const PLATFORM_COMPANY_ID =
+  "00000000-0000-0000-0000-000000000001" as const;
+
 export const stageOptions = [
   { labelKey: "platform.templates.stage.preboarding", value: "PREBOARDING" },
   { labelKey: "platform.templates.stage.first_day", value: "FIRST_DAY" },

@@ -1,17 +1,15 @@
 /**
- * Identity module — data mappers (shared by Pages)
- * Transforms raw gateway responses into typed UI models.
+ * Identity data mappers shared by pages and hooks.
+ * They normalize gateway payloads to stable UI models.
  */
-import type { User, UserDetail } from "@/shared/types";
 import type { Role } from "@/interface/common";
 import type {
   AppUser,
+  GetUserResponse,
   LoginResponse,
   UserListItem,
-  GetUserResponse,
 } from "@/interface/identity";
-
-// ── Role helpers ────────────────────────────────────────────
+import type { User, UserDetail } from "@/shared/types";
 
 const KNOWN_ROLES: Role[] = [
   "ADMIN",
@@ -22,47 +20,87 @@ const KNOWN_ROLES: Role[] = [
   "EMPLOYEE",
 ];
 
+const toUpper = (value: unknown): string =>
+  typeof value === "string" ? value.trim().toUpperCase() : "";
+
+const toNullableString = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
+
+const normalizeDateValue = (value: unknown): string | null => {
+  if (value == null) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const ms = value < 1e11 ? value * 1000 : value;
+    const parsed = new Date(ms);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (/^\d+$/.test(trimmed)) {
+      return normalizeDateValue(Number(trimmed));
+    }
+    return trimmed;
+  }
+  return null;
+};
+
+const toUserStatus = (value: unknown): User["status"] => {
+  const upper = toUpper(value);
+  if (upper === "DISABLED" || upper === "INACTIVE") return "Inactive";
+  if (upper === "PENDING" || upper === "INVITED") return "Invited";
+  return "Active";
+};
+
+const toUserDetailStatus = (value: unknown): UserDetail["status"] => {
+  const upper = toUpper(value);
+  if (upper === "DISABLED") return "DISABLED";
+  if (upper === "INACTIVE") return "INACTIVE";
+  if (upper === "PENDING" || upper === "INVITED") return "INVITED";
+  return "ACTIVE";
+};
+
 export function normalizeRoles(roles: unknown): Role[] {
   const raw = Array.isArray(roles) ? roles : [];
   const mapped = raw
-    .map((r) => (typeof r === "string" ? r.toUpperCase() : String(r)))
-    .filter((r): r is Role => KNOWN_ROLES.includes(r as Role));
+    .map((role) =>
+      typeof role === "string" ? role.trim().toUpperCase() : String(role),
+    )
+    .filter((role): role is Role => KNOWN_ROLES.includes(role as Role));
+
   return mapped.length ? mapped : ["EMPLOYEE"];
 }
-
-// ── Entity mappers ──────────────────────────────────────────
 
 export function mapUser(u: UserListItem | Record<string, unknown>): User {
   const raw = u as Record<string, unknown>;
   const roles = normalizeRoles(
     raw["roles"] ?? (raw["roleCode"] ? [raw["roleCode"]] : ["EMPLOYEE"]),
   );
+
   return {
     id: String(raw["userId"] ?? raw["id"] ?? ""),
     name: String(raw["fullName"] ?? raw["name"] ?? ""),
     email: String(raw["email"] ?? ""),
-    phone: (raw["phone"] as string | null) ?? null,
+    phone: toNullableString(raw["phone"]),
     roles,
     companyId:
-      (raw["companyId"] as string | null) ??
-      (raw["tenantId"] as string | null) ??
-      null,
-    department: String(raw["departmentName"] ?? raw["department"] ?? ""),
-    departmentId: (raw["departmentId"] as string | null) ?? null,
-    status:
-      raw["status"] === "DISABLED"
-        ? "Inactive"
-        : raw["status"] === "INACTIVE"
-          ? "Inactive"
-          : raw["status"] === "PENDING" || raw["status"] === "INVITED"
-            ? "Invited"
-            : "Active",
-    employeeId: (raw["employeeId"] as string | null) ?? null,
-    managerUserId: (raw["managerUserId"] as string | null) ?? null,
-    manager: raw["managerName"] as string | undefined,
-    createdAt: String(
-      raw["createdAt"] ?? new Date().toISOString().slice(0, 10),
-    ),
+      toNullableString(raw["companyId"]) ?? toNullableString(raw["tenantId"]),
+    department:
+      toNullableString(raw["departmentName"]) ??
+      toNullableString(raw["department"]) ??
+      "",
+    departmentId: toNullableString(raw["departmentId"]),
+    status: toUserStatus(raw["status"]),
+    employeeId: toNullableString(raw["employeeId"]),
+    managerUserId: toNullableString(raw["managerUserId"]),
+    manager: toNullableString(raw["managerName"]) ?? undefined,
+    // Keep empty string when BE omits createdAt so UI can render "—" explicitly.
+    createdAt: normalizeDateValue(raw["createdAt"]) ?? "",
   };
 }
 
@@ -72,14 +110,7 @@ export function mapUserDetail(d: GetUserResponse): UserDetail {
     email: d.email ?? "",
     fullName: d.fullName ?? "",
     phone: d.phone ?? null,
-    status:
-      d.status === "DISABLED"
-        ? "DISABLED"
-        : d.status === "INACTIVE"
-          ? "INACTIVE"
-          : d.status === "PENDING" || d.status === "INVITED"
-            ? "INVITED"
-            : "ACTIVE",
+    status: toUserDetailStatus(d.status),
     employeeId: d.employeeId ?? null,
     departmentId: d.departmentId ?? null,
     employeeCode: d.employeeCode ?? null,
@@ -88,9 +119,9 @@ export function mapUserDetail(d: GetUserResponse): UserDetail {
     employeePhone: d.employeePhone ?? d.phone ?? null,
     jobTitle: d.jobTitle ?? null,
     managerUserId: d.managerUserId ?? null,
-    startDate: d.startDate ?? null,
+    startDate: normalizeDateValue(d.startDate),
     workLocation: d.workLocation ?? null,
-    employeeStatus: d.employeeStatus ?? d.status ?? null,
+    employeeStatus: d.employeeStatus ?? (d.status ? String(d.status) : null),
   };
 }
 
@@ -103,7 +134,6 @@ export function mapLoginToAppUser(res: LoginResponse): AppUser {
     roles: normalizeRoles([u.roleCode]),
     companyId: u.tenantId ?? null,
     department: "",
-    departmentId: null,
     status: "Active",
     createdAt: new Date().toISOString().slice(0, 10),
   };

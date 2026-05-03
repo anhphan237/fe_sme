@@ -67,6 +67,9 @@ export interface CreateUserResponse {
   userId: string;
   email: string;
   fullName: string;
+  status?: UserStatus;
+  employeeId?: string | null;
+  roleCode?: string | null;
 }
 
 /** com.sme.identity.user.update */
@@ -121,6 +124,10 @@ export interface DisableUserRequest {
 
 /** com.sme.identity.user.list — request */
 export interface UserListRequest {
+  limit?: number;
+  offset?: number;
+  role?: "ADMIN" | "HR" | "MANAGER" | "IT" | "EMPLOYEE";
+  // Backward compatibility fields (ignored by current BE list API)
   status?: UserStatus;
   departmentId?: string;
   keyword?: string;
@@ -131,11 +138,12 @@ export interface UserListItem {
   userId: string;
   email: string;
   fullName: string;
-  phone: string;
+  phone: string | null;
   status: UserStatus;
   roles: string[];
-  departmentId: string;
-  departmentName: string;
+  departmentId: string | null;
+  departmentName: string | null;
+  createdAt?: string | number | null;
 }
 
 /** com.sme.identity.user.list → full response data */
@@ -205,7 +213,7 @@ export interface BulkUserImportValidateRowResult {
   email: string | null;
   fullName: string | null;
   /** "VALID" | "INVALID" */
-  status: string;
+  status: "VALID" | "INVALID";
   errors: string[];
 }
 
@@ -221,7 +229,7 @@ export interface BulkUserImportCommitRowResult {
   email: string | null;
   fullName: string | null;
   /** "CREATED" | "FAILED_VALIDATION" | "FAILED_CREATE" */
-  status: string;
+  status: "CREATED" | "FAILED_VALIDATION" | "FAILED_CREATE";
   userId: string | null;
   errors: string[];
 }

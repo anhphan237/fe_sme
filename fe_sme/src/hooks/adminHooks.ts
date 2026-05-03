@@ -11,12 +11,24 @@ import type { User } from "@/shared/types";
 import type { UserListItem } from "@/interface/identity";
 import type { DepartmentItem, DepartmentTypeItem } from "@/interface/company";
 
-export const useUsersQuery = (options?: Pick<UseQueryOptions, "enabled" | "staleTime">) =>
+type QueryOptions = Pick<UseQueryOptions, "enabled" | "staleTime">;
+
+const selectUsers = (res: unknown): User[] =>
+  extractList<UserListItem>(res, "users", "items").map(mapUser) as User[];
+
+export const useUsersQuery = (options?: QueryOptions) =>
   useQuery({
     queryKey: ["users"],
     queryFn: () => apiSearchUsers(),
-    select: (res: unknown) =>
-      extractList<UserListItem>(res, "users", "items").map(mapUser) as User[],
+    select: selectUsers,
+    ...options,
+  });
+
+export const useManagerUsersQuery = (options?: QueryOptions) =>
+  useQuery({
+    queryKey: ["users", "role", "MANAGER"],
+    queryFn: () => apiSearchUsers({ role: "MANAGER" }),
+    select: selectUsers,
     ...options,
   });
 
@@ -27,9 +39,10 @@ export const useDepartmentsQuery = () =>
     select: (res: unknown) => extractList<DepartmentItem>(res, "items"),
   });
 
-export const useDepartmentTypesQuery = () =>
+export const useDepartmentTypesQuery = (status?: string) =>
   useQuery({
-    queryKey: ["departmentTypes"],
-    queryFn: () => apiListDepartmentTypes(),
+    queryKey: ["departmentTypes", status ?? "ALL"],
+    queryFn: () =>
+      apiListDepartmentTypes(status ? { status } : undefined),
     select: (res: unknown) => extractList<DepartmentTypeItem>(res, "items"),
   });
