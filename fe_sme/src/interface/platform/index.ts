@@ -5,6 +5,12 @@
 // Access: ADMIN + STAFF roles only
 // ============================================================
 
+import type {
+  SubscriptionHistoryItem,
+  SubscriptionHistoryRequest,
+  SubscriptionHistoryResponse,
+} from "@/interface/billing";
+
 // ---------------------------
 // Platform Company Analytics
 // ---------------------------
@@ -208,27 +214,10 @@ export interface PlatformCompanyChangePlanResponse {
   message: string;
 }
 
-/** com.sme.billing.subscription.history */
-export interface PlatformSubscriptionHistoryRequest {
-  subscriptionId: string;
-}
-
-export interface PlatformSubscriptionHistoryItem {
-  historyId: string;
-  subscriptionId: string;
-  oldPlanCode: string;
-  newPlanCode: string;
-  billingCycle: string;
-  changedBy: string;
-  changedAt: string;
-  effectiveFrom: string;
-  effectiveTo: string;
-}
-
-export interface PlatformSubscriptionHistoryResponse {
-  items: PlatformSubscriptionHistoryItem[];
-  total: number;
-}
+/** com.sme.billing.subscription.history — aliases for platform UI */
+export type PlatformSubscriptionHistoryRequest = SubscriptionHistoryRequest;
+export type PlatformSubscriptionHistoryItem = SubscriptionHistoryItem;
+export type PlatformSubscriptionHistoryResponse = SubscriptionHistoryResponse;
 
 // ---------------------------
 // Subscription Management

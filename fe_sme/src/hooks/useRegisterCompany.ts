@@ -18,7 +18,8 @@ import {
   apiCreatePaymentIntent,
 } from "@/api/billing/billing.api";
 import { extractList } from "@/api/core/types";
-import { mapPlan, mapSubscription } from "@/utils/mappers/billing";
+import { mapPlan, mapSubscription, formatVnd } from "@/utils/mappers/billing";
+import { pickLatestPayableInvoiceIdFromList } from "@/utils/resolveRegisterInvoice";
 
 export interface RegisterFormValues {
   adminUsername: string;
@@ -34,6 +35,18 @@ export interface RegisterFormValues {
 }
 
 const HIDDEN_PLANS = ["Basic Plan", "Premium Plan"];
+
+type RegisterAdminUser = {
+  id: string;
+  name: string;
+  email: string;
+  roles: Role[];
+  companyId: string;
+  department: string;
+  departmentId: null;
+  status: "Active";
+  createdAt: string;
+};
 
 const getCurrentPeriod = () => {
   const now = new Date();
@@ -111,7 +124,7 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
     companyId: string;
     accessToken: string;
     adminUserId: string;
-    newUser: ReturnType<typeof Object.assign>;
+    newUser: RegisterAdminUser;
     tenantData: Tenant;
   } | null>(null);
 
@@ -163,21 +176,28 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
     setSubmitError(null);
     try {
       let companyId: string;
-      let currentTenantData: Tenant;
+      let companyName: string;
+      let accessToken: string;
+      let adminUserId: string;
+      let newUser: RegisterAdminUser;
 
       if (registrationResult) {
-        // User went back from Step 4 to change plan — reuse existing registration,
-        // do NOT call apiRegisterCompany again (would fail: duplicate email).
         companyId = registrationResult.companyId;
-        currentTenantData = {
-          ...registrationResult.tenantData,
-          plan: selectedPlanCode,
-        };
-        setTenant(currentTenantData);
+        companyName =
+          registrationResult.tenantData.name ||
+          (form.getFieldValue("companyName") as string);
+        accessToken = registrationResult.accessToken;
+        adminUserId = registrationResult.adminUserId;
+        newUser = registrationResult.newUser as RegisterAdminUser;
+        setUser(newUser);
+        setToken(accessToken);
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("auth_user", JSON.stringify(newUser));
+        }
       } else {
         setPayingLabel(t("register.paying.creating_account"));
-        // getFieldsValue(true) returns ALL fields including unmounted steps
         const data = form.getFieldsValue(true);
+        companyName = data.companyName;
         const result = await apiRegisterCompany({
           company: {
             name: data.companyName,
@@ -202,7 +222,11 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
           return;
         }
 
-        const newUser = {
+        accessToken = result.accessToken;
+        adminUserId = result.adminUserId;
+        companyId = result.companyId;
+
+        newUser = {
           id: result.adminUserId,
           name: data.adminFullName,
           email: data.adminUsername,
@@ -214,33 +238,38 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
           createdAt: new Date().toISOString(),
         };
 
-        currentTenantData = {
-          id: result.companyId ?? "company-new",
-          name: data.companyName,
-          industry: "",
-          size: "",
-          plan: selectedPlanCode ?? "",
-        };
-
         setUser(newUser);
-        setToken(result.accessToken);
-        setTenant(currentTenantData);
-
+        setToken(accessToken);
         if (typeof window !== "undefined") {
           window.localStorage.setItem("auth_user", JSON.stringify(newUser));
         }
-
-        companyId = result.companyId;
-        setRegistrationResult({
-          companyId,
-          accessToken: result.accessToken,
-          adminUserId: result.adminUserId,
-          newUser,
-          tenantData: currentTenantData,
-        });
       }
 
+      /**
+       * Effective entitlement stays FREE on BE until payment clears — never mirror
+       * selectedPlanCode into tenant.plan before Stripe succeeds.
+       */
+      const tenantFromSubscription = (subPlan: string | undefined): Tenant => ({
+        id: companyId,
+        name: companyName,
+        industry: "",
+        size: "",
+        plan: subPlan || "FREE",
+      });
+
       if (selectedPlanCode.toUpperCase() === "FREE") {
+        setPayingLabel(t("register.paying.activating_plan"));
+        const sub = await apiGetSubscription(companyId);
+        const subData = mapSubscription(sub);
+        const tenantData = tenantFromSubscription(subData.planCode);
+        setTenant(tenantData);
+        setRegistrationResult({
+          companyId,
+          accessToken,
+          adminUserId,
+          newUser,
+          tenantData,
+        });
         notify.success(t("global.save_success"));
         navigate("/dashboard", { replace: true });
         return;
@@ -248,21 +277,24 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
 
       setPayingLabel(t("register.paying.activating_plan"));
       const sub = await apiGetSubscription(companyId);
-      const subData = mapSubscription(sub as any);
-      if (subData.planCode)
-        setTenant({
-          ...(registrationResult?.tenantData ?? {
-            id: companyId,
-            name: form.getFieldValue("companyName"),
-            industry: "",
-            size: "",
-            plan: subData.planCode,
-          }),
-          plan: subData.planCode,
-        });
+      const subData = mapSubscription(sub);
+      const tenantData = tenantFromSubscription(subData.planCode);
+      setTenant(tenantData);
 
-      let invoiceId: string | undefined = subData?.invoiceId;
-      if (!invoiceId && subData?.subscriptionId) {
+      setRegistrationResult({
+        companyId,
+        accessToken,
+        adminUserId,
+        newUser,
+        tenantData,
+      });
+
+      setPayingLabel(t("register.paying.preparing_payment"));
+      let invoiceId = await pickLatestPayableInvoiceIdFromList(
+        subData.subscriptionId,
+      );
+
+      if (!invoiceId && subData.subscriptionId) {
         const { periodStart, periodEnd } = getCurrentPeriod();
         try {
           const gen = await apiGenerateInvoice(
@@ -270,36 +302,47 @@ export const useRegisterCompany = (): UseRegisterCompanyResult => {
             periodStart,
             periodEnd,
           );
-          invoiceId = (gen as any)?.invoiceId;
+          invoiceId = (gen as { invoiceId?: string })?.invoiceId;
         } catch {
-          /* no invoice for this plan */
+          /* BE may not expose invoice yet — error surfaced below */
         }
       }
 
-      if (invoiceId) {
-        setPayingLabel(t("register.paying.preparing_payment"));
-        const selectedPlan = planList?.find((p) => p.code === selectedPlanCode);
-        const amount =
-          billingCycle === "YEARLY"
-            ? (selectedPlan?.priceYearly ?? "0 ₫")
-            : (selectedPlan?.price ?? "0 ₫");
-
-        // Create payment intent and embed in step 4 instead of navigating away
-        const intentResult = await apiCreatePaymentIntent(invoiceId);
-        const clientSecret = intentResult.clientSecret ?? "";
-
-        setPaymentState({
-          clientSecret,
-          invoiceId,
-          amount,
-          planName: selectedPlan?.name ?? t("register.payment.plan_default"),
-          billingCycle,
-        });
-        setStep(4);
-      } else {
-        notify.success(t("global.save_success"));
-        navigate("/dashboard", { replace: true });
+      if (!invoiceId) {
+        const msg = t("register.payment.invoice_unavailable");
+        setSubmitError(msg);
+        notify.error(msg);
+        return;
       }
+
+      const intentResult = await apiCreatePaymentIntent(invoiceId);
+      const clientSecret = intentResult.clientSecret ?? "";
+      if (!clientSecret) {
+        const msg = t("register.payment.intent_unavailable");
+        setSubmitError(msg);
+        notify.error(msg);
+        return;
+      }
+
+      const selectedPlan = planList?.find((p) => p.code === selectedPlanCode);
+      const amountFromIntent =
+        typeof intentResult.amount === "number"
+          ? formatVnd(intentResult.amount)
+          : null;
+      const amountFallback =
+        billingCycle === "YEARLY"
+          ? (selectedPlan?.priceYearly ?? "0 ₫")
+          : (selectedPlan?.price ?? "0 ₫");
+      const amount = amountFromIntent ?? amountFallback;
+
+      setPaymentState({
+        clientSecret,
+        invoiceId,
+        amount,
+        planName: selectedPlan?.name ?? t("register.payment.plan_default"),
+        billingCycle,
+      });
+      setStep(4);
     } catch (e) {
       const msg = e instanceof Error ? e.message : t("register.error.failed");
       setSubmitError(msg);

@@ -972,6 +972,30 @@ export const handlers = [
       });
     }
 
+    if (op === "com.sme.billing.subscription.history") {
+      return HttpResponse.json({
+        data: {
+          page: 0,
+          size: 20,
+          total: 0,
+          totalPages: 0,
+          items: [] as unknown[],
+        },
+      });
+    }
+
+    if (op === "com.sme.billing.subscription.planTimeline") {
+      return HttpResponse.json({
+        data: {
+          page: 0,
+          size: 50,
+          total: 0,
+          totalPages: 0,
+          segments: [] as unknown[],
+        },
+      });
+    }
+
     // ── Auth: login ──────────────────────────────────────────────────────────
     if (op === "com.sme.identity.auth.login") {
       const { email, password } = payload as {

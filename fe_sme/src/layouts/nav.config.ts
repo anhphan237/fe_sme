@@ -196,6 +196,11 @@ export const NAV_SECTIONS: NavSection[] = [
         to: "/billing/invoices?tab=transactions",
         requiredRoles: ["HR", "MANAGER"],
       },
+      {
+        titleKey: "nav.billing.plan_timeline",
+        to: "/billing/plan-timeline",
+        requiredRoles: ["HR"],
+      },
     ],
   },
 

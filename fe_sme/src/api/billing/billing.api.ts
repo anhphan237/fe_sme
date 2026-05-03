@@ -5,6 +5,10 @@ import type {
   SubscriptionUpdateRequest,
   SubscriptionUpdateResponse,
   PaymentCreateIntentResponse,
+  SubscriptionHistoryRequest,
+  SubscriptionHistoryResponse,
+  SubscriptionPlanTimelineRequest,
+  SubscriptionPlanTimelineResponse,
 } from "@/interface/billing";
 
 // ── Subscription ────────────────────────────────────────────
@@ -42,6 +46,24 @@ export const apiGetSubscription = (companyId?: string) =>
     "com.sme.billing.subscription.getCurrent",
     companyId ? { companyId } : {},
   );
+
+/** com.sme.billing.subscription.history */
+export const apiGetSubscriptionHistory = (
+  payload: SubscriptionHistoryRequest = {},
+) =>
+  gatewayRequest<SubscriptionHistoryRequest, SubscriptionHistoryResponse>(
+    "com.sme.billing.subscription.history",
+    payload,
+  );
+
+/** com.sme.billing.subscription.planTimeline */
+export const apiGetSubscriptionPlanTimeline = (
+  payload: SubscriptionPlanTimelineRequest = {},
+) =>
+  gatewayRequest<
+    SubscriptionPlanTimelineRequest,
+    SubscriptionPlanTimelineResponse
+  >("com.sme.billing.subscription.planTimeline", payload);
 
 // ── Plan ────────────────────────────────────────────────────
 
@@ -177,5 +199,3 @@ export const apiDunningRetry = (
       ...(subscriptionId && { subscriptionId }),
     },
   );
-
-// ── Subscription ────────────────────────────────────────────

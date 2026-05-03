@@ -206,11 +206,19 @@ const useCompanyTaskCompletion = (companyId: string) =>
     enabled: !!companyId,
   });
 
-const useSubscriptionHistory = (subscriptionId?: string) =>
+const useSubscriptionHistory = (
+  subscriptionId?: string,
+  tenantCompanyId?: string,
+) =>
   useQuery({
-    queryKey: ["subscription-history", subscriptionId],
+    queryKey: ["subscription-history", subscriptionId, tenantCompanyId],
     queryFn: () =>
-      apiGetSubscriptionHistory({ subscriptionId: subscriptionId! }),
+      apiGetSubscriptionHistory({
+        subscriptionId: subscriptionId!,
+        ...(tenantCompanyId ? { companyId: tenantCompanyId } : {}),
+        page: 0,
+        size: 20,
+      }),
     select: (res: any) =>
       (res?.data ?? res) as PlatformSubscriptionHistoryResponse,
     enabled: !!subscriptionId,
@@ -305,7 +313,7 @@ const CompanyDetail = () => {
   const { data: deptData } = useCompanyDepartments(companyId!);
   const { data: taskCompletion } = useCompanyTaskCompletion(companyId!);
   const { data: subHistory, isLoading: subHistoryLoading } =
-    useSubscriptionHistory(company?.subscriptionId);
+    useSubscriptionHistory(company?.subscriptionId, companyId);
   const [paymentPage, setPaymentPage] = useState(1);
   const { data: paymentHistory, isLoading: paymentHistoryLoading } =
     useCompanyPaymentHistory(companyId, paymentPage - 1);
@@ -1105,6 +1113,11 @@ const CompanyDetail = () => {
                             )}
                           </th>
                           <th className="px-4 py-2.5">
+                            {t(
+                              "platform.company_detail.sub_history_changed_by",
+                            )}
+                          </th>
+                          <th className="px-4 py-2.5">
                             {t("platform.company_detail.sub_history_effective")}
                           </th>
                         </tr>
@@ -1119,7 +1132,7 @@ const CompanyDetail = () => {
                               {item.oldPlanCode || "—"}
                             </td>
                             <td className="px-4 py-3 font-medium text-slate-800">
-                              {item.newPlanCode}
+                              {item.newPlanCode ?? "—"}
                             </td>
                             <td className="px-4 py-3 text-slate-500">
                               {item.billingCycle === "MONTHLY"
@@ -1134,6 +1147,11 @@ const CompanyDetail = () => {
                                     "DD MMM YYYY HH:mm",
                                   )
                                 : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-slate-500">
+                              {item.changedByName?.trim() ||
+                                item.changedBy?.trim() ||
+                                "—"}
                             </td>
                             <td className="px-4 py-3 text-slate-500">
                               {item.effectiveFrom

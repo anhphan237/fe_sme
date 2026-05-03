@@ -65,6 +65,74 @@ export interface SubscriptionCurrentResponse extends SubscriptionResponse {
   usedSeats: number;
 }
 
+/** com.sme.billing.subscription.history / com.sme.billing.subscription.planTimeline */
+export interface SubscriptionHistoryRequest {
+  companyId?: string;
+  subscriptionId?: string;
+  /** Calendar year (system TZ); intersects with fromDate/toDate when present */
+  year?: number;
+  /** yyyy-MM-dd — range filter on effective period vs calendar day */
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  size?: number;
+}
+
+/** com.sme.billing.subscription.history */
+export interface SubscriptionHistoryItem {
+  historyId: string;
+  subscriptionId: string;
+  oldPlanCode: string | null;
+  newPlanCode: string | null;
+  billingCycle: string;
+  changedBy: string | null;
+  /** Resolved from tenant users; null/omit if Stripe/system or unknown */
+  changedByName?: string | null;
+  changedAt: string;
+  effectiveFrom: string | null;
+  /** null = current segment until next change */
+  effectiveTo: string | null;
+}
+
+/** Paging metadata returned with history + planTimeline */
+export interface SubscriptionBillingListPaging {
+  /** 0-based page index */
+  page: number;
+  /** Applied page size (after BE clamp) */
+  size: number;
+  /** Total rows matching filter */
+  total: number;
+  /** ceil(total/size), 0 if total === 0 */
+  totalPages: number;
+}
+
+export interface SubscriptionHistoryResponse extends SubscriptionBillingListPaging {
+  items: SubscriptionHistoryItem[];
+}
+
+/** com.sme.billing.subscription.planTimeline — same payload as history */
+export type SubscriptionPlanTimelineRequest = SubscriptionHistoryRequest;
+
+/** com.sme.billing.subscription.planTimeline */
+export interface SubscriptionPlanTimelineSegment {
+  subscriptionId: string;
+  planId: string;
+  planCode: string;
+  planName: string;
+  billingCycle: string;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  historyId: string;
+  changedBy?: string | null;
+  changedByName?: string | null;
+  changedAt?: string;
+}
+
+export interface SubscriptionPlanTimelineResponse
+  extends SubscriptionBillingListPaging {
+  segments: SubscriptionPlanTimelineSegment[];
+}
+
 // ---------------------------
 // Plan
 // ---------------------------

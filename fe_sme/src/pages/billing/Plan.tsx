@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate, type NavigateFunction } from "react-router-dom";
 import { clsx } from "clsx";
 import { Empty, Skeleton } from "antd";
@@ -173,6 +173,9 @@ const refreshBillingQueries = async (queryClient: QueryClient) => {
     queryClient.invalidateQueries({ queryKey: ["invoices"] }),
     queryClient.invalidateQueries({ queryKey: ["billing", "subscription"] }),
     queryClient.invalidateQueries({ queryKey: ["billing", "plans", "ACTIVE"] }),
+    queryClient.invalidateQueries({
+      queryKey: ["billing", "subscription-plan-timeline"],
+    }),
   ]);
 
   await Promise.all([
@@ -522,6 +525,8 @@ const BillingPlan = () => {
   const [selected, setSelected] = useState<string | null>(null);
   const [billingCycleOverride, setBillingCycleOverride] =
     useState<BillingCycle | null>(null);
+  /** Synchronous guard — blocks double click before isPending re-renders. */
+  const planChangeConfirmLockRef = useRef(false);
 
   const { data: plans = [], isLoading } = useQuery({
     queryKey: ["plans"],
@@ -535,6 +540,8 @@ const BillingPlan = () => {
     queryFn: () => apiGetSubscription(),
     select: (res: unknown) => mapSubscription(res) as Subscription,
   });
+
+  const companyId = currentUser?.companyId ?? currentTenant?.id ?? "";
 
   const createSub = useMutation({
     mutationFn: (payload: {
@@ -553,7 +560,6 @@ const BillingPlan = () => {
     mutationFn: apiUpdateSubscription,
   });
 
-  const companyId = currentUser?.companyId ?? currentTenant?.id ?? "";
   const currentPlanCode = subscription?.planCode ?? "";
   const hasSubscription = Boolean(subscription?.subscriptionId);
 
@@ -622,6 +628,8 @@ const BillingPlan = () => {
 
   const handleConfirm = () => {
     if (!selected) return;
+    if (isPending || planChangeConfirmLockRef.current) return;
+    planChangeConfirmLockRef.current = true;
 
     if (subscription?.subscriptionId) {
       updateSub.mutate(
@@ -643,6 +651,9 @@ const BillingPlan = () => {
             );
           },
           onError: (error) => notify.error(`Failed: ${getErrorMessage(error)}`),
+          onSettled: () => {
+            planChangeConfirmLockRef.current = false;
+          },
         },
       );
 
@@ -668,12 +679,16 @@ const BillingPlan = () => {
             );
           },
           onError: (error) => notify.error(`Failed: ${getErrorMessage(error)}`),
+          onSettled: () => {
+            planChangeConfirmLockRef.current = false;
+          },
         },
       );
 
       return;
     }
 
+    planChangeConfirmLockRef.current = false;
     notify.warning(
       "No company selected. Please switch tenant or contact support.",
     );
