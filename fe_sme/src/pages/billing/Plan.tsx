@@ -173,6 +173,9 @@ const refreshBillingQueries = async (queryClient: QueryClient) => {
     queryClient.invalidateQueries({ queryKey: ["invoices"] }),
     queryClient.invalidateQueries({ queryKey: ["billing", "subscription"] }),
     queryClient.invalidateQueries({ queryKey: ["billing", "plans", "ACTIVE"] }),
+    queryClient.invalidateQueries({
+      queryKey: ["billing", "subscription-plan-timeline"],
+    }),
   ]);
 
   await Promise.all([
@@ -536,6 +539,8 @@ const BillingPlan = () => {
     select: (res: unknown) => mapSubscription(res) as Subscription,
   });
 
+  const companyId = currentUser?.companyId ?? currentTenant?.id ?? "";
+
   const createSub = useMutation({
     mutationFn: (payload: {
       companyId: string;
@@ -553,7 +558,6 @@ const BillingPlan = () => {
     mutationFn: apiUpdateSubscription,
   });
 
-  const companyId = currentUser?.companyId ?? currentTenant?.id ?? "";
   const currentPlanCode = subscription?.planCode ?? "";
   const hasSubscription = Boolean(subscription?.subscriptionId);
 

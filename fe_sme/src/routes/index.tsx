@@ -71,6 +71,7 @@ const SurveyDetail = lazy(() => import("@/pages/surveys/SurveyDetail"));
 const SurveyReports = lazy(() => import("@/pages/surveys/SurveyReports"));
 const Chatbot = lazy(() => import("@/pages/chatbot/Chatbot"));
 const BillingPlan = lazy(() => import("@/pages/billing/Plan"));
+const BillingPlanTimeline = lazy(() => import("@/pages/billing/PlanTimeline"));
 const BillingUsage = lazy(() => import("@/pages/billing/Usage"));
 const BillingInvoices = lazy(() => import("@/pages/billing/Invoices"));
 const BillingPayment = lazy(() => import("@/pages/billing/Payment"));
@@ -437,6 +438,10 @@ export const router = createBrowserRouter([
       {
         path: "/billing/plan",
         element: suspense(withRoles(<BillingPlan />, ["HR"])),
+      },
+      {
+        path: "/billing/plan-timeline",
+        element: suspense(withRoles(<BillingPlanTimeline />, ["HR"])),
       },
       {
         path: "/billing/usage",

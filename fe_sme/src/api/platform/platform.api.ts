@@ -8,7 +8,6 @@ import type {
   PlatformCompanyDeleteRequest,
   PlatformCompanySuspendRequest,
   PlatformCompanyChangePlanRequest,
-  PlatformSubscriptionHistoryRequest,
   PlatformOnboardingAnalyticsRequest,
   PlatformTemplateListRequest,
   PlatformTemplateCreateRequest,
@@ -176,15 +175,6 @@ export const apiChangePlanCompany = (
 ) =>
   gatewayRequest<PlatformCompanyChangePlanRequest, unknown>(
     "com.sme.platform.company.changePlan",
-    payload,
-  );
-
-/** com.sme.billing.subscription.history */
-export const apiGetSubscriptionHistory = (
-  payload: PlatformSubscriptionHistoryRequest,
-) =>
-  gatewayRequest<PlatformSubscriptionHistoryRequest, unknown>(
-    "com.sme.billing.subscription.history",
     payload,
   );
 
@@ -431,3 +421,9 @@ export const apiGetPlatformOnboardingTrend = (
     "com.sme.platform.analytics.onboarding.trend",
     payload,
   );
+
+// ── Billing (re-export) ───────────────────────────────────────
+export {
+  apiGetSubscriptionHistory,
+  apiGetSubscriptionPlanTimeline,
+} from "../billing/billing.api";
