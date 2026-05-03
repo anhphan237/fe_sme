@@ -90,7 +90,7 @@ export const apiGetPlatformTemplateList = (
 ) =>
   gatewayRequest<PlatformTemplateListRequest, unknown>(
     "com.sme.onboarding.template.list",
-    payload,
+    { ...payload, level: payload.level ?? "PLATFORM" },
   );
 
 /** com.sme.platform.template.create — creates a PLATFORM-level template (admin only) */

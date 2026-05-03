@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, Building2, Pencil, Plus, Users } from "lucide-react";
 import { clsx } from "clsx";
 import { Empty, Skeleton, Tag } from "antd";
@@ -14,8 +14,9 @@ import { useUserStore } from "@/stores/user.store";
 import { getDeptTypeStyle } from "./constants";
 import {
   useUsersQuery,
-  useDepartmentsQuery,
+  useManagerUsersQuery,
   useDepartmentTypesQuery,
+  useDepartmentsQuery,
 } from "@/hooks/adminHooks";
 import {
   DepartmentFormDrawer,
@@ -43,7 +44,13 @@ const Departments = () => {
     refetch,
   } = useDepartmentsQuery();
   const { data: users = [] } = useUsersQuery();
-  const { data: departmentTypes = [] } = useDepartmentTypesQuery();
+  const { data: managerUsers = [] } = useManagerUsersQuery();
+  const { data: departmentTypes = [] } = useDepartmentTypesQuery("ACTIVE");
+
+  const selectableManagers = useMemo(() => {
+    const activeManagers = managerUsers.filter((u) => u.status === "Active");
+    return activeManagers.length > 0 ? activeManagers : managerUsers;
+  }, [managerUsers]);
 
   const deptTypeLabel = (code: string | null) => {
     if (!code) return "";
@@ -75,8 +82,20 @@ const Departments = () => {
         (d) =>
           !q ||
           d.name.toLowerCase().includes(q) ||
-          deptTypeLabel(d.type).toLowerCase().includes(q),
+          deptTypeLabel(d.type).toLowerCase().includes(q) ||
+          (resolveManagerName(d.managerUserId) ?? "").toLowerCase().includes(q),
       );
+
+  useEffect(() => {
+    if (!filtered.length) {
+      if (selectedId !== null) setSelectedId(null);
+      return;
+    }
+    const stillSelected = filtered.some((d) => d.departmentId === selectedId);
+    if (!stillSelected) {
+      setSelectedId(filtered[0].departmentId);
+    }
+  }, [filtered, selectedId]);
 
   const selected =
     departments?.find((d) => d.departmentId === selectedId) ?? null;
@@ -92,22 +111,28 @@ const Departments = () => {
     form: { name: string; type: string; managerUserId: string },
     departmentId: string | null,
   ) => {
+    const payload = {
+      name: form.name.trim(),
+      type: form.type.trim(),
+      managerUserId: form.managerUserId.trim(),
+    };
+
     if (mode === "create") {
       const companyId = currentTenant?.id ?? currentUser?.companyId ?? "";
       if (!companyId) throw new Error(t("department.error.no_company"));
       await apiCreateDepartment({
         companyId,
-        name: form.name,
-        type: form.type,
-        managerId: form.managerUserId || undefined,
+        name: payload.name,
+        type: payload.type || undefined,
+        managerId: payload.managerUserId || undefined,
       });
       notify.success(t("department.create_success"));
     } else if (mode === "edit" && departmentId) {
       await apiUpdateOrgDepartment({
         departmentId,
-        name: form.name,
-        type: form.type,
-        managerUserId: form.managerUserId || undefined,
+        name: payload.name,
+        type: payload.type || undefined,
+        managerUserId: payload.managerUserId || undefined,
       });
       notify.success(t("department.update_success"));
     }
@@ -122,6 +147,9 @@ const Departments = () => {
         <h1 className="text-base font-semibold text-[#223A59]">
           {t("department.title")}
         </h1>
+        <span className="ml-auto mr-3 text-xs text-[#758BA5]">
+          {departments?.length ?? 0} {t("department.total")}
+        </span>
         <BaseButton
           type="primary"
           icon={<Plus className="h-4 w-4" />}
@@ -356,7 +384,7 @@ const Departments = () => {
         mode={modalMode}
         department={editingDept}
         departmentTypes={departmentTypes}
-        users={users}
+        users={selectableManagers}
         onClose={closeModal}
         onSubmit={handleModalSubmit}
       />

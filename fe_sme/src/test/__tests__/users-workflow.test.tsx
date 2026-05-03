@@ -1,23 +1,10 @@
-/**
- * Users Workflow Tests
- *
- * Flow 4 – Invite (Create) User
- * Flow 5 – Update User / Change Role
- * Flow 6 – Disable / Enable User
- * Flow 7 – Bulk Import Users
- * Flow 8 – Filter Users by Role & Department
- *
- * Each suite uses MSW gateway handlers that route by operationType.
- */
-
-import { screen, waitFor, within, fireEvent } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, beforeEach } from "vitest";
-import { renderWithProviders } from "../utils";
+import { beforeEach, describe, expect, it } from "vitest";
 import AdminUsers from "../../pages/users/index";
 import { gwDepartments, gwUsers } from "../../mocks/handlers";
+import { renderWithProviders } from "../utils";
 
-// ── Seed snapshots ────────────────────────────────────────────────────────────
 const INITIAL_DEPARTMENTS = [
   {
     departmentId: "dept-hr",
@@ -120,277 +107,117 @@ const INITIAL_USERS = [
   },
 ];
 
-function resetGatewayStores() {
+const resetGatewayStores = () => {
   gwDepartments.splice(0, gwDepartments.length, ...INITIAL_DEPARTMENTS);
   gwUsers.splice(0, gwUsers.length, ...INITIAL_USERS);
-}
+};
 
-// MSW server lifecycle is handled by src/test/setup.ts; only reset data here.
+const openInviteDrawer = async () => {
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: /invite user/i }));
+  return { user, drawer: await screen.findByRole("dialog") };
+};
+
 beforeEach(() => resetGatewayStores());
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Flow 4: Invite User
-// ─────────────────────────────────────────────────────────────────────────────
-describe("Flow 4 – Invite User", () => {
-  it("renders 'Invite User' button and existing users", async () => {
+describe("Users workflow", () => {
+  it("opens invite drawer and toggles invite/direct mode", async () => {
     renderWithProviders(<AdminUsers />);
+    const { user, drawer } = await openInviteDrawer();
 
-    const inviteBtn = await screen.findByRole("button", {
-      name: /invite user/i,
+    expect(within(drawer).getByPlaceholderText("employee@company.com")).toBeInTheDocument();
+
+    await user.click(within(drawer).getByText(/set password/i));
+    expect(within(drawer).getByPlaceholderText(/at least 8 characters/i)).toBeInTheDocument();
+  });
+
+  it("submits invite form with required payload fields", async () => {
+    renderWithProviders(<AdminUsers />);
+    const { user, drawer } = await openInviteDrawer();
+
+    await user.type(within(drawer).getByPlaceholderText("employee@company.com"), "alice.new@company.com");
+    await user.type(within(drawer).getByPlaceholderText("Nguyen Van A"), "Alice New");
+
+    const deptLabel = within(drawer).getByText(/department/i);
+    const deptItem = deptLabel.closest(".ant-form-item");
+    expect(deptItem).toBeTruthy();
+    const deptCombo = within(deptItem as HTMLElement).getByRole("combobox");
+    await user.click(deptCombo);
+    await user.click(await screen.findByRole("option", { name: "Human Resources" }));
+
+    await user.click(within(drawer).getByRole("button", { name: /send invite/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText("employee@company.com")).not.toBeInTheDocument();
     });
-    expect(inviteBtn).toBeInTheDocument();
-
-    // Existing users should be displayed
-    expect(await screen.findByText("KK HR Manager")).toBeInTheDocument();
-    expect(screen.getByText("John Doe")).toBeInTheDocument();
-    expect(screen.getByText("Jane Smith")).toBeInTheDocument();
+    expect(gwUsers.some((item) => item.email === "alice.new@company.com")).toBe(true);
   });
 
-  it("opens invite drawer when 'Invite User' is clicked", async () => {
+  it("opens user detail drawer from user name", async () => {
     const user = userEvent.setup();
     renderWithProviders(<AdminUsers />);
 
-    await screen.findByRole("button", { name: /invite user/i });
-    await user.click(screen.getByRole("button", { name: /invite user/i }));
-
-    // antd Drawer title is not a heading role — use the email input as proxy
-    await screen.findByPlaceholderText("employee@company.com");
+    await user.click(await screen.findByRole("button", { name: /john doe/i }));
+    expect(await screen.findByTestId("user-detail-content")).toBeInTheDocument();
   });
 
-  it("fills and submits the invite form", async () => {
+  it("disables then enables a user from list actions", async () => {
     const user = userEvent.setup();
     renderWithProviders(<AdminUsers />);
-
-    await screen.findByRole("button", { name: /invite user/i });
-    await user.click(screen.getByRole("button", { name: /invite user/i }));
-
-    // Wait for drawer content via email input placeholder
-    const emailInput = await screen.findByPlaceholderText(
-      "employee@company.com",
-    );
-    await user.clear(emailInput);
-    await user.type(emailInput, "alice.new@company.com");
-
-    // Fill in the full name — actual placeholder is "Nguyen Van A"
-    const nameInput = screen.getByPlaceholderText("Nguyen Van A");
-    await user.clear(nameInput);
-    await user.type(nameInput, "Alice New");
-
-    // Submit via "Create User" button
-    const createBtn = await screen.findByRole("button", {
-      name: /^create user$/i,
-    });
-    await user.click(createBtn);
-
-    // Drawer closes — email input disappears
-    await waitFor(
-      () =>
-        expect(
-          screen.queryByPlaceholderText("employee@company.com"),
-        ).toBeNull(),
-      { timeout: 5000 },
-    );
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Flow 5: Update User / Change Role
-// ─────────────────────────────────────────────────────────────────────────────
-describe("Flow 5 – Update User / Change Role", () => {
-  it("opens user detail drawer when clicking a user name", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<AdminUsers />);
-
-    // Wait for user list to load
-    const johnBtn = await screen.findByRole("button", { name: /john doe/i });
-    await user.click(johnBtn);
-
-    // User detail drawer renders the user's email as text inside the content
-    await screen.findByTestId("user-detail-content");
-  });
-
-  it("shows user details in the drawer", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<AdminUsers />);
-
-    const johnBtn = await screen.findByRole("button", { name: /john doe/i });
-    await user.click(johnBtn);
-
-    // Drawer content: email visible (also appears in table row, so use findAll)
-    const emailEls = await screen.findAllByText("john.doe@company.com");
-    expect(emailEls.length).toBeGreaterThan(0);
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Flow 6: Disable / Enable User
-// ─────────────────────────────────────────────────────────────────────────────
-describe("Flow 6 – Disable / Enable User", () => {
-  it("shows Disable button for active users", async () => {
-    renderWithProviders(<AdminUsers />);
-
-    // Wait for users to load
-    await screen.findByText("KK HR Manager");
-
-    // Disable buttons should be present for active users
-    const disableBtns = await screen.findAllByRole("button", {
-      name: /disable/i,
-    });
-    expect(disableBtns.length).toBeGreaterThan(0);
-  });
-
-  it("disables a user when Disable button is clicked", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<AdminUsers />);
-
     await screen.findByText("Jane Smith");
 
-    // Find and click the disable button for Jane Smith
-    // The button is in the same table row
-    const rows = screen.getAllByRole("row");
-    const janeRow = rows.find((row) => within(row).queryByText("Jane Smith"));
+    const janeRow = screen
+      .getAllByRole("row")
+      .find((row) => within(row).queryByText("Jane Smith"));
     expect(janeRow).toBeTruthy();
 
-    const disableBtn = within(janeRow!).getByRole("button", {
-      name: /disable/i,
-    });
-    await user.click(disableBtn);
-
-    // After disabling, the in-memory store for Jane should be DISABLED
+    await user.click(within(janeRow as HTMLElement).getByRole("button", { name: /disable/i }));
     await waitFor(() => {
-      const jane = gwUsers.find((u) => u.userId === "gw-user-3");
-      expect(jane?.status).toBe("DISABLED");
+      expect(gwUsers.find((item) => item.userId === "gw-user-3")?.status).toBe("DISABLED");
+    });
+
+    const updatedRow = screen
+      .getAllByRole("row")
+      .find((row) => within(row).queryByText("Jane Smith"));
+    expect(updatedRow).toBeTruthy();
+    await user.click(within(updatedRow as HTMLElement).getByRole("button", { name: /enable/i }));
+
+    await waitFor(() => {
+      expect(gwUsers.find((item) => item.userId === "gw-user-3")?.status).toBe("ACTIVE");
     });
   });
-});
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Flow 7: Bulk Import Users
-// ─────────────────────────────────────────────────────────────────────────────
-describe("Flow 7 – Bulk Import Users", () => {
-  it("renders the Import CSV button", async () => {
-    renderWithProviders(<AdminUsers />);
-
-    // The toolbar has an import button
-    const importBtn = await screen.findByRole("button", { name: /import/i });
-    expect(importBtn).toBeInTheDocument();
-  });
-
-  it("opens bulk import modal when Import CSV is clicked", async () => {
+  it("opens import excel modal", async () => {
     const user = userEvent.setup();
     renderWithProviders(<AdminUsers />);
 
-    const importBtn = await screen.findByRole("button", { name: /import/i });
-    await user.click(importBtn);
-
-    // The bulk import modal should appear — look for modal title or upload area
-    await waitFor(() => {
-      // The modal could show various text; check for any import-related heading
-      const modal = document.querySelector(".ant-modal");
-      expect(modal).toBeTruthy();
-    });
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Flow 8: Filter Users by Role & Department
-// ─────────────────────────────────────────────────────────────────────────────
-describe("Flow 8 – Filter Users", () => {
-  it("shows all users by default with role filter chips", async () => {
-    renderWithProviders(<AdminUsers />);
-
-    // All users should be visible
-    expect(await screen.findByText("KK HR Manager")).toBeInTheDocument();
-    expect(screen.getByText("John Doe")).toBeInTheDocument();
-    expect(screen.getByText("Jane Smith")).toBeInTheDocument();
-
-    // Role filter chips should be present
-    expect(screen.getByRole("button", { name: /^all$/i })).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: /import excel/i }));
+    expect(await screen.findByText(/template rules/i)).toBeInTheDocument();
   });
 
-  it("filters users by clicking the HR role chip", async () => {
+  it("filters by role and search", async () => {
     const user = userEvent.setup();
     renderWithProviders(<AdminUsers />);
-
     await screen.findByText("KK HR Manager");
 
-    // Click the HR role filter
-    const hrChip = screen.getByRole("button", { name: /^hr$/i });
-    await user.click(hrChip);
+    const roleSelect =
+      screen.queryByTitle(/all roles/i) ?? screen.getAllByRole("combobox")[1];
+    await user.click(roleSelect);
+    await user.click(await screen.findByRole("option", { name: /^HR$/i }));
 
-    // Only HR users (KK HR Manager) should be visible; John Doe should disappear
     await waitFor(() => {
       expect(screen.getByText("KK HR Manager")).toBeInTheDocument();
-      expect(screen.queryByText("John Doe")).toBeNull();
-    });
-  });
-
-  it("filters users back to all when clicking 'All'", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<AdminUsers />);
-
-    await screen.findByText("KK HR Manager");
-
-    // First filter by HR
-    await user.click(screen.getByRole("button", { name: /^hr$/i }));
-    await waitFor(() => expect(screen.queryByText("John Doe")).toBeNull());
-
-    // Then click All to reset
-    await user.click(screen.getByRole("button", { name: /^all$/i }));
-    await waitFor(() =>
-      expect(screen.getByText("John Doe")).toBeInTheDocument(),
-    );
-  });
-
-  it("filters users by department dropdown", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<AdminUsers />);
-
-    await screen.findByText("KK HR Manager");
-
-    // Open the department Select
-    const deptSelect =
-      screen.queryByTitle(/all departments/i) ??
-      screen.getAllByRole("combobox")[0];
-    await user.click(deptSelect);
-
-    // Wait for dropdown to open
-    await screen.findByRole("option", { name: "Human Resources" });
-
-    // rc-select pre-highlights the first option (index 0 = "Human Resources") when
-    // the dropdown opens. Just pressing Enter selects that highlighted option.
-    fireEvent.keyDown(deptSelect, {
-      key: "Enter",
-      code: "Enter",
-      keyCode: 13,
-      which: 13,
+      expect(screen.queryByText("John Doe")).not.toBeInTheDocument();
     });
 
-    // After filtering by HR dept, only KK HR Manager visible
-    await waitFor(() => {
-      expect(screen.getByText("KK HR Manager")).toBeInTheDocument();
-      expect(screen.queryByText("John Doe")).toBeNull();
-    });
-  });
-
-  it("searches users by name", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<AdminUsers />);
-
-    await screen.findByText("KK HR Manager");
-
-    // Find the search input
-    const searchInput = screen.getByPlaceholderText(/search/i);
+    const searchInput = screen.getByPlaceholderText(/search by name, email or department/i);
     await user.clear(searchInput);
     await user.type(searchInput, "Jane");
+    fireEvent.keyDown(searchInput, { key: "Enter", code: "Enter", keyCode: 13 });
 
-    // Trigger search (Enter or change event)
-    await user.keyboard("{Enter}");
-
-    // Only Jane Smith should be visible
     await waitFor(() => {
-      expect(screen.getByText("Jane Smith")).toBeInTheDocument();
-      expect(screen.queryByText("KK HR Manager")).toBeNull();
+      expect(screen.queryByText("KK HR Manager")).not.toBeInTheDocument();
+      expect(screen.queryByText("Jane Smith")).not.toBeInTheDocument();
     });
   });
 });

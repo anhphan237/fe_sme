@@ -17,7 +17,6 @@ import {
   Flag,
   MessageSquare,
   Paperclip,
-  RefreshCw,
   Search,
   Send,
   ShieldCheck,
@@ -71,6 +70,7 @@ import type {
   TaskAllLogItem,
 } from "@/interface/onboarding";
 import type { GetUserResponse } from "@/interface/identity";
+import { AppLoading } from "@/components/page-loading";
 import { DepartmentCheckpointCard } from "@/pages/onboarding/employees/detail/components/DepartmentCheckpointCard";
 import { DepartmentDependentApprovals } from "./DepartmentDependentApprovals";
 import { DeptDepartmentSelector } from "./components/dept/DeptDepartmentSelector";
@@ -127,21 +127,24 @@ const StatCard = ({
   borderColor: string;
 }) => (
   <div
-    className={`flex items-center gap-4 rounded-xl border-l-4 bg-white px-5 py-4 shadow-sm ${borderColor}`}
+    className={`relative overflow-hidden rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm ${borderColor}`}
   >
-    <div
-      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${colorClass}`}
-    >
-      {icon}
+    <div className="flex items-center gap-3">
+      <div
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${colorClass}`}
+      >
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+          {label}
+        </p>
+        <p className="mt-1 text-2xl font-bold leading-none text-gray-900">
+          {value}
+        </p>
+      </div>
     </div>
-    <div>
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-        {label}
-      </p>
-      <p className="mt-0.5 text-2xl font-bold leading-none text-gray-900">
-        {value}
-      </p>
-    </div>
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-current opacity-10" />
   </div>
 );
 
@@ -1035,9 +1038,9 @@ const ApprovalDetailDrawer = ({
 // ── Loading Skeleton ──────────────────────────────────────────────────────────
 
 const LoadingSkeleton = () => (
-  <div className="space-y-4">
+  <div className="space-y-3">
     {[1, 2, 3].map((i) => (
-      <Card key={i} className="border-l-4 border-l-gray-200 shadow-sm">
+      <Card key={i} className="border border-gray-100 shadow-sm">
         <Skeleton avatar active paragraph={{ rows: 2 }} />
       </Card>
     ))}
@@ -1096,6 +1099,9 @@ const ApprovalsPage = () => {
     queryKey: ["user-detail", currentUser?.id ?? ""],
     queryFn: () => apiGetUserById(currentUser!.id),
     enabled: Boolean(currentUser?.id) && !currentUser?.departmentId,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
     select: (res: unknown) =>
       ((res as { data?: GetUserResponse }).data ?? res) as GetUserResponse,
   });
@@ -1108,11 +1114,14 @@ const ApprovalsPage = () => {
   const {
     data: allInstances = [],
     isLoading: instancesLoading,
-    refetch,
+    isFetching: instancesFetching,
   } = useQuery({
     queryKey: ["approval-instances", currentUser?.id, isManager],
     queryFn: () => apiListInstances({ status: "ACTIVE" }),
     enabled: canManage,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
     select: (res: unknown) => {
       const list = extractList(
         res as Record<string, unknown>,
@@ -1135,6 +1144,9 @@ const ApprovalsPage = () => {
       queryKey: ["approval-tasks", instance.id],
       queryFn: () => apiListTasks(instance.id, { status: "PENDING_APPROVAL" }),
       enabled: Boolean(instance.id) && canManage,
+      staleTime: 0,
+      refetchOnMount: "always" as const,
+      refetchOnWindowFocus: true,
       select: (res: unknown) =>
         extractList(
           res as Record<string, unknown>,
@@ -1147,8 +1159,10 @@ const ApprovalsPage = () => {
   });
 
   const tasksLoading = taskQueries.some((q) => q.isLoading);
+  const tasksFetching = taskQueries.some((q) => q.isFetching);
   const isLoading =
     instancesLoading || (allInstances.length > 0 && tasksLoading);
+  const isApprovalsFetching = instancesFetching || tasksFetching;
 
   // ── Step 3: Task detail (lazy) ───────────────────────────────────────────────
 
@@ -1369,170 +1383,120 @@ const ApprovalsPage = () => {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-5">
-      {/* ── Page header ──────────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100">
-              <ShieldCheck className="h-5 w-5 text-amber-600" />
+    <div className="relative min-h-[520px] space-y-5">
+      {pageTab === "approvals" && isApprovalsFetching && <AppLoading />}
+
+      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-100 px-4 pt-3">
+          <Tabs
+            activeKey={pageTab}
+            onChange={(k) => setPageTab(k as "approvals" | "dept_checkpoints")}
+            className="mb-0"
+            items={[
+              {
+                key: "approvals",
+                label: (
+                  <span className="flex items-center gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    Phê duyệt nhiệm vụ
+                    {stats.pending > 0 && (
+                      <Badge count={stats.pending} size="small" />
+                    )}
+                  </span>
+                ),
+              },
+              ...(canManage
+                ? [
+                    {
+                      key: "dept_checkpoints",
+                      label: (
+                        <span className="flex items-center gap-1.5">
+                          <Building2 className="h-3.5 w-3.5" />
+                          Checkpoint phòng ban
+                          {departmentDependentTotal > 0 && (
+                            <Badge
+                              count={departmentDependentTotal}
+                              size="small"
+                              color="#9333ea"
+                            />
+                          )}
+                        </span>
+                      ),
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        </div>
+
+        {pageTab === "approvals" && (
+          <div className="space-y-4 bg-gray-50/60 p-4">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+              <StatCard
+                icon={<Clock className="h-5 w-5 text-blue-600" />}
+                label={t("onboarding.approvals.stat.pending") ?? "Chờ duyệt"}
+                value={stats.pending}
+                colorClass="bg-blue-50"
+                borderColor="text-blue-500"
+              />
+              <StatCard
+                icon={<AlertTriangle className="h-5 w-5 text-red-500" />}
+                label={t("onboarding.approvals.stat.overdue") ?? "Quá hạn"}
+                value={stats.overdue}
+                colorClass="bg-red-50"
+                borderColor="text-red-500"
+              />
+              <StatCard
+                icon={<Users className="h-5 w-5 text-purple-600" />}
+                label={t("onboarding.approvals.stat.employees") ?? "Nhân viên"}
+                value={stats.employees}
+                colorClass="bg-purple-50"
+                borderColor="text-purple-500"
+              />
+              <StatCard
+                icon={<Flag className="h-5 w-5 text-amber-500" />}
+                label={t("onboarding.approvals.stat.required") ?? "Bắt buộc"}
+                value={stats.required}
+                colorClass="bg-amber-50"
+                borderColor="text-amber-500"
+              />
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">
-                {t("onboarding.approvals.title") ?? "Hàng đợi Phê duyệt"}
-              </h1>
-              <p className="text-sm text-gray-500">
-                {stats.employees > 0
-                  ? `${stats.employees} nhân viên · ${stats.pending} task chờ duyệt`
-                  : (t("onboarding.approvals.subtitle") ??
-                    "Xem xét và phê duyệt nhiệm vụ đang chờ từ nhân viên")}
-              </p>
+
+            <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white px-3 py-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Input
+                  placeholder={
+                    t("onboarding.approvals.filter.search") ??
+                    "Tìm theo tên task hoặc nhân viên..."
+                  }
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  allowClear
+                  className="w-full sm:w-80"
+                  prefix={<Search className="h-3.5 w-3.5 text-gray-400" />}
+                />
+                <button
+                  type="button"
+                  onClick={() => setOverdueFirst((v) => !v)}
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+                    overdueFirst
+                      ? "border-red-200 bg-red-50 text-red-600"
+                      : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                  }`}
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  {t("onboarding.approvals.filter.overdue_first") ??
+                    "Quá hạn trước"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-        <Button
-          icon={<RefreshCw className="h-4 w-4" />}
-          onClick={() => {
-            if (pageTab === "dept_checkpoints") {
-              queryClient.invalidateQueries({
-                queryKey: ["department-dependent-tasks"],
-              });
-              return;
-            }
-            void refetch();
-          }}
-          loading={isLoading}
-        >
-          {t("onboarding.approvals.refresh") ?? "Làm mới"}
-        </Button>
-      </div>
-
-      {/* ── Main page tabs ───────────────────────────────────────────────────── */}
-      <Tabs
-        activeKey={pageTab}
-        onChange={(k) => setPageTab(k as "approvals" | "dept_checkpoints")}
-        items={[
-          {
-            key: "approvals",
-            label: (
-              <span className="flex items-center gap-1.5">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                Phê duyệt nhiệm vụ
-                {stats.pending > 0 && (
-                  <Badge count={stats.pending} size="small" />
-                )}
-              </span>
-            ),
-          },
-          ...(canManage
-            ? [
-                {
-                  key: "dept_checkpoints",
-                  label: (
-                    <span className="flex items-center gap-1.5">
-                      <Building2 className="h-3.5 w-3.5" />
-                      Checkpoint phòng ban
-                      {departmentDependentTotal > 0 && (
-                        <Badge
-                          count={departmentDependentTotal}
-                          size="small"
-                          color="#9333ea"
-                        />
-                      )}
-                    </span>
-                  ),
-                },
-              ]
-            : []),
-        ]}
-      />
-
-      {/* ── Stats (approvals tab) ────────────────────────────────────────────── */}
-      {pageTab === "approvals" && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <StatCard
-            icon={<Clock className="h-5 w-5 text-blue-600" />}
-            label={t("onboarding.approvals.stat.pending") ?? "Chờ duyệt"}
-            value={stats.pending}
-            colorClass="bg-blue-50"
-            borderColor="border-l-blue-400"
-          />
-          <StatCard
-            icon={<AlertTriangle className="h-5 w-5 text-red-500" />}
-            label={t("onboarding.approvals.stat.overdue") ?? "Quá hạn"}
-            value={stats.overdue}
-            colorClass="bg-red-50"
-            borderColor="border-l-red-400"
-          />
-          <StatCard
-            icon={<Users className="h-5 w-5 text-purple-600" />}
-            label={t("onboarding.approvals.stat.employees") ?? "Nhân viên"}
-            value={stats.employees}
-            colorClass="bg-purple-50"
-            borderColor="border-l-purple-400"
-          />
-          <StatCard
-            icon={<Flag className="h-5 w-5 text-amber-500" />}
-            label={t("onboarding.approvals.stat.required") ?? "Bắt buộc"}
-            value={stats.required}
-            colorClass="bg-amber-50"
-            borderColor="border-l-amber-400"
-          />
-        </div>
-      )}
+        )}
+      </section>
 
       {/* ── Filter bar (approvals tab) ───────────────────────────────────────── */}
       {pageTab === "approvals" && (
         <>
-          <div className="flex flex-wrap items-center gap-3">
-            <Tabs
-              activeKey={approvalTab}
-              onChange={(k) => setApprovalTab(k as "all" | "mine" | "team")}
-              size="small"
-              className="mb-0"
-              items={[
-                {
-                  key: "all",
-                  label: (
-                    <span className="flex items-center gap-1">
-                      Tất cả
-                      {stats.pending > 0 && (
-                        <Badge count={stats.pending} size="small" />
-                      )}
-                    </span>
-                  ),
-                },
-                { key: "mine", label: "Của tôi" },
-                { key: "team", label: "Nhóm" },
-              ]}
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Input
-              placeholder={
-                t("onboarding.approvals.filter.search") ??
-                "Tìm theo tên task hoặc nhân viên..."
-              }
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              allowClear
-              className="max-w-xs"
-              prefix={<Search className="h-3.5 w-3.5 text-gray-400" />}
-            />
-            <button
-              onClick={() => setOverdueFirst((v) => !v)}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
-                overdueFirst
-                  ? "border-red-200 bg-red-50 text-red-600"
-                  : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
-              }`}
-            >
-              <AlertTriangle className="h-3.5 w-3.5" />
-              {t("onboarding.approvals.filter.overdue_first") ??
-                "Quá hạn trước"}
-            </button>
-          </div>
-
           {/* ── Bulk approve bar ───────────────────────────────────────────── */}
           {selectedTaskIds.size > 0 && (
             <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">

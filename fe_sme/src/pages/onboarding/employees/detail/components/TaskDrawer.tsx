@@ -522,21 +522,20 @@ const TaskInfoTab = ({
         const hasIntermediateStep =
           taskDetail.requireAck || taskDetail.requiresManagerApproval;
         const stepsItems = [
-          { title: t("onboarding.task.status.assigned") || "Tiếp nhận" },
+          { title: t("onboarding.task.status.assigned") },
           {
-            title: t("onboarding.task.status.in_progress") || "Đang thực hiện",
+            title: t("onboarding.task.status.in_progress"),
           },
           ...(hasIntermediateStep
             ? [
                 {
                   title: taskDetail.requireAck
-                    ? t("onboarding.task.status.wait_ack") || "Chờ xác nhận"
-                    : t("onboarding.task.status.pending_approval") ||
-                      "Chờ phê duyệt",
+                    ? t("onboarding.task.status.wait_ack")
+                    : t("onboarding.task.status.pending_approval"),
                 },
               ]
             : []),
-          { title: t("onboarding.task.status.done") || "Hoàn thành" },
+          { title: t("onboarding.task.status.done") },
         ];
         const currentStep =
           status === "DONE"
@@ -855,9 +854,7 @@ const TaskRequiredDocsTab = ({
     return (
       <div className="pt-2">
         <Empty
-          description={
-            t("onboarding.task.required_docs.empty") ?? "Không có tài liệu"
-          }
+          description={t("onboarding.task.required_docs.empty")}
           imageStyle={{ height: 40 }}
         />
       </div>
@@ -1089,8 +1086,7 @@ const TaskRequiredDocsTab = ({
                   <div
                     className="flex items-center justify-center rounded-xl border-2 border-dashed border-gray-200 text-sm text-gray-400"
                     style={{ flex: 1 }}>
-                    {t("onboarding.task.doc.no_preview") ??
-                      "Không có tệp xem trước"}
+                    {t("onboarding.task.doc.no_preview")}
                   </div>
                 ) : isPdf ? (
                   <>
@@ -1422,9 +1418,7 @@ const TaskActivityTab = ({
         </>
       ) : (
         <Empty
-          description={
-            t("onboarding.task.activity.empty") ?? "Chưa có hoạt động"
-          }
+          description={t("onboarding.task.activity.empty")}
           imageStyle={{ height: 40 }}
         />
       )}
@@ -1457,9 +1451,7 @@ const TaskTimelineTab = ({
     return (
       <div className="space-y-4 pt-2">
         <Empty
-          description={
-            t("onboarding.task.activity.empty") ?? "Chưa có hoạt động"
-          }
+          description={t("onboarding.task.activity.empty")}
           imageStyle={{ height: 40 }}
         />
       </div>
@@ -1793,9 +1785,7 @@ export const TaskDrawer = ({
   isApproving,
   isRejecting,
   isAddingComment,
-  isAssigning: _isAssigning,
   uploadingFile,
-  assignableUsers: _assignableUsers,
   acknowledgedDocIds,
   acknowledgingDocId,
   onAcknowledgeDocument,
@@ -1830,7 +1820,6 @@ export const TaskDrawer = ({
   onMarkDone,
   onApprove,
   onReject,
-  onAssign: _onAssign,
   onUploadAttachment,
   onNavigatePrev,
   onNavigateNext,
@@ -2182,5 +2171,4 @@ export const TaskDrawer = ({
   );
 };
 
-// Re-export constant for use in index.tsx
 export { STATUS_DONE_API };

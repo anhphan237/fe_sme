@@ -5,6 +5,7 @@ import {
   CheckSquare,
   Clock,
 } from "lucide-react";
+import { useLocale } from "@/i18n";
 import type { OnboardingTask } from "@/shared/types";
 
 interface RiskCardProps {
@@ -14,6 +15,7 @@ interface RiskCardProps {
 }
 
 export const RiskCard: React.FC<RiskCardProps> = ({ tasks, onTaskClick }) => {
+  const { t } = useLocale();
   const overdueTasks = tasks.filter(
     (t) => t.overdue && t.rawStatus !== "DONE" && t.rawStatus !== "CANCELLED",
   );
@@ -38,7 +40,7 @@ export const RiskCard: React.FC<RiskCardProps> = ({ tasks, onTaskClick }) => {
       title={
         <span className="flex items-center gap-2 text-sm font-semibold text-red-700">
           <AlertTriangle size={14} />
-          Cảnh báo rủi ro
+          {t("onboarding.detail.risk.title")}
           <Badge count={totalRisks} size="small" />
         </span>
       }
@@ -47,7 +49,9 @@ export const RiskCard: React.FC<RiskCardProps> = ({ tasks, onTaskClick }) => {
         <div className="mb-2">
           <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-red-600">
             <Clock size={12} />
-            Quá hạn ({overdueTasks.length})
+            {t("onboarding.detail.risk.overdue_count", {
+              count: overdueTasks.length,
+            })}
           </div>
           <List
             size="small"
@@ -61,14 +65,16 @@ export const RiskCard: React.FC<RiskCardProps> = ({ tasks, onTaskClick }) => {
                   ellipsis
                   style={{ fontSize: 12, maxWidth: "100%", color: "#b91c1c" }}
                 >
-                  {task.title}
+                  {task.title || t("onboarding.detail.task.untitled")}
                 </Typography.Text>
               </List.Item>
             )}
           />
           {overdueTasks.length > 3 && (
             <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-              +{overdueTasks.length - 3} task khác
+              {t("onboarding.detail.risk.more_tasks", {
+                count: overdueTasks.length - 3,
+              })}
             </Typography.Text>
           )}
         </div>
@@ -78,7 +84,9 @@ export const RiskCard: React.FC<RiskCardProps> = ({ tasks, onTaskClick }) => {
         <div className="mb-2">
           <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-amber-600">
             <CheckSquare size={12} />
-            Chờ phê duyệt ({pendingApprovalTasks.length})
+            {t("onboarding.detail.risk.pending_approval_count", {
+              count: pendingApprovalTasks.length,
+            })}
           </div>
           <List
             size="small"
@@ -92,14 +100,16 @@ export const RiskCard: React.FC<RiskCardProps> = ({ tasks, onTaskClick }) => {
                   ellipsis
                   style={{ fontSize: 12, maxWidth: "100%", color: "#92400e" }}
                 >
-                  {task.title}
+                  {task.title || t("onboarding.detail.task.untitled")}
                 </Typography.Text>
               </List.Item>
             )}
           />
           {pendingApprovalTasks.length > 3 && (
             <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-              +{pendingApprovalTasks.length - 3} task khác
+              {t("onboarding.detail.risk.more_tasks", {
+                count: pendingApprovalTasks.length - 3,
+              })}
             </Typography.Text>
           )}
         </div>
@@ -109,7 +119,9 @@ export const RiskCard: React.FC<RiskCardProps> = ({ tasks, onTaskClick }) => {
         <div>
           <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-orange-600">
             <AlertTriangle size={12} />
-            Lịch bị huỷ/vắng ({scheduleMissedTasks.length})
+            {t("onboarding.detail.risk.schedule_issue_count", {
+              count: scheduleMissedTasks.length,
+            })}
           </div>
           <List
             size="small"
@@ -123,14 +135,16 @@ export const RiskCard: React.FC<RiskCardProps> = ({ tasks, onTaskClick }) => {
                   ellipsis
                   style={{ fontSize: 12, maxWidth: "100%", color: "#9a3412" }}
                 >
-                  {task.title}
+                  {task.title || t("onboarding.detail.task.untitled")}
                 </Typography.Text>
               </List.Item>
             )}
           />
           {scheduleMissedTasks.length > 2 && (
             <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-              +{scheduleMissedTasks.length - 2} task khác
+              {t("onboarding.detail.risk.more_tasks", {
+                count: scheduleMissedTasks.length - 2,
+              })}
             </Typography.Text>
           )}
         </div>

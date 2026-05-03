@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -45,6 +45,7 @@ import {
   apiGetCompanyOnboardingByDepartment,
   apiGetCompanyOnboardingFunnel,
   apiGetCompanyOnboardingSummary,
+  apiGetCompanyOnboardingTrend,
   apiGetCompanyTaskCompletion,
 } from "@/api/admin/admin.api";
 import { apiListInstances } from "@/api/onboarding/onboarding.api";
@@ -55,6 +56,7 @@ import { useUserNameMap } from "@/utils/resolvers/userResolver";
 import type { OnboardingInstance } from "@/shared/types";
 import { AppRouters } from "@/constants/router";
 import { useLocale } from "@/i18n";
+import type { CompanyOnboardingTrendGroupBy } from "@/interface/admin";
 
 type DashboardSummary = {
   totalEmployees?: number;
@@ -97,9 +99,13 @@ type UserListItem = {
 
 type TrendItem = {
   label: string;
+  sortValue: number;
+  order: number;
   created: number;
+  active: number;
   completed: number;
   cancelled: number;
+  risk: number;
 };
 
 type ManagerBreakdownItem = {
@@ -253,6 +259,185 @@ function normalizeByDepartment(raw: unknown): {
   return { departments };
 }
 
+function unwrapGatewayData(value: unknown): unknown {
+  const record = toRecord(value);
+
+  return "data" in record && record.data !== undefined ? record.data : value;
+}
+
+function pickTrendItems(raw: unknown): Record<string, unknown>[] {
+  const payload = unwrapGatewayData(raw);
+
+  if (Array.isArray(payload)) return payload as Record<string, unknown>[];
+
+  const data = toRecord(payload);
+
+  return pickArray<Record<string, unknown>>(data, [
+    "items",
+    "data",
+    "trends",
+    "buckets",
+    "list",
+  ]);
+}
+
+function pickOptionalTrendNumber(
+  source: Record<string, unknown>,
+  keys: string[],
+): number | undefined {
+  for (const key of keys) {
+    const value = source[key];
+
+    if (value === undefined || value === null || value === "") continue;
+
+    return Math.max(0, toFiniteNumber(value, 0));
+  }
+
+  return undefined;
+}
+
+function getTrendLabelSource(source: Record<string, unknown>) {
+  const value =
+    source.bucket ??
+    source.label ??
+    source.date ??
+    source.period ??
+    source.month ??
+    source.week ??
+    source.day;
+
+  return typeof value === "string" || typeof value === "number"
+    ? String(value)
+    : "";
+}
+
+function getTrendSortValue(value: string) {
+  const text = value.trim();
+
+  const yearMonth = /^(\d{4})-(\d{1,2})$/.exec(text);
+
+  if (yearMonth) {
+    return dayjs(
+      `${yearMonth[1]}-${yearMonth[2].padStart(2, "0")}-01`,
+    ).valueOf();
+  }
+
+  const monthYear = /^(\d{1,2})\/(\d{4})$/.exec(text);
+
+  if (monthYear) {
+    return dayjs(
+      `${monthYear[2]}-${monthYear[1].padStart(2, "0")}-01`,
+    ).valueOf();
+  }
+
+  const parsed = dayjs(text);
+
+  return parsed.isValid() ? parsed.valueOf() : Number.NaN;
+}
+
+function formatTrendLabel(
+  value: string,
+  groupBy: CompanyOnboardingTrendGroupBy,
+) {
+  const text = value.trim();
+
+  if (!text) return "—";
+
+  const yearMonth = /^(\d{4})-(\d{1,2})$/.exec(text);
+  const parsed = yearMonth
+    ? dayjs(`${yearMonth[1]}-${yearMonth[2].padStart(2, "0")}-01`)
+    : dayjs(text);
+
+  if (!parsed.isValid()) return text;
+
+  if (groupBy === "DAY") return parsed.format("DD/MM");
+  if (groupBy === "MONTH") return parsed.format("MM/YYYY");
+  if (groupBy === "YEAR") return parsed.format("YYYY");
+
+  return text;
+}
+
+function normalizeTrend(
+  raw: unknown,
+  groupBy: CompanyOnboardingTrendGroupBy,
+): TrendItem[] {
+  return pickTrendItems(raw)
+    .map((item, order) => {
+      const labelSource = getTrendLabelSource(item);
+      const created =
+        pickOptionalTrendNumber(item, [
+          "created",
+          "createdCount",
+          "new",
+          "newCount",
+          "newOnboardings",
+        ]) ??
+        pickOptionalTrendNumber(item, [
+          "total",
+          "totalCount",
+          "totalInstances",
+          "onboardingCount",
+          "count",
+        ]) ??
+        0;
+
+      return {
+        label: formatTrendLabel(labelSource, groupBy),
+        sortValue: getTrendSortValue(labelSource),
+        order,
+        created,
+        active:
+          pickOptionalTrendNumber(item, [
+            "active",
+            "activeCount",
+            "activeOnboardings",
+          ]) ?? 0,
+        completed:
+          pickOptionalTrendNumber(item, [
+            "completed",
+            "completedCount",
+            "completedOnboardings",
+          ]) ?? 0,
+        cancelled:
+          pickOptionalTrendNumber(item, [
+            "cancelled",
+            "cancelledCount",
+            "canceled",
+            "canceledCount",
+            "cancelledOnboardings",
+            "canceledOnboardings",
+          ]) ?? 0,
+        risk:
+          pickOptionalTrendNumber(item, [
+            "risk",
+            "riskCount",
+            "overdue",
+            "overdueCount",
+            "riskOnboardings",
+            "overdueOnboardings",
+          ]) ?? 0,
+      };
+    })
+    .filter(
+      (item) =>
+        item.label &&
+        item.label !== "—" &&
+        item.created +
+          item.active +
+          item.completed +
+          item.cancelled +
+          item.risk >
+          0,
+    )
+    .sort((a, b) => {
+      if (Number.isFinite(a.sortValue) && Number.isFinite(b.sortValue)) {
+        return a.sortValue - b.sortValue;
+      }
+
+      return a.order - b.order;
+    });
+}
+
 function normalizeUserListResponse(res: unknown): UserListItem[] {
   if (Array.isArray(res)) return res as UserListItem[];
 
@@ -375,15 +560,57 @@ function instanceStatusColor(status?: string) {
   }
 }
 
+function getTrendGroupBy(
+  startDate?: string,
+  endDate?: string,
+): CompanyOnboardingTrendGroupBy {
+  if (!startDate || !endDate) return "MONTH";
+
+  const days = dayjs(endDate).diff(dayjs(startDate), "day");
+
+  if (!Number.isFinite(days)) return "MONTH";
+  if (days <= 31) return "DAY";
+  if (days <= 120) return "WEEK";
+
+  return "MONTH";
+}
+
 function useInstancesQuery(filters?: { status?: string }, enabled = true) {
   return useQuery({
     queryKey: ["hr-instances", filters?.status ?? ""],
-    queryFn: () => apiListInstances({ status: filters?.status }),
+    queryFn: () => apiListInstances(filters),
     enabled,
     select: (res: unknown) =>
       extractList(res, "instances", "items", "list").map(
         mapInstance,
       ) as OnboardingInstance[],
+  });
+}
+
+function useTrendQuery(
+  companyId?: string,
+  startDate?: string,
+  endDate?: string,
+  groupBy: CompanyOnboardingTrendGroupBy = "MONTH",
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: [
+      "hr-onboarding-trend",
+      companyId ?? "",
+      startDate ?? "",
+      endDate ?? "",
+      groupBy,
+    ],
+    queryFn: () =>
+      apiGetCompanyOnboardingTrend({
+        companyId: companyId ?? "",
+        startDate: startDate ?? "",
+        endDate: endDate ?? "",
+        groupBy,
+      }),
+    enabled:
+      enabled && Boolean(companyId) && Boolean(startDate) && Boolean(endDate),
   });
 }
 
@@ -643,16 +870,31 @@ function AttentionCard({
   );
 }
 
-function DeptCompletionLabel(props: {
-  x?: number;
-  y?: number;
-  width?: number;
-  value?: number;
-  index?: number;
+type RechartsCoord = string | number | undefined;
+
+type DeptCompletionLabelProps = {
+  x?: RechartsCoord;
+  y?: RechartsCoord;
+  width?: RechartsCoord;
+  value?: string | number;
+  index?: string | number;
   data?: DashboardDepartmentStat[];
-}) {
-  const { x = 0, y = 0, width = 0, index = 0, data = [] } = props;
-  const stat = data[index];
+};
+
+function toChartNumber(value: RechartsCoord, fallback = 0) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function DeptCompletionLabel(props: DeptCompletionLabelProps) {
+  const { x, y, width, index = 0, data = [] } = props;
+
+  const safeX = toChartNumber(x);
+  const safeY = toChartNumber(y);
+  const safeWidth = toChartNumber(width);
+  const safeIndex = Number(index);
+
+  const stat = data[Number.isFinite(safeIndex) ? safeIndex : 0];
 
   if (!stat || stat.totalTasks === 0) return null;
 
@@ -660,8 +902,8 @@ function DeptCompletionLabel(props: {
 
   return (
     <text
-      x={x + width / 2}
-      y={y - 4}
+      x={safeX + safeWidth / 2}
+      y={safeY - 4}
       textAnchor="middle"
       fontSize={10}
       fill="#6b7280"
@@ -677,24 +919,30 @@ export default function HRDashboard() {
   const currentUser = useUserStore((s) => s.currentUser);
   const companyId = currentTenant?.id ?? currentUser?.companyId ?? undefined;
 
-  const tr = (key: string, fallback: string) => {
-    const value = t(key);
-    return value === key ? fallback : value;
-  };
+  const tr = useCallback(
+    (key: string, fallback: string) => {
+      const value = t(key);
+      return value === key ? fallback : value;
+    },
+    [t],
+  );
 
-  const formatMsg = (
-    key: string,
-    fallback: string,
-    params: Record<string, string | number>,
-  ) => {
-    let text = tr(key, fallback);
+  const formatMsg = useCallback(
+    (
+      key: string,
+      fallback: string,
+      params: Record<string, string | number>,
+    ) => {
+      let text = tr(key, fallback);
 
-    Object.entries(params).forEach(([k, v]) => {
-      text = text.replaceAll(`{${k}}`, String(v));
-    });
+      Object.entries(params).forEach(([k, v]) => {
+        text = text.replaceAll(`{${k}}`, String(v));
+      });
 
-    return text;
-  };
+      return text;
+    },
+    [tr],
+  );
 
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([
     dayjs().startOf("month"),
@@ -705,13 +953,14 @@ export default function HRDashboard() {
     "dashboard.hr.date_preset.this_month",
   );
 
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [recentStatusFilter, setRecentStatusFilter] = useState<string>("");
   const [departmentFilter, setDepartmentFilter] = useState<string>("");
 
   const startDate = dateRange[0]?.format("YYYY-MM-DD");
   const endDate = dateRange[1]?.format("YYYY-MM-DD");
   const hasDateRange = Boolean(startDate && endDate);
   const analyticsEnabled = Boolean(companyId) && hasDateRange;
+  const trendGroupBy = getTrendGroupBy(startDate, endDate);
 
   function applyPreset(label: string, getValue: () => [Dayjs, Dayjs]) {
     setActivePreset(label);
@@ -719,10 +968,7 @@ export default function HRDashboard() {
   }
 
   const { data: instances = [], isLoading: instancesLoading } =
-    useInstancesQuery(
-      statusFilter ? { status: statusFilter } : undefined,
-      true,
-    );
+    useInstancesQuery(undefined, true);
 
   const { data: summaryRaw, isLoading: summaryLoading } = useSummaryQuery(
     companyId,
@@ -744,6 +990,14 @@ export default function HRDashboard() {
   const { data: byDepartmentRaw, isLoading: byDepartmentLoading } =
     useByDepartmentQuery(companyId, startDate, endDate, analyticsEnabled);
 
+  const { data: trendRaw, isLoading: trendLoading } = useTrendQuery(
+    companyId,
+    startDate,
+    endDate,
+    trendGroupBy,
+    analyticsEnabled,
+  );
+
   const { data: employeeList = [], isLoading: employeeLoading } =
     useEmployeeListQuery(true);
 
@@ -753,6 +1007,10 @@ export default function HRDashboard() {
   const funnel = normalizeFunnel(funnelRaw);
   const taskCompletion = normalizeTaskCompletion(taskCompletionRaw);
   const byDepartment = normalizeByDepartment(byDepartmentRaw);
+  const trendData = useMemo(
+    () => normalizeTrend(trendRaw, trendGroupBy),
+    [trendRaw, trendGroupBy],
+  );
 
   const departmentOptions = byDepartment.departments.map((item) => ({
     value: item.departmentId,
@@ -772,14 +1030,9 @@ export default function HRDashboard() {
     stalledInstances,
     attentionInstances,
     recentInstances,
-    trendData,
     managerBreakdown,
   } = useMemo(() => {
     const filtered: OnboardingInstance[] = [];
-    const trendBucket = new Map<
-      string,
-      { created: number; completed: number; cancelled: number }
-    >();
 
     let active = 0;
     let completed = 0;
@@ -817,20 +1070,6 @@ export default function HRDashboard() {
 
       const status = upper(inst.status);
       const progress = normalizePercent(inst.progress, 0);
-      const bucket = start ? dayjs(start).format("MM/YYYY") : "—";
-
-      const trend = trendBucket.get(bucket) ?? {
-        created: 0,
-        completed: 0,
-        cancelled: 0,
-      };
-
-      trend.created += 1;
-
-      if (status === "COMPLETED") trend.completed += 1;
-      if (status === "CANCELLED" || status === "CANCELED") trend.cancelled += 1;
-
-      trendBucket.set(bucket, trend);
 
       if (status === "ACTIVE") active += 1;
       else if (status === "COMPLETED") completed += 1;
@@ -899,6 +1138,10 @@ export default function HRDashboard() {
       .slice(0, 8);
 
     const recent = [...filtered]
+      .filter(
+        (inst) =>
+          !recentStatusFilter || upper(inst.status) === recentStatusFilter,
+      )
       .sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? ""))
       .slice(0, 10);
 
@@ -915,20 +1158,6 @@ export default function HRDashboard() {
       }))
       .sort((a, b) => b.risk - a.risk || b.active - a.active);
 
-    const trendItems: TrendItem[] = Array.from(trendBucket.entries())
-      .map(([label, value]) => ({
-        label,
-        created: value.created,
-        completed: value.completed,
-        cancelled: value.cancelled,
-      }))
-      .sort((a, b) => {
-        const [am, ay] = a.label.split("/").map(Number);
-        const [bm, by] = b.label.split("/").map(Number);
-
-        return ay - by || am - bm;
-      });
-
     return {
       filteredInstances: filtered,
       activeInstances: active,
@@ -942,10 +1171,9 @@ export default function HRDashboard() {
       stalledInstances: stalled,
       attentionInstances: attention,
       recentInstances: recent,
-      trendData: trendItems,
       managerBreakdown: managers,
     };
-  }, [instances, startDate, endDate, departmentFilter]);
+  }, [instances, startDate, endDate, departmentFilter, recentStatusFilter, tr]);
 
   const summaryActive =
     typeof funnel.activeCount === "number"
@@ -989,7 +1217,7 @@ export default function HRDashboard() {
     (u) => u.status?.toUpperCase() !== "ACTIVE",
   ).length;
 
-  const roleBreakdown = useMemo(() => {
+  const roleBreakdown = (() => {
     const counts: Record<string, number> = {};
 
     employeeList.forEach((u) => {
@@ -1003,7 +1231,7 @@ export default function HRDashboard() {
     return Object.entries(counts)
       .map(([role, count]) => ({ role, count }))
       .sort((a, b) => b.count - a.count);
-  }, [employeeList]);
+  })();
 
   const funnelData = [
     {
@@ -1027,6 +1255,13 @@ export default function HRDashboard() {
   const departmentStats = byDepartment.departments.filter((item) =>
     departmentFilter ? item.departmentId === departmentFilter : true,
   );
+
+  const trendSeries = {
+    active: trendData.some((item) => item.active > 0),
+    completed: trendData.some((item) => item.completed > 0),
+    cancelled: trendData.some((item) => item.cancelled > 0),
+    risk: trendData.some((item) => item.risk > 0),
+  };
 
   const kpis = [
     {
@@ -1099,6 +1334,7 @@ export default function HRDashboard() {
   const isKpiLoading =
     summaryLoading || taskCompletionLoading || employeeLoading;
   const isProgressLoading = instancesLoading || funnelLoading;
+  const isTrendLoading = trendLoading;
 
   const managerColumns = [
     {
@@ -1251,41 +1487,6 @@ export default function HRDashboard() {
 
           <div>
             <p className="mb-1 text-xs font-semibold uppercase text-muted">
-              {tr("dashboard.hr.filter.status", "Trạng thái")}
-            </p>
-
-            <Select
-              className="w-44"
-              value={statusFilter || undefined}
-              allowClear
-              onChange={(value) => setStatusFilter(value ?? "")}
-              options={[
-                {
-                  value: "DRAFT",
-                  label: tr("dashboard.hr.status.draft", "Nháp/khác"),
-                },
-                {
-                  value: "ACTIVE",
-                  label: tr("dashboard.hr.status.active", "Đang onboarding"),
-                },
-                {
-                  value: "COMPLETED",
-                  label: tr("dashboard.hr.status.completed", "Hoàn tất"),
-                },
-                {
-                  value: "CANCELLED",
-                  label: tr("dashboard.hr.status.cancelled", "Đã huỷ"),
-                },
-              ]}
-              placeholder={tr(
-                "dashboard.hr.filter.all_status",
-                "Tất cả trạng thái",
-              )}
-            />
-          </div>
-
-          <div>
-            <p className="mb-1 text-xs font-semibold uppercase text-muted">
               {tr("dashboard.hr.filter.department", "Phòng ban")}
             </p>
 
@@ -1325,66 +1526,151 @@ export default function HRDashboard() {
         </div>
       </div>
 
-      <Card className="border border-stroke bg-white shadow-sm">
-        <div className="mb-4">
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Card className="border border-stroke bg-white shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-ink">
+              {tr("dashboard.hr.section.action_center", "Trung tâm xử lý")}
+            </h2>
+            <p className="text-sm text-muted">
+              {tr(
+                "dashboard.hr.section.action_center_desc",
+                "Các vấn đề cần xử lý ngay trong quy trình onboarding.",
+              )}
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <ActionItem
+              icon={<AlertTriangle className="h-4 w-4" />}
+              title={tr(
+                "dashboard.hr.action.overdue",
+                "Onboarding quá hạn/rủi ro",
+              )}
+              value={overdueInstances.length}
+              tone={overdueInstances.length > 0 ? "red" : "slate"}
+              to={AppRouters.ONBOARDING_EMPLOYEES}
+            />
+
+            <ActionItem
+              icon={<CalendarClock className="h-4 w-4" />}
+              title={tr("dashboard.hr.action.due_soon", "Sắp đến hạn")}
+              value={dueSoonInstances.length}
+              tone={dueSoonInstances.length > 0 ? "amber" : "slate"}
+              to={AppRouters.ONBOARDING_EMPLOYEES}
+            />
+
+            <ActionItem
+              icon={<Gauge className="h-4 w-4" />}
+              title={tr("dashboard.hr.action.low_progress", "Tiến độ thấp")}
+              value={lowProgressInstances.length}
+              tone={lowProgressInstances.length > 0 ? "amber" : "slate"}
+              to={AppRouters.ONBOARDING_EMPLOYEES}
+            />
+
+            <ActionItem
+              icon={<UserRound className="h-4 w-4" />}
+              title={tr("dashboard.hr.action.no_manager", "Chưa gán quản lý")}
+              value={noManagerInstances.length}
+              tone={noManagerInstances.length > 0 ? "blue" : "slate"}
+              to={AppRouters.ONBOARDING_EMPLOYEES}
+            />
+
+            <ActionItem
+              icon={<Clock className="h-4 w-4" />}
+              title={tr("dashboard.hr.action.stalled", "Có dấu hiệu bị kẹt")}
+              value={stalledInstances.length}
+              tone={stalledInstances.length > 0 ? "amber" : "slate"}
+              to={AppRouters.ONBOARDING_EMPLOYEES}
+            />
+          </div>
+        </Card>
+
+        <Card className="border border-stroke bg-white shadow-sm xl:col-span-2">
           <h2 className="text-base font-semibold text-ink">
-            {tr("dashboard.hr.section.action_center", "Trung tâm xử lý")}
+            {tr("dashboard.hr.section.onboarding_trend", "Xu hướng onboarding")}
           </h2>
           <p className="text-sm text-muted">
             {tr(
-              "dashboard.hr.section.action_center_desc",
-              "Các vấn đề cần xử lý ngay trong quy trình onboarding.",
+              "dashboard.hr.section.onboarding_trend_desc",
+              "So sánh số onboarding mới, hoàn tất và bị huỷ theo thời gian.",
             )}
           </p>
-        </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <ActionItem
-            icon={<AlertTriangle className="h-4 w-4" />}
-            title={tr(
-              "dashboard.hr.action.overdue",
-              "Onboarding quá hạn/rủi ro",
+          <div className="mt-6 h-72">
+            {isTrendLoading ? (
+              <Skeleton active paragraph={{ rows: 5 }} title={false} />
+            ) : trendData.length === 0 ? (
+              <Empty
+                description={tr(
+                  "dashboard.hr.empty.no_data",
+                  "Không có dữ liệu",
+                )}
+              />
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={trendData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="label" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="created"
+                    name={tr("dashboard.hr.chart.created", "Tạo mới")}
+                    stroke="#2563eb"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                  />
+                  {trendSeries.active && (
+                    <Line
+                      type="monotone"
+                      dataKey="active"
+                      name={tr("dashboard.hr.status.active", "Đang onboarding")}
+                      stroke="#8b5cf6"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                  )}
+                  {trendSeries.completed && (
+                    <Line
+                      type="monotone"
+                      dataKey="completed"
+                      name={tr("dashboard.hr.chart.completed", "Hoàn tất")}
+                      stroke="#0f766e"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                  )}
+                  {trendSeries.cancelled && (
+                    <Line
+                      type="monotone"
+                      dataKey="cancelled"
+                      name={tr("dashboard.hr.chart.cancelled", "Đã huỷ")}
+                      stroke="#ef4444"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                  )}
+                  {trendSeries.risk && (
+                    <Line
+                      type="monotone"
+                      dataKey="risk"
+                      name={tr("dashboard.hr.table.risk", "Rủi ro")}
+                      stroke="#f59e0b"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
             )}
-            value={overdueInstances.length}
-            tone={overdueInstances.length > 0 ? "red" : "slate"}
-            to={AppRouters.ONBOARDING_EMPLOYEES}
-          />
+          </div>
+        </Card>
+      </div>
 
-          <ActionItem
-            icon={<CalendarClock className="h-4 w-4" />}
-            title={tr("dashboard.hr.action.due_soon", "Sắp đến hạn")}
-            value={dueSoonInstances.length}
-            tone={dueSoonInstances.length > 0 ? "amber" : "slate"}
-            to={AppRouters.ONBOARDING_EMPLOYEES}
-          />
-
-          <ActionItem
-            icon={<Gauge className="h-4 w-4" />}
-            title={tr("dashboard.hr.action.low_progress", "Tiến độ thấp")}
-            value={lowProgressInstances.length}
-            tone={lowProgressInstances.length > 0 ? "amber" : "slate"}
-            to={AppRouters.ONBOARDING_EMPLOYEES}
-          />
-
-          <ActionItem
-            icon={<UserRound className="h-4 w-4" />}
-            title={tr("dashboard.hr.action.no_manager", "Chưa gán quản lý")}
-            value={noManagerInstances.length}
-            tone={noManagerInstances.length > 0 ? "blue" : "slate"}
-            to={AppRouters.ONBOARDING_EMPLOYEES}
-          />
-
-          <ActionItem
-            icon={<Clock className="h-4 w-4" />}
-            title={tr("dashboard.hr.action.stalled", "Có dấu hiệu bị kẹt")}
-            value={stalledInstances.length}
-            tone={stalledInstances.length > 0 ? "amber" : "slate"}
-            to={AppRouters.ONBOARDING_EMPLOYEES}
-          />
-        </div>
-      </Card>
-
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-3">
         <Card className="border border-stroke bg-white shadow-sm">
           <h2 className="text-base font-semibold text-ink">
             {tr(
@@ -1435,67 +1721,6 @@ export default function HRDashboard() {
           </div>
         </Card>
 
-        <Card className="border border-stroke bg-white shadow-sm">
-          <h2 className="text-base font-semibold text-ink">
-            {tr("dashboard.hr.section.onboarding_trend", "Xu hướng onboarding")}
-          </h2>
-          <p className="text-sm text-muted">
-            {tr(
-              "dashboard.hr.section.onboarding_trend_desc",
-              "So sánh số onboarding mới, hoàn tất và bị huỷ theo thời gian.",
-            )}
-          </p>
-
-          <div className="mt-6 h-64">
-            {instancesLoading ? (
-              <Skeleton active paragraph={{ rows: 5 }} title={false} />
-            ) : trendData.length === 0 ? (
-              <Empty
-                description={tr(
-                  "dashboard.hr.empty.no_data",
-                  "Không có dữ liệu",
-                )}
-              />
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trendData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="label" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="created"
-                    name={tr("dashboard.hr.chart.created", "Tạo mới")}
-                    stroke="#2563eb"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="completed"
-                    name={tr("dashboard.hr.chart.completed", "Hoàn tất")}
-                    stroke="#0f766e"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="cancelled"
-                    name={tr("dashboard.hr.chart.cancelled", "Đã huỷ")}
-                    stroke="#ef4444"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-2">
         <Card className="border border-stroke bg-white shadow-sm">
           <h2 className="text-base font-semibold text-ink">
             {tr(
@@ -1558,7 +1783,7 @@ export default function HRDashboard() {
                     radius={[4, 4, 0, 0]}
                   >
                     <LabelList
-                      content={(props: any) => (
+                      content={(props) => (
                         <DeptCompletionLabel
                           {...props}
                           data={departmentStats}
@@ -1831,7 +2056,7 @@ export default function HRDashboard() {
       </div>
 
       <Card className="border border-stroke bg-white shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <h2 className="text-base font-semibold text-ink">
               {tr(
@@ -1847,13 +2072,44 @@ export default function HRDashboard() {
             </p>
           </div>
 
-          <Link
-            to={AppRouters.ONBOARDING_EMPLOYEES}
-            className="flex items-center gap-1 text-sm font-medium text-blue-600 hover:underline"
-          >
-            {tr("dashboard.hr.common.view_all", "Xem tất cả")}
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              className="w-44"
+              value={recentStatusFilter || undefined}
+              allowClear
+              onChange={(value) => setRecentStatusFilter(value ?? "")}
+              options={[
+                {
+                  value: "DRAFT",
+                  label: tr("dashboard.hr.status.draft", "Nháp/khác"),
+                },
+                {
+                  value: "ACTIVE",
+                  label: tr("dashboard.hr.status.active", "Đang onboarding"),
+                },
+                {
+                  value: "COMPLETED",
+                  label: tr("dashboard.hr.status.completed", "Hoàn tất"),
+                },
+                {
+                  value: "CANCELLED",
+                  label: tr("dashboard.hr.status.cancelled", "Đã huỷ"),
+                },
+              ]}
+              placeholder={tr(
+                "dashboard.hr.filter.all_status",
+                "Tất cả trạng thái",
+              )}
+            />
+
+            <Link
+              to={AppRouters.ONBOARDING_EMPLOYEES}
+              className="flex items-center gap-1 text-sm font-medium text-blue-600 hover:underline"
+            >
+              {tr("dashboard.hr.common.view_all", "Xem tất cả")}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
 
         <Table

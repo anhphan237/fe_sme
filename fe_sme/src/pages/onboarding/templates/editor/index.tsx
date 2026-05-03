@@ -99,6 +99,7 @@ const checklistFromMeta = (meta: StageMeta, name: string): ChecklistDraft => ({
   id: crypto.randomUUID(),
   name,
   stageType: meta.value,
+  deadlineDays: meta.defaultDueOffset,
   tasks: [],
 });
 
@@ -171,6 +172,12 @@ const mapAssigneeToOwner = (
   }
 };
 
+const getChecklistDeadlineDays = (checklist: ChecklistDraft): number =>
+  checklist.deadlineDays ??
+  (checklist.tasks.length
+    ? Math.max(...checklist.tasks.map((task) => task.dueDaysOffset ?? 0))
+    : 0);
+
 const buildPayload = (form: EditorForm, createdBy: string) => ({
   name: form.name,
   description: form.description ?? "",
@@ -179,9 +186,7 @@ const buildPayload = (form: EditorForm, createdBy: string) => ({
   checklists: form.checklists.map((c, ci) => ({
     name: c.name,
     stage: c.stageType,
-    deadlineDays: c.tasks.length
-      ? Math.max(...c.tasks.map((t) => t.dueDaysOffset ?? 0))
-      : 0,
+    deadlineDays: getChecklistDeadlineDays(c),
     sortOrder: ci,
     tasks: c.tasks.map((task, ti) => {
       const { ownerType, ownerRefId, responsibleDepartmentId } =
@@ -220,9 +225,7 @@ const buildUpdatePayload = (
     checklistTemplateId: c.checklistTemplateId ?? null,
     name: c.name,
     stage: c.stageType,
-    deadlineDays: c.tasks.length
-      ? Math.max(...c.tasks.map((t) => t.dueDaysOffset ?? 0))
-      : 0,
+    deadlineDays: getChecklistDeadlineDays(c),
     sortOrder: ci,
     tasks: c.tasks.map((task, ti) => {
       const { ownerType, ownerRefId, responsibleDepartmentId } =
@@ -300,6 +303,8 @@ const TemplateEditor = () => {
   const [form, setForm] = useState<EditorForm>(initialForm);
   const [stagePickerOpen, setStagePickerOpen] = useState(false);
   const [templateStatus, setTemplateStatus] = useState<string>("DRAFT");
+  const [templateLevel, setTemplateLevel] =
+    useState<OnboardingTemplate["level"]>("TENANT");
   const [cloneModalOpen, setCloneModalOpen] = useState(false);
   const [cloneName, setCloneName] = useState("");
   const [isCloning, setIsCloning] = useState(false);
@@ -312,7 +317,21 @@ const TemplateEditor = () => {
   const [libraryDrawerOpen, setLibraryDrawerOpen] = useState(false);
 
   const normalizedTemplateStatus = normalizeTemplateStatus(templateStatus);
-  const isReadOnly = !isCreate && normalizedTemplateStatus === "ACTIVE";
+  // Platform templates are view-only in this screen; tenant templates remain editable.
+  const isReadOnly = !isCreate && templateLevel === "PLATFORM";
+  const editorModeTitle = isCreate
+    ? t("onboarding.template.editor.title_create")
+    : t("onboarding.template.editor.title_edit");
+  const templateStatusLabel =
+    normalizedTemplateStatus === "ACTIVE"
+      ? t("onboarding.template.status.active")
+      : normalizedTemplateStatus === "INACTIVE"
+        ? t("onboarding.template.status.inactive")
+        : t("onboarding.template.status.draft");
+  const stageLabel = t("onboarding.template.review.stages");
+  const taskLabel = t("onboarding.template.review.tasks");
+  const stageLabelLower = String(stageLabel).toLowerCase();
+  const taskLabelLower = String(taskLabel).toLowerCase();
 
   const totalTasks = useMemo(
     () => form.checklists.reduce((n, c) => n + c.tasks.length, 0),
@@ -323,6 +342,17 @@ const TemplateEditor = () => {
   const validationWarnings = useMemo(() => {
     const warnings: string[] = [];
     for (const cl of form.checklists) {
+      const deadlineDays = getChecklistDeadlineDays(cl);
+      const maxTaskDueDays = cl.tasks.length
+        ? Math.max(...cl.tasks.map((task) => task.dueDaysOffset ?? 0))
+        : 0;
+
+      if (deadlineDays < maxTaskDueDays) {
+        warnings.push(
+          `Giai đoạn "${cl.name}": ngày kết thúc dự kiến D+${deadlineDays} đang nhỏ hơn hạn task muộn nhất D+${maxTaskDueDays}`,
+        );
+      }
+
       for (let i = 1; i < cl.tasks.length; i++) {
         const prev = cl.tasks[i - 1].dueDaysOffset ?? 0;
         const curr = cl.tasks[i].dueDaysOffset ?? 0;
@@ -352,6 +382,7 @@ const TemplateEditor = () => {
     if (duplicateFrom) {
       const base = templateToForm(duplicateFrom);
       setForm({ ...base, name: `Copy of ${base.name}` });
+      setTemplateLevel(duplicateFrom.level ?? "TENANT");
       return;
     }
     if (!isCreate && templateRes) {
@@ -368,6 +399,7 @@ const TemplateEditor = () => {
           ),
         ),
       );
+      setTemplateLevel(tmpl.level ?? "TENANT");
       setForm(formData);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -541,6 +573,7 @@ const TemplateEditor = () => {
     try {
       const res = await apiCloneTemplate({
         sourceTemplateId: templateId,
+        level: templateLevel ?? "TENANT",
         name: cloneName.trim(),
       });
       const newId = extractTemplateId(res);
@@ -677,29 +710,43 @@ const TemplateEditor = () => {
   // ── Render ─────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full flex-col gap-5 pb-4">
+    <div className="flex h-full min-h-0 flex-col gap-4 pb-4">
       {/* ── Header ── */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        {/* Left: back + name + description */}
-        <div className="flex items-start gap-3 flex-1 min-w-0">
-          <button
-            type="button"
-            onClick={() => navigate("/onboarding/templates")}
-            className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition hover:bg-slate-100 hover:text-ink"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-4 px-4 py-4 lg:flex-row lg:items-start lg:justify-between lg:px-5">
+          {/* Left: back + name + description */}
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <button
+              type="button"
+              onClick={() => navigate("/onboarding/templates")}
+              aria-label={t("onboarding.template.editor.btn.back")}
+              className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-muted shadow-sm transition hover:border-brand/30 hover:bg-brand/5 hover:text-brand"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
 
-          <div className="flex-1 min-w-0" style={{ maxWidth: 520 }}>
-            {/* Name row */}
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="min-w-0 flex-1">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  {editorModeTitle}
+                </span>
+                {!isCreate && templateStatus && (
+                  <span
+                    className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                      STATUS_BADGE[normalizedTemplateStatus] ??
+                      STATUS_BADGE["DRAFT"]
+                    }`}
+                  >
+                    {templateStatusLabel}
+                  </span>
+                )}
+              </div>
+
               <div
-                className={`group relative flex-1 min-w-0 border-b pb-0.5 transition-colors ${
-                  isReadOnly
-                    ? "border-transparent"
-                    : !nameValid
-                      ? "border-red-400"
-                      : "border-transparent focus-within:border-brand/50"
+                className={`rounded-xl border bg-slate-50/60 px-3 py-2 transition-colors ${
+                  !nameValid
+                    ? "border-red-300 bg-red-50/70"
+                    : "border-transparent focus-within:border-brand/30 focus-within:bg-white"
                 }`}
               >
                 <input
@@ -711,131 +758,134 @@ const TemplateEditor = () => {
                   placeholder={t(
                     "onboarding.template.editor.header.name_placeholder",
                   )}
-                  className={`w-full bg-transparent text-xl font-bold text-ink placeholder:text-muted/30 focus:outline-none ${
-                    isReadOnly ? "cursor-default opacity-80" : ""
-                  }`}
+                  className="w-full bg-transparent text-xl font-semibold leading-tight text-ink placeholder:text-muted/35 focus:outline-none"
+                />
+
+                <textarea
+                  ref={descRef}
+                  value={form.description ?? ""}
+                  onChange={(e) => updateForm({ description: e.target.value })}
+                  readOnly={isReadOnly}
+                  placeholder={t(
+                    "onboarding.template.editor.header.desc_placeholder",
+                  )}
+                  rows={1}
+                  maxLength={500}
+                  className="mt-1.5 w-full resize-none border-none bg-transparent text-sm leading-relaxed text-muted placeholder:text-muted/35 focus:outline-none"
+                  onInput={(e) => {
+                    const el = e.currentTarget;
+                    el.style.height = "auto";
+                    el.style.height = `${el.scrollHeight}px`;
+                  }}
                 />
               </div>
-              {!isCreate && templateStatus && (
-                <span
-                  className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                    STATUS_BADGE[templateStatus] ?? STATUS_BADGE["DRAFT"]
-                  }`}
-                >
-                  {templateStatus}
-                </span>
+
+              {!nameValid && (
+                <p className="mt-1.5 flex items-center gap-1 text-xs text-red-500">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-400" />
+                  {t("onboarding.template.editor.toast.name_required")}
+                </p>
               )}
             </div>
+          </div>
 
-            {/* Name validation */}
-            {!nameValid && !isReadOnly && (
-              <p className="mt-1 flex items-center gap-1 text-xs text-red-500">
-                <span className="inline-block h-1 w-1 rounded-full bg-red-400" />
-                {t("onboarding.template.editor.toast.name_required")}
-              </p>
+          {/* Right: actions */}
+          <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
+            {!isCreate && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCloneName(`Copy of ${form.name}`);
+                  setCloneModalOpen(true);
+                }}
+                className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-brand/40 hover:bg-brand/5 hover:text-brand"
+              >
+                <Copy className="h-3.5 w-3.5" />
+                {t("onboarding.template.editor.btn.clone") ?? "Clone"}
+              </button>
             )}
 
-            {/* Description */}
-            <textarea
-              ref={descRef}
-              value={form.description ?? ""}
-              onChange={(e) => updateForm({ description: e.target.value })}
-              readOnly={isReadOnly}
-              placeholder={t(
-                "onboarding.template.editor.header.desc_placeholder",
+            {!isCreate && normalizedTemplateStatus !== "ACTIVE" && (
+              <button
+                type="button"
+                onClick={handleActivateTemplate}
+                disabled={isSaving}
+                className="flex h-9 items-center gap-1.5 rounded-xl border border-brand/20 bg-brand/5 px-3 text-xs font-semibold text-brand shadow-sm transition hover:bg-brand/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ArrowRight className="h-3.5 w-3.5" />
+                {normalizedTemplateStatus === "DRAFT"
+                  ? t("onboarding.template.action.publish")
+                  : t("onboarding.template.action.activate")}
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!canSave || isSaving}
+              className="flex h-10 items-center gap-2 rounded-xl bg-brand px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {isCreate
+                    ? t("onboarding.template.editor.btn.creating")
+                    : t("onboarding.template.editor.btn.saving")}
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4" />
+                  {isCreate
+                    ? t("onboarding.template.editor.btn.create_draft")
+                    : t("onboarding.template.editor.btn.save")}
+                </>
               )}
-              rows={1}
-              maxLength={500}
-              className={`mt-2 w-full resize-none border-none bg-transparent text-sm leading-relaxed text-muted placeholder:text-muted/30 focus:outline-none ${
-                isReadOnly ? "cursor-default" : ""
-              }`}
-              onInput={(e) => {
-                const el = e.currentTarget;
-                el.style.height = "auto";
-                el.style.height = `${el.scrollHeight}px`;
-              }}
-            />
+            </button>
           </div>
         </div>
 
-        {/* Right: stats + actions */}
-        <div className="flex shrink-0 items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-medium text-slate-600">
-            <span>
-              {form.checklists.length}{" "}
-              {t("onboarding.template.review.stages")?.toLowerCase() ??
-                "giai đoạn"}
-            </span>
-            <span className="text-slate-300">·</span>
-            <span>
-              {totalTasks}{" "}
-              {t("onboarding.template.review.tasks")?.toLowerCase() ??
-                "nhiệm vụ"}
-            </span>
+        <div className="grid border-t border-slate-100 bg-slate-50/80 sm:grid-cols-3">
+          <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-3 sm:border-b-0 sm:border-r">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-brand shadow-sm ring-1 ring-slate-200">
+              <CalendarClock className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                {stageLabel}
+              </p>
+              <p className="text-lg font-semibold leading-tight text-ink">
+                {form.checklists.length}
+              </p>
+            </div>
           </div>
-
-          {/* Browse Library — always visible when not read-only */}
-          {!isReadOnly && (
-            <button
-              type="button"
-              onClick={() => setLibraryDrawerOpen(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-brand/40 hover:text-brand"
-            >
-              <BookOpen className="h-3.5 w-3.5" />
-              {t("onboarding.template.library.button") ?? "Thư viện"}
-            </button>
-          )}
-
-          {!isCreate && (
-            <button
-              type="button"
-              onClick={() => {
-                setCloneName(`Copy of ${form.name}`);
-                setCloneModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-brand/40 hover:text-brand"
-            >
-              <Copy className="h-3.5 w-3.5" />
-              {t("onboarding.template.editor.btn.clone") ?? "Clone"}
-            </button>
-          )}
-
-          {!isCreate && normalizedTemplateStatus !== "ACTIVE" && (
-            <button
-              type="button"
-              onClick={handleActivateTemplate}
-              disabled={isSaving}
-              className="flex items-center gap-1.5 rounded-lg border border-brand/20 bg-brand/5 px-3 py-1.5 text-xs font-semibold text-brand transition hover:bg-brand/10 disabled:opacity-50"
-            >
-              <ArrowRight className="h-3.5 w-3.5" />
-              {normalizedTemplateStatus === "DRAFT"
-                ? t("onboarding.template.action.publish")
-                : t("onboarding.template.action.activate")}
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!canSave || isSaving}
-            className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand/90 disabled:opacity-50"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-3 sm:border-b-0 sm:border-r">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-emerald-600 shadow-sm ring-1 ring-slate-200">
+              <Check className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                {taskLabel}
+              </p>
+              <p className="text-lg font-semibold leading-tight text-ink">
+                {totalTasks}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 px-5 py-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-slate-500 shadow-sm ring-1 ring-slate-200">
+              <Info className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                {t("onboarding.template.col.status")}
+              </p>
+              <p className="text-sm font-semibold leading-tight text-ink">
                 {isCreate
-                  ? t("onboarding.template.editor.btn.creating")
-                  : t("onboarding.template.editor.btn.saving")}
-              </>
-            ) : (
-              <>
-                <Check className="h-4 w-4" />
-                {isCreate
-                  ? t("onboarding.template.editor.btn.create_draft")
-                  : t("onboarding.template.editor.btn.save")}
-              </>
-            )}
-          </button>
+                  ? t("onboarding.template.status.draft")
+                  : templateStatusLabel}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -855,29 +905,65 @@ const TemplateEditor = () => {
       )}
 
       {/* ── Pipeline canvas ── */}
-      <div className="relative rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-        <div
-          className="flex items-start gap-2 overflow-x-auto pb-2"
-          style={{ minHeight: 500 }}
-        >
-          {form.checklists.length === 0 && !isReadOnly ? (
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-brand shadow-sm ring-1 ring-slate-200">
+              <CalendarClock className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-ink">
+                {t("onboarding.template.editor.step_tasks.title")}
+              </p>
+              <p className="text-xs text-muted">
+                {form.checklists.length} {stageLabelLower} · {totalTasks}{" "}
+                {taskLabelLower}
+              </p>
+            </div>
+          </div>
+
+          {!isReadOnly && (
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setLibraryDrawerOpen(true)}
+                className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-brand/40 hover:bg-brand/5 hover:text-brand"
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                {t("onboarding.template.library.button") ?? "Thư viện"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setStagePickerOpen(true)}
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-brand px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-brand/90"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {t("onboarding.template.editor.pipeline.add_stage")}
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="min-h-[520px] flex-1 overflow-hidden bg-slate-50/70 p-4">
+          <div className="flex h-full items-start gap-3 overflow-x-auto pb-3">
+            {form.checklists.length === 0 && !isReadOnly ? (
             /* Empty state */
-            <div className="flex flex-1 flex-col items-center justify-center gap-6 rounded-xl border border-dashed border-slate-300 bg-white py-24 text-center">
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-brand/5 ring-1 ring-brand/10">
-                <Plus className="h-9 w-9 text-brand/40" />
+            <div className="flex min-h-[460px] flex-1 flex-col items-center justify-center gap-5 rounded-2xl border border-dashed border-slate-300 bg-white text-center shadow-sm">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/5 ring-1 ring-brand/10">
+                <Plus className="h-7 w-7 text-brand/50" />
               </div>
               <div>
                 <p className="text-base font-semibold text-ink">
                   {t("onboarding.template.editor.empty.title")}
                 </p>
-                <p className="mt-1.5 text-sm text-muted">
+                <p className="mt-1 text-sm text-muted">
                   {t("onboarding.template.editor.empty.hint")}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setStagePickerOpen(true)}
-                className="flex items-center gap-2 rounded-xl border border-brand/30 bg-brand/5 px-6 py-3 text-sm font-semibold text-brand shadow-sm transition hover:bg-brand/10 hover:shadow-md"
+                className="flex h-10 items-center gap-2 rounded-xl bg-brand px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand/90"
               >
                 <Plus className="h-4 w-4" />
                 {t("onboarding.template.editor.add_stage")}
@@ -889,7 +975,6 @@ const TemplateEditor = () => {
                 <div key={checklist.id} className="flex shrink-0 items-start">
                   <StageColumn
                     checklist={checklist}
-                    checklistIndex={ci}
                     readOnly={isReadOnly}
                     onAddTask={() => openNewTaskDrawer(ci)}
                     onEditTask={(ti) => openEditTaskDrawer(ci, ti)}
@@ -897,6 +982,9 @@ const TemplateEditor = () => {
                     onDeleteTask={(ti) => deleteTask(ci, ti)}
                     onReorderTasks={(from, to) => reorderTasks(ci, from, to)}
                     onRenameStage={(name) => updateChecklist(ci, { name })}
+                    onUpdateDeadline={(deadlineDays) =>
+                      updateChecklist(ci, { deadlineDays })
+                    }
                     onCloneStage={() => cloneChecklist(ci)}
                     onDeleteStage={() => removeChecklist(ci)}
                   />
@@ -904,7 +992,7 @@ const TemplateEditor = () => {
                   {ci < form.checklists.length - 1 && (
                     <div className="flex h-[58px] shrink-0 items-center px-1">
                       <div className="flex items-center gap-0.5 text-slate-300">
-                        <div className="h-px w-4 bg-slate-300" />
+                        <div className="h-px w-5 bg-slate-300" />
                         <ArrowRight className="h-4 w-4" />
                       </div>
                     </div>
@@ -918,7 +1006,7 @@ const TemplateEditor = () => {
                   {form.checklists.length > 0 && (
                     <div className="flex h-[58px] shrink-0 items-center px-1">
                       <div className="flex items-center gap-0.5 text-slate-200">
-                        <div className="h-px w-4 bg-slate-200" />
+                        <div className="h-px w-5 bg-slate-200" />
                         <ArrowRight className="h-4 w-4" />
                       </div>
                     </div>
@@ -935,6 +1023,7 @@ const TemplateEditor = () => {
               )}
             </>
           )}
+          </div>
         </div>
       </div>
 
