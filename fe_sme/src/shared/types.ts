@@ -32,7 +32,7 @@ export interface UserDetail {
   email: string;
   fullName: string;
   phone: string | null;
-  status: "ACTIVE" | "INVITED" | "DISABLED";
+  status: "ACTIVE" | "INVITED" | "INACTIVE" | "DISABLED";
   employeeId: string | null;
   departmentId: string | null;
   employeeCode: string | null;

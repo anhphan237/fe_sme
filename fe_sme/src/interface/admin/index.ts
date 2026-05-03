@@ -59,6 +59,54 @@ export interface CompanyOnboardingByDepartmentResponse {
   [key: string]: unknown;
 }
 
+/** com.sme.analytics.company.onboarding.trend */
+export type CompanyOnboardingTrendGroupBy =
+  | "DAY"
+  | "WEEK"
+  | "MONTH"
+  | "QUARTER"
+  | "YEAR";
+
+export interface CompanyOnboardingTrendRequest {
+  companyId: string;
+  startDate: string;
+  endDate: string;
+  groupBy?: CompanyOnboardingTrendGroupBy;
+}
+
+export interface CompanyOnboardingTrendItem {
+  bucket?: string;
+  label?: string;
+  date?: string;
+  period?: string;
+  total?: number;
+  totalCount?: number;
+  created?: number;
+  createdCount?: number;
+  active?: number;
+  activeCount?: number;
+  completed?: number;
+  completedCount?: number;
+  cancelled?: number;
+  cancelledCount?: number;
+  canceled?: number;
+  canceledCount?: number;
+  risk?: number;
+  riskCount?: number;
+  overdue?: number;
+  overdueCount?: number;
+  [key: string]: unknown;
+}
+
+export interface CompanyOnboardingTrendResponse {
+  companyId?: string;
+  startDate?: string;
+  endDate?: string;
+  groupBy?: CompanyOnboardingTrendGroupBy | string;
+  items?: CompanyOnboardingTrendItem[];
+  [key: string]: unknown;
+}
+
 /** com.sme.analytics.company.task.completion */
 export interface CompanyTaskCompletionRequest {
   companyId: string;

@@ -63,10 +63,11 @@ const upper = (value: unknown): string => String(value ?? "").toUpperCase();
 
 const normalizeTemplateLevel = (
   value: unknown,
-): OnboardingTemplate["level"] => {
+): OnboardingTemplate["level"] | undefined => {
   const normalized = upper(value);
   if (normalized === "PLATFORM") return "PLATFORM";
-  return "TENANT";
+  if (normalized === "TENANT") return "TENANT";
+  return undefined;
 };
 
 const resolveOwnerRole = (task: RawRecord): string => {
@@ -191,7 +192,9 @@ export const mapTemplate = (value: unknown): OnboardingTemplate => {
       firstString(source, ["updatedAt", "updated_at", "createdAt", "created_at"]) ??
       "",
     companyId: firstString(source, ["companyId", "company_id"]) ?? null,
-    level: normalizeTemplateLevel(source.level),
+    level: normalizeTemplateLevel(
+      source.level ?? source.templateLevel ?? source.template_level,
+    ),
   };
 };
 

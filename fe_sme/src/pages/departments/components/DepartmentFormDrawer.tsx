@@ -60,7 +60,7 @@ export const DepartmentFormDrawer = ({
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    const defaultType = departmentTypes[0]?.code ?? "";
+    const defaultType = departmentTypes[0]?.code ?? "OTHER";
     if (mode === "edit" && department) {
       form.setFieldsValue({
         name: department.name,
@@ -102,6 +102,15 @@ export const DepartmentFormDrawer = ({
     value: u.id,
     label: u.name || u.email,
   }));
+
+  const isCreateMode = mode === "create";
+  const typeOptions =
+    departmentTypes.length > 0
+      ? departmentTypes.map((d) => ({
+          value: d.code,
+          label: d.name,
+        }))
+      : [{ value: "OTHER", label: "OTHER" }];
 
   const footer = (
     <div className="flex justify-end gap-2">
@@ -170,6 +179,17 @@ export const DepartmentFormDrawer = ({
                 required: true,
                 message: t("department.error.name_required"),
               },
+              {
+                validator: (_, value: string | undefined) => {
+                  const normalized = value?.trim() ?? "";
+                  if (!normalized) {
+                    return Promise.reject(
+                      new Error(t("department.error.name_required")),
+                    );
+                  }
+                  return Promise.resolve();
+                },
+              },
             ],
           }}
         />
@@ -178,10 +198,16 @@ export const DepartmentFormDrawer = ({
           name="type"
           label={t("department.field.type")}
           className="w-full"
-          options={departmentTypes.map((t) => ({
-            value: t.code,
-            label: t.name,
-          }))}
+          placeholder={t("department.field.type")}
+          options={typeOptions}
+          formItemProps={{
+            rules: [
+              {
+                required: true,
+                message: t("department.error.type_required"),
+              },
+            ],
+          }}
         />
 
         {/* Section: Management */}
@@ -200,7 +226,8 @@ export const DepartmentFormDrawer = ({
           }
           className="w-full"
           showSearch
-          allowClear={mode === "edit"}
+          allowClear={!isCreateMode}
+          placeholder={t("department.field.manager")}
           filterOption={(input, option) =>
             ((option?.label as string) ?? "")
               .toLowerCase()
@@ -208,6 +235,12 @@ export const DepartmentFormDrawer = ({
           }
           options={managerOptions}
           formItemProps={{
+            rules: [
+              {
+                required: isCreateMode,
+                message: t("department.error.manager_required"),
+              },
+            ],
             extra: (
               <span className="text-xs text-[#758BA5]">
                 {mode === "edit"
@@ -217,6 +250,12 @@ export const DepartmentFormDrawer = ({
             ),
           }}
         />
+
+        {managerOptions.length === 0 && (
+          <p className="mt-1 text-xs text-amber-600">
+            {t("department.drawer.no_manager_options")}
+          </p>
+        )}
       </Form>
     </Drawer>
   );

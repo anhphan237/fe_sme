@@ -11,12 +11,11 @@ afterEach(() => {
 });
 
 describe("Admin users page", () => {
-  it("shows user table with Invite User button", async () => {
+  it("shows actions and user table", async () => {
     renderWithProviders(<AdminUsers />);
 
-    expect(
-      await screen.findByRole("button", { name: /invite user/i }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /invite user/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /import excel/i })).toBeInTheDocument();
   });
 
   it("renders users from gateway mock", async () => {
@@ -24,5 +23,11 @@ describe("Admin users page", () => {
 
     expect(await screen.findByText("KK HR Manager")).toBeInTheDocument();
     expect(screen.getByText("John Doe")).toBeInTheDocument();
+  });
+
+  it("does not render manager column in list view", async () => {
+    renderWithProviders(<AdminUsers />);
+    await screen.findByText("KK HR Manager");
+    expect(screen.queryByText(/direct manager/i)).not.toBeInTheDocument();
   });
 });

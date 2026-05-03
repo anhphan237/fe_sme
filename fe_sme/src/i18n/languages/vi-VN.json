@@ -2476,7 +2476,9 @@
   "department.drawer.hint_edit": "Cập nhật thông tin phòng ban.",
   "department.drawer.manager_hint": "Người phụ trách dẫn dắt phòng ban này.",
   "department.drawer.manager_hint_edit": "Xóa trường này để hủy bỏ quản lý hiện tại.",
+  "department.drawer.no_manager_options": "Chưa có tài khoản quản lý. Vui lòng tạo người dùng vai trò MANAGER trước.",
   "department.error.manager_required": "Quản lý là bắt buộc.",
+  "department.error.type_required": "Loại phòng ban là bắt buộc.",
 
   "bulk_import.step.upload": "Tải lên",
   "bulk_import.step.map": "Ánh xạ cột",

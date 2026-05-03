@@ -1,27 +1,27 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { Drawer, Form, Skeleton, Tag } from "antd";
-import { notify } from "@/utils/notify";
 import dayjs from "dayjs";
 import BaseButton from "@/components/button";
+import BaseDatePicker from "@core/components/DatePicker";
 import BaseInput from "@core/components/Input/InputWithLabel";
 import BaseSelect from "@core/components/Select/BaseSelect";
-import BaseDatePicker from "@core/components/DatePicker";
 import { UserStatusTag } from "@core/components/Status/StatusTag";
-import {
-  apiGetUserById,
-  apiUpdateUser,
-  apiAssignRole,
-  apiRevokeRole,
-  apiDisableUser,
-} from "@/api/identity/identity.api";
-import { mapUserDetail } from "@/utils/mappers/identity";
+import { notify } from "@/utils/notify";
 import { useLocale } from "@/i18n";
 import { getPrimaryRole, ROLE_LABELS } from "@/shared/rbac";
-import { ROLE_BADGE_STYLES, ROLE_OPTIONS } from "../constants";
 import type { Role, User } from "@/shared/types";
 import type { DepartmentItem } from "@/interface/company";
+import {
+  apiAssignRole,
+  apiDisableUser,
+  apiGetUserById,
+  apiRevokeRole,
+  apiUpdateUser,
+} from "@/api/identity/identity.api";
+import { mapUserDetail } from "@/utils/mappers/identity";
+import { ROLE_BADGE_STYLES, ROLE_OPTIONS } from "../constants";
 
 interface EditForm {
   fullName: string;
@@ -34,6 +34,38 @@ interface EditForm {
   roleCode: string;
 }
 
+export interface UserDetailDrawerProps {
+  userId: string | null;
+  onClose: () => void;
+  onUpdated?: () => void;
+  users: User[];
+  departments: DepartmentItem[];
+}
+
+const DASH = "—";
+
+const cleanText = (value?: string | null): string | undefined => {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+};
+
+const normalizeDateForApi = (
+  value: dayjs.Dayjs | string | null | undefined,
+): string | undefined => {
+  if (!value) return undefined;
+  if (dayjs.isDayjs(value)) return value.format("YYYY-MM-DD");
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.format("YYYY-MM-DD") : undefined;
+};
+
+const renderDate = (value?: string | null): string => {
+  if (!value) return DASH;
+  const parsed = dayjs(value);
+  if (!parsed.isValid()) return value.slice(0, 10);
+  return parsed.format("YYYY-MM-DD");
+};
+
 const SectionLabel = ({
   label,
   className,
@@ -42,14 +74,11 @@ const SectionLabel = ({
   className?: string;
 }) => (
   <div className={`mb-3 flex items-center gap-2 ${className ?? ""}`}>
-    <span className="text-xs font-semibold uppercase tracking-wider text-[#758BA5]">
-      {label}
-    </span>
+    <span className="text-xs font-semibold uppercase tracking-wider text-[#758BA5]">{label}</span>
     <div className="h-px flex-1 bg-[#E8EDF3]" />
   </div>
 );
 
-// Always renders — shows "—" when empty
 const DetailRow = ({
   label,
   value,
@@ -59,20 +88,11 @@ const DetailRow = ({
 }) => (
   <div className="flex justify-between gap-4 border-b border-slate-100 py-2.5 text-sm last:border-0">
     <span className="shrink-0 text-slate-500">{label}</span>
-    <span
-      className={`text-right font-medium ${value ? "text-slate-800" : "text-slate-300"}`}>
-      {value || "—"}
+    <span className={`text-right font-medium ${value ? "text-slate-800" : "text-slate-300"}`}>
+      {value || DASH}
     </span>
   </div>
 );
-
-export interface UserDetailDrawerProps {
-  userId: string | null;
-  onClose: () => void;
-  onUpdated?: () => void;
-  users: User[];
-  departments: DepartmentItem[];
-}
 
 export const UserDetailDrawer = ({
   userId,
@@ -83,37 +103,38 @@ export const UserDetailDrawer = ({
 }: UserDetailDrawerProps) => {
   const { t } = useLocale();
   const queryClient = useQueryClient();
-  const enabled = Boolean(userId);
-
   const [form] = Form.useForm<EditForm>();
+
   const [mode, setMode] = useState<"view" | "edit">("view");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [toggling, setToggling] = useState(false);
-
   const initializedRef = useRef<string | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["user-detail", userId],
     queryFn: () => apiGetUserById(userId!),
-    enabled,
+    enabled: Boolean(userId),
     select: (res) => mapUserDetail(res as Parameters<typeof mapUserDetail>[0]),
   });
 
   const selectedDeptId = Form.useWatch("departmentId", form);
 
   const managerOptions = useMemo(() => {
-    const filtered = selectedDeptId
-      ? users.filter((u) => u.departmentId === selectedDeptId)
+    const filteredUsers = selectedDeptId
+      ? users.filter((user) => user.departmentId === selectedDeptId)
       : users;
-    return filtered.map((u) => ({ value: u.id, label: u.name || u.email }));
+    return filteredUsers.map((user) => ({
+      value: user.id,
+      label: user.name || user.email,
+    }));
   }, [users, selectedDeptId]);
 
   const roleOptions = useMemo(
     () =>
-      ROLE_OPTIONS.filter((o) => !o.isPlatform).map((o) => ({
-        value: o.value,
-        label: t(o.labelKey),
+      ROLE_OPTIONS.filter((option) => !option.isPlatform).map((option) => ({
+        value: option.value,
+        label: t(option.labelKey),
       })),
     [t],
   );
@@ -126,8 +147,10 @@ export const UserDetailDrawer = ({
 
   useEffect(() => {
     if (!data || !userId || initializedRef.current === userId) return;
-    const listUser = users.find((u) => u.id === userId);
-    const role = listUser ? getPrimaryRole(listUser.roles) : "EMPLOYEE";
+
+    const listUser = users.find((user) => user.id === userId);
+    const roleCode = listUser ? getPrimaryRole(listUser.roles) : "EMPLOYEE";
+
     form.setFieldsValue({
       fullName: data.fullName ?? "",
       phone: data.phone ?? "",
@@ -135,24 +158,25 @@ export const UserDetailDrawer = ({
       managerUserId: data.managerUserId ?? undefined,
       jobTitle: data.jobTitle ?? "",
       workLocation: data.workLocation ?? "",
-      startDate: data.startDate ? dayjs(data.startDate.slice(0, 10)) : null,
-      roleCode: role ?? "EMPLOYEE",
+      startDate: data.startDate ? dayjs(data.startDate) : null,
+      roleCode,
     });
-    initializedRef.current = userId;
-  }, [data, users, userId, form]);
 
-  const deptName =
-    departments.find((d) => d.departmentId === data?.departmentId)?.name ??
+    initializedRef.current = userId;
+  }, [data, form, userId, users]);
+
+  const listUser = users.find((user) => user.id === userId);
+  const currentRole = listUser ? getPrimaryRole(listUser.roles) : null;
+  const createdAt = listUser?.createdAt;
+  const isActive = data?.status === "ACTIVE" || data?.status === "INVITED";
+
+  const departmentName =
+    departments.find((department) => department.departmentId === data?.departmentId)?.name ??
     data?.departmentId;
   const managerName =
-    users.find((u) => u.id === data?.managerUserId)?.name ??
-    users.find((u) => u.id === data?.managerUserId)?.email ??
+    users.find((user) => user.id === data?.managerUserId)?.name ??
+    users.find((user) => user.id === data?.managerUserId)?.email ??
     data?.managerUserId;
-  const listUser = users.find((u) => u.id === userId);
-  const currentRole = listUser ? getPrimaryRole(listUser.roles) : null;
-  const isActive = data?.status === "ACTIVE" || data?.status === "INVITED";
-  // Get createdAt from the list data
-  const createdAt = listUser?.createdAt;
 
   const handleEdit = () => {
     setSaveError(null);
@@ -170,24 +194,24 @@ export const UserDetailDrawer = ({
     setSaveError(null);
     try {
       const values = await form.validateFields();
+
       await apiUpdateUser({
         userId: data.userId,
-        fullName: values.fullName?.trim() || undefined,
-        phone: values.phone?.trim() || undefined,
-        departmentId: values.departmentId || undefined,
-        managerUserId: values.managerUserId || undefined,
-        jobTitle: values.jobTitle?.trim() || undefined,
-        workLocation: values.workLocation?.trim() || undefined,
-        startDate: values.startDate
-          ? dayjs.isDayjs(values.startDate)
-            ? values.startDate.format("YYYY-MM-DD")
-            : String(values.startDate)
-          : undefined,
+        fullName: cleanText(values.fullName),
+        phone: cleanText(values.phone),
+        departmentId: cleanText(values.departmentId),
+        managerUserId: cleanText(values.managerUserId),
+        jobTitle: cleanText(values.jobTitle),
+        workLocation: cleanText(values.workLocation),
+        startDate: normalizeDateForApi(values.startDate),
       });
+
+      // Keep current FE flow as requested: revoke old role then assign new role.
       if (values.roleCode && values.roleCode !== currentRole) {
         if (currentRole) await apiRevokeRole(data.userId, currentRole as Role);
         await apiAssignRole(data.userId, values.roleCode as Role);
       }
+
       notify.success(t("user.update.success"));
       initializedRef.current = null;
       await Promise.all([
@@ -198,9 +222,7 @@ export const UserDetailDrawer = ({
       setMode("view");
     } catch (err) {
       if (err && typeof err === "object" && "errorFields" in err) return;
-      setSaveError(
-        err instanceof Error ? err.message : t("user.error.update_failed"),
-      );
+      setSaveError(err instanceof Error ? err.message : t("user.error.update_failed"));
     } finally {
       setSaving(false);
     }
@@ -245,11 +267,7 @@ export const UserDetailDrawer = ({
       </div>
     ) : (
       <div className="flex justify-end gap-2">
-        <BaseButton
-          htmlType="button"
-          onClick={handleCancelEdit}
-          label="global.cancel"
-        />
+        <BaseButton htmlType="button" onClick={handleCancelEdit} label="global.cancel" />
         <BaseButton
           type="primary"
           htmlType="button"
@@ -264,9 +282,7 @@ export const UserDetailDrawer = ({
   return (
     <Drawer
       open={Boolean(userId)}
-      title={
-        mode === "edit" ? t("user.detail.edit_title") : t("user.detail.title")
-      }
+      title={mode === "edit" ? t("user.detail.edit_title") : t("user.detail.title")}
       onClose={onClose}
       width={560}
       destroyOnClose
@@ -277,110 +293,69 @@ export const UserDetailDrawer = ({
         </div>
       ) : data ? (
         <div data-testid="user-detail-content">
-          {/* Header: avatar + name + meta */}
           <div className="mb-5 flex items-start gap-4 rounded-xl border border-[#E8EDF3] bg-[#F5F8FC] p-4">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#3684DB]/10 text-2xl font-bold text-[#3684DB]">
               {(data.fullName?.[0] ?? data.email?.[0] ?? "?").toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-base font-semibold text-[#223A59]">
-                {data.fullName}
-              </p>
-              <p className="mt-0.5 truncate text-sm text-[#758BA5]">
-                {data.email}
-              </p>
-              {(data.jobTitle || deptName) && (
+              <p className="truncate text-base font-semibold text-[#223A59]">{data.fullName}</p>
+              <p className="mt-0.5 truncate text-sm text-[#758BA5]">{data.email}</p>
+              {data.jobTitle || departmentName ? (
                 <p className="mt-0.5 truncate text-xs text-[#9BAEC2]">
-                  {[data.jobTitle, deptName].filter(Boolean).join(" · ")}
+                  {[data.jobTitle, departmentName].filter(Boolean).join(" · ")}
                 </p>
-              )}
+              ) : null}
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <UserStatusTag status={data.status} />
-                {currentRole && (
+                {currentRole ? (
                   <Tag
                     className={`text-xs ${ROLE_BADGE_STYLES[currentRole] ?? ROLE_BADGE_STYLES.EMPLOYEE}`}>
                     {ROLE_LABELS[currentRole]}
                   </Tag>
-                )}
-                {data.employeeCode && (
+                ) : null}
+                {data.employeeCode ? (
                   <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-mono text-slate-500">
                     {data.employeeCode}
                   </span>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
 
           {mode === "view" ? (
             <>
-              {/* Profile */}
               <SectionLabel label={t("user.section.profile")} />
               <div className="rounded-lg border border-slate-100 px-4">
                 <DetailRow label={t("user.detail.phone")} value={data.phone} />
-                <DetailRow
-                  label={t("user.detail.job_title")}
-                  value={data.jobTitle}
-                />
-                <DetailRow
-                  label={t("user.detail.work_location")}
-                  value={data.workLocation}
-                />
-                <DetailRow
-                  label={t("user.detail.start_date")}
-                  value={data.startDate?.slice(0, 10)}
-                />
-                {createdAt && (
-                  <DetailRow
-                    label={t("user.detail.created_at")}
-                    value={createdAt.slice(0, 10)}
-                  />
-                )}
+                <DetailRow label={t("user.detail.job_title")} value={data.jobTitle} />
+                <DetailRow label={t("user.detail.work_location")} value={data.workLocation} />
+                <DetailRow label={t("user.detail.start_date")} value={renderDate(data.startDate)} />
+                <DetailRow label={t("user.detail.created_at")} value={renderDate(createdAt)} />
               </div>
 
-              {/* Organization */}
-              <SectionLabel
-                label={t("user.section.organization")}
-                className="mt-4"
-              />
+              <SectionLabel label={t("user.section.organization")} className="mt-4" />
               <div className="rounded-lg border border-slate-100 px-4">
-                <DetailRow
-                  label={t("user.detail.department")}
-                  value={deptName}
-                />
-                <DetailRow
-                  label={t("user.detail.manager")}
-                  value={managerName}
-                />
+                <DetailRow label={t("user.detail.department")} value={departmentName} />
+                <DetailRow label={t("user.detail.manager")} value={managerName} />
               </div>
 
-              {/* Employee */}
-              <SectionLabel
-                label={t("user.section.employee")}
-                className="mt-4"
-              />
+              <SectionLabel label={t("user.section.employee")} className="mt-4" />
               <div className="rounded-lg border border-slate-100 px-4">
-                <DetailRow
-                  label={t("user.detail.employee_id")}
-                  value={data.employeeId}
-                />
-                <DetailRow
-                  label={t("user.detail.employee_code")}
-                  value={data.employeeCode}
-                />
+                <DetailRow label={t("user.detail.employee_id")} value={data.employeeId} />
+                <DetailRow label={t("user.detail.employee_code")} value={data.employeeCode} />
               </div>
             </>
           ) : (
             <Form form={form} layout="vertical">
-              {saveError && (
+              {saveError ? (
                 <div
                   role="alert"
                   aria-live="polite"
                   className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
                   {saveError}
                 </div>
-              )}
+              ) : null}
 
-              {/* Profile */}
               <SectionLabel label={t("user.section.profile")} />
               <div className="grid gap-3 sm:grid-cols-2">
                 <BaseInput name="fullName" label={t("user.name")} />
@@ -388,10 +363,7 @@ export const UserDetailDrawer = ({
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <BaseInput name="jobTitle" label={t("user.detail.job_title")} />
-                <BaseInput
-                  name="workLocation"
-                  label={t("user.detail.work_location")}
-                />
+                <BaseInput name="workLocation" label={t("user.detail.work_location")} />
               </div>
               <BaseDatePicker
                 name="startDate"
@@ -400,29 +372,19 @@ export const UserDetailDrawer = ({
                 className="w-full"
               />
 
-              {/* Organization */}
-              <SectionLabel
-                label={t("user.section.organization")}
-                className="mt-4"
-              />
-              <BaseSelect
-                name="roleCode"
-                label={t("user.detail.role")}
-                options={roleOptions}
-              />
+              <SectionLabel label={t("user.section.organization")} className="mt-4" />
+              <BaseSelect name="roleCode" label={t("user.detail.role")} options={roleOptions} />
               <div className="grid gap-3 sm:grid-cols-2">
                 <BaseSelect
                   name="departmentId"
                   label={t("user.invite.department_id")}
                   allowClear
-                  placeholder="—"
-                  options={departments.map((d) => ({
-                    value: d.departmentId,
-                    label: d.name,
+                  placeholder={t("user.invite.department_placeholder")}
+                  options={departments.map((department) => ({
+                    value: department.departmentId,
+                    label: department.name,
                   }))}
-                  onChange={() =>
-                    form.setFieldValue("managerUserId", undefined)
-                  }
+                  onChange={() => form.setFieldValue("managerUserId", undefined)}
                 />
                 <BaseSelect
                   name="managerUserId"
@@ -441,9 +403,7 @@ export const UserDetailDrawer = ({
           )}
         </div>
       ) : (
-        <p className="py-4 text-center text-sm text-slate-400">
-          {t("user.error.load_failed")}
-        </p>
+        <p className="py-4 text-center text-sm text-slate-400">{t("user.error.load_failed")}</p>
       )}
     </Drawer>
   );

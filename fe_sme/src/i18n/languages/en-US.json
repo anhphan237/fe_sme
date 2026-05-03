@@ -2464,7 +2464,9 @@
   "department.drawer.hint_edit": "Update the information for this department.",
   "department.drawer.manager_hint": "Person responsible for leading this department.",
   "department.drawer.manager_hint_edit": "Clear this field to remove the current manager.",
+  "department.drawer.no_manager_options": "No manager account found. Please create a MANAGER user first.",
   "department.error.manager_required": "Manager is required.",
+  "department.error.type_required": "Department type is required.",
 
   "bulk_import.step.upload": "Upload",
   "bulk_import.step.map": "Map Columns",

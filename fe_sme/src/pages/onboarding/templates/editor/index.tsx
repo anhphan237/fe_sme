@@ -303,6 +303,8 @@ const TemplateEditor = () => {
   const [form, setForm] = useState<EditorForm>(initialForm);
   const [stagePickerOpen, setStagePickerOpen] = useState(false);
   const [templateStatus, setTemplateStatus] = useState<string>("DRAFT");
+  const [templateLevel, setTemplateLevel] =
+    useState<OnboardingTemplate["level"]>("TENANT");
   const [cloneModalOpen, setCloneModalOpen] = useState(false);
   const [cloneName, setCloneName] = useState("");
   const [isCloning, setIsCloning] = useState(false);
@@ -315,8 +317,8 @@ const TemplateEditor = () => {
   const [libraryDrawerOpen, setLibraryDrawerOpen] = useState(false);
 
   const normalizedTemplateStatus = normalizeTemplateStatus(templateStatus);
-  // Existing templates must stay editable so saving calls the update endpoint.
-  const isReadOnly = false;
+  // Platform templates are view-only in this screen; tenant templates remain editable.
+  const isReadOnly = !isCreate && templateLevel === "PLATFORM";
   const editorModeTitle = isCreate
     ? t("onboarding.template.editor.title_create")
     : t("onboarding.template.editor.title_edit");
@@ -380,6 +382,7 @@ const TemplateEditor = () => {
     if (duplicateFrom) {
       const base = templateToForm(duplicateFrom);
       setForm({ ...base, name: `Copy of ${base.name}` });
+      setTemplateLevel(duplicateFrom.level ?? "TENANT");
       return;
     }
     if (!isCreate && templateRes) {
@@ -396,6 +399,7 @@ const TemplateEditor = () => {
           ),
         ),
       );
+      setTemplateLevel(tmpl.level ?? "TENANT");
       setForm(formData);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -569,6 +573,7 @@ const TemplateEditor = () => {
     try {
       const res = await apiCloneTemplate({
         sourceTemplateId: templateId,
+        level: templateLevel ?? "TENANT",
         name: cloneName.trim(),
       });
       const newId = extractTemplateId(res);

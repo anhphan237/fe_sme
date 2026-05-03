@@ -11,6 +11,8 @@ import type {
   CompanyOnboardingFunnelResponse,
   CompanyOnboardingByDepartmentRequest,
   CompanyOnboardingByDepartmentResponse,
+  CompanyOnboardingTrendRequest,
+  CompanyOnboardingTrendResponse,
   CompanyTaskCompletionRequest,
   CompanyTaskCompletionResponse,
   CreatePlatformTemplateRequest,
@@ -52,6 +54,15 @@ export const apiGetCompanyOnboardingByDepartment = (
     CompanyOnboardingByDepartmentRequest,
     CompanyOnboardingByDepartmentResponse
   >("com.sme.analytics.company.onboarding.byDepartment", payload);
+
+/** com.sme.analytics.company.onboarding.trend */
+export const apiGetCompanyOnboardingTrend = (
+  payload: CompanyOnboardingTrendRequest,
+) =>
+  gatewayRequest<
+    CompanyOnboardingTrendRequest,
+    CompanyOnboardingTrendResponse
+  >("com.sme.analytics.company.onboarding.trend", payload);
 
 /** com.sme.analytics.company.task.completion */
 export const apiGetCompanyTaskCompletion = (
