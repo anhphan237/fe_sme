@@ -12,12 +12,12 @@ import SurveyRecommendationCard from "./components/SurveyRecommendationCard";
 import SurveyTextFeedbackCard from "./components/SurveyTextFeedbackCard";
 import SurveyExecutiveSummaryCard from "./components/SurveyExecutiveSummaryCard";
 
-
 import { useSurveyReportsPage } from "./hooks/useSurveyReportsPage";
 import { useSurveyAiSummary } from "./hooks/useSurveyAiSummary";
 import { useLocale } from "@/i18n";
 import { useEffect, useMemo, useRef, useState } from "react";
 import ManagerEvaluationReportTab from "./components/ManagerEvaluationReportTab";
+import SurveyEmployeeInsightCard from "./components/SurveyEmployeeInsightCard";
 
 type TemplateOption = {
   value?: string;
@@ -127,8 +127,9 @@ const SurveyReports = () => {
   const aiSummaryMutation = useSurveyAiSummary();
   const reportFilters = filters as SurveyReportFilters;
 
-  const [activeTab, setActiveTab] =
-    useState<SurveyReportTab>("ONBOARDING_FEEDBACK");
+  const [activeTab, setActiveTab] = useState<SurveyReportTab>(
+    "ONBOARDING_FEEDBACK",
+  );
   const [refreshBlocked, setRefreshBlocked] = useState(false);
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -276,7 +277,10 @@ const SurveyReports = () => {
                   stageTrends={analytics?.stageTrends ?? []}
                   loading={analyticsLoading}
                 />
-
+                <SurveyEmployeeInsightCard
+                  analytics={analytics}
+                  loading={analyticsLoading}
+                />
                 <div className="grid gap-5 xl:grid-cols-2">
                   <SurveyDimensionChartCard
                     data={dimensionChartData}
@@ -317,15 +321,15 @@ const SurveyReports = () => {
                   />
                 </div>
 
-                <SurveyQuestionStatsTable
+                {/* <SurveyQuestionStatsTable
                   data={questionTableData}
                   loading={analyticsLoading}
-                />
+                /> */}
 
-                <SurveyResponsesTable
+                {/* <SurveyResponsesTable
                   responses={responses}
                   loading={responsesLoading}
-                />
+                /> */}
               </div>
             ),
           },
