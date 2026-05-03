@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Alert,
   Avatar,
   Button,
   Card,
@@ -11,6 +12,7 @@ import {
   Input,
   Modal,
   Progress,
+  Radio,
   Skeleton,
   Tabs,
   Tag,
@@ -48,6 +50,8 @@ import {
   apiActivateInstance,
   apiCancelInstance,
   apiCompleteInstance,
+  apiGetManagerEvaluationStatus,
+  apiSendManagerEvaluation,
   apiListTasks,
   apiGetTaskTimeline,
   apiUpdateTaskStatus,
@@ -67,7 +71,6 @@ import {
 } from "@/api/onboarding/onboarding.api";
 import { apiGetUserById, apiSearchUsers } from "@/api/identity/identity.api";
 import { apiUploadDocumentFile } from "@/api/document/document.api";
-import { extractList } from "@/api/core/types";
 import { mapInstance, mapTask, mapTemplate } from "@/utils/mappers/onboarding";
 import { mapUserDetail } from "@/utils/mappers/identity";
 import type { GetUserResponse, UserListItem } from "@/interface/identity";
@@ -85,18 +88,45 @@ import { STATUS_DONE, STATUS_DONE_API, STATUS_TAG_COLOR } from "./constants";
 import { formatDate } from "./helpers";
 import type { OnboardingTask } from "@/shared/types";
 import { AppLoading } from "@/components/page-loading";
+import { StageProgressCard } from "./components/StageProgressCard";
+import { RiskCard } from "./components/RiskCard";
+import { InfoCard } from "./components/InfoCard";
+import { extractList } from "@/api/core/types";
+
+type ManagerEvaluationMode = "SEND_NOW" | "SEND_LATER";
 
 const extractErrorMessage = (err: unknown, fallback: string): string => {
-  if (err instanceof Error && err.message.trim()) return err.message;
-  if (
-    typeof err === "object" &&
-    err !== null &&
-    "message" in err &&
-    typeof (err as { message?: unknown }).message === "string"
-  ) {
-    const msg = (err as { message: string }).message.trim();
-    if (msg) return msg;
+  if (err instanceof Error && err.message.trim()) {
+    return err.message.trim();
   }
+
+  if (typeof err === "object" && err !== null) {
+    const obj = err as Record<string, unknown>;
+
+    const response = obj.response as Record<string, unknown> | undefined;
+    const responseData = response?.data as Record<string, unknown> | undefined;
+    if (
+      typeof responseData?.message === "string" &&
+      responseData.message.trim()
+    ) {
+      return responseData.message.trim();
+    }
+
+    const data = obj.data as Record<string, unknown> | undefined;
+    if (typeof data?.message === "string" && data.message.trim()) {
+      return data.message.trim();
+    }
+
+    const result = obj.result as Record<string, unknown> | undefined;
+    if (typeof result?.message === "string" && result.message.trim()) {
+      return result.message.trim();
+    }
+
+    if (typeof obj.message === "string" && obj.message.trim()) {
+      return obj.message.trim();
+    }
+  }
+
   return fallback;
 };
 
@@ -388,7 +418,8 @@ const CompactTaskRow = ({
     <button
       type="button"
       onClick={() => onOpen(taskId)}
-      className="flex w-full items-start gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-blue-300 hover:bg-blue-50/40">
+      className="flex w-full items-start gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-blue-300 hover:bg-blue-50/40"
+    >
       <span
         className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
           isDone
@@ -434,8 +465,7 @@ const ActionQueuePanel = ({
   onOpenTask: (taskId: string) => void;
 }) => {
   const visiblePendingApprovalTasks = pendingApprovalTasks.filter(
-    (task) =>
-      !overdueTasks.some((overdueTask) => overdueTask.id === task.id),
+    (task) => !overdueTasks.some((overdueTask) => overdueTask.id === task.id),
   );
   const visibleScheduleIssueTasks = scheduleIssueTasks.filter(
     (task) =>
@@ -492,7 +522,9 @@ const ActionQueuePanel = ({
           {visiblePendingApprovalTasks.length > 0 && (
             <section>
               <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-amber-600">
-                <span>{t("onboarding.detail.action_queue.pending_approval")}</span>
+                <span>
+                  {t("onboarding.detail.action_queue.pending_approval")}
+                </span>
                 <span>{visiblePendingApprovalTasks.length}</span>
               </div>
               <div className="space-y-2">
@@ -511,7 +543,9 @@ const ActionQueuePanel = ({
           {visibleScheduleIssueTasks.length > 0 && (
             <section>
               <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-orange-600">
-                <span>{t("onboarding.detail.action_queue.schedule_issue")}</span>
+                <span>
+                  {t("onboarding.detail.action_queue.schedule_issue")}
+                </span>
                 <span>{visibleScheduleIssueTasks.length}</span>
               </div>
               <div className="space-y-2">
@@ -587,7 +621,8 @@ const AssigneeTimelinePanel = ({
           return (
             <div
               key={assignee.assigneeUserId ?? assigneeName}
-              className="rounded-lg border border-slate-200 bg-white p-3">
+              className="rounded-lg border border-slate-200 bg-white p-3"
+            >
               <div className="flex items-start gap-3">
                 <Avatar className="bg-slate-100 font-semibold text-slate-700">
                   {getInitials(assigneeName)}
@@ -712,7 +747,8 @@ const ActivityFeed = ({
                                     raw === "WAIT_ACK"
                                   ? "border-amber-200 bg-amber-50"
                                   : "border-gray-100 bg-gray-50"
-                          }`}>
+                          }`}
+                        >
                           {icon}
                         </div>
                         {!isLast && (
@@ -732,7 +768,8 @@ const ActivityFeed = ({
                               isDone
                                 ? "font-normal text-gray-400 line-through"
                                 : "font-medium text-gray-800"
-                            }`}>
+                            }`}
+                          >
                             {task.title || t("onboarding.detail.task.untitled")}
                           </span>
                           {task.dueDate && (
@@ -744,7 +781,8 @@ const ActivityFeed = ({
                         </div>
                         <Tag
                           color={STATUS_TAG_COLOR[raw] ?? "default"}
-                          style={{ margin: 0, fontSize: 11, flexShrink: 0 }}>
+                          style={{ margin: 0, fontSize: 11, flexShrink: 0 }}
+                        >
                           {t(`onboarding.task.status.${raw.toLowerCase()}`)}
                         </Tag>
                       </div>
@@ -785,6 +823,11 @@ const EmployeeDetail = () => {
   const [confirmAction, setConfirmAction] = useState<
     "cancel" | "complete" | null
   >(null);
+  const [managerEvaluationMode, setManagerEvaluationMode] =
+    useState<ManagerEvaluationMode>("SEND_NOW");
+  const [completeInlineError, setCompleteInlineError] = useState<string | null>(
+    null,
+  );
 
   // Schedule state
   const [scheduleMode, setScheduleMode] = useState<
@@ -885,6 +928,42 @@ const EmployeeDetail = () => {
     select: (res: unknown) => mapUserDetail(res as GetUserResponse),
   });
 
+  const { data: managerEvaluation, isFetching: managerEvaluationFetching } =
+    useQuery({
+      queryKey: ["manager-evaluation-status", instanceId],
+      enabled:
+        Boolean(instanceId) &&
+        canManage &&
+        ["DONE", "COMPLETED", "OFFICIAL"].includes(
+          String(instance?.status ?? "").toUpperCase(),
+        ),
+      queryFn: () => apiGetManagerEvaluationStatus(instanceId!),
+      select: (res: unknown) => {
+        const raw = res as Record<string, unknown>;
+        const data =
+          (raw?.data as Record<string, unknown> | undefined) ??
+          (raw?.result as Record<string, unknown> | undefined) ??
+          (raw?.payload as Record<string, unknown> | undefined) ??
+          raw;
+
+        return data as {
+          instanceId?: string;
+          onboardingStatus?: string;
+          managerEvaluationStatus?:
+            | "PENDING"
+            | "SENT"
+            | "SUBMITTED"
+            | "SKIPPED";
+          managerEvaluationSurveyInstanceId?: string | null;
+          managerUserId?: string | null;
+          managerName?: string | null;
+          targetEmployeeName?: string | null;
+          targetEmployeeEmail?: string | null;
+          message?: string | null;
+        };
+      },
+    });
+
   const { data: taskDetail, isLoading: taskDetailLoading } = useQuery({
     queryKey: ["onboarding-task-detail", selectedTaskId ?? ""],
     queryFn: () =>
@@ -983,7 +1062,36 @@ const EmployeeDetail = () => {
     mutationFn: (id: string) => apiCancelInstance(id),
   });
   const completeInstance = useMutation({
-    mutationFn: (id: string) => apiCompleteInstance(id),
+    mutationFn: ({ id, mode }: { id: string; mode: ManagerEvaluationMode }) =>
+      apiCompleteInstance({
+        instanceId: id,
+        managerEvaluationMode: mode,
+        managerEvaluationDueDays: mode === "SEND_NOW" ? 7 : undefined,
+      }),
+  });
+
+  const sendManagerEvaluationMutation = useMutation({
+    mutationFn: () =>
+      apiSendManagerEvaluation({
+        instanceId: instanceId!,
+        managerEvaluationDueDays: 7,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["manager-evaluation-status", instanceId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["instance", instanceId] });
+
+      notify.success("Đã gửi khảo sát đánh giá cho quản lý.");
+    },
+    onError: (err) => {
+      notify.error(
+        extractErrorMessage(
+          err,
+          "Không thể gửi khảo sát đánh giá. Vui lòng kiểm tra lại mẫu khảo sát.",
+        ),
+      );
+    },
   });
 
   const acknowledgeMutation = useMutation({
@@ -1128,6 +1236,32 @@ const EmployeeDetail = () => {
   const managerDisplayName =
     managerDetail?.fullName || instance?.managerName || "—";
 
+  const completedCount = tasks.filter((t) => t.status === STATUS_DONE).length;
+  const totalTasks = tasks.length;
+  const progressPercent =
+    totalTasks > 0
+      ? Math.round((completedCount / totalTasks) * 100)
+      : (instance?.progress ?? 0);
+
+  const stageProgress = useMemo(() => {
+    const groups: Record<
+      string,
+      { name: string; done: number; total: number }
+    > = {};
+    for (const task of tasks) {
+      const key = task.checklistName ?? "—";
+      if (!groups[key]) groups[key] = { name: key, done: 0, total: 0 };
+      groups[key].total++;
+      if (task.rawStatus === "DONE") groups[key].done++;
+    }
+    return Object.values(groups).map((g) => ({
+      name: g.name,
+      done: g.done,
+      total: g.total,
+      percent: Math.round((g.done / (g.total || 1)) * 100),
+    }));
+  }, [tasks]);
+
   const overdueTasks = useMemo(
     () =>
       tasks.filter(
@@ -1180,6 +1314,11 @@ const EmployeeDetail = () => {
   );
 
   const instanceStatus = instance?.status?.toUpperCase() ?? "";
+  const isEmployeeOfficialOrCompleted =
+    instanceStatus === "DONE" ||
+    instanceStatus === "COMPLETED" ||
+    instanceStatus === "OFFICIAL";
+
   const isActioning =
     activateInstance.isPending ||
     cancelInstance.isPending ||
@@ -1231,13 +1370,65 @@ const EmployeeDetail = () => {
 
   const handleComplete = async () => {
     if (!instanceId) return;
+
+    setCompleteInlineError(null);
+
     try {
-      await completeInstance.mutateAsync(instanceId);
+      const res = await completeInstance.mutateAsync({
+        id: instanceId,
+        mode: managerEvaluationMode,
+      });
+
       queryClient.invalidateQueries({ queryKey: ["instance", instanceId] });
-      notify.success(t("onboarding.detail.toast.completed"));
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-tasks-by-instance"],
+      });
+      queryClient.invalidateQueries({ queryKey: ["instances"] });
+      queryClient.invalidateQueries({ queryKey: ["onboarding-instances"] });
+      queryClient.invalidateQueries({
+        queryKey: ["manager-evaluation-status", instanceId],
+      });
+
+      const raw = res as Record<string, unknown>;
+      const data =
+        (raw?.data as Record<string, unknown> | undefined) ??
+        (raw?.result as Record<string, unknown> | undefined) ??
+        (raw?.payload as Record<string, unknown> | undefined) ??
+        raw;
+
+      const managerEvaluationStatus = String(
+        data?.managerEvaluationStatus ?? "",
+      ).toUpperCase();
+
+      if (managerEvaluationStatus === "SENT") {
+        notify.success(
+          t("onboarding.detail.toast.completed_with_manager_evaluation"),
+        );
+      } else if (managerEvaluationStatus === "PENDING") {
+        notify.success(
+          t("onboarding.detail.toast.completed_manager_evaluation_pending"),
+        );
+      } else if (managerEvaluationStatus === "SKIPPED") {
+        notify.success(
+          t("onboarding.detail.toast.completed_manager_evaluation_skipped"),
+        );
+      } else {
+        notify.success(t("onboarding.detail.toast.completed"));
+      }
+
       setConfirmAction(null);
-    } catch {
-      notify.error(t("onboarding.detail.toast.action_failed"));
+    } catch (err) {
+      const message = extractErrorMessage(
+        err,
+        t("onboarding.detail.toast.action_failed"),
+      );
+
+      if (managerEvaluationMode === "SEND_NOW") {
+        setCompleteInlineError(message);
+        return;
+      }
+
+      notify.error(message);
     }
   };
 
@@ -1469,7 +1660,8 @@ const EmployeeDetail = () => {
           </p>
           <Button
             className="mt-4"
-            onClick={() => navigate("/onboarding/employees")}>
+            onClick={() => navigate("/onboarding/employees")}
+          >
             {t("onboarding.detail.back_to_list")}
           </Button>
         </Card>
@@ -1489,7 +1681,8 @@ const EmployeeDetail = () => {
           <div className="flex min-w-0 gap-4">
             <Avatar
               size={64}
-              className="shrink-0 bg-slate-900 text-lg font-semibold text-white">
+              className="shrink-0 bg-slate-900 text-lg font-semibold text-white"
+            >
               {getInitials(employeeDisplayName)}
             </Avatar>
             <div className="min-w-0 flex-1">
@@ -1507,7 +1700,8 @@ const EmployeeDetail = () => {
                         ? "warning"
                         : "default"
                   }
-                  className="m-0">
+                  className="m-0"
+                >
                   {instance.status}
                 </Tag>
                 {templateDetail?.description && (
@@ -1521,10 +1715,12 @@ const EmployeeDetail = () => {
               <h1 className="truncate text-2xl font-semibold leading-tight text-slate-950">
                 {employeeDisplayName !== "-"
                   ? employeeDisplayName
-                  : (templateDetail?.name ?? t("onboarding.detail.title_fallback"))}
+                  : (templateDetail?.name ??
+                    t("onboarding.detail.title_fallback"))}
               </h1>
               <p className="mt-2 truncate text-sm text-slate-500">
-                {employeeDisplayEmail || t("onboarding.detail.profile.no_email")}
+                {employeeDisplayEmail ||
+                  t("onboarding.detail.profile.no_email")}
               </p>
             </div>
           </div>
@@ -1532,7 +1728,8 @@ const EmployeeDetail = () => {
           <div className="flex flex-wrap items-center gap-2 xl:justify-end">
             <Button
               icon={<ArrowLeft className="h-4 w-4" />}
-              onClick={() => navigate("/onboarding/employees")}>
+              onClick={() => navigate("/onboarding/employees")}
+            >
               {t("global.back")}
             </Button>
             {canManage && instanceStatus === "DRAFT" && (
@@ -1540,7 +1737,8 @@ const EmployeeDetail = () => {
                 type="primary"
                 icon={<PlayCircle className="h-4 w-4" />}
                 onClick={handleActivate}
-                disabled={isActioning}>
+                disabled={isActioning}
+              >
                 {t("onboarding.detail.action.activate")}
               </Button>
             )}
@@ -1549,14 +1747,16 @@ const EmployeeDetail = () => {
                 <Button
                   icon={<XCircle className="h-4 w-4" />}
                   onClick={() => setConfirmAction("cancel")}
-                  disabled={isActioning}>
+                  disabled={isActioning}
+                >
                   {t("onboarding.detail.action.cancel")}
                 </Button>
                 <Button
                   type="primary"
                   icon={<CheckCircle2 className="h-4 w-4" />}
                   onClick={() => setConfirmAction("complete")}
-                  disabled={isActioning}>
+                  disabled={isActioning}
+                >
                   {t("onboarding.detail.action.complete")}
                 </Button>
               </>
@@ -1565,6 +1765,87 @@ const EmployeeDetail = () => {
         </div>
       </div>
 
+      {/* ── Info card ────────────────────────────────────────────────────────── */}
+      <InfoCard
+        instance={instance}
+        template={templateDetail}
+        employeeDisplayName={employeeDisplayName}
+        employeeDisplayEmail={employeeDisplayEmail}
+        employeeDetail={employeeDetail}
+        managerDisplayName={managerDisplayName}
+        completedCount={completedCount}
+        totalTasks={totalTasks}
+        progressPercent={progressPercent}
+      />
+
+      {canManage && isEmployeeOfficialOrCompleted && (
+        <Card className="border border-slate-200 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold text-slate-900">
+                  Đánh giá sau onboarding
+                </p>
+
+                {managerEvaluationFetching && (
+                  <Tag color="default">Đang kiểm tra</Tag>
+                )}
+
+                {!managerEvaluationFetching &&
+                  managerEvaluation?.managerEvaluationStatus === "PENDING" && (
+                    <Tag color="warning">Chưa gửi</Tag>
+                  )}
+
+                {!managerEvaluationFetching &&
+                  managerEvaluation?.managerEvaluationStatus === "SENT" && (
+                    <Tag color="processing">Đã gửi</Tag>
+                  )}
+
+                {!managerEvaluationFetching &&
+                  managerEvaluation?.managerEvaluationStatus ===
+                    "SUBMITTED" && <Tag color="success">Đã hoàn tất</Tag>}
+              </div>
+
+              <p className="mt-1 text-sm text-slate-600">
+                {managerEvaluation?.managerEvaluationStatus === "PENDING"
+                  ? "Onboarding đã hoàn tất nhưng chưa gửi khảo sát đánh giá cho quản lý."
+                  : managerEvaluation?.managerEvaluationStatus === "SENT"
+                    ? "Khảo sát đánh giá đã được gửi cho quản lý. Đang chờ phản hồi."
+                    : managerEvaluation?.managerEvaluationStatus === "SUBMITTED"
+                      ? "Quản lý đã hoàn tất phần đánh giá nhân viên sau onboarding."
+                      : "Hệ thống sẽ kiểm tra trạng thái khảo sát đánh giá của quản lý."}
+              </p>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Quản lý:{" "}
+                <span className="font-medium text-slate-700">
+                  {managerEvaluation?.managerName || managerDisplayName || "—"}
+                </span>
+              </p>
+            </div>
+
+            {managerEvaluation?.managerEvaluationStatus === "PENDING" && (
+              <Button
+                type="primary"
+                loading={sendManagerEvaluationMutation.isPending}
+                onClick={() => sendManagerEvaluationMutation.mutate()}
+              >
+                Gửi khảo sát cho quản lý
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* ── Tabs ─────────────────────────────────────────────────────────────── */}
+      <Tabs
+        activeKey={tab}
+        onChange={setTab}
+        items={[
+          { key: "checklist", label: t("onboarding.detail.tab.checklist") },
+          { key: "activity", label: t("onboarding.detail.tab.activity") },
+        ]}
+      />
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 space-y-4">
           <div className="rounded-xl border border-slate-200 bg-white px-4 pt-2 shadow-sm">
@@ -1581,24 +1862,37 @@ const EmployeeDetail = () => {
             />
           </div>
 
+          {/* ── Checklist tab ────────────────────────────────────────────────────── */}
           {tab === "checklist" && (
-            <TaskListPanel
-              tasks={tasks}
-              isLoading={tasksLoading}
-              isUpdating={updateTaskStatus.isPending}
-              canManage={canManage}
-              currentUserId={userId}
-              canApproveOrReject={canApproveOrReject}
-              onToggle={handleToggleTask}
-              onOpenDrawer={openTaskDrawer}
-              onApprove={(task) => approveMutation.mutate(task.id)}
-              onReject={(task) => {
-                setSelectedTaskId(task.id);
-                setRejectModalOpen(true);
-              }}
-              isApproving={approveMutation.isPending}
-              isRejecting={rejectMutation.isPending}
-            />
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="flex flex-col gap-4">
+                <StageProgressCard stageProgress={stageProgress} />
+                <RiskCard
+                  tasks={tasks}
+                  onTaskClick={(taskId) => {
+                    const task = tasks.find((item) => item.id === taskId);
+                    if (task) openTaskDrawer(task);
+                  }}
+                />
+              </div>
+              <TaskListPanel
+                tasks={tasks}
+                isLoading={tasksLoading}
+                isUpdating={updateTaskStatus.isPending}
+                canManage={canManage}
+                currentUserId={userId}
+                canApproveOrReject={canApproveOrReject}
+                onToggle={handleToggleTask}
+                onOpenDrawer={openTaskDrawer}
+                onApprove={(task) => approveMutation.mutate(task.id)}
+                onReject={(task) => {
+                  setSelectedTaskId(task.id);
+                  setRejectModalOpen(true);
+                }}
+                isApproving={approveMutation.isPending}
+                isRejecting={rejectMutation.isPending}
+              />
+            </div>
           )}
 
           {tab === "activity" && <ActivityFeed tasks={tasks} t={t} />}
@@ -1773,7 +2067,8 @@ const EmployeeDetail = () => {
         }}
         okText={t("onboarding.task.action.reject")}
         cancelText={t("global.cancel_action")}
-        okButtonProps={{ danger: true, loading: rejectMutation.isPending }}>
+        okButtonProps={{ danger: true, loading: rejectMutation.isPending }}
+      >
         <div className="py-2">
           <p className="mb-3 text-sm text-gray-600">
             {t("onboarding.task.reject.desc")}
@@ -1793,7 +2088,8 @@ const EmployeeDetail = () => {
         open={confirmAction === "cancel"}
         title={t("onboarding.detail.action.confirm_cancel_title")}
         onCancel={() => setConfirmAction(null)}
-        footer={null}>
+        footer={null}
+      >
         <div className="grid gap-4">
           <p className="text-sm text-muted">
             {t("onboarding.detail.action.confirm_cancel_desc")}
@@ -1801,7 +2097,8 @@ const EmployeeDetail = () => {
           <div className="flex justify-end gap-3">
             <Button
               onClick={() => setConfirmAction(null)}
-              disabled={isActioning}>
+              disabled={isActioning}
+            >
               {t("global.cancel_action")}
             </Button>
             <Button onClick={handleCancel} disabled={isActioning}>
@@ -1814,24 +2111,149 @@ const EmployeeDetail = () => {
       {/* ── Confirm complete modal ───────────────────────────────────────────── */}
       <BaseModal
         open={confirmAction === "complete"}
-        title={t("onboarding.detail.action.confirm_complete_title")}
+        title="Hoàn tất onboarding"
         onCancel={() => setConfirmAction(null)}
-        footer={null}>
-        <div className="grid gap-4">
-          <p className="text-sm text-muted">
-            {t("onboarding.detail.action.confirm_complete_desc")}
-          </p>
-          <div className="flex justify-end gap-3">
+        footer={null}
+      >
+        <div className="grid gap-5">
+          <div className="space-y-2">
+            <p className="text-sm text-slate-600">
+              Bạn sắp hoàn tất quá trình onboarding cho nhân viên này.
+            </p>
+
+            <div className="rounded-xl bg-slate-50 px-4 py-3">
+              <p className="text-sm text-slate-700">
+                Sau bước này, nhân viên sẽ được chuyển sang{" "}
+                <span className="font-semibold text-slate-900">
+                  trạng thái chính thức
+                </span>
+                .
+              </p>
+
+              <p className="mt-1 text-sm text-slate-700">
+                <span className="font-medium text-slate-900">
+                  Quản lý nhận đánh giá:
+                </span>{" "}
+                {managerDisplayName || "—"}
+              </p>
+            </div>
+          </div>
+
+          {completeInlineError && (
+            <Alert
+              type="warning"
+              showIcon
+              message="Chưa thể gửi đánh giá ngay"
+              description={
+                <div className="space-y-3">
+                  <p>{completeInlineError}</p>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        setManagerEvaluationMode("SEND_LATER");
+                        setCompleteInlineError(null);
+                      }}
+                    >
+                      Chọn gửi sau
+                    </Button>
+
+                    <Button
+                      size="small"
+                      type="primary"
+                      onClick={() => {
+                        navigate("/surveys/templates/new", {
+                          state: {
+                            preset: "MANAGER_EVALUATION_COMPLETED",
+                            stage: "COMPLETED",
+                            targetRole: "MANAGER",
+                            isDefault: true,
+                            status: "ACTIVE",
+                          },
+                        });
+                      }}
+                    >
+                      Tạo mẫu đánh giá
+                    </Button>
+                  </div>
+                </div>
+              }
+            />
+          )}
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="mb-3 text-sm font-semibold text-slate-900">
+              Chọn thời điểm gửi đánh giá cho quản lý
+            </p>
+
+            <Radio.Group
+              value={managerEvaluationMode}
+              onChange={(event) => {
+                setManagerEvaluationMode(
+                  event.target.value as ManagerEvaluationMode,
+                );
+                setCompleteInlineError(null);
+              }}
+              className="grid gap-3"
+            >
+              <label
+                className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${
+                  managerEvaluationMode === "SEND_NOW"
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-slate-200 bg-white hover:border-slate-300"
+                }`}
+              >
+                <Radio value="SEND_NOW" className="mt-0.5" />
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-900">
+                    Gửi ngay sau khi hoàn tất
+                  </div>
+                  <div className="mt-1 text-sm leading-6 text-slate-600">
+                    Hệ thống sẽ gửi khảo sát đánh giá cho quản lý ngay sau khi
+                    onboarding được hoàn tất. Nếu chưa có mẫu khảo sát mặc định,
+                    hệ thống sẽ báo để HR kiểm tra lại.
+                  </div>
+                </div>
+              </label>
+
+              <label
+                className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${
+                  managerEvaluationMode === "SEND_LATER"
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-slate-200 bg-white hover:border-slate-300"
+                }`}
+              >
+                <Radio value="SEND_LATER" className="mt-0.5" />
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-900">
+                    Để gửi sau
+                  </div>
+                  <div className="mt-1 text-sm leading-6 text-slate-600">
+                    Onboarding vẫn được hoàn tất ngay. Sau đó, HR có thể gửi
+                    khảo sát đánh giá cho quản lý từ trang chi tiết onboarding
+                    này.
+                  </div>
+                </div>
+              </label>
+            </Radio.Group>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-1">
             <Button
               onClick={() => setConfirmAction(null)}
-              disabled={isActioning}>
-              {t("global.cancel_action")}
+              disabled={isActioning}
+            >
+              Quay lại
             </Button>
+
             <Button
               type="primary"
               onClick={handleComplete}
-              disabled={isActioning}>
-              {t("onboarding.detail.action.confirm")}
+              loading={completeInstance.isPending}
+              disabled={isActioning}
+            >
+              Hoàn tất onboarding
             </Button>
           </div>
         </div>

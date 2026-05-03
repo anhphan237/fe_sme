@@ -249,11 +249,7 @@ export default function DocumentBlockEditor({
       updateBlock(block.id, {
         type: nextType,
         text:
-          block.text ??
-          checklistToText(block) ??
-          block.alt ??
-          block.src ??
-          "",
+          block.text ?? checklistToText(block) ?? block.alt ?? block.src ?? "",
         checked: undefined,
         level: undefined,
         src: undefined,
@@ -450,7 +446,7 @@ export default function DocumentBlockEditor({
       if (!valid) return;
 
       if (!onUploadImage) {
-        message.error(t("document.block.image.upload_not_configured"));
+        message.error(t("document.block.image.upload_error"));
         return;
       }
 
@@ -1006,19 +1002,27 @@ export default function DocumentBlockEditor({
                       )}
 
                       {block.src ? (
-                        <figure className="overflow-hidden rounded-2xl border border-stroke bg-slate-50">
+                        readOnly ? (
                           <img
                             src={block.src}
                             alt={block.alt || ""}
-                            className="max-h-[420px] w-full object-contain"
+                            className="mx-auto max-h-[680px] max-w-full object-contain"
                           />
+                        ) : (
+                          <figure className="overflow-hidden rounded-2xl border border-stroke bg-slate-50">
+                            <img
+                              src={block.src}
+                              alt={block.alt || ""}
+                              className="max-h-[420px] w-full object-contain"
+                            />
 
-                          {block.alt && (
-                            <figcaption className="border-t border-stroke px-3 py-2 text-center text-xs text-muted">
-                              {block.alt}
-                            </figcaption>
-                          )}
-                        </figure>
+                            {block.alt && (
+                              <figcaption className="border-t border-stroke px-3 py-2 text-center text-xs text-muted">
+                                {block.alt}
+                              </figcaption>
+                            )}
+                          </figure>
+                        )
                       ) : (
                         <div className="flex min-h-40 items-center justify-center rounded-2xl border border-dashed border-stroke bg-slate-50 text-sm text-muted">
                           <PictureOutlined className="mr-2" />

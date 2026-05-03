@@ -347,3 +347,66 @@ export type SurveyAiSummaryResponse = {
   aiAvailable?: boolean;
   errorMessage?: string;
 };
+export type ManagerEvaluationReportRequest = {
+  startDate?: string;
+  endDate?: string;
+  templateId?: string;
+  managerUserId?: string;
+  keyword?: string;
+  status?: string;
+  fitLevel?: string;
+};
+
+export type ManagerEvaluationDimensionScore = {
+  dimensionCode: string;
+  dimensionName?: string | null;
+  score?: number | null;
+};
+
+export type ManagerEvaluationTextFeedback = {
+  question?: string | null;
+  answer?: string | null;
+};
+
+export type ManagerEvaluationEmployeeRow = {
+  surveyInstanceId: string;
+  surveyResponseId?: string | null;
+  onboardingId?: string | null;
+  employeeUserId?: string | null;
+  employeeName?: string | null;
+  employeeEmail?: string | null;
+  jobTitle?: string | null;
+  departmentName?: string | null;
+  managerUserId?: string | null;
+  managerName?: string | null;
+  managerEmail?: string | null;
+  status?: string | null;
+  averageScore?: number | null;
+  fitLevel?: string | null;
+  fitLabel?: string | null;
+  recommendation?: string | null;
+  recommendationLabel?: string | null;
+  sentAt?: string | null;
+  submittedAt?: string | null;
+  completedAt?: string | null;
+  dimensionScores?: ManagerEvaluationDimensionScore[];
+  textFeedbacks?: ManagerEvaluationTextFeedback[];
+};
+
+export type ManagerEvaluationReportSummary = {
+  totalEmployees: number;
+  sentCount: number;
+  submittedCount: number;
+  pendingCount: number;
+  responseRate: number;
+  averageScore: number;
+  fitCount: number;
+  needFollowUpCount: number;
+  notFitCount: number;
+  notEvaluatedCount: number;
+};
+
+export type ManagerEvaluationReportResponse = {
+  summary: ManagerEvaluationReportSummary;
+  employees: ManagerEvaluationEmployeeRow[];
+};

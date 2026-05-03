@@ -1,4 +1,4 @@
-import {  useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { DragEvent } from "react";
 import { Button, Dropdown, Empty, Skeleton, Tooltip, message } from "antd";
 import type { MenuProps } from "antd";
@@ -50,6 +50,7 @@ interface DocFolderTreeProps {
   onSelectDocument?: (documentId: string, folderId: string) => void;
   onCreateRoot?: () => void;
   onCreateChild?: (parentId: string) => void;
+  onCreateDocument?: (folderId: string) => void;
   onRename?: (folderId: string, currentName: string) => void;
   onDelete?: (folderId: string) => void;
   onMoveFolder?: (
@@ -61,6 +62,7 @@ interface DocFolderTreeProps {
     sourceFolderId: string,
     targetFolderId: string,
   ) => Promise<void> | void;
+  showAllDocuments?: boolean;
 }
 
 const DND_MIME = "application/x-sme-document-tree";
@@ -73,7 +75,21 @@ const formatI18n = (
     return result.replaceAll(`{{${key}}}`, String(value));
   }, template);
 };
+const compareFolderByName = (a: DocFolderNode, b: DocFolderNode) => {
+  return (a.name ?? "").localeCompare(b.name ?? "", "vi", {
+    sensitivity: "base",
+    numeric: true,
+  });
+};
 
+const sortFoldersByName = (nodes: DocFolderNode[]): DocFolderNode[] => {
+  return [...nodes]
+    .map((node) => ({
+      ...node,
+      children: sortFoldersByName(node.children ?? []),
+    }))
+    .sort(compareFolderByName);
+};
 const normalizeDocuments = (node: DocFolderNode): FolderDocItem[] => {
   const raw = (node as { documents?: unknown[] }).documents;
   if (!Array.isArray(raw)) return [];
@@ -200,7 +216,11 @@ const readDragPayload = (event: DragEvent<HTMLElement>): DragPayload | null => {
     const parsed = JSON.parse(raw) as DragPayload;
 
     if (parsed.kind === "folder" && parsed.folderId) return parsed;
-    if (parsed.kind === "document" && parsed.documentId && parsed.sourceFolderId) {
+    if (
+      parsed.kind === "document" &&
+      parsed.documentId &&
+      parsed.sourceFolderId
+    ) {
       return parsed;
     }
 
@@ -296,10 +316,12 @@ function TreeNodeItem({
   onSelect,
   onSelectDocument,
   onCreateChild,
+  onCreateDocument,
   onRename,
   onDelete,
   onMoveFolder,
   onMoveDocument,
+  onEnsureExpanded,
   onSetDragOverFolder,
 }: {
   node: DocFolderNode;
@@ -314,6 +336,7 @@ function TreeNodeItem({
   onSelect: (folderId: string) => void;
   onSelectDocument?: (documentId: string, folderId: string) => void;
   onCreateChild?: (parentId: string) => void;
+  onCreateDocument?: (folderId: string) => void;
   onRename?: (folderId: string, currentName: string) => void;
   onDelete?: (folderId: string) => void;
   onMoveFolder?: (
@@ -325,11 +348,15 @@ function TreeNodeItem({
     sourceFolderId: string,
     targetFolderId: string,
   ) => Promise<void> | void;
+  onEnsureExpanded: (folderId: string) => void;
   onSetDragOverFolder: (folderId: string | null) => void;
 }) {
   const { t } = useLocale();
 
-  const children = node.children ?? [];
+  const children = useMemo(
+    () => [...(node.children ?? [])].sort(compareFolderByName),
+    [node.children],
+  );
   const documents = normalizeDocuments(node);
 
   const hasChildren = children.length > 0;
@@ -347,6 +374,11 @@ function TreeNodeItem({
       key: "create-child",
       icon: <FolderAddOutlined />,
       label: t("document.folder.new_sub"),
+    },
+    {
+      key: "create-document",
+      icon: <FileTextOutlined />,
+      label: t("document.workspace.new_doc"),
     },
     {
       key: "rename",
@@ -369,6 +401,13 @@ function TreeNodeItem({
 
     if (key === "create-child") {
       onCreateChild?.(node.folderId);
+      onEnsureExpanded(node.folderId);
+      return;
+    }
+
+    if (key === "create-document") {
+      onCreateDocument?.(node.folderId);
+      onEnsureExpanded(node.folderId);
       return;
     }
 
@@ -391,6 +430,10 @@ function TreeNodeItem({
       kind: "folder",
       folderId: node.folderId,
     });
+  };
+
+  const handleFolderDragEnd = () => {
+    onSetDragOverFolder(null);
   };
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
@@ -432,6 +475,7 @@ function TreeNodeItem({
       }
 
       await onMoveFolder(payload.folderId, node.folderId);
+      onEnsureExpanded(node.folderId);
       return;
     }
 
@@ -443,6 +487,7 @@ function TreeNodeItem({
         payload.sourceFolderId,
         node.folderId,
       );
+      onEnsureExpanded(node.folderId);
     }
   };
 
@@ -451,6 +496,7 @@ function TreeNodeItem({
       <div
         draggable={canDragFolder}
         onDragStart={handleFolderDragStart}
+        onDragEnd={handleFolderDragEnd}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -539,10 +585,12 @@ function TreeNodeItem({
               onSelect={onSelect}
               onSelectDocument={onSelectDocument}
               onCreateChild={onCreateChild}
+              onCreateDocument={onCreateDocument}
               onRename={onRename}
               onDelete={onDelete}
               onMoveFolder={onMoveFolder}
               onMoveDocument={onMoveDocument}
+              onEnsureExpanded={onEnsureExpanded}
               onSetDragOverFolder={onSetDragOverFolder}
             />
           ))}
@@ -575,30 +623,34 @@ export default function DocFolderTree({
   onSelectDocument,
   onCreateRoot,
   onCreateChild,
+  onCreateDocument,
   onRename,
   onDelete,
   onMoveFolder,
   onMoveDocument,
+  showAllDocuments = true,
 }: DocFolderTreeProps) {
   const { t } = useLocale();
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
+  const [isRootDragOver, setIsRootDragOver] = useState(false);
+  const sortedRoots = useMemo(() => sortFoldersByName(roots), [roots]);
+  const selectedAncestorPath = useMemo(() => {
+    const path = findPathToFolder(sortedRoots, selectedId);
 
- const selectedPath = useMemo(
-  () => findPathToFolder(roots, selectedId),
-  [roots, selectedId],
-);
+    return path.slice(0, -1);
+  }, [sortedRoots, selectedId]);
 
-const visibleExpandedIds = useMemo(() => {
-  const next = new Set(expandedIds);
+  const visibleExpandedIds = useMemo(() => {
+    const next = new Set(expandedIds);
 
-  selectedPath.forEach((folderId) => {
-    next.add(folderId);
-  });
+    selectedAncestorPath.forEach((folderId) => {
+      next.add(folderId);
+    });
 
-  return next;
-}, [expandedIds, selectedPath]);
+    return next;
+  }, [expandedIds, selectedAncestorPath]);
 
   const toggleExpand = (folderId: string) => {
     setExpandedIds((current) => {
@@ -614,6 +666,32 @@ const visibleExpandedIds = useMemo(() => {
     });
   };
 
+  const ensureExpanded = (folderId: string) => {
+    setExpandedIds((current) => {
+      if (current.has(folderId)) return current;
+
+      const next = new Set(current);
+      next.add(folderId);
+      return next;
+    });
+  };
+
+  const handleRootDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!canManage || !onMoveFolder) return;
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setIsRootDragOver(true);
+  };
+
+  const handleRootDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    const nextTarget = event.relatedTarget as Node | null;
+
+    if (!nextTarget || !event.currentTarget.contains(nextTarget)) {
+      setIsRootDragOver(false);
+    }
+  };
+
   const handleDropToRoot = async (event: DragEvent<HTMLDivElement>) => {
     if (!canManage || !onMoveFolder) return;
 
@@ -621,11 +699,15 @@ const visibleExpandedIds = useMemo(() => {
     event.stopPropagation();
 
     setDragOverFolderId(null);
+    setIsRootDragOver(false);
 
     const payload = readDragPayload(event);
     if (!payload || payload.kind !== "folder") return;
 
     await onMoveFolder(payload.folderId, null);
+
+    // Sau khi kéo folder con ra root, chọn folder đó nhưng không ép expand.
+    onSelect(payload.folderId);
   };
 
   return (
@@ -655,35 +737,63 @@ const visibleExpandedIds = useMemo(() => {
         )}
       </div>
 
+      {showAllDocuments && (
+        <div
+          className={[
+            "mb-2 flex cursor-pointer items-center gap-2 rounded-xl px-2 py-2 text-sm transition",
+            selectedId === null
+              ? "bg-brand/10 text-brand"
+              : "text-ink hover:bg-slate-50 hover:text-brand",
+          ].join(" ")}
+          onClick={() => onSelect(null)}
+          onDragOver={(event) => {
+            if (!canManage || !onMoveFolder) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+          }}
+          onDrop={handleDropToRoot}
+        >
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+            <FileTextOutlined />
+          </span>
+
+          <span className="min-w-0 flex-1 truncate font-semibold">
+            {t("document.folder.all_documents")}
+          </span>
+
+          <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-muted">
+            {totalCount}
+          </span>
+        </div>
+      )}
+      {!showAllDocuments && canManage && onMoveFolder && (
+        <div
+          className={[
+            "mb-2 rounded-xl border border-dashed px-3 py-2 text-xs transition",
+            isRootDragOver
+              ? "border-brand bg-brand/10 text-brand"
+              : "border-slate-200 bg-slate-50 text-muted",
+          ].join(" ")}
+          onDragOver={handleRootDragOver}
+          onDragLeave={handleRootDragLeave}
+          onDrop={handleDropToRoot}
+        >
+          {t(
+            isRootDragOver
+              ? "document.folder.root_drop_active"
+              : "document.folder.root_drop_hint",
+          )}
+        </div>
+      )}
       <div
         className={[
-          "mb-2 flex cursor-pointer items-center gap-2 rounded-xl px-2 py-2 text-sm transition",
-          selectedId === null
-            ? "bg-brand/10 text-brand"
-            : "text-ink hover:bg-slate-50 hover:text-brand",
+          "min-h-0 flex-1 overflow-y-auto rounded-2xl pr-1 transition",
+          isRootDragOver ? "bg-brand/5 ring-2 ring-brand/20" : "",
         ].join(" ")}
-        onClick={() => onSelect(null)}
-        onDragOver={(event) => {
-          if (!canManage || !onMoveFolder) return;
-          event.preventDefault();
-          event.dataTransfer.dropEffect = "move";
-        }}
+        onDragOver={handleRootDragOver}
+        onDragLeave={handleRootDragLeave}
         onDrop={handleDropToRoot}
       >
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-          <FileTextOutlined />
-        </span>
-
-        <span className="min-w-0 flex-1 truncate font-semibold">
-          {t("document.folder.all_documents")}
-        </span>
-
-        <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-muted">
-          {totalCount}
-        </span>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
         {loading ? (
           <div className="space-y-2 px-1">
             {Array.from({ length: 8 }).map((_, index) => (
@@ -699,7 +809,7 @@ const visibleExpandedIds = useMemo(() => {
               </div>
             ))}
           </div>
-        ) : roots.length === 0 ? (
+        ) : sortedRoots.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-stroke bg-slate-50 px-3 py-6">
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -725,12 +835,12 @@ const visibleExpandedIds = useMemo(() => {
           </div>
         ) : (
           <div className="space-y-0.5">
-            {roots.map((node) => (
+            {sortedRoots.map((node) => (
               <TreeNodeItem
                 key={node.folderId}
                 node={node}
                 level={0}
-                treeRoots={roots}
+                treeRoots={sortedRoots}
                 selectedId={selectedId}
                 selectedDocumentId={selectedDocumentId}
                 expandedIds={visibleExpandedIds}
@@ -740,10 +850,12 @@ const visibleExpandedIds = useMemo(() => {
                 onSelect={onSelect}
                 onSelectDocument={onSelectDocument}
                 onCreateChild={onCreateChild}
+                onCreateDocument={onCreateDocument}
                 onRename={onRename}
                 onDelete={onDelete}
                 onMoveFolder={onMoveFolder}
                 onMoveDocument={onMoveDocument}
+                onEnsureExpanded={ensureExpanded}
                 onSetDragOverFolder={setDragOverFolderId}
               />
             ))}

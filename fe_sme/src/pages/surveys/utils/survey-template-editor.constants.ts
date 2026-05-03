@@ -52,3 +52,40 @@ export const getDimensionOptions = (t: TranslateFn): OptionItem[] => [
   { value: "CULTURE", label: t("survey.dimension.culture") || "Culture" },
   { value: "GENERAL", label: t("survey.dimension.general") || "General" },
 ];
+
+export const getManagerEvaluationDimensionOptions = (
+  t: (key: string) => string,
+) => [
+  {
+    value: "ROLE_FIT",
+    label: t("survey.dimension.manager.roleFit"),
+  },
+  {
+    value: "WORK_QUALITY",
+    label: t("survey.dimension.manager.workQuality"),
+  },
+  {
+    value: "LEARNING_ABILITY",
+    label: t("survey.dimension.manager.learningAbility"),
+  },
+  {
+    value: "PROACTIVENESS",
+    label: t("survey.dimension.manager.proactiveness"),
+  },
+  {
+    value: "TEAM_INTEGRATION",
+    label: t("survey.dimension.manager.teamIntegration"),
+  },
+  {
+    value: "ATTITUDE_CULTURE",
+    label: t("survey.dimension.manager.attitudeCulture"),
+  },
+  {
+    value: "RECOMMENDATION",
+    label: t("survey.dimension.manager.recommendation"),
+  },
+  {
+    value: "OVERALL_COMMENT",
+    label: t("survey.dimension.manager.overallComment"),
+  },
+];

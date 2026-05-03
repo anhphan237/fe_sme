@@ -52,9 +52,16 @@ const EmployeeDetail = lazy(
 const OnboardingTasks = lazy(() => import("@/pages/onboarding/tasks"));
 const OnboardingApprovals = lazy(() => import("@/pages/onboarding/approvals"));
 const OnboardingSchedule = lazy(() => import("@/pages/onboarding/schedule"));
-const Documents = lazy(() => import("@/pages/documents/Documents"));
+const DocumentFilesPage = lazy(
+  () => import("@/pages/documents/DocumentFilesPage"),
+);
+const DocumentWorkspacePage = lazy(
+  () => import("@/pages/documents/DocumentWorkspacePage"),
+);
 const DocumentDetail = lazy(() => import("@/pages/documents/DocumentDetail"));
-const DocumentEditor = lazy(() => import("@/pages/documents/editor/DocumentEditor"));
+const DocumentEditor = lazy(
+  () => import("@/pages/documents/editor/DocumentEditor"),
+);
 const SurveyTemplates = lazy(() => import("@/pages/surveys/SurveyTemplates"));
 const SurveyTemplateEditor = lazy(
   () => import("@/pages/surveys/SurveyTemplateEditor"),
@@ -291,7 +298,7 @@ export const router = createBrowserRouter([
         path: "/onboarding/company-event-templates",
         element: suspense(withRoles(<CompanyEventTemplates />, ["HR"])),
       },
-  
+
       {
         path: "/onboarding/my-journey",
         element: <Navigate to="/dashboard/employee" replace />,
@@ -369,21 +376,29 @@ export const router = createBrowserRouter([
       },
       {
         path: "/documents",
+        element: <Navigate to="/documents/files" replace />,
+      },
+      {
+        path: "/documents/files",
         element: suspense(
-          withRoles(<Documents />, ["ADMIN", "HR", "MANAGER", "EMPLOYEE"]),
+          withRoles(<DocumentFilesPage />, ["HR", "MANAGER", "EMPLOYEE"]),
         ),
       },
       {
-        path: "/documents/:documentId",
+        path: "/documents/files/:documentId",
         element: suspense(
-          withRoles(<DocumentDetail />, ["ADMIN", "HR", "MANAGER", "EMPLOYEE"]),
+          withRoles(<DocumentDetail />, ["HR", "MANAGER", "EMPLOYEE"]),
+        ),
+      },
+      {
+        path: "/documents/workspace",
+        element: suspense(
+          withRoles(<DocumentWorkspacePage />, ["HR", "MANAGER"]),
         ),
       },
       {
         path: "/documents/editor/:documentId",
-        element: suspense(
-          withRoles(<DocumentEditor />, ["ADMIN", "HR", "MANAGER", "EMPLOYEE"]),
-        ),
+        element: suspense(withRoles(<DocumentEditor />, ["HR", "MANAGER", "EMPLOYEE"])),
       },
       {
         path: "/surveys/templates",
