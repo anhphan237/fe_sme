@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate, type NavigateFunction } from "react-router-dom";
 import { clsx } from "clsx";
 import { Empty, Skeleton } from "antd";
@@ -525,6 +525,8 @@ const BillingPlan = () => {
   const [selected, setSelected] = useState<string | null>(null);
   const [billingCycleOverride, setBillingCycleOverride] =
     useState<BillingCycle | null>(null);
+  /** Synchronous guard — blocks double click before isPending re-renders. */
+  const planChangeConfirmLockRef = useRef(false);
 
   const { data: plans = [], isLoading } = useQuery({
     queryKey: ["plans"],
@@ -626,6 +628,8 @@ const BillingPlan = () => {
 
   const handleConfirm = () => {
     if (!selected) return;
+    if (isPending || planChangeConfirmLockRef.current) return;
+    planChangeConfirmLockRef.current = true;
 
     if (subscription?.subscriptionId) {
       updateSub.mutate(
@@ -647,6 +651,9 @@ const BillingPlan = () => {
             );
           },
           onError: (error) => notify.error(`Failed: ${getErrorMessage(error)}`),
+          onSettled: () => {
+            planChangeConfirmLockRef.current = false;
+          },
         },
       );
 
@@ -672,12 +679,16 @@ const BillingPlan = () => {
             );
           },
           onError: (error) => notify.error(`Failed: ${getErrorMessage(error)}`),
+          onSettled: () => {
+            planChangeConfirmLockRef.current = false;
+          },
         },
       );
 
       return;
     }
 
+    planChangeConfirmLockRef.current = false;
     notify.warning(
       "No company selected. Please switch tenant or contact support.",
     );
