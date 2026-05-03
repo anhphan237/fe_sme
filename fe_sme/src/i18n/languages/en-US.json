@@ -4427,6 +4427,11 @@
 
 "survey.managerEvaluation.answerTable.question": "Question",
 "survey.managerEvaluation.answerTable.type": "Type",
-"survey.managerEvaluation.answerTable.answer": "Answer"
+"survey.managerEvaluation.answerTable.answer": "Answer",
+"document.detail.pdf_preview_hint": "This PDF can be previewed directly here. If there are any display issues, please download to view the full document.",
+"document.action.open": "Open PDF",
+"document.filter.uploaded_file": "Uploaded files",
+"document.filter.web_document": "Web documents"
+  
 
 }

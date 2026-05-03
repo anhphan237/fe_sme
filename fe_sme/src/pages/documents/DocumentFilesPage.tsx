@@ -387,8 +387,6 @@ function BatchToolbar({
               <span className="rounded-full bg-slate-100 px-2 py-0.5">
                 Sẵn sàng xử lý
               </span>
-
-        
             </div>
           </div>
         </div>
@@ -640,8 +638,8 @@ export default function DocumentFilesPage() {
           className="w-40"
           options={[
             { label: t("document.filter.all_types"), value: "ALL" },
-            { label: t("document.filter.type_file"), value: "FILE" },
-            { label: t("document.filter.type_doc"), value: "EDITOR" },
+            { label: t("document.filter.uploaded_file"), value: "FILE" },
+            { label: t("document.filter.web_document"), value: "EDITOR" },
           ]}
           suffixIcon={<FilterOutlined />}
         />
