@@ -53,14 +53,35 @@ type FileDocumentItem = DocumentItem & {
   title?: string;
   ackCount?: number;
   readCount?: number;
+
+  fileName?: string | null;
+  originalFileName?: string | null;
+  fileType?: string | null;
+  mimeType?: string | null;
+  contentType?: string | null;
 };
 
 type DocumentTab = "ALL" | "LIBRARY_FILE" | "WORKSPACE_DOC";
+
+type FileFormatFilter =
+  | "ALL"
+  | "PDF"
+  | "WORD"
+  | "EXCEL"
+  | "POWERPOINT"
+  | "IMAGE"
+  | "TEXT"
+  | "ARCHIVE"
+  | "OTHER";
+
+type FileFormatGroup = Exclude<FileFormatFilter, "ALL"> | "WEB";
 
 type PageDoc = UnifiedDoc & {
   source?: "UPLOAD" | "WORKSPACE";
   documentGroup?: "LIBRARY_FILE" | "WORKSPACE_DOC";
   editorDocumentId?: string | null;
+  fileExtension?: string;
+  fileFormat?: FileFormatGroup;
   createdAt?: string;
   updatedAt?: string;
   ackCount?: number;
@@ -137,10 +158,98 @@ function getWorkspaceDocumentTitle(doc: FileDocumentItem) {
   return "Tài liệu soạn trên hệ thống";
 }
 
+function getExtensionFromValue(value?: string | null) {
+  if (!value) return "";
+
+  const cleanValue = value.split("?")[0].split("#")[0];
+  const fileName = cleanValue.split("/").pop() ?? cleanValue;
+
+  if (!fileName.includes(".")) return "";
+
+  return fileName.split(".").pop()?.toLowerCase()?.trim() ?? "";
+}
+
+function getMimeExtension(value?: string | null) {
+  if (!value) return "";
+
+  const mime = value.toLowerCase();
+
+  if (mime.includes("pdf")) return "pdf";
+
+  if (
+    mime.includes("word") ||
+    mime.includes("msword") ||
+    mime.includes("officedocument.wordprocessingml")
+  ) {
+    return "docx";
+  }
+
+  if (
+    mime.includes("excel") ||
+    mime.includes("spreadsheet") ||
+    mime.includes("officedocument.spreadsheetml")
+  ) {
+    return "xlsx";
+  }
+
+  if (
+    mime.includes("powerpoint") ||
+    mime.includes("presentation") ||
+    mime.includes("officedocument.presentationml")
+  ) {
+    return "pptx";
+  }
+
+  if (mime.includes("jpeg")) return "jpg";
+  if (mime.includes("jpg")) return "jpg";
+  if (mime.includes("png")) return "png";
+  if (mime.includes("gif")) return "gif";
+  if (mime.includes("webp")) return "webp";
+  if (mime.includes("svg")) return "svg";
+
+  if (mime.includes("markdown")) return "md";
+  if (mime.includes("text")) return "txt";
+
+  if (mime.includes("zip")) return "zip";
+  if (mime.includes("rar")) return "rar";
+  if (mime.includes("7z")) return "7z";
+
+  return "";
+}
+
+function getFileFormatGroup(extension?: string): FileFormatGroup {
+  const ext = extension?.toLowerCase()?.trim() ?? "";
+
+  if (ext === "pdf") return "PDF";
+  if (["doc", "docx"].includes(ext)) return "WORD";
+  if (["xls", "xlsx", "csv"].includes(ext)) return "EXCEL";
+  if (["ppt", "pptx"].includes(ext)) return "POWERPOINT";
+  if (["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext)) {
+    return "IMAGE";
+  }
+  if (["txt", "md"].includes(ext)) return "TEXT";
+  if (["zip", "rar", "7z"].includes(ext)) return "ARCHIVE";
+
+  return "OTHER";
+}
+
+function getUploadedFileExtension(doc: FileDocumentItem) {
+  return (
+    getMimeExtension(doc.mimeType) ||
+    getMimeExtension(doc.contentType) ||
+    getMimeExtension(doc.fileType) ||
+    getExtensionFromValue(doc.originalFileName) ||
+    getExtensionFromValue(doc.fileName) ||
+    getExtensionFromValue(doc.name) ||
+    getExtensionFromValue(doc.fileUrl)
+  );
+}
+
 function toUnifiedFile(doc: FileDocumentItem): PageDoc {
   const fileUrl = normalizeDocumentFileUrl(doc.fileUrl);
   const isWorkspace = isWorkspaceDocumentUrl(fileUrl);
   const editorDocumentId = getWorkspaceDocumentId(fileUrl);
+  const fileExtension = isWorkspace ? "web" : getUploadedFileExtension(doc);
 
   return {
     id: doc.documentId,
@@ -154,6 +263,8 @@ function toUnifiedFile(doc: FileDocumentItem): PageDoc {
     status: doc.status || "ACTIVE",
     fileUrl,
     editorDocumentId,
+    fileExtension,
+    fileFormat: isWorkspace ? "WEB" : getFileFormatGroup(fileExtension),
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
     ackCount: doc.ackCount,
@@ -415,6 +526,8 @@ export default function DocumentFilesPage() {
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"grid" | "list">("grid");
   const [kindFilter, setKindFilter] = useState<DocKind | "ALL">("ALL");
+  const [fileFormatFilter, setFileFormatFilter] =
+    useState<FileFormatFilter>("ALL");
   const [documentTab, setDocumentTab] = useState<DocumentTab>("ALL");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -439,6 +552,12 @@ export default function DocumentFilesPage() {
       docs = docs.filter((doc) => doc.kind === kindFilter);
     }
 
+    if (fileFormatFilter !== "ALL") {
+      docs = docs.filter(
+        (doc) => doc.kind === "FILE" && doc.fileFormat === fileFormatFilter,
+      );
+    }
+
     if (documentTab === "LIBRARY_FILE") {
       docs = docs.filter((doc) => doc.documentGroup === "LIBRARY_FILE");
     }
@@ -454,13 +573,15 @@ export default function DocumentFilesPage() {
         return (
           doc.title.toLowerCase().includes(keyword) ||
           (doc.description?.toLowerCase().includes(keyword) ?? false) ||
-          (doc.status?.toLowerCase().includes(keyword) ?? false)
+          (doc.status?.toLowerCase().includes(keyword) ?? false) ||
+          (doc.fileExtension?.toLowerCase().includes(keyword) ?? false) ||
+          (doc.fileFormat?.toLowerCase().includes(keyword) ?? false)
         );
       });
     }
 
     return [...docs].sort(sortDocuments);
-  }, [allFileDocs, documentTab, kindFilter, search]);
+  }, [allFileDocs, documentTab, fileFormatFilter, kindFilter, search]);
 
   const totalFiles = allFileDocs.length;
 
@@ -482,6 +603,8 @@ export default function DocumentFilesPage() {
 
   const isInitialLoading = fileDocsLoading;
   const isRefreshing = fileDocsFetching && !isInitialLoading;
+  const isFormatFilterDisabled =
+    kindFilter === "EDITOR" || documentTab === "WORKSPACE_DOC";
 
   const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["file-documents"] });
@@ -617,7 +740,15 @@ export default function DocumentFilesPage() {
         <Tabs
           size="small"
           activeKey={documentTab}
-          onChange={(key) => setDocumentTab(key as DocumentTab)}
+          onChange={(key) => {
+            const nextTab = key as DocumentTab;
+
+            setDocumentTab(nextTab);
+
+            if (nextTab === "WORKSPACE_DOC") {
+              setFileFormatFilter("ALL");
+            }
+          }}
           items={documentTabItems}
         />
       </div>
@@ -634,12 +765,39 @@ export default function DocumentFilesPage() {
 
         <Select
           value={kindFilter}
-          onChange={(value) => setKindFilter(value as DocKind | "ALL")}
-          className="w-40"
+          onChange={(value) => {
+            const nextValue = value as DocKind | "ALL";
+
+            setKindFilter(nextValue);
+
+            if (nextValue === "EDITOR") {
+              setFileFormatFilter("ALL");
+            }
+          }}
+          className="w-52"
           options={[
-            { label: t("document.filter.all_types"), value: "ALL" },
+            { label: t("document.filter.all_sources"), value: "ALL" },
             { label: t("document.filter.uploaded_file"), value: "FILE" },
             { label: t("document.filter.web_document"), value: "EDITOR" },
+          ]}
+          suffixIcon={<FilterOutlined />}
+        />
+
+        <Select
+          value={fileFormatFilter}
+          onChange={(value) => setFileFormatFilter(value as FileFormatFilter)}
+          className="w-56"
+          disabled={isFormatFilterDisabled}
+          options={[
+            { label: t("document.filter.all_formats"), value: "ALL" },
+            { label: "PDF", value: "PDF" },
+            { label: "Word (.doc/.docx)", value: "WORD" },
+            { label: "Excel (.xls/.xlsx/.csv)", value: "EXCEL" },
+            { label: "PowerPoint (.ppt/.pptx)", value: "POWERPOINT" },
+            { label: t("document.filter.format_image"), value: "IMAGE" },
+            { label: t("document.filter.format_text"), value: "TEXT" },
+            { label: t("document.filter.format_archive"), value: "ARCHIVE" },
+            { label: t("document.filter.format_other"), value: "OTHER" },
           ]}
           suffixIcon={<FilterOutlined />}
         />

@@ -4431,7 +4431,13 @@
 "document.detail.pdf_preview_hint": "This PDF can be previewed directly here. If there are any display issues, please download to view the full document.",
 "document.action.open": "Open PDF",
 "document.filter.uploaded_file": "Uploaded files",
-"document.filter.web_document": "Web documents"
-  
+"document.filter.web_document": "Web documents",
+"document.filter.all_sources": "All sources",
+"document.filter.all_formats": "All formats",
+"document.filter.format_image": "Images (.jpg/.png...)",
+"document.filter.format_text": "Text / Markdown",
+"document.filter.format_archive": "Archives",
+"document.filter.format_other": "Other"
+
 
 }

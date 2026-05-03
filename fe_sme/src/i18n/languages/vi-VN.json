@@ -4539,7 +4539,11 @@
 "document.detail.pdf_preview_hint": "Tệp PDF có thể xem trước trực tiếp tại đây. Nếu có vấn đề về hiển thị, vui lòng tải xuống để xem đầy đủ.",
 "document.action.open": "Mở PDF",
 "document.filter.uploaded_file": "File tải lên",
-"document.filter.web_document": "Tài liệu soạn trên web"
-
-
+"document.filter.web_document": "Tài liệu soạn trên web",
+  "document.filter.all_sources": "Tất cả nguồn",
+  "document.filter.all_formats": "Tất cả định dạng",
+  "document.filter.format_image": "Ảnh (.jpg/.png...)",
+  "document.filter.format_text": "Text / Markdown",
+  "document.filter.format_archive": "File nén",
+  "document.filter.format_other": "Khác"
 }
